@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="100%" height="100%">
+  <defs>
+    <!-- 배경 그라데이션 -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6" />
+      <stop offset="100%" stop-color="#1e3a8a" />
+    </linearGradient>
+    <!-- 폴더 뒷면 그림자 효과 -->
+    <linearGradient id="folderBack" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#93c5fd" />
+      <stop offset="100%" stop-color="#60a5fa" />
+    </linearGradient>
+  </defs>
+
+  <!-- 앱 아이콘 배경 (스쿼클) -->
+  <rect x="16" y="16" width="224" height="224" rx="52" fill="url(#bgGrad)" />
+
+  <!-- 폴더 뒷면 -->
+  <path d="M 56 88 
+           C 56 79.16 63.16 72 72 72 
+           L 104 72 
+           C 111 72 116 75.5 120 81.5 
+           L 128 93.5 
+           C 130 96.5 134 98 138 98 
+           L 184 98 
+           C 192.84 98 200 105.16 200 114 
+           L 200 184 
+           C 200 192.84 192.84 200 184 200 
+           L 72 200 
+           C 63.16 200 56 192.84 56 184 
+           Z" 
+        fill="url(#folderBack)" />
+
+  <!-- 폴더 앞면 -->
+  <path d="M 48 116 
+           C 48 107.16 55.16 100 64 100 
+           L 192 100 
+           C 200.84 100 208 107.16 208 116 
+           L 208 184 
+           C 208 192.84 200.84 200 192 200 
+           L 64 200 
+           C 55.16 200 48 192.84 48 184 
+           Z" 
+        fill="#ffffff" />
+
+  <!-- 중앙 클라우드 아이콘 -->
+  <path d="M 108 160 
+           A 16 16 0 0 1 108 128 
+           A 24 24 0 0 1 152 120 
+           A 20 20 0 0 1 160 160 
+           Z" 
+        fill="#3b82f6" />
+
+  <!-- 동기화/연결 화살표 -->
+  <path d="M 124 136 L 124 152 M 118 142 L 124 136 L 130 142 M 140 152 L 140 136 M 134 146 L 140 152 L 146 146" 
+        stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+</svg>
