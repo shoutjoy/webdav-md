@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { createClient } from 'webdav';
 import { 
   Folder, File, Download, Trash2, Edit, Upload, 
-  LogOut, RefreshCw, ArrowLeft, AlertCircle 
+  LogOut, RefreshCw, ArrowLeft, AlertCircle, Copy, Check 
 } from 'lucide-react';
 
 export default function App() {
@@ -16,12 +16,58 @@ export default function App() {
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+  const [copiedKey, setCopiedKey] = useState(null);
 
   const fileInputRef = useRef(null);
   const clientRef = useRef(null);
+  const dragCounterRef = useRef(0);
 
   const joinRemotePath = (dirPath, name) =>
     dirPath === '/' ? `/${name}` : `${dirPath.replace(/\/$/, '')}/${name}`;
+
+  const buildPublicUrl = (baseUrl, remotePath) => {
+    const base = baseUrl.trim().replace(/\/$/, '');
+    const path = remotePath.startsWith('/') ? remotePath : `/${remotePath}`;
+    const encoded = path
+      .split('/')
+      .map((seg, i) => (i === 0 && seg === '' ? '' : encodeURIComponent(seg)))
+      .join('/');
+    return `${base}${encoded}`;
+  };
+
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        return true;
+      } catch {
+        return false;
+      } finally {
+        document.body.removeChild(textarea);
+      }
+    }
+  };
+
+  const handleCopyUrl = async (remotePath, key) => {
+    const publicUrl = buildPublicUrl(url, remotePath);
+    const ok = await copyToClipboard(publicUrl);
+    if (ok) {
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 2000);
+    } else {
+      setError('클립보드 복사에 실패했습니다.');
+    }
+  };
 
   /** 401이면 연결 정보(url·계정)는 유지한 채 로그인 화면으로 복귀 */
   const returnToLoginIfUnauthorized = (err) => {
@@ -74,6 +120,7 @@ export default function App() {
       const newFiles = items
         .map((item) => ({
           name: item.basename,
+          remotePath: item.filename,
           isDirectory: item.type === 'directory',
           size: item.size ?? 0,
           lastModified: item.lastmod ? new Date(item.lastmod) : null,
@@ -122,24 +169,96 @@ export default function App() {
     }
   };
 
-  // 파일 업로드
-  const handleUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  const ensureParentDirectories = async (client, filePath) => {
+    const parts = filePath.split('/').filter(Boolean);
+    parts.pop();
+    let dirPath = '';
+    for (const part of parts) {
+      dirPath += `/${part}`;
+      try {
+        await client.createDirectory(dirPath);
+      } catch {
+        // directory may already exist
+      }
+    }
+  };
 
+  const uploadFile = async (file, relativePath) => {
     const client = clientRef.current;
     if (!client) return;
+
+    const filePath = joinRemotePath(currentPath, relativePath || file.name);
+    await ensureParentDirectories(client, filePath);
+    const body = await file.arrayBuffer();
+    await client.putFileContents(filePath, body, {
+      headers: {
+        'Content-Type': file.type || 'application/octet-stream',
+      },
+    });
+  };
+
+  const readDirectoryEntry = async (dirEntry, basePath = '') => {
+    const files = [];
+    const reader = dirEntry.createReader();
+
+    const readEntries = () =>
+      new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+
+    let entries = [];
+    let batch;
+    do {
+      batch = await readEntries();
+      entries = entries.concat(batch);
+    } while (batch.length > 0);
+
+    for (const entry of entries) {
+      if (entry.isFile) {
+        const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+        const relativePath = basePath ? `${basePath}/${file.name}` : file.name;
+        files.push({ file, relativePath });
+      } else if (entry.isDirectory) {
+        const subPath = basePath ? `${basePath}/${entry.name}` : entry.name;
+        const subFiles = await readDirectoryEntry(entry, subPath);
+        files.push(...subFiles);
+      }
+    }
+    return files;
+  };
+
+  const collectDropFiles = async (dataTransfer) => {
+    const items = [...dataTransfer.items];
+    const result = [];
+
+    for (const item of items) {
+      const entry = item.webkitGetAsEntry?.();
+      if (!entry) continue;
+      if (entry.isFile) {
+        const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+        result.push({ file, relativePath: file.name });
+      } else if (entry.isDirectory) {
+        const dirFiles = await readDirectoryEntry(entry, entry.name);
+        result.push(...dirFiles);
+      }
+    }
+
+    if (result.length === 0 && dataTransfer.files.length > 0) {
+      for (const file of dataTransfer.files) {
+        result.push({ file, relativePath: file.name });
+      }
+    }
+    return result;
+  };
+
+  const uploadFiles = async (fileEntries) => {
+    const client = clientRef.current;
+    if (!client || fileEntries.length === 0) return;
 
     setLoading(true);
     setError('');
     try {
-      const filePath = joinRemotePath(currentPath, file.name);
-      const body = await file.arrayBuffer();
-      await client.putFileContents(filePath, body, {
-        headers: {
-          'Content-Type': file.type || 'application/octet-stream',
-        },
-      });
+      for (const { file, relativePath } of fileEntries) {
+        await uploadFile(file, relativePath);
+      }
       await loadDirectory(currentPath);
     } catch (err) {
       if (!returnToLoginIfUnauthorized(err)) {
@@ -147,8 +266,47 @@ export default function App() {
       }
     } finally {
       setLoading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  // 파일 업로드
+  const handleUpload = async (e) => {
+    const selected = [...e.target.files];
+    if (selected.length === 0) return;
+
+    await uploadFiles(selected.map((file) => ({ file, relativePath: file.name })));
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    dragCounterRef.current += 1;
+    if (e.dataTransfer.types.includes('Files')) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current === 0) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    dragCounterRef.current = 0;
+    setIsDragging(false);
+    if (loading) return;
+
+    const fileEntries = await collectDropFiles(e.dataTransfer);
+    await uploadFiles(fileEntries);
   };
 
   // 파일 삭제
@@ -308,7 +466,7 @@ export default function App() {
           <div className="flex items-center space-x-2">
             <input 
               type="file" ref={fileInputRef} onChange={handleUpload} 
-              className="hidden" 
+              className="hidden" multiple
             />
             <button 
               onClick={() => fileInputRef.current?.click()} disabled={loading}
@@ -336,6 +494,22 @@ export default function App() {
           </div>
         </div>
 
+        {/* 현재 폴더 접속 URL */}
+        <div className="border-b border-gray-200 px-4 py-2 bg-gray-50 flex items-center gap-2">
+          <span className="text-xs text-gray-500 shrink-0">접속 URL</span>
+          <div className="font-mono text-sm text-gray-700 truncate flex-1 min-w-0">
+            {buildPublicUrl(url, currentPath)}
+          </div>
+          <button
+            onClick={() => handleCopyUrl(currentPath, 'folder')}
+            disabled={loading}
+            className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md shrink-0 disabled:opacity-50 transition"
+            title="접속 URL 복사"
+          >
+            {copiedKey === 'folder' ? <Check size={16} className="text-green-600" /> : <Copy size={16} />}
+          </button>
+        </div>
+
         {/* 에러 메시지 */}
         {error && (
           <div className="p-3 bg-red-50 text-red-600 text-sm border-b border-red-100 flex items-center">
@@ -344,7 +518,21 @@ export default function App() {
         )}
 
         {/* 파일 목록 */}
-        <div className="overflow-x-auto">
+        <div
+          className="relative overflow-x-auto"
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
+          {isDragging && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-blue-50/90 border-2 border-dashed border-blue-400 pointer-events-none">
+              <div className="text-blue-600 font-medium flex items-center gap-2">
+                <Upload size={20} />
+                파일/폴더를 여기에 놓으세요
+              </div>
+            </div>
+          )}
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 text-gray-500 text-sm border-b border-gray-200">
@@ -389,6 +577,21 @@ export default function App() {
                   </td>
                   <td className="p-3 text-right whitespace-nowrap">
                     <div className="flex justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCopyUrl(file.remotePath, `item-${idx}`);
+                        }}
+                        disabled={loading}
+                        className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded"
+                        title="접속 URL 복사"
+                      >
+                        {copiedKey === `item-${idx}` ? (
+                          <Check size={16} className="text-green-600" />
+                        ) : (
+                          <Copy size={16} />
+                        )}
+                      </button>
                       {!file.isDirectory && (
                         <button 
                           onClick={() => handleDownload(file.name)} disabled={loading}
