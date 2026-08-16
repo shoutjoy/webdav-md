@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
+import { create } from 'zustand';
 import { createClient } from 'webdav';
 import CodeEditPage from './components/CodeEditPage.jsx';
 import FileExplorer from './components/FileExplorer.jsx';
@@ -74,16 +75,96 @@ const MEDIA_MIME_TYPES = {
   pdf: 'application/pdf',
 };
 
+const getDirectoryName = (path) => {
+  if (path === '/') return '/';
+  return path.replace(/\/$/, '').split('/').filter(Boolean).at(-1) || '/';
+};
+
+const createDirectoryNode = (path, entries = [], loaded = false) => ({
+  path,
+  name: getDirectoryName(path),
+  isDirectory: true,
+  loaded,
+  entries,
+});
+
+const findDirectoryNode = (node, targetPath) => {
+  if (!node) return null;
+  if (node.path === targetPath) return node;
+
+  for (const entry of node.entries || []) {
+    if (!entry.isDirectory) continue;
+    const match = findDirectoryNode(entry, targetPath);
+    if (match) return match;
+  }
+
+  return null;
+};
+
+const hydrateDirectoryEntries = (entries, tree) =>
+  entries.map((entry) => {
+    if (!entry.isDirectory) return entry;
+
+    const existingNode = findDirectoryNode(tree, entry.remotePath);
+    return {
+      ...entry,
+      entries: existingNode?.entries || [],
+      loaded: existingNode?.loaded || false,
+    };
+  });
+
+const updateDirectoryNode = (node, targetPath, nextEntries) => {
+  if (!node) return node;
+  if (node.path === targetPath) {
+    return {
+      ...node,
+      loaded: true,
+      entries: nextEntries,
+    };
+  }
+
+  let changed = false;
+  const entries = (node.entries || []).map((entry) => {
+    if (!entry.isDirectory) return entry;
+
+    const updated = updateDirectoryNode(entry, targetPath, nextEntries);
+    if (updated !== entry) changed = true;
+    return updated;
+  });
+
+  return changed ? { ...node, entries } : node;
+};
+
+const useDirectoryStore = create((set) => ({
+  currentPath: '/',
+  currentFiles: [],
+  directoryTree: createDirectoryNode('/'),
+  setDirectoryContents: (path, rawEntries) =>
+    set((state) => {
+      const currentFiles = hydrateDirectoryEntries(rawEntries, state.directoryTree);
+      const directoryTree = updateDirectoryNode(state.directoryTree, path, currentFiles);
+
+      return {
+        currentPath: path,
+        currentFiles,
+        directoryTree,
+      };
+    }),
+  resetDirectoryState: () =>
+    set({
+      currentPath: '/',
+      currentFiles: [],
+      directoryTree: createDirectoryNode('/'),
+    }),
+}));
+
 export default function App() {
   const [url, setUrl] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [saveLoginInfo, setSaveLoginInfo] = useState(false);
-  
+
   const [isConnected, setIsConnected] = useState(false);
-  const [currentPath, setCurrentPath] = useState('/');
-  const [files, setFiles] = useState([]);
-  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [isDragging, setIsDragging] = useState(false);
@@ -104,6 +185,12 @@ export default function App() {
   const editorContentRef = useRef('');
   const splitContainerRef = useRef(null);
   const toastTimerRef = useRef(null);
+  const mediaPreviewUrlRef = useRef('');
+  const currentPath = useDirectoryStore((state) => state.currentPath);
+  const files = useDirectoryStore((state) => state.currentFiles);
+  const directoryTree = useDirectoryStore((state) => state.directoryTree);
+  const setDirectoryContents = useDirectoryStore((state) => state.setDirectoryContents);
+  const resetDirectoryState = useDirectoryStore((state) => state.resetDirectoryState);
 
   const hasEditorChanges = selectedFile?.viewMode === 'text' && editorContent !== savedContent;
 
@@ -170,15 +257,25 @@ export default function App() {
   };
 
   /** 401이면 연결 정보(url·계정)는 유지한 채 로그인 화면으로 복귀 */
-  const returnToLoginIfUnauthorized = (err) => {
+  const clearMediaPreview = useCallback(() => {
+    if (mediaPreviewUrlRef.current) URL.revokeObjectURL(mediaPreviewUrlRef.current);
+    mediaPreviewUrlRef.current = '';
+    setMediaPreviewUrl('');
+    setMediaPreviewType('');
+  }, []);
+
+  const returnToLoginIfUnauthorized = useCallback((err) => {
     if (err?.status !== 401) return false;
     clientRef.current = null;
     setIsConnected(false);
-    setFiles([]);
-    setCurrentPath('/');
+    resetDirectoryState();
+    setSelectedFile(null);
+    setEditorContent('');
+    setSavedContent('');
+    clearMediaPreview();
     setError('인증이 필요합니다(401). 비밀번호를 확인한 뒤 다시 접속해 주세요.');
     return true;
-  };
+  }, [clearMediaPreview, resetDirectoryState]);
 
   // 연결 및 루트 디렉토리 읽기
   const handleConnect = async (e) => {
@@ -212,7 +309,7 @@ export default function App() {
   };
 
   // 특정 디렉토리 읽기
-  const loadDirectory = async (path) => {
+  const loadDirectory = useCallback(async (path) => {
     const client = clientRef.current;
     if (!client) {
       setError('클라이언트가 초기화되지 않았습니다.');
@@ -235,8 +332,7 @@ export default function App() {
           if (a.isDirectory === b.isDirectory) return a.name.localeCompare(b.name);
           return a.isDirectory ? -1 : 1;
         });
-      setFiles(newFiles);
-      setCurrentPath(path);
+      setDirectoryContents(path, newFiles);
       return true;
     } catch (err) {
       if (returnToLoginIfUnauthorized(err)) return false;
@@ -245,7 +341,7 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [returnToLoginIfUnauthorized, setDirectoryContents]);
 
   const navigateToDirectory = async (path) => {
     const previousPath = currentPath;
@@ -269,12 +365,6 @@ export default function App() {
   const getFileExtension = (fileName) => fileName.toLowerCase().split('.').at(-1) || '';
 
   const getMediaFileType = (fileName) => MEDIA_FILE_TYPES[getFileExtension(fileName)] || '';
-
-  const clearMediaPreview = () => {
-    if (mediaPreviewUrl) URL.revokeObjectURL(mediaPreviewUrl);
-    setMediaPreviewUrl('');
-    setMediaPreviewType('');
-  };
 
   const confirmEditorClose = () => {
     if (!hasEditorChanges) return true;
@@ -621,7 +711,7 @@ export default function App() {
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [isConnected]);
+  }, [isConnected, loadDirectory]);
 
   useEffect(() => {
     if (!hasEditorChanges) return;
@@ -647,6 +737,10 @@ export default function App() {
     return () => {
       if (mediaPreviewUrl) URL.revokeObjectURL(mediaPreviewUrl);
     };
+  }, [mediaPreviewUrl]);
+
+  useEffect(() => {
+    mediaPreviewUrlRef.current = mediaPreviewUrl;
   }, [mediaPreviewUrl]);
 
   useEffect(() => {
@@ -721,6 +815,11 @@ export default function App() {
           onDisconnect={() => {
             clientRef.current = null;
             setIsConnected(false);
+            resetDirectoryState();
+            setSelectedFile(null);
+            setEditorContent('');
+            setSavedContent('');
+            clearMediaPreview();
           }}
         />
 
@@ -730,6 +829,7 @@ export default function App() {
         >
           <FileExplorer
             files={files}
+            directoryTree={directoryTree}
             loading={loading}
             editorLoading={editorLoading}
             copiedKey={copiedKey}
