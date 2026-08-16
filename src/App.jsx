@@ -6,6 +6,41 @@ import LoginPage from './components/LoginPage.jsx';
 import TopNav from './components/TopNav.jsx';
 
 const SAVED_LOGIN_KEY = 'webdav-viewer-login';
+const TEXT_FILE_EXTENSIONS = new Set([
+  'bash',
+  'c',
+  'conf',
+  'cpp',
+  'cs',
+  'css',
+  'csv',
+  'env',
+  'go',
+  'h',
+  'hpp',
+  'html',
+  'ini',
+  'java',
+  'js',
+  'jsx',
+  'json',
+  'log',
+  'md',
+  'php',
+  'py',
+  'rb',
+  'rs',
+  'sh',
+  'sql',
+  'svg',
+  'toml',
+  'ts',
+  'tsx',
+  'txt',
+  'xml',
+  'yaml',
+  'yml',
+]);
 
 export default function App() {
   const [url, setUrl] = useState('');
@@ -26,6 +61,7 @@ export default function App() {
   const [savedContent, setSavedContent] = useState('');
   const [editorLoading, setEditorLoading] = useState(false);
   const [explorerWidth, setExplorerWidth] = useState(45);
+  const [toastMessage, setToastMessage] = useState('');
 
   const fileInputRef = useRef(null);
   const clientRef = useRef(null);
@@ -33,6 +69,7 @@ export default function App() {
   const selectedFileRef = useRef(null);
   const editorContentRef = useRef('');
   const splitContainerRef = useRef(null);
+  const toastTimerRef = useRef(null);
 
   const hasEditorChanges = selectedFile && editorContent !== savedContent;
 
@@ -80,12 +117,19 @@ export default function App() {
     }
   };
 
+  const showToast = (message) => {
+    setToastMessage(message);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToastMessage(''), 2000);
+  };
+
   const handleCopyUrl = async (remotePath, key) => {
     const publicUrl = buildPublicUrl(url, remotePath);
     const ok = await copyToClipboard(publicUrl);
     if (ok) {
       setCopiedKey(key);
       setTimeout(() => setCopiedKey(null), 2000);
+      showToast('URL이 복사되었습니다.');
     } else {
       setError('클립보드 복사에 실패했습니다.');
     }
@@ -182,6 +226,12 @@ export default function App() {
     return new TextDecoder().decode(data);
   };
 
+  const isTextFile = (fileName) => {
+    const parts = fileName.toLowerCase().split('.');
+    if (parts.length === 1) return true;
+    return TEXT_FILE_EXTENSIONS.has(parts.at(-1));
+  };
+
   const confirmEditorClose = () => {
     if (!hasEditorChanges) return true;
     return window.confirm('저장하지 않은 변경사항이 있습니다. 닫으시겠습니까?');
@@ -189,6 +239,9 @@ export default function App() {
 
   const handleOpenFile = async (file) => {
     if (!confirmEditorClose()) return;
+    if (!isTextFile(file.name) && !window.confirm('텍스트 파일이 아닐 수 있습니다. 정말 여시겠습니까?')) {
+      return;
+    }
 
     const client = clientRef.current;
     if (!client) return;
@@ -238,6 +291,16 @@ export default function App() {
     setSelectedFile(null);
     setEditorContent('');
     setSavedContent('');
+  };
+
+  const handleCopyCode = async () => {
+    if (!selectedFile) return;
+    const ok = await copyToClipboard(editorContentRef.current);
+    if (ok) {
+      showToast('파일 내용이 복사되었습니다.');
+    } else {
+      setError('클립보드 복사에 실패했습니다.');
+    }
   };
 
   const handleResizeStart = (event) => {
@@ -522,6 +585,12 @@ export default function App() {
     editorContentRef.current = editorContent;
   }, [editorContent]);
 
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
   // 이전 폴더로 이동
   const goUp = () => {
     if (currentPath === '/') return;
@@ -637,12 +706,18 @@ export default function App() {
                 explorerWidth={explorerWidth}
                 onContentChange={setEditorContent}
                 onSave={handleSaveFile}
+                onCopy={handleCopyCode}
                 onClose={handleCloseEditor}
               />
             </>
           )}
         </div>
       </div>
+      {toastMessage && (
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-lg">
+          {toastMessage}
+        </div>
+      )}
     </div>
   );
 }
