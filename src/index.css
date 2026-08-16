@@ -35,3 +35,28 @@ button {
 @keyframes fadeIn {
     to { opacity: 1; }
 }
+
+.markdown-preview {
+    @apply h-full overflow-auto px-6 py-4 text-[15px] leading-7 text-gray-800;
+}
+.markdown-preview :where(h1, h2, h3, h4, h5, h6) {
+    @apply mt-6 mb-3 font-semibold text-gray-900;
+}
+.markdown-preview h1 { @apply mt-0 border-b border-gray-200 pb-2 text-3xl; }
+.markdown-preview h2 { @apply border-b border-gray-200 pb-1 text-2xl; }
+.markdown-preview h3 { @apply text-xl; }
+.markdown-preview p { @apply mb-4; }
+.markdown-preview a { @apply text-blue-600 underline; }
+.markdown-preview ul { @apply mb-4 list-disc pl-6; }
+.markdown-preview ol { @apply mb-4 list-decimal pl-6; }
+.markdown-preview li { @apply mb-1; }
+.markdown-preview blockquote { @apply mb-4 border-l-4 border-gray-300 pl-4 text-gray-600; }
+.markdown-preview pre { @apply mb-4 overflow-x-auto rounded-md bg-gray-900 p-4 text-sm text-gray-100; }
+.markdown-preview code { @apply rounded bg-gray-100 px-1 py-0.5 font-mono text-[0.9em]; }
+.markdown-preview pre code { @apply bg-transparent p-0 text-inherit; }
+.markdown-preview table { @apply mb-4 w-full border-collapse text-sm; }
+.markdown-preview th,
+.markdown-preview td { @apply border border-gray-200 px-3 py-2; }
+.markdown-preview th { @apply bg-gray-50 font-semibold; }
+.markdown-preview img { @apply my-4 max-w-full; }
+.markdown-preview hr { @apply my-6 border-gray-200; }

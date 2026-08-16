@@ -1,7 +1,25 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import CodeMirror from 'codemirror';
 import 'codemirror/lib/codemirror.css';
-import { Save, X, Copy } from 'lucide-react';
+import { Save, X, Copy, Eye, Pencil } from 'lucide-react';
+import MarkdownIt from 'markdown-it';
+
+const md = new MarkdownIt({
+  html: true,
+  linkify: true,
+  typographer: true,
+});
+
+function MarkdownPreview({ content }) {
+  const html = md.render(content || '');
+  return (
+    <div
+      className="markdown-preview"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
+}
+
 
 function MediaPreview({ url, type, fileName }) {
   if (!url) {
@@ -70,7 +88,10 @@ export default function CodeEditPage({
 }) {
   const editorContainerRef = useRef(null);
   const codeMirrorRef = useRef(null);
+  const [markdownPreviewPath, setMarkdownPreviewPath] = useState('');
   const isMediaView = selectedFile?.viewMode === 'media';
+  const isMarkdownFile = !isMediaView && /\.md$/i.test(selectedFile?.remotePath || '');
+  const isMarkdownView = isMarkdownFile && markdownPreviewPath === selectedFile?.remotePath;
 
   useEffect(() => {
     if (isMediaView || !selectedFile || !editorContainerRef.current) return;
@@ -107,6 +128,13 @@ export default function CodeEditPage({
     }
   }, [editorContent]);
 
+  useEffect(() => {
+    if (isMarkdownView) return;
+    const editor = codeMirrorRef.current;
+    if (!editor) return;
+    setTimeout(() => editor.refresh(), 0);
+  }, [isMarkdownView]);
+
   return (
     <div
       className="flex min-h-0 max-h-[calc(100vh-180px)] min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
@@ -119,6 +147,23 @@ export default function CodeEditPage({
             {selectedFile.remotePath}
           </div>
         </div>
+        {isMarkdownFile && (
+          <button
+            onClick={() => {
+              setMarkdownPreviewPath((path) =>
+                path === selectedFile.remotePath ? '' : selectedFile.remotePath
+              );
+            }}
+            className={`rounded p-1.5 ${
+              isMarkdownView
+                ? 'bg-blue-50 text-blue-600'
+                : 'text-gray-600 hover:bg-blue-50 hover:text-blue-600'
+            }`}
+            title={isMarkdownView ? '편집' : '미리보기'}
+          >
+            {isMarkdownView ? <Pencil size={18} /> : <Eye size={18} />}
+          </button>
+        )}
         {!isMediaView && (
           <button
             onClick={onSave}
@@ -161,7 +206,13 @@ export default function CodeEditPage({
             fileName={selectedFile.name}
           />
         ) : (
-          <div ref={editorContainerRef} className="h-full text-sm" />
+          <>
+            <div
+              ref={editorContainerRef}
+              className={`h-full text-sm ${isMarkdownView ? 'hidden' : ''}`}
+            />
+            {isMarkdownView && <MarkdownPreview content={editorContent} />}
+          </>
         )}
       </div>
     </div>
