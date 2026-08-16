@@ -593,7 +593,7 @@ export default function App() {
 
         <div
           ref={splitContainerRef}
-          className={`mt-3 flex max-h-[calc(100vh-180px)] min-h-0 flex-col gap-3 overflow-hidden lg:flex-row ${selectedFile ? '' : 'lg:block'}`}
+          className={`mt-3 flex max-h-[calc(100vh-180px)] min-h-0 flex-col overflow-hidden lg:flex-row ${selectedFile ? 'gap-1' : 'lg:block gap-3'}`}
         >
           <FileExplorer
             files={files}
@@ -620,14 +620,14 @@ export default function App() {
           {selectedFile && (
             <>
               <div
-                className="hidden w-3 shrink-0 cursor-col-resize items-center justify-center rounded-md hover:bg-gray-200 lg:flex"
+                className="hidden w-2 shrink-0 cursor-col-resize items-center justify-center rounded-md hover:bg-gray-200 lg:flex"
                 onPointerDown={handleResizeStart}
                 role="separator"
                 aria-orientation="vertical"
                 aria-label="탐색기와 에디터 너비 조절"
                 title="너비 조절"
               >
-                <div className="h-10 w-1 rounded-full bg-gray-300" />
+                <div className="h-10 w-2 rounded-full bg-gray-300" />
               </div>
               <CodeEditPage
                 selectedFile={selectedFile}

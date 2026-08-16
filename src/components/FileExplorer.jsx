@@ -1,4 +1,5 @@
-import { Check, Copy, Download, Edit, Eye, File, Folder, Trash2, Upload } from 'lucide-react';
+import { Upload } from 'lucide-react';
+import FileExplorerItem from './FileExplorerItem.jsx';
 
 export default function FileExplorer({
   files,
@@ -56,87 +57,22 @@ export default function FileExplorer({
             </tr>
           )}
           {files.map((file, idx) => (
-            <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50 transition group">
-              <td className="p-3">
-                <div
-                  className={`flex items-center ${file.isDirectory ? 'cursor-pointer hover:text-blue-600' : ''}`}
-                  onClick={() => {
-                    if (file.isDirectory) onOpenDirectory(file);
-                  }}
-                >
-                  {file.isDirectory ? (
-                    <Folder size={18} className="text-blue-500 mr-2 shrink-0" fill="currentColor" opacity="0.2" />
-                  ) : (
-                    <File size={18} className="text-gray-400 mr-2 flex-shrink-0" />
-                  )}
-                  <span className="truncate">{file.name}</span>
-                </div>
-              </td>
-              <td className="p-3 text-sm text-gray-500 whitespace-nowrap">
-                {file.isDirectory ? '-' : formatBytes(file.size)}
-              </td>
-              <td className="p-3 text-sm text-gray-500 whitespace-nowrap">
-                {formatDate(file.lastModified)}
-              </td>
-              <td className="p-3 text-right whitespace-nowrap">
-                <div className="flex justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onCopyUrl(file.remotePath, `item-${idx}`);
-                    }}
-                    disabled={loading}
-                    className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded"
-                    title="접속 URL 복사"
-                  >
-                    {copiedKey === `item-${idx}` ? (
-                      <Check size={16} className="text-green-600" />
-                    ) : (
-                      <Copy size={16} />
-                    )}
-                  </button>
-                  {!file.isDirectory && (
-                    <button
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onOpenFile(file);
-                      }}
-                      disabled={loading || editorLoading}
-                      className="p-1.5 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 rounded disabled:opacity-50"
-                      title="열기"
-                    >
-                      <Eye size={16} />
-                    </button>
-                  )}
-                  {!file.isDirectory && (
-                    <button
-                      onClick={() => onDownload(file.name)}
-                      disabled={loading}
-                      className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded"
-                      title="다운로드"
-                    >
-                      <Download size={16} />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => onRename(file.name)}
-                    disabled={loading}
-                    className="p-1.5 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded"
-                    title="이름 변경"
-                  >
-                    <Edit size={16} />
-                  </button>
-                  <button
-                    onClick={() => onDelete(file.name)}
-                    disabled={loading}
-                    className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded"
-                    title="삭제"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </td>
-            </tr>
+            <FileExplorerItem
+              key={file.remotePath || idx}
+              file={file}
+              index={idx}
+              loading={loading}
+              editorLoading={editorLoading}
+              copiedKey={copiedKey}
+              formatBytes={formatBytes}
+              formatDate={formatDate}
+              onOpenDirectory={onOpenDirectory}
+              onCopyUrl={onCopyUrl}
+              onOpenFile={onOpenFile}
+              onDownload={onDownload}
+              onRename={onRename}
+              onDelete={onDelete}
+            />
           ))}
         </tbody>
       </table>
