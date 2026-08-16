@@ -1,14 +1,17 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { createClient } from 'webdav';
-import { 
-  Folder, File, Download, Trash2, Edit, Upload, 
-  LogOut, RefreshCw, ArrowLeft, AlertCircle, Copy, Check 
-} from 'lucide-react';
+import CodeEditPage from './components/CodeEditPage.jsx';
+import FileExplorer from './components/FileExplorer.jsx';
+import LoginPage from './components/LoginPage.jsx';
+import TopNav from './components/TopNav.jsx';
+
+const SAVED_LOGIN_KEY = 'webdav-viewer-login';
 
 export default function App() {
   const [url, setUrl] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [saveLoginInfo, setSaveLoginInfo] = useState(false);
   
   const [isConnected, setIsConnected] = useState(false);
   const [currentPath, setCurrentPath] = useState('/');
@@ -18,10 +21,20 @@ export default function App() {
   const [error, setError] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [copiedKey, setCopiedKey] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [editorContent, setEditorContent] = useState('');
+  const [savedContent, setSavedContent] = useState('');
+  const [editorLoading, setEditorLoading] = useState(false);
+  const [explorerWidth, setExplorerWidth] = useState(45);
 
   const fileInputRef = useRef(null);
   const clientRef = useRef(null);
   const dragCounterRef = useRef(0);
+  const selectedFileRef = useRef(null);
+  const editorContentRef = useRef('');
+  const splitContainerRef = useRef(null);
+
+  const hasEditorChanges = selectedFile && editorContent !== savedContent;
 
   const joinRemotePath = (dirPath, name) =>
     dirPath === '/' ? `/${name}` : `${dirPath.replace(/\/$/, '')}/${name}`;
@@ -100,6 +113,11 @@ export default function App() {
       clientRef.current = createClient(baseUrl, { username, password });
       const listed = await loadDirectory('/');
       if (listed) {
+        if (saveLoginInfo) {
+          localStorage.setItem(SAVED_LOGIN_KEY, JSON.stringify({ url: baseUrl, username }));
+        } else {
+          localStorage.removeItem(SAVED_LOGIN_KEY);
+        }
         updateHistoryPath('/', true);
         setIsConnected(true);
       } else {
@@ -156,6 +174,95 @@ export default function App() {
     updateHistoryPath(path);
     const listed = await loadDirectory(path);
     if (!listed) updateHistoryPath(previousPath, true);
+  };
+
+  const textFromFileContents = async (data) => {
+    if (typeof data === 'string') return data;
+    if (data instanceof Blob) return data.text();
+    return new TextDecoder().decode(data);
+  };
+
+  const confirmEditorClose = () => {
+    if (!hasEditorChanges) return true;
+    return window.confirm('저장하지 않은 변경사항이 있습니다. 닫으시겠습니까?');
+  };
+
+  const handleOpenFile = async (file) => {
+    if (!confirmEditorClose()) return;
+
+    const client = clientRef.current;
+    if (!client) return;
+
+    setEditorLoading(true);
+    setError('');
+    try {
+      const data = await client.getFileContents(file.remotePath, { format: 'text' });
+      const text = await textFromFileContents(data);
+      setSelectedFile(file);
+      setEditorContent(text);
+      setSavedContent(text);
+    } catch (err) {
+      if (!returnToLoginIfUnauthorized(err)) {
+        setError(`파일 열기 실패: ${err.message}`);
+      }
+    } finally {
+      setEditorLoading(false);
+    }
+  };
+
+  const handleSaveFile = async () => {
+    const client = clientRef.current;
+    const file = selectedFileRef.current;
+    const content = editorContentRef.current;
+    if (!client || !file) return;
+
+    setEditorLoading(true);
+    setError('');
+    try {
+      await client.putFileContents(file.remotePath, content, {
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
+      setSavedContent(content);
+      await loadDirectory(currentPath);
+    } catch (err) {
+      if (!returnToLoginIfUnauthorized(err)) {
+        setError(`저장 실패: ${err.message}`);
+      }
+    } finally {
+      setEditorLoading(false);
+    }
+  };
+
+  const handleCloseEditor = () => {
+    if (!confirmEditorClose()) return;
+    setSelectedFile(null);
+    setEditorContent('');
+    setSavedContent('');
+  };
+
+  const handleResizeStart = (event) => {
+    if (!splitContainerRef.current) return;
+
+    const container = splitContainerRef.current;
+    const updateWidth = (clientX) => {
+      const rect = container.getBoundingClientRect();
+      const nextWidth = ((clientX - rect.left) / rect.width) * 100;
+      setExplorerWidth(Math.min(70, Math.max(30, nextWidth)));
+    };
+    const handlePointerMove = (moveEvent) => updateWidth(moveEvent.clientX);
+    const handlePointerUp = () => {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+
+    event.preventDefault();
+    updateWidth(event.clientX);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
   };
 
   // 파일 다운로드
@@ -372,6 +479,19 @@ export default function App() {
   };
 
   useEffect(() => {
+    try {
+      const savedLogin = JSON.parse(localStorage.getItem(SAVED_LOGIN_KEY) || 'null');
+      if (savedLogin?.url || savedLogin?.username) {
+        setUrl(savedLogin.url || '');
+        setUsername(savedLogin.username || '');
+        setSaveLoginInfo(true);
+      }
+    } catch {
+      localStorage.removeItem(SAVED_LOGIN_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
     if (!isConnected) return;
 
     const handlePopState = (event) => {
@@ -382,10 +502,35 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [isConnected]);
 
+  useEffect(() => {
+    if (!hasEditorChanges) return;
+
+    const handleBeforeUnload = (event) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasEditorChanges]);
+
+  useEffect(() => {
+    selectedFileRef.current = selectedFile;
+  }, [selectedFile]);
+
+  useEffect(() => {
+    editorContentRef.current = editorContent;
+  }, [editorContent]);
+
   // 이전 폴더로 이동
   const goUp = () => {
     if (currentPath === '/') return;
     window.history.back();
+  };
+
+  const openDirectory = (file) => {
+    const nextPath = currentPath === '/' ? `/${file.name}` : `${currentPath}/${file.name}`;
+    navigateToDirectory(nextPath);
   };
 
   // 파일 크기 포맷터
@@ -409,240 +554,93 @@ export default function App() {
   // 로그인 화면 렌더링
   if (!isConnected) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6">
-          <div className="flex items-center justify-center mb-6 text-blue-600">
-            <Folder size={40} className="mr-2" />
-            <h1 className="text-2xl font-bold">WebDAV 접속</h1>
-          </div>
-          
-          <form onSubmit={handleConnect} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">서버 URL</label>
-              <input 
-                type="url" required
-                placeholder="https://example.com/webdav"
-                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
-                value={url} onChange={(e) => setUrl(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">아이디</label>
-              <input 
-                type="text" required
-                placeholder="Username"
-                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
-                value={username} onChange={(e) => setUsername(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">비밀번호</label>
-              <input 
-                type="password" required
-                placeholder="Password"
-                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
-                value={password} onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-            
-            {error && (
-              <div className="p-3 bg-red-50 text-red-600 rounded-md text-sm flex items-start">
-                <AlertCircle size={16} className="mr-1.5 mt-0.5 shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-            
-            <button 
-              type="submit" disabled={loading}
-              className="w-full bg-blue-600 text-white font-semibold py-2 rounded-md hover:bg-blue-700 transition disabled:opacity-50"
-            >
-              {loading ? '연결 중...' : '접속하기'}
-            </button>
-          </form>
-          
-          <p className="text-xs text-gray-500 mt-4 text-center">
-            * 브라우저에서 접근하려면 서버에 CORS 설정이 필요합니다.
-          </p>
-        </div>
-      </div>
+      <LoginPage
+        url={url}
+        username={username}
+        password={password}
+        saveLoginInfo={saveLoginInfo}
+        loading={loading}
+        error={error}
+        onUrlChange={setUrl}
+        onUsernameChange={setUsername}
+        onPasswordChange={setPassword}
+        onSaveLoginInfoChange={setSaveLoginInfo}
+        onSubmit={handleConnect}
+      />
     );
   }
 
   // 메인 파일 매니저 렌더링
   return (
-    <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
-      <div className="max-w-5xl mx-auto bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        
-        {/* 헤더 / 툴바 */}
-        <div className="border-b border-gray-200 p-4 bg-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="flex items-center flex-1 w-full">
-            <button 
-              onClick={goUp} disabled={currentPath === '/' || loading}
-              className="p-2 text-gray-600 hover:bg-gray-100 rounded-md disabled:opacity-30 mr-2"
-              title="상위 폴더로"
-            >
-              <ArrowLeft size={20} />
-            </button>
-            <div className="font-mono text-sm bg-gray-100 px-3 py-1.5 rounded-md text-gray-700 truncate flex-1">
-              {currentPath}
-            </div>
-          </div>
-          
-          <div className="flex items-center space-x-2">
-            <input 
-              type="file" ref={fileInputRef} onChange={handleUpload} 
-              className="hidden" multiple
-            />
-            <button 
-              onClick={() => fileInputRef.current?.click()} disabled={loading}
-              className="flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 transition"
-            >
-              <Upload size={16} className="mr-1.5" /> 업로드
-            </button>
-            <button 
-              onClick={() => loadDirectory(currentPath)} disabled={loading}
-              className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-md disabled:opacity-50"
-              title="새로고침"
-            >
-              <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
-            </button>
-            <button 
-              onClick={() => {
-                clientRef.current = null;
-                setIsConnected(false);
-              }}
-              className="p-1.5 text-red-600 hover:bg-red-50 rounded-md ml-2"
-              title="연결 종료"
-            >
-              <LogOut size={18} />
-            </button>
-          </div>
-        </div>
+    <div className="min-h-screen overflow-hidden bg-gray-50 p-4 sm:p-6">
+      <div className={`${selectedFile ? 'max-w-[min(1800px,98vw)]' : 'max-w-7xl'} mx-auto`}>
+        <TopNav
+          currentPath={currentPath}
+          publicUrl={buildPublicUrl(url, currentPath)}
+          loading={loading}
+          error={error}
+          copiedKey={copiedKey}
+          fileInputRef={fileInputRef}
+          onGoBack={goUp}
+          onUpload={handleUpload}
+          onRefresh={() => loadDirectory(currentPath)}
+          onCopyFolderUrl={() => handleCopyUrl(currentPath, 'folder')}
+          onDisconnect={() => {
+            clientRef.current = null;
+            setIsConnected(false);
+          }}
+        />
 
-        {/* 현재 폴더 접속 URL */}
-        <div className="border-b border-gray-200 px-4 py-2 bg-gray-50 flex items-center gap-2">
-          <span className="text-xs text-gray-500 shrink-0">접속 URL</span>
-          <div className="font-mono text-sm text-gray-700 truncate flex-1 min-w-0">
-            {buildPublicUrl(url, currentPath)}
-          </div>
-          <button
-            onClick={() => handleCopyUrl(currentPath, 'folder')}
-            disabled={loading}
-            className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md shrink-0 disabled:opacity-50 transition"
-            title="접속 URL 복사"
-          >
-            {copiedKey === 'folder' ? <Check size={16} className="text-green-600" /> : <Copy size={16} />}
-          </button>
-        </div>
-
-        {/* 에러 메시지 */}
-        {error && (
-          <div className="p-3 bg-red-50 text-red-600 text-sm border-b border-red-100 flex items-center">
-            <AlertCircle size={16} className="mr-2" /> {error}
-          </div>
-        )}
-
-        {/* 파일 목록 */}
         <div
-          className="relative overflow-x-auto"
-          onDragEnter={handleDragEnter}
-          onDragLeave={handleDragLeave}
-          onDragOver={handleDragOver}
-          onDrop={handleDrop}
+          ref={splitContainerRef}
+          className={`mt-3 flex max-h-[calc(100vh-180px)] min-h-0 flex-col gap-3 overflow-hidden lg:flex-row ${selectedFile ? '' : 'lg:block'}`}
         >
-          {isDragging && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-blue-50/90 border-2 border-dashed border-blue-400 pointer-events-none">
-              <div className="text-blue-600 font-medium flex items-center gap-2">
-                <Upload size={20} />
-                파일/폴더를 여기에 놓으세요
+          <FileExplorer
+            files={files}
+            loading={loading}
+            editorLoading={editorLoading}
+            copiedKey={copiedKey}
+            isDragging={isDragging}
+            selectedFile={selectedFile}
+            explorerWidth={explorerWidth}
+            formatBytes={formatBytes}
+            formatDate={formatDate}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            onOpenDirectory={openDirectory}
+            onCopyUrl={handleCopyUrl}
+            onOpenFile={handleOpenFile}
+            onDownload={handleDownload}
+            onRename={handleRename}
+            onDelete={handleDelete}
+          />
+
+          {selectedFile && (
+            <>
+              <div
+                className="hidden w-3 shrink-0 cursor-col-resize items-center justify-center rounded-md hover:bg-gray-200 lg:flex"
+                onPointerDown={handleResizeStart}
+                role="separator"
+                aria-orientation="vertical"
+                aria-label="탐색기와 에디터 너비 조절"
+                title="너비 조절"
+              >
+                <div className="h-10 w-1 rounded-full bg-gray-300" />
               </div>
-            </div>
+              <CodeEditPage
+                selectedFile={selectedFile}
+                editorContent={editorContent}
+                editorLoading={editorLoading}
+                hasEditorChanges={hasEditorChanges}
+                explorerWidth={explorerWidth}
+                onContentChange={setEditorContent}
+                onSave={handleSaveFile}
+                onClose={handleCloseEditor}
+              />
+            </>
           )}
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50 text-gray-500 text-sm border-b border-gray-200">
-                <th className="p-3 font-medium w-full">이름</th>
-                <th className="p-3 font-medium whitespace-nowrap">크기</th>
-                <th className="p-3 font-medium whitespace-nowrap">수정일</th>
-                <th className="p-3 font-medium whitespace-nowrap text-right">작업</th>
-              </tr>
-            </thead>
-            <tbody>
-              {files.length === 0 && !loading && (
-                <tr>
-                  <td colSpan="4" className="p-8 text-center text-gray-500">
-                    폴더가 비어있습니다.
-                  </td>
-                </tr>
-              )}
-              {files.map((file, idx) => (
-                <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50 transition group">
-                  <td className="p-3">
-                    <div 
-                      className={`flex items-center ${file.isDirectory ? 'cursor-pointer hover:text-blue-600' : ''}`}
-                      onClick={() => {
-                        if (file.isDirectory) {
-                          const nextPath = currentPath === '/' ? `/${file.name}` : `${currentPath}/${file.name}`;
-                          navigateToDirectory(nextPath);
-                        }
-                      }}
-                    >
-                      {file.isDirectory ? 
-                        <Folder size={18} className="text-blue-500 mr-2 shrink-0" fill="currentColor" opacity="0.2" /> : 
-                        <File size={18} className="text-gray-400 mr-2 flex-shrink-0" />
-                      }
-                      <span className="truncate">{file.name}</span>
-                    </div>
-                  </td>
-                  <td className="p-3 text-sm text-gray-500 whitespace-nowrap">
-                    {file.isDirectory ? '-' : formatBytes(file.size)}
-                  </td>
-                  <td className="p-3 text-sm text-gray-500 whitespace-nowrap">
-                    {formatDate(file.lastModified)}
-                  </td>
-                  <td className="p-3 text-right whitespace-nowrap">
-                    <div className="flex justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCopyUrl(file.remotePath, `item-${idx}`);
-                        }}
-                        disabled={loading}
-                        className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded"
-                        title="접속 URL 복사"
-                      >
-                        {copiedKey === `item-${idx}` ? (
-                          <Check size={16} className="text-green-600" />
-                        ) : (
-                          <Copy size={16} />
-                        )}
-                      </button>
-                      {!file.isDirectory && (
-                        <button 
-                          onClick={() => handleDownload(file.name)} disabled={loading}
-                          className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded" title="다운로드"
-                        >
-                          <Download size={16} />
-                        </button>
-                      )}
-                      <button 
-                        onClick={() => handleRename(file.name)} disabled={loading}
-                        className="p-1.5 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded" title="이름 변경"
-                      >
-                        <Edit size={16} />
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(file.name)} disabled={loading}
-                        className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded" title="삭제"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
       </div>
     </div>

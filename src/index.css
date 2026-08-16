@@ -3,3 +3,35 @@
 button {
     @apply cursor-pointer;
 }
+
+[title] {
+    position: relative; /* 기준점 설정 */
+}
+
+/* 브라우저 기본 툴팁 중복 방지를 위한 data-tooltip 권장 또는 아래 스타일 적용 */
+[title]:hover::before {
+    content: attr(title);
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 6px; /* 대상 요소와의 간격 추가 */
+    
+    background-color: #333;
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    
+    z-index: 1000; /* 다른 요소 위에 표시 */
+    pointer-events: none; /* 마우스 이벤트 간섭 방지 */
+    
+    /* 자연스러운 등장 애니메이션 (선택 사항) */
+    opacity: 0;
+    animation: fadeIn 0.2s forwards;
+}
+
+@keyframes fadeIn {
+    to { opacity: 1; }
+}
