@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { createClient } from 'webdav';
 import { 
   Folder, File, Download, Trash2, Edit, Upload, 
@@ -34,6 +34,15 @@ export default function App() {
       .map((seg, i) => (i === 0 && seg === '' ? '' : encodeURIComponent(seg)))
       .join('/');
     return `${base}${encoded}`;
+  };
+
+  const updateHistoryPath = (path, replace = false) => {
+    const state = { ...(window.history.state || {}), webdavPath: path };
+    if (replace) {
+      window.history.replaceState(state, '', window.location.href);
+    } else {
+      window.history.pushState(state, '', window.location.href);
+    }
   };
 
   const copyToClipboard = async (text) => {
@@ -91,6 +100,7 @@ export default function App() {
       clientRef.current = createClient(baseUrl, { username, password });
       const listed = await loadDirectory('/');
       if (listed) {
+        updateHistoryPath('/', true);
         setIsConnected(true);
       } else {
         clientRef.current = null;
@@ -139,6 +149,13 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const navigateToDirectory = async (path) => {
+    const previousPath = currentPath;
+    updateHistoryPath(path);
+    const listed = await loadDirectory(path);
+    if (!listed) updateHistoryPath(previousPath, true);
   };
 
   // 파일 다운로드
@@ -354,13 +371,21 @@ export default function App() {
     }
   };
 
-  // 상위 폴더로 이동
+  useEffect(() => {
+    if (!isConnected) return;
+
+    const handlePopState = (event) => {
+      loadDirectory(event.state?.webdavPath || '/');
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [isConnected]);
+
+  // 이전 폴더로 이동
   const goUp = () => {
     if (currentPath === '/') return;
-    const parts = currentPath.split('/').filter(Boolean);
-    parts.pop();
-    const newPath = '/' + parts.join('/');
-    loadDirectory(newPath);
+    window.history.back();
   };
 
   // 파일 크기 포맷터
@@ -558,7 +583,7 @@ export default function App() {
                       onClick={() => {
                         if (file.isDirectory) {
                           const nextPath = currentPath === '/' ? `/${file.name}` : `${currentPath}/${file.name}`;
-                          loadDirectory(nextPath);
+                          navigateToDirectory(nextPath);
                         }
                       }}
                     >
