@@ -41,6 +41,38 @@ const TEXT_FILE_EXTENSIONS = new Set([
   'yaml',
   'yml',
 ]);
+const MEDIA_FILE_TYPES = {
+  bmp: 'image',
+  gif: 'image',
+  jpeg: 'image',
+  jpg: 'image',
+  png: 'image',
+  webp: 'image',
+  mp3: 'audio',
+  ogg: 'audio',
+  wav: 'audio',
+  m4a: 'audio',
+  mp4: 'video',
+  mov: 'video',
+  webm: 'video',
+  pdf: 'pdf',
+};
+const MEDIA_MIME_TYPES = {
+  bmp: 'image/bmp',
+  gif: 'image/gif',
+  jpeg: 'image/jpeg',
+  jpg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  mp3: 'audio/mpeg',
+  ogg: 'audio/ogg',
+  wav: 'audio/wav',
+  m4a: 'audio/mp4',
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  webm: 'video/webm',
+  pdf: 'application/pdf',
+};
 
 export default function App() {
   const [url, setUrl] = useState('');
@@ -59,6 +91,8 @@ export default function App() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [editorContent, setEditorContent] = useState('');
   const [savedContent, setSavedContent] = useState('');
+  const [mediaPreviewUrl, setMediaPreviewUrl] = useState('');
+  const [mediaPreviewType, setMediaPreviewType] = useState('');
   const [editorLoading, setEditorLoading] = useState(false);
   const [explorerWidth, setExplorerWidth] = useState(45);
   const [toastMessage, setToastMessage] = useState('');
@@ -71,7 +105,7 @@ export default function App() {
   const splitContainerRef = useRef(null);
   const toastTimerRef = useRef(null);
 
-  const hasEditorChanges = selectedFile && editorContent !== savedContent;
+  const hasEditorChanges = selectedFile?.viewMode === 'text' && editorContent !== savedContent;
 
   const joinRemotePath = (dirPath, name) =>
     dirPath === '/' ? `/${name}` : `${dirPath.replace(/\/$/, '')}/${name}`;
@@ -232,6 +266,16 @@ export default function App() {
     return TEXT_FILE_EXTENSIONS.has(parts.at(-1));
   };
 
+  const getFileExtension = (fileName) => fileName.toLowerCase().split('.').at(-1) || '';
+
+  const getMediaFileType = (fileName) => MEDIA_FILE_TYPES[getFileExtension(fileName)] || '';
+
+  const clearMediaPreview = () => {
+    if (mediaPreviewUrl) URL.revokeObjectURL(mediaPreviewUrl);
+    setMediaPreviewUrl('');
+    setMediaPreviewType('');
+  };
+
   const confirmEditorClose = () => {
     if (!hasEditorChanges) return true;
     return window.confirm('저장하지 않은 변경사항이 있습니다. 닫으시겠습니까?');
@@ -239,7 +283,8 @@ export default function App() {
 
   const handleOpenFile = async (file) => {
     if (!confirmEditorClose()) return;
-    if (!isTextFile(file.name) && !window.confirm('텍스트 파일이 아닐 수 있습니다. 정말 여시겠습니까?')) {
+    const mediaType = getMediaFileType(file.name);
+    if (!isTextFile(file.name) && !mediaType && !window.confirm('텍스트 파일이 아닐 수 있습니다. 정말 여시겠습니까?')) {
       return;
     }
 
@@ -249,11 +294,23 @@ export default function App() {
     setEditorLoading(true);
     setError('');
     try {
-      const data = await client.getFileContents(file.remotePath, { format: 'text' });
-      const text = await textFromFileContents(data);
-      setSelectedFile(file);
-      setEditorContent(text);
-      setSavedContent(text);
+      clearMediaPreview();
+      if (mediaType) {
+        const data = await client.getFileContents(file.remotePath);
+        const mime = MEDIA_MIME_TYPES[getFileExtension(file.name)] || 'application/octet-stream';
+        const blob = new Blob([data], { type: mime });
+        setSelectedFile({ ...file, viewMode: 'media' });
+        setEditorContent('');
+        setSavedContent('');
+        setMediaPreviewUrl(URL.createObjectURL(blob));
+        setMediaPreviewType(mediaType);
+      } else {
+        const data = await client.getFileContents(file.remotePath, { format: 'text' });
+        const text = await textFromFileContents(data);
+        setSelectedFile({ ...file, viewMode: 'text' });
+        setEditorContent(text);
+        setSavedContent(text);
+      }
     } catch (err) {
       if (!returnToLoginIfUnauthorized(err)) {
         setError(`파일 열기 실패: ${err.message}`);
@@ -267,7 +324,7 @@ export default function App() {
     const client = clientRef.current;
     const file = selectedFileRef.current;
     const content = editorContentRef.current;
-    if (!client || !file) return;
+    if (!client || !file || file.viewMode !== 'text') return;
 
     setEditorLoading(true);
     setError('');
@@ -288,13 +345,14 @@ export default function App() {
 
   const handleCloseEditor = () => {
     if (!confirmEditorClose()) return;
+    clearMediaPreview();
     setSelectedFile(null);
     setEditorContent('');
     setSavedContent('');
   };
 
   const handleCopyCode = async () => {
-    if (!selectedFile) return;
+    if (!selectedFile || selectedFile.viewMode !== 'text') return;
     const ok = await copyToClipboard(editorContentRef.current);
     if (ok) {
       showToast('파일 내용이 복사되었습니다.');
@@ -587,6 +645,12 @@ export default function App() {
 
   useEffect(() => {
     return () => {
+      if (mediaPreviewUrl) URL.revokeObjectURL(mediaPreviewUrl);
+    };
+  }, [mediaPreviewUrl]);
+
+  useEffect(() => {
+    return () => {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
   }, []);
@@ -662,7 +726,7 @@ export default function App() {
 
         <div
           ref={splitContainerRef}
-          className={`mt-3 flex max-h-[calc(100vh-180px)] min-h-0 flex-col overflow-hidden lg:flex-row ${selectedFile ? 'gap-1' : 'lg:block gap-3'}`}
+          className={`mt-3 flex max-h-[calc(100vh-180px)] min-h-[calc(100vh-180px)] flex-col overflow-hidden lg:flex-row ${selectedFile ? 'gap-1' : 'lg:block gap-3'}`}
         >
           <FileExplorer
             files={files}
@@ -704,6 +768,8 @@ export default function App() {
                 editorLoading={editorLoading}
                 hasEditorChanges={hasEditorChanges}
                 explorerWidth={explorerWidth}
+                mediaPreviewUrl={mediaPreviewUrl}
+                mediaPreviewType={mediaPreviewType}
                 onContentChange={setEditorContent}
                 onSave={handleSaveFile}
                 onCopy={handleCopyCode}

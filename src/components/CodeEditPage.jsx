@@ -3,12 +3,66 @@ import CodeMirror from 'codemirror';
 import 'codemirror/lib/codemirror.css';
 import { Save, X, Copy } from 'lucide-react';
 
+function MediaPreview({ url, type, fileName }) {
+  if (!url) {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-gray-500">
+        미리보기를 준비하는 중...
+      </div>
+    );
+  }
+
+  if (type === 'image') {
+    return (
+      <div className="flex h-full items-center justify-center overflow-auto bg-gray-100 p-4">
+        <img src={url} alt={fileName} className="max-h-full max-w-full h-full w-full object-contain" />
+      </div>
+    );
+  }
+
+  if (type === 'audio') {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-4 bg-gray-50 p-6">
+        <p className="max-w-full truncate text-sm text-gray-600">{fileName}</p>
+        <audio key={url} src={url} controls className="w-full max-w-xl" />
+      </div>
+    );
+  }
+
+  if (type === 'video') {
+    return (
+      <div className="flex h-full items-center justify-center bg-black p-4">
+        <video key={url} src={url} controls playsInline className="max-h-full max-w-full w-full h-full" />
+      </div>
+    );
+  }
+
+  if (type === 'pdf') {
+    return (
+      <iframe
+        key={url}
+        src={url}
+        title={fileName}
+        className="h-full w-full border-0 bg-gray-100"
+      />
+    );
+  }
+
+  return (
+    <div className="flex h-full items-center justify-center text-sm text-gray-500">
+      이 파일은 미리볼 수 없습니다.
+    </div>
+  );
+}
+
 export default function CodeEditPage({
   selectedFile,
   editorContent,
   editorLoading,
   hasEditorChanges,
   explorerWidth,
+  mediaPreviewUrl,
+  mediaPreviewType,
   onContentChange,
   onCopy,
   onSave,
@@ -16,9 +70,10 @@ export default function CodeEditPage({
 }) {
   const editorContainerRef = useRef(null);
   const codeMirrorRef = useRef(null);
+  const isMediaView = selectedFile?.viewMode === 'media';
 
   useEffect(() => {
-    if (!selectedFile || !editorContainerRef.current) return;
+    if (isMediaView || !selectedFile || !editorContainerRef.current) return;
 
     editorContainerRef.current.innerHTML = '';
     const editor = CodeMirror(editorContainerRef.current, {
@@ -43,7 +98,7 @@ export default function CodeEditPage({
     return () => {
       codeMirrorRef.current = null;
     };
-  }, [selectedFile?.remotePath]);
+  }, [selectedFile?.remotePath, isMediaView]);
 
   useEffect(() => {
     const editor = codeMirrorRef.current;
@@ -64,14 +119,16 @@ export default function CodeEditPage({
             {selectedFile.remotePath}
           </div>
         </div>
-        <button
-          onClick={onSave}
-          disabled={editorLoading || !hasEditorChanges}
-          className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded disabled:opacity-40"
-          title="저장"
-        >
-          <Save size={18} />
-        </button>
+        {!isMediaView && (
+          <button
+            onClick={onSave}
+            disabled={editorLoading || !hasEditorChanges}
+            className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded disabled:opacity-40"
+            title="저장"
+          >
+            <Save size={18} />
+          </button>
+        )}
         <button
           onClick={onClose}
           disabled={editorLoading}
@@ -80,14 +137,16 @@ export default function CodeEditPage({
         >
           <X size={18} />
         </button>
-        <button
-          onClick={onCopy}
-          disabled={editorLoading}
-          className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded disabled:opacity-40"
-          title="파일 내용 복사"
-        >
-          <Copy size={18} />
-        </button>
+        {!isMediaView && (
+          <button
+            onClick={onCopy}
+            disabled={editorLoading}
+            className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded disabled:opacity-40"
+            title="파일 내용 복사"
+          >
+            <Copy size={18} />
+          </button>
+        )}
       </div>
       <div className="relative min-h-0 flex-1 overflow-hidden">
         {editorLoading && (
@@ -95,7 +154,15 @@ export default function CodeEditPage({
             불러오는 중...
           </div>
         )}
-        <div ref={editorContainerRef} className="h-full text-sm" />
+        {isMediaView ? (
+          <MediaPreview
+            url={mediaPreviewUrl}
+            type={mediaPreviewType}
+            fileName={selectedFile.name}
+          />
+        ) : (
+          <div ref={editorContainerRef} className="h-full text-sm" />
+        )}
       </div>
     </div>
   );
