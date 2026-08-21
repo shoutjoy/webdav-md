@@ -178,6 +178,50 @@ export default function CodeEditPage({
     setTimeout(() => editor.refresh(), 0);
   }, [isMarkdownView]);
 
+  // Handle Ctrl + Wheel zoom for editor and preview
+  useEffect(() => {
+    const contentDiv = editorContainerRef.current;
+    if (!contentDiv) return;
+
+    const handleWheel = (e) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      
+      if (e.deltaY < 0) {
+        dispatch({ type: 'INCREMENT' });
+      } else {
+        dispatch({ type: 'DECREMENT' });
+      }
+    };
+
+    contentDiv.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      contentDiv.removeEventListener('wheel', handleWheel);
+    };
+  }, []);
+
+  // Handle Ctrl + Wheel zoom for markdown preview
+  useEffect(() => {
+    const markdownPreview = document.querySelector('.markdown-preview');
+    if (!markdownPreview) return;
+
+    const handleWheel = (e) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      
+      if (e.deltaY < 0) {
+        dispatch({ type: 'INCREMENT' });
+      } else {
+        dispatch({ type: 'DECREMENT' });
+      }
+    };
+
+    markdownPreview.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      markdownPreview.removeEventListener('wheel', handleWheel);
+    };
+  }, [isMarkdownView]);
+
   const handleZoomIn = () => dispatch({ type: 'INCREMENT' });
   const handleZoomOut = () => dispatch({ type: 'DECREMENT' });
   const handleZoomReset = () => dispatch({ type: 'RESET' });
