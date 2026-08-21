@@ -178,13 +178,13 @@ export default function CodeEditPage({
     setTimeout(() => editor.refresh(), 0);
   }, [isMarkdownView]);
 
-  // Handle Ctrl + Wheel zoom for editor and preview
+  // Handle Alt + Wheel zoom for editor
   useEffect(() => {
     const contentDiv = editorContainerRef.current;
     if (!contentDiv) return;
 
     const handleWheel = (e) => {
-      if (!e.ctrlKey) return;
+      if (!e.altKey) return;
       e.preventDefault();
       
       if (e.deltaY < 0) {
@@ -200,13 +200,13 @@ export default function CodeEditPage({
     };
   }, []);
 
-  // Handle Ctrl + Wheel zoom for markdown preview
+  // Handle Alt + Wheel zoom for markdown preview
   useEffect(() => {
     const markdownPreview = document.querySelector('.markdown-preview');
     if (!markdownPreview) return;
 
     const handleWheel = (e) => {
-      if (!e.ctrlKey) return;
+      if (!e.altKey) return;
       e.preventDefault();
       
       if (e.deltaY < 0) {
@@ -226,8 +226,8 @@ export default function CodeEditPage({
   const handleZoomOut = () => dispatch({ type: 'DECREMENT' });
   const handleZoomReset = () => dispatch({ type: 'RESET' });
 
-  // Show zoom controls when in markdown preview or media view
-  const showZoomControls = isMarkdownView || isMediaView;
+  // Show zoom controls always when content is being viewed
+  const showZoomControls = true;
 
   return (
     <div
@@ -268,14 +268,14 @@ export default function CodeEditPage({
             <Save size={18} />
           </button>
         )}
-        {/* Zoom Controls - show in preview modes */}
+        {/* Zoom Controls - always show */}
         {showZoomControls && (
           <>
             <button
               onClick={handleZoomOut}
               disabled={zoomLevel <= 0.5}
               className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded disabled:opacity-40"
-              title="축소"
+              title="축소 (Alt + 마우스휠)"
             >
               <ZoomOut size={18} />
             </button>
@@ -290,7 +290,7 @@ export default function CodeEditPage({
               onClick={handleZoomIn}
               disabled={zoomLevel >= 3}
               className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded disabled:opacity-40"
-              title="확대"
+              title="확대 (Alt + 마우스휠)"
             >
               <ZoomIn size={18} />
             </button>
