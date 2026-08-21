@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
 import CodeMirror from 'codemirror';
 import 'codemirror/lib/codemirror.css';
-import { Save, X, Copy, Eye, Pencil } from 'lucide-react';
+import { Save, X, Copy, Eye, Pencil, ZoomIn, ZoomOut } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
 
 const md = new MarkdownIt({
@@ -10,18 +10,22 @@ const md = new MarkdownIt({
   typographer: true,
 });
 
-function MarkdownPreview({ content }) {
+function MarkdownPreview({ content, zoomLevel }) {
   const html = md.render(content || '');
   return (
     <div
       className="markdown-preview"
       dangerouslySetInnerHTML={{ __html: html }}
+      style={{
+        transform: `scale(${zoomLevel})`,
+        transformOrigin: 'top left',
+      }}
     />
   );
 }
 
 
-function MediaPreview({ url, type, fileName }) {
+function MediaPreview({ url, type, fileName, zoomLevel }) {
   if (!url) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-gray-500">
@@ -33,7 +37,15 @@ function MediaPreview({ url, type, fileName }) {
   if (type === 'image') {
     return (
       <div className="flex h-full items-center justify-center overflow-auto bg-gray-100 p-4">
-        <img src={url} alt={fileName} className="max-h-full max-w-full h-full w-full object-contain" />
+        <img
+          src={url}
+          alt={fileName}
+          className="max-h-full max-w-full h-full w-full object-contain"
+          style={{
+            transform: `scale(${zoomLevel})`,
+            transformOrigin: 'center',
+          }}
+        />
       </div>
     );
   }
@@ -50,7 +62,14 @@ function MediaPreview({ url, type, fileName }) {
   if (type === 'video') {
     return (
       <div className="flex h-full items-center justify-center bg-black p-4">
-        <video key={url} src={url} controls playsInline className="max-h-full max-w-full w-full h-full" />
+        <div
+          style={{
+            transform: `scale(${zoomLevel})`,
+            transformOrigin: 'center',
+          }}
+        >
+          <video key={url} src={url} controls playsInline className="max-h-full max-w-full w-full h-full" />
+        </div>
       </div>
     );
   }
@@ -62,6 +81,10 @@ function MediaPreview({ url, type, fileName }) {
         src={url}
         title={fileName}
         className="h-full w-full border-0 bg-gray-100"
+        style={{
+          transform: `scale(${zoomLevel})`,
+          transformOrigin: 'top left',
+        }}
       />
     );
   }
@@ -71,6 +94,19 @@ function MediaPreview({ url, type, fileName }) {
       이 파일은 미리볼 수 없습니다.
     </div>
   );
+}
+
+function zoomReducer(state, action) {
+  switch (action.type) {
+    case 'INCREMENT':
+      return Math.min(3, state + 0.1);
+    case 'DECREMENT':
+      return Math.max(0.5, state - 0.1);
+    case 'RESET':
+      return 1;
+    default:
+      return state;
+  }
 }
 
 export default function CodeEditPage({
@@ -89,9 +125,16 @@ export default function CodeEditPage({
   const editorContainerRef = useRef(null);
   const codeMirrorRef = useRef(null);
   const [markdownPreviewPath, setMarkdownPreviewPath] = useState('');
+  const [zoomLevel, dispatch] = useReducer(zoomReducer, 1);
+
   const isMediaView = selectedFile?.viewMode === 'media';
   const isMarkdownFile = !isMediaView && /\.md$/i.test(selectedFile?.remotePath || '');
   const isMarkdownView = isMarkdownFile && markdownPreviewPath === selectedFile?.remotePath;
+
+  // Reset zoom level when selected file or view mode changes
+  useEffect(() => {
+    dispatch({ type: 'RESET' });
+  }, [selectedFile?.remotePath, isMediaView]);
 
   useEffect(() => {
     if (isMediaView || !selectedFile || !editorContainerRef.current) return;
@@ -135,6 +178,13 @@ export default function CodeEditPage({
     setTimeout(() => editor.refresh(), 0);
   }, [isMarkdownView]);
 
+  const handleZoomIn = () => dispatch({ type: 'INCREMENT' });
+  const handleZoomOut = () => dispatch({ type: 'DECREMENT' });
+  const handleZoomReset = () => dispatch({ type: 'RESET' });
+
+  // Show zoom controls when in markdown preview or media view
+  const showZoomControls = isMarkdownView || isMediaView;
+
   return (
     <div
       className="flex min-h-0 max-h-[calc(100vh-180px)] min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
@@ -174,6 +224,34 @@ export default function CodeEditPage({
             <Save size={18} />
           </button>
         )}
+        {/* Zoom Controls - show in preview modes */}
+        {showZoomControls && (
+          <>
+            <button
+              onClick={handleZoomOut}
+              disabled={zoomLevel <= 0.5}
+              className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded disabled:opacity-40"
+              title="축소"
+            >
+              <ZoomOut size={18} />
+            </button>
+            <button
+              onClick={handleZoomReset}
+              className="px-2 py-1 text-xs text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded"
+              title="확대 비율 초기화"
+            >
+              {Math.round(zoomLevel * 100)}%
+            </button>
+            <button
+              onClick={handleZoomIn}
+              disabled={zoomLevel >= 3}
+              className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded disabled:opacity-40"
+              title="확대"
+            >
+              <ZoomIn size={18} />
+            </button>
+          </>
+        )}
         <button
           onClick={onClose}
           disabled={editorLoading}
@@ -204,6 +282,7 @@ export default function CodeEditPage({
             url={mediaPreviewUrl}
             type={mediaPreviewType}
             fileName={selectedFile.name}
+            zoomLevel={zoomLevel}
           />
         ) : (
           <>
@@ -211,7 +290,7 @@ export default function CodeEditPage({
               ref={editorContainerRef}
               className={`h-full text-sm ${isMarkdownView ? 'hidden' : ''}`}
             />
-            {isMarkdownView && <MarkdownPreview content={editorContent} />}
+            {isMarkdownView && <MarkdownPreview content={editorContent} zoomLevel={zoomLevel} />}
           </>
         )}
       </div>

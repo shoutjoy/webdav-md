@@ -1,4 +1,4 @@
-import { AlertCircle, ArrowLeft, Check, Copy, LogOut, RefreshCw, Upload } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Check, Copy, FilePlus, LogOut, RefreshCw, Upload } from 'lucide-react';
 
 export default function TopNav({
   currentPath,
@@ -9,6 +9,7 @@ export default function TopNav({
   fileInputRef,
   onGoBack,
   onUpload,
+  onNewFile,
   onRefresh,
   onCopyFolderUrl,
   onDisconnect,
@@ -38,6 +39,14 @@ export default function TopNav({
             className="flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 disabled:opacity-50 transition"
           >
             <Upload size={16} className="mr-1.5" /> 업로드
+          </button>
+          <button
+            onClick={onNewFile}
+            disabled={loading}
+            className="p-1.5 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-md disabled:opacity-50"
+            title="새 파일 만들기"
+          >
+            <FilePlus size={18} />
           </button>
           <button
             onClick={onRefresh}

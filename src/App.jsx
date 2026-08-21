@@ -689,9 +689,35 @@ export default function App() {
     }
   };
 
+  // 새 파일 만들기
+  const handleCreateFile = async () => {
+    const client = clientRef.current;
+    if (!client) return;
+
+    const fileName = window.prompt('새 파일 이름을 입력하세요:', 'new-file.txt');
+    if (!fileName) return;
+
+    const filePath = joinRemotePath(currentPath, fileName);
+    setLoading(true);
+    setError('');
+    try {
+      await client.putFileContents(filePath, '', {
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
+      await loadDirectory(currentPath);
+    } catch (err) {
+      if (!returnToLoginIfUnauthorized(err)) {
+        setError(`생성 실패: ${err.message}`);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     try {
       const savedLogin = JSON.parse(localStorage.getItem(SAVED_LOGIN_KEY) || 'null');
+
       if (savedLogin?.url || savedLogin?.username) {
         setUrl(savedLogin.url || '');
         setUsername(savedLogin.username || '');
@@ -810,7 +836,9 @@ export default function App() {
           fileInputRef={fileInputRef}
           onGoBack={goUp}
           onUpload={handleUpload}
+          onNewFile={handleCreateFile}
           onRefresh={() => loadDirectory(currentPath)}
+
           onCopyFolderUrl={() => handleCopyUrl(currentPath, 'folder')}
           onDisconnect={() => {
             clientRef.current = null;
