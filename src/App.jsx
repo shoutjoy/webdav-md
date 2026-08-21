@@ -5,6 +5,7 @@ import CodeEditPage from './components/CodeEditPage.jsx';
 import FileExplorer from './components/FileExplorer.jsx';
 import LoginPage from './components/LoginPage.jsx';
 import TopNav from './components/TopNav.jsx';
+import RenameModal from './components/RenameModal.jsx';
 
 const SAVED_LOGIN_KEY = 'webdav-viewer-login';
 const TEXT_FILE_EXTENSIONS = new Set([
@@ -177,6 +178,8 @@ export default function App() {
   const [editorLoading, setEditorLoading] = useState(false);
   const [explorerWidth, setExplorerWidth] = useState(45);
   const [toastMessage, setToastMessage] = useState('');
+  const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
+  const [renameTargetName, setRenameTargetName] = useState('');
 
   const fileInputRef = useRef(null);
   const clientRef = useRef(null);
@@ -665,10 +668,19 @@ export default function App() {
     }
   };
 
-  // 파일 이름 변경
-  const handleRename = async (oldName) => {
-    const newName = window.prompt('새 이름을 입력하세요:', oldName);
-    if (!newName || newName === oldName) return;
+  // 파일 이름 변경 (모달 열기)
+  const handleOpenRenameModal = (fileName) => {
+    setRenameTargetName(fileName);
+    setIsRenameModalOpen(true);
+  };
+
+  // 파일 이름 변경 (모달 확인)
+  const handleConfirmRename = async (newName) => {
+    const oldName = renameTargetName;
+    if (!newName || newName === oldName) {
+      setIsRenameModalOpen(false);
+      return;
+    }
 
     const client = clientRef.current;
     if (!client) return;
@@ -680,13 +692,21 @@ export default function App() {
       const newPath = joinRemotePath(currentPath, newName);
       await client.moveFile(oldPath, newPath);
       await loadDirectory(currentPath);
+      showToast(`'${oldName}'이(가) '${newName}'으로 변경되었습니다.`);
     } catch (err) {
       if (!returnToLoginIfUnauthorized(err)) {
         setError(`이름 변경 실패: ${err.message}`);
       }
     } finally {
       setLoading(false);
+      setIsRenameModalOpen(false);
     }
+  };
+
+  // 파일 이름 변경 (모달 취소)
+  const handleCancelRename = () => {
+    setIsRenameModalOpen(false);
+    setRenameTargetName('');
   };
 
   // 새 파일 만들기
@@ -874,7 +894,7 @@ export default function App() {
             onCopyUrl={handleCopyUrl}
             onOpenFile={handleOpenFile}
             onDownload={handleDownload}
-            onRename={handleRename}
+            onRename={handleOpenRenameModal}
             onDelete={handleDelete}
           />
 
@@ -907,6 +927,15 @@ export default function App() {
           )}
         </div>
       </div>
+
+      <RenameModal
+        isOpen={isRenameModalOpen}
+        currentName={renameTargetName}
+        onConfirm={handleConfirmRename}
+        onCancel={handleCancelRename}
+        loading={loading}
+      />
+
       {toastMessage && (
         <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-lg">
           {toastMessage}
