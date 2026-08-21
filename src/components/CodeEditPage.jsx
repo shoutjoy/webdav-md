@@ -136,6 +136,27 @@ export default function CodeEditPage({
     dispatch({ type: 'RESET' });
   }, [selectedFile?.remotePath, isMediaView]);
 
+  // Default to markdown preview when opening a .md file
+  useEffect(() => {
+    if (!selectedFile) {
+      setMarkdownPreviewPath('');
+      return;
+    }
+
+    // If the current file is a media file, clear markdown preview
+    if (selectedFile.viewMode === 'media') {
+      setMarkdownPreviewPath('');
+      return;
+    }
+
+    // If this is a markdown file, default to preview mode when the file is opened
+    if (/\.md$/i.test(selectedFile.remotePath || '')) {
+      setMarkdownPreviewPath(selectedFile.remotePath);
+    } else {
+      setMarkdownPreviewPath('');
+    }
+  }, [selectedFile?.remotePath, selectedFile?.viewMode]);
+
   useEffect(() => {
     if (isMediaView || !selectedFile || !editorContainerRef.current) return;
 
