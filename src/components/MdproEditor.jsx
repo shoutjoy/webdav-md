@@ -38,6 +38,15 @@ export default function MdproEditor({ selectedFile, content, binaryContent, fmaI
     }, window.location.origin);
   };
 
+  const attachWebdavBridge = () => {
+    const frameDocument = mdproFrameRef.current?.contentDocument;
+    if (!frameDocument || frameDocument.getElementById('webdav-host-bridge-script')) return;
+    const script = frameDocument.createElement('script');
+    script.id = 'webdav-host-bridge-script';
+    script.src = `${APP_BASE_URL}mdpro/js/webdav-host-bridge.js?v=20260829-original-mdpro-1`;
+    frameDocument.body.appendChild(script);
+  };
+
   useEffect(() => {
     const handleMessage = (event) => {
       if (!event.data) return;
@@ -101,7 +110,7 @@ export default function MdproEditor({ selectedFile, content, binaryContent, fmaI
     <div className="mdpro-stage-bar"><span className="mdpro-stage-dot"/><strong>MDPRO</strong><span className="mdpro-stage-path">{selectedFile?.remotePath || 'WebDAV에서 문서를 선택하세요'}</span>{isFmaOpen && <button type="button" onClick={onClose}>FMA 닫기</button>}</div>
     {loading && <div className="mdpro-loading">WebDAV 파일을 여는 중…</div>}
     <div className="mdpro-workspace">
-      <iframe ref={mdproFrameRef} src={MDPRO_URL} title="MDPRO 문서 편집기" className="mdpro-frame" />
+      <iframe ref={mdproFrameRef} src={MDPRO_URL} onLoad={attachWebdavBridge} title="MDPRO 문서 편집기" className="mdpro-frame" />
       {isFmaOpen && <>
         <div className="fma-panel-resizer" onPointerDown={startFmaResize} role="separator" aria-label="문서와 FMA 너비 조절" title="드래그하여 문서와 FMA 크기 조절"><span/></div>
         <aside className="fma-dock" style={{ flexBasis: `${fmaWidth}%` }}>

@@ -7,6 +7,22 @@
         window.parent.postMessage({ type: 'webdav-toggle-explorer' }, location.origin);
     }
 
+    function currentDocumentText() {
+        const editor = document.getElementById('viewer-edit-ta');
+        return editor && typeof editor.value === 'string' ? editor.value : '';
+    }
+
+    function saveToWebDav(saveAs) {
+        if (!window.__webdavHostDocument) return false;
+        window.parent.postMessage({
+            type: saveAs ? 'webdav-save-document-as' : 'webdav-save-document',
+            path: window.__webdavHostDocument.path,
+            fileName: window.__webdavHostDocument.fileName,
+            content: currentDocumentText()
+        }, location.origin);
+        return true;
+    }
+
     function publishTheme() {
         window.parent.postMessage({
             type: 'mdpro-theme-changed',
@@ -29,8 +45,8 @@
             button.addEventListener('click', function () {
                 if (typeof window.saveCurrentDocumentToWebDav === 'function') {
                     window.saveCurrentDocumentToWebDav();
-                } else if (typeof window.showToast === 'function') {
-                    window.showToast('WDsave 기능을 불러오지 못했습니다.', 'error');
+                } else {
+                    saveToWebDav(false);
                 }
             });
             const toggle = document.createElement('button');
@@ -54,6 +70,7 @@
                 menu.classList.add('hidden');
                 toggle.setAttribute('aria-expanded', 'false');
                 if (typeof window.saveCurrentDocumentToWebDavAs === 'function') window.saveCurrentDocumentToWebDavAs();
+                else saveToWebDav(true);
             });
             document.addEventListener('click', function (event) {
                 if (!wrap.contains(event.target)) {
@@ -75,15 +92,6 @@
             button.title = 'WebDAV 탐색기 열기/접기';
             button.addEventListener('click', requestExplorer);
             sidebar.prepend(button);
-        }
-        const settings = document.getElementById('settings-modal-body');
-        if (settings && !document.getElementById('webdav-settings-card')) {
-            const card = document.createElement('div');
-            card.id = 'webdav-settings-card';
-            card.className = 'rounded-lg border border-indigo-200 dark:border-indigo-800 bg-indigo-50/70 dark:bg-indigo-950/30 p-3';
-            card.innerHTML = '<div class="flex items-center justify-between gap-3"><div><strong class="text-sm text-slate-800 dark:text-slate-100">WebDAV</strong><p class="mt-1 text-xs text-slate-500 dark:text-slate-400">WDsave는 WebDAV 원본 경로에 저장합니다. 내보내기는 기존 파일 내보내기 기능을 유지합니다.</p></div><button type="button" id="webdav-settings-open" class="shrink-0 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white">탐색기 열기</button></div>';
-            settings.prepend(card);
-            card.querySelector('#webdav-settings-open').addEventListener('click', requestExplorer);
         }
     }
 

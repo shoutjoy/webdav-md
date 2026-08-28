@@ -380,15 +380,7 @@
                 title="사이드바 숨기기/보이기">
                 <i data-lucide="menu" class="w-5 h-5 sm:w-[22px] sm:h-[22px]"></i>
             </button>
-            <div class="relative min-w-0 flex-1 self-stretch overflow-visible">
-                <!-- Toast Notification: keep feedback visible in the unused header space. -->
-                <div id="toast" role="status" aria-live="polite" aria-atomic="true" aria-hidden="true"
-                    class="absolute left-1/2 top-1/2 z-[2147483647] hidden max-w-[min(100%,720px)] -translate-x-1/2 -translate-y-1/2 items-start gap-3 rounded-lg bg-slate-800 px-4 py-2.5 text-sm text-white opacity-0 shadow-2xl transition-opacity pointer-events-none dark:bg-slate-700">
-                    <span id="toast-message" class="min-w-0 whitespace-normal break-words">알림 메시지</span>
-                    <button id="toast-close" type="button" class="hidden -mr-1 shrink-0 rounded px-1.5 py-0.5 text-lg leading-none text-slate-200 hover:bg-white/15 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/70"
-                        aria-label="알림 닫기" title="알림 닫기">&times;</button>
-                </div>
-            </div>
+            <div class="min-w-0 flex-1 overflow-hidden"></div>
         </div>
 
         <div class="app-header-actions flex flex-wrap items-center justify-end gap-x-0.5 gap-y-1 sm:gap-x-1 sm:gap-y-1.5 w-full lg:w-auto lg:flex-nowrap lg:justify-end min-w-0">
@@ -1192,8 +1184,7 @@
                         placeholder="이곳에 마크다운 내용을 입력하세요..."></textarea>
                     </div>
                     <div id="mini-preview-host"></div>
-                    <div id="editor-shift-float" class="no-print" data-layout="footer" aria-label="편집창 위치 조절">
-                        <div class="editor-shift-direction-buttons" role="group" aria-label="편집창 좌우 위치 조절">
+                    <div id="editor-shift-float" class="no-print absolute left-2 bottom-2 z-30 flex items-center gap-1 px-2 py-1 rounded-md border border-slate-300 dark:border-slate-600 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow">
                         <button type="button" onclick="adjustEditorHorizontalShift(-20)"
                             class="px-2 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
                             title="편집창을 왼쪽으로 이동">L</button>
@@ -1203,7 +1194,6 @@
                         <button type="button" onclick="adjustEditorHorizontalShift(20)"
                             class="px-2 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
                             title="편집창을 오른쪽으로 이동">R</button>
-                        </div>
                     </div>
                 </div>
                 <button type="button" id="btn-copy-view-rich"
@@ -1217,7 +1207,8 @@
                 </div>
             </main>
             <div id="app-status-footer" class="no-print border-t border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 px-3 sm:px-4 md:px-6 py-1.5">
-                <div id="mdpro-footer-row" class="flex items-center gap-2 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 min-w-0">
+                <div class="flex items-center gap-2 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 min-w-0">
+                    <span class="shrink-0 font-semibold">MDproViewer</span>
                     <span class="shrink-0 text-slate-300 dark:text-slate-600">|</span>
                     <p id="file-name-display" class="min-w-0 flex-1 flex items-center gap-1.5 overflow-hidden" title="">
                         <span id="file-title-display" class="shrink-0 max-w-[35%] truncate font-medium">새 문서</span>
@@ -1525,6 +1516,15 @@
                 <button type="button" data-conflict-resolution onclick="resolveSqliteConflict('local')" class="px-3 py-2 rounded bg-red-600 hover:bg-red-700 text-white text-xs disabled:opacity-40">로컬본으로 새 버전 저장</button>
             </div>
         </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" role="status" aria-live="polite" aria-atomic="true" aria-hidden="true"
+        style="bottom: 4rem; left: 1rem; top: auto; right: auto;"
+        class="fixed bottom-4 left-4 z-[2147483647] flex max-w-[min(calc(100vw-2rem),720px)] items-start gap-3 rounded-lg bg-slate-800 px-4 py-3 text-sm text-white opacity-0 shadow-2xl transition-opacity pointer-events-none dark:bg-slate-700">
+        <span id="toast-message" class="min-w-0 whitespace-normal break-words">알림 메시지</span>
+        <button id="toast-close" type="button" class="hidden -mr-1 shrink-0 rounded px-1.5 py-0.5 text-lg leading-none text-slate-200 hover:bg-white/15 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/70"
+            aria-label="알림 닫기" title="알림 닫기">&times;</button>
     </div>
 
     <!-- Settings Modal -->
@@ -3428,11 +3428,10 @@
     defer>
 </script>
 <script
-    src="./js/app.js?v=20260829-wdsaveas-1&amp;storageSafety=20260815-1&amp;localWriteback=20260815-1&amp;localFileRefresh=20260817-1&amp;docxImport=20260817-dark-table-contrast-1&amp;viewModeTextInput=20260815-2&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;indbImages=20260812-3&amp;indbToggle=20260816-1&amp;tidyCustomJs=20260811-1&amp;html2md=20260817-1&amp;inline2ref=20260822-4&amp;saveDropdown=20260822-1&amp;aiJenaAttachments=20260822-2&amp;aiDataCenter=20260823-1&amp;settingsDrag=20260811-1&amp;copyFab=20260810-ai-jena-bottom-1&amp;mobileAiJena=20260817-1&amp;feature=templates-new-file-menu-2&amp;storageVisibility=20260810-1&amp;settingsResetConfirm=1&amp;toolbarNames=20260807-1&amp;templateFullscreen=20260807-1&amp;settingsFold=20260807-1&amp;mermaidDisplay=20260810-3&amp;comment=20260812-html-comment-1&amp;perf=20260810-10&amp;pdfExport=20260812-edit-merge-1&amp;pvExport=20260813-modal-2&amp;pdfMergeTool=20260815-pdfm-project-15&amp;imageSizeHint=20260811-1&amp;textStyle=20260815-supsub-1&amp;localDefault=20260812-1&amp;folderTree=20260812-1&amp;documentMeta=20260812-1&amp;documentDrop=20260812-1&amp;sliderMaker=20260812-1&amp;scholarUpgrades=20260817-2&amp;pvHeaderSettings=20260815-1&amp;mainHeaderBackground=20260815-1&amp;mainHeaderScale=20260815-1&amp;headerFileActions=20260823-1&amp;listQuickMenu=20260823-1&amp;footnoteAnchorMenu=20260823-1&amp;imageInsertMenu=20260825-link-1&amp;verticalEditToolbar=20260823-2&amp;headerHeadingDisplay=20260825-1&amp;documentTheme=20260825-1&amp;fastSafetyTimeout=20260825-1&amp;fastCompleteStreaming=20260825-1&amp;fastLimitsUi=20260825-2&amp;aiDetailsToggle=20260825-1&amp;splitTab=20260825-1"
+    src="./js/app.js?v=20260828-litertlm-base-url-default-1&amp;storageSafety=20260815-1&amp;localWriteback=20260815-1&amp;localFileRefresh=20260817-1&amp;docxImport=20260817-dark-table-contrast-1&amp;viewModeTextInput=20260815-2&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;indbImages=20260812-3&amp;indbToggle=20260816-1&amp;tidyCustomJs=20260811-1&amp;html2md=20260817-1&amp;inline2ref=20260822-4&amp;saveDropdown=20260822-1&amp;aiJenaAttachments=20260822-2&amp;aiDataCenter=20260823-1&amp;settingsDrag=20260811-1&amp;copyFab=20260810-ai-jena-bottom-1&amp;mobileAiJena=20260817-1&amp;feature=templates-new-file-menu-2&amp;storageVisibility=20260810-1&amp;settingsResetConfirm=1&amp;toolbarNames=20260807-1&amp;templateFullscreen=20260807-1&amp;settingsFold=20260807-1&amp;mermaidDisplay=20260810-3&amp;comment=20260812-html-comment-1&amp;perf=20260810-10&amp;pdfExport=20260812-edit-merge-1&amp;pvExport=20260813-modal-2&amp;pdfMergeTool=20260815-pdfm-project-15&amp;imageSizeHint=20260811-1&amp;textStyle=20260815-supsub-1&amp;localDefault=20260812-1&amp;folderTree=20260812-1&amp;documentMeta=20260812-1&amp;documentDrop=20260812-1&amp;sliderMaker=20260812-1&amp;scholarUpgrades=20260817-2&amp;pvHeaderSettings=20260815-1&amp;mainHeaderBackground=20260815-1&amp;mainHeaderScale=20260815-1&amp;headerFileActions=20260823-1&amp;listQuickMenu=20260823-1&amp;footnoteAnchorMenu=20260823-1&amp;imageInsertMenu=20260825-link-1&amp;verticalEditToolbar=20260823-2&amp;headerHeadingDisplay=20260825-1&amp;documentTheme=20260825-1&amp;fastSafetyTimeout=20260825-1&amp;fastCompleteStreaming=20260825-1&amp;fastLimitsUi=20260825-2&amp;aiDetailsToggle=20260825-1&amp;splitTab=20260825-1"
     charset="utf-8"
     defer>
 </script>
-<script src="./js/webdav-host-bridge.js?v=20260829-wdsaveas-1" defer></script>
 <script src="./js/ai-jena-embedded-bridge.js?v=20260825-cursor-fix" charset="utf-8" defer></script>
 <script
     src="./sidebarAI/scholar-ai-upgrades.js?v=20260817-quick-progress-1"
