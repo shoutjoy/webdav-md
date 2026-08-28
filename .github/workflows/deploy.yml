@@ -14,14 +14,15 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
@@ -50,10 +51,11 @@ jobs:
       - name: Add SPA fallback for GitHub Pages
         run: cp dist/index.html dist/404.html
 
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_branch: gh-pages
-          publish_dir: dist
+        uses: actions/deploy-pages@v4

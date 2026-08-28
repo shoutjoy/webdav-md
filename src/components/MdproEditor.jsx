@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 
 const FMA_WIDTH_KEY = 'webdav-fma-panel-width';
+const APP_BASE_URL = import.meta.env.BASE_URL;
+const MDPRO_URL = `${APP_BASE_URL}mdpro/index.html?webdav=1`;
+const FMA_URL = `${APP_BASE_URL}mdpro/Apps/fmaviewer/index.html?embedded=1`;
 
 export default function MdproEditor({ selectedFile, content, binaryContent, fmaImportBatch, loading, explorerWidth, onSave, onSaveAs, onSaveImageToFolder, onClose, onToggleExplorer, onOpenExplorer, onOpenFolderExplorer, onThemeChange }) {
   const mdproFrameRef = useRef(null);
@@ -98,7 +101,7 @@ export default function MdproEditor({ selectedFile, content, binaryContent, fmaI
     <div className="mdpro-stage-bar"><span className="mdpro-stage-dot"/><strong>MDPRO</strong><span className="mdpro-stage-path">{selectedFile?.remotePath || 'WebDAV에서 문서를 선택하세요'}</span>{isFmaOpen && <button type="button" onClick={onClose}>FMA 닫기</button>}</div>
     {loading && <div className="mdpro-loading">WebDAV 파일을 여는 중…</div>}
     <div className="mdpro-workspace">
-      <iframe ref={mdproFrameRef} src="/mdpro/index.html?webdav=1" title="MDPRO 문서 편집기" className="mdpro-frame" />
+      <iframe ref={mdproFrameRef} src={MDPRO_URL} title="MDPRO 문서 편집기" className="mdpro-frame" />
       {isFmaOpen && <>
         <div className="fma-panel-resizer" onPointerDown={startFmaResize} role="separator" aria-label="문서와 FMA 너비 조절" title="드래그하여 문서와 FMA 크기 조절"><span/></div>
         <aside className="fma-dock" style={{ flexBasis: `${fmaWidth}%` }}>
@@ -108,7 +111,7 @@ export default function MdproEditor({ selectedFile, content, binaryContent, fmaI
             <button type="button" className="fma-dock-action" onClick={() => clickFmaControl('btnSettings')} title="FMA 설정 열기" aria-label="FMA 설정 열기">⚙</button>
             <button type="button" onClick={onClose} title="FMA 닫기" aria-label="FMA 닫기">×</button>
           </div>
-          <iframe ref={fmaFrameRef} src="/mdpro/Apps/fmaviewer/index.html?embedded=1" title="FMA 이미지 뷰어" className="fma-frame" />
+          <iframe ref={fmaFrameRef} src={FMA_URL} title="FMA 이미지 뷰어" className="fma-frame" />
         </aside>
       </>}
     </div>
