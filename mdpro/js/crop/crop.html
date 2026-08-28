@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>이미지 크롭</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; overflow: hidden; }
+    body {
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+      font-family: sans-serif;
+      background: #1a1a2e;
+      color: #e8e8f0;
+    }
+    h3 { margin: 0 0 8px; font-size: 14px; flex-shrink: 0; }
+    .crop-canvas-wrap {
+      flex: 1 1 0;
+      min-height: 0;
+      overflow: auto;
+      margin-bottom: 8px;
+    }
+    #crop-canvas {
+      display: block;
+      cursor: crosshair;
+      touch-action: none;
+      border: 1px solid #3a3a50;
+      border-radius: 6px;
+      background: #0d0d14;
+    }
+    .crop-preview-label { font-size: 12px; color: #888; margin: 0 0 4px; flex-shrink: 0; }
+    .crop-preview-wrap { width: 100%; height: 120px; background: #0d0d14; border: 1px solid #3a3a50; border-radius: 6px; overflow: hidden; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    #crop-preview { max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; display: block; }
+    .btns { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; flex-shrink: 0; }
+    button { padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; border: 1px solid #4a4a6a; background: #2a2a3a; color: #e8e8f0; }
+    button.primary { background: #5b4ce4; border-color: #6a5cf7; }
+  </style>
+</head>
+<body>
+  <h3>영역을 드래그해 선택하세요. 안쪽을 드래그하면 이동하고, 모서리 핸들을 드래그하면 크기를 조절할 수 있습니다.</h3>
+  <div class="crop-canvas-wrap">
+    <canvas id="crop-canvas"></canvas>
+  </div>
+  <div class="crop-preview-label">크롭 미리보기</div>
+  <div class="crop-preview-wrap">
+    <img id="crop-preview" alt="크롭 미리보기" />
+  </div>
+  <div class="btns">
+    <button class="primary" id="btn-apply-new">새 파일 만들기</button>
+    <button id="btn-apply-current">현재 파일에 적용</button>
+    <button id="btn-cancel">취소</button>
+  </div>
+  <script>
+    let img = null;
+    let scale = { w: 1, h: 1 };
+    let rect = { x: 0, y: 0, w: 0, h: 0 };
+    let dragging = false;
+    let dragMode = 'select';
+    let resizeHandle = null;
+    let start = { x: 0, y: 0 };
+    let dragStartRect = { x: 0, y: 0, w: 0, h: 0 };
+
+    const MIN_SELECTION_SIZE = 5;
+    const HANDLE_SIZE = 10;
+    const HANDLE_HIT_SIZE = 14;
+
+    const canvas = document.getElementById('crop-canvas');
+    const ctx = canvas.getContext('2d');
+    const previewEl = document.getElementById('crop-preview');
+
+    function draw() {
+      if (!img || !canvas.width || !canvas.height) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      if (rect.w > 2 && rect.h > 2) {
+        ctx.fillStyle = 'rgba(0,0,0,.4)';
+        ctx.fillRect(0, 0, canvas.width, rect.y);
+        ctx.fillRect(0, rect.y, rect.x, rect.h);
+        ctx.fillRect(rect.x + rect.w, rect.y, canvas.width - rect.x - rect.w, rect.h);
+        ctx.fillRect(0, rect.y + rect.h, canvas.width, canvas.height - rect.y - rect.h);
+
+        ctx.strokeStyle = '#6ac8f7';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
+        ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+        drawResizeHandles();
+
+        updatePreview();
+      } else {
+        previewEl.style.display = 'none';
+      }
+    }
+
+    function getResizeHandlePoints() {
+      return {
+        nw: { x: rect.x, y: rect.y },
+        ne: { x: rect.x + rect.w, y: rect.y },
+        se: { x: rect.x + rect.w, y: rect.y + rect.h },
+        sw: { x: rect.x, y: rect.y + rect.h }
+      };
+    }
+
+    function getResizeHandleDisplayPoint(point) {
+      const half = HANDLE_SIZE / 2;
+      return {
+        x: Math.max(half + 1, Math.min(canvas.width - half - 1, point.x)),
+        y: Math.max(half + 1, Math.min(canvas.height - half - 1, point.y))
+      };
+    }
+
+    function drawResizeHandles() {
+      const half = HANDLE_SIZE / 2;
+      const points = getResizeHandlePoints();
+
+      ctx.save();
+      ctx.setLineDash([]);
+      ctx.lineWidth = 2;
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#168ccc';
+
+      Object.keys(points).forEach(function(name) {
+        const point = getResizeHandleDisplayPoint(points[name]);
+        // 캔버스 가장자리의 핸들도 잘리지 않고 모두 보이도록 중심을 안쪽으로 제한한다.
+        ctx.fillRect(point.x - half, point.y - half, HANDLE_SIZE, HANDLE_SIZE);
+        ctx.strokeRect(point.x - half, point.y - half, HANDLE_SIZE, HANDLE_SIZE);
+      });
+      ctx.restore();
+    }
+
+    function updatePreview() {
+      if (!img || rect.w < 5 || rect.h < 5) {
+        previewEl.style.display = 'none';
+        return;
+      }
+      const sw = Math.round(rect.w * scale.w);
+      const sh = Math.round(rect.h * scale.h);
+      const tc = document.createElement('canvas');
+      tc.width = sw;
+      tc.height = sh;
+      const tctx = tc.getContext('2d');
+      tctx.drawImage(img, rect.x * scale.w, rect.y * scale.h, sw, sh, 0, 0, sw, sh);
+      previewEl.src = tc.toDataURL('image/png');
+      previewEl.style.display = 'block';
+    }
+
+    function fitCanvasToWrap(resetRect) {
+      if (!img) return;
+      const wrap = document.querySelector('.crop-canvas-wrap');
+      const maxW = Math.max(80, (wrap ? wrap.clientWidth : window.innerWidth) - 4);
+      const maxH = Math.max(80, (wrap ? wrap.clientHeight : window.innerHeight) - 4);
+
+      let w = img.width;
+      let h = img.height;
+      let ratio = Math.min(maxW / w, maxH / h);
+
+      if (!Number.isFinite(ratio) || ratio <= 0) ratio = 1;
+      ratio = Math.min(ratio, 3);
+
+      w = Math.max(1, Math.round(w * ratio));
+      h = Math.max(1, Math.round(h * ratio));
+
+      const prevW = canvas.width || w;
+      const prevH = canvas.height || h;
+
+      canvas.width = w;
+      canvas.height = h;
+      scale = { w: img.width / w, h: img.height / h };
+
+      if (resetRect || rect.w <= 0 || rect.h <= 0) {
+        rect = { x: 0, y: 0, w: w, h: h };
+      } else {
+        const rx = w / prevW;
+        const ry = h / prevH;
+        rect = {
+          x: Math.max(0, Math.min(w, rect.x * rx)),
+          y: Math.max(0, Math.min(h, rect.y * ry)),
+          w: Math.max(1, Math.min(w, rect.w * rx)),
+          h: Math.max(1, Math.min(h, rect.h * ry))
+        };
+      }
+
+      draw();
+    }
+
+    function receiveImage(imageData) {
+      if (!imageData) return;
+      img = new Image();
+      if (imageData.startsWith('data:')) {
+        img.src = imageData;
+      } else {
+        img.crossOrigin = 'anonymous';
+        img.src = imageData;
+      }
+      img.onerror = function() {
+        document.body.insertAdjacentHTML('beforeend', '<p style="color:#e55">이미지를 불러올 수 없습니다.</p>');
+      };
+      img.onload = function() {
+        fitCanvasToWrap(true);
+      };
+    }
+
+    var imageReceived = false;
+    window.addEventListener('message', function(e) {
+      if (e.data && e.data.type === 'crop' && e.data.image) {
+        imageReceived = true;
+        receiveImage(e.data.image);
+      }
+    });
+
+    window.addEventListener('resize', function() {
+      fitCanvasToWrap(false);
+    });
+
+    function getHostWindow() {
+      if (window.opener && !window.opener.closed) return window.opener;
+      if (window.parent && window.parent !== window) return window.parent;
+      return null;
+    }
+
+    function postToHost(payload) {
+      const host = getHostWindow();
+      if (host) host.postMessage(payload, '*');
+      return !!host;
+    }
+
+    function requestImage() {
+      postToHost({ type: 'crop-ready' });
+    }
+    requestImage();
+    var retryCount = 0;
+    var retryId = setInterval(function() {
+      if (imageReceived || img) { clearInterval(retryId); return; }
+      if (++retryCount > 6) { clearInterval(retryId); return; }
+      requestImage();
+    }, 400);
+
+    function getCanvasPoint(e) {
+      const r = canvas.getBoundingClientRect();
+      return {
+        x: Math.max(0, Math.min(canvas.width, (e.clientX - r.left) * (canvas.width / r.width))),
+        y: Math.max(0, Math.min(canvas.height, (e.clientY - r.top) * (canvas.height / r.height)))
+      };
+    }
+
+    function isPointInSelection(point) {
+      return rect.w >= 5 && rect.h >= 5 &&
+        point.x >= rect.x && point.x <= rect.x + rect.w &&
+        point.y >= rect.y && point.y <= rect.y + rect.h;
+    }
+
+    function getResizeHandle(point) {
+      if (rect.w < MIN_SELECTION_SIZE || rect.h < MIN_SELECTION_SIZE) return null;
+      const points = getResizeHandlePoints();
+      const halfHit = HANDLE_HIT_SIZE / 2;
+      const names = ['nw', 'ne', 'se', 'sw'];
+
+      for (let i = 0; i < names.length; i += 1) {
+        const name = names[i];
+        const handlePoint = getResizeHandleDisplayPoint(points[name]);
+        if (Math.abs(point.x - handlePoint.x) <= halfHit &&
+            Math.abs(point.y - handlePoint.y) <= halfHit) {
+          return name;
+        }
+      }
+      return null;
+    }
+
+    function getResizeCursor(handle) {
+      return handle === 'nw' || handle === 'se' ? 'nwse-resize' : 'nesw-resize';
+    }
+
+    function canMoveSelection(point) {
+      const isInitialFullSelection =
+        rect.x <= 1 && rect.y <= 1 &&
+        rect.x + rect.w >= canvas.width - 1 &&
+        rect.y + rect.h >= canvas.height - 1;
+      return !isInitialFullSelection && isPointInSelection(point);
+    }
+
+    function updateCanvasCursor(point) {
+      if (dragging) {
+        if (dragMode === 'resize') {
+          canvas.style.cursor = getResizeCursor(resizeHandle);
+        } else {
+          canvas.style.cursor = dragMode === 'move' ? 'grabbing' : 'crosshair';
+        }
+      } else {
+        const handle = getResizeHandle(point);
+        canvas.style.cursor = handle
+          ? getResizeCursor(handle)
+          : (canMoveSelection(point) ? 'move' : 'crosshair');
+      }
+    }
+
+    function resizeSelection(point) {
+      const left = dragStartRect.x;
+      const top = dragStartRect.y;
+      const right = dragStartRect.x + dragStartRect.w;
+      const bottom = dragStartRect.y + dragStartRect.h;
+
+      if (resizeHandle === 'nw') {
+        rect.x = Math.max(0, Math.min(right - MIN_SELECTION_SIZE, point.x));
+        rect.y = Math.max(0, Math.min(bottom - MIN_SELECTION_SIZE, point.y));
+        rect.w = right - rect.x;
+        rect.h = bottom - rect.y;
+      } else if (resizeHandle === 'ne') {
+        rect.x = left;
+        rect.y = Math.max(0, Math.min(bottom - MIN_SELECTION_SIZE, point.y));
+        rect.w = Math.max(MIN_SELECTION_SIZE, Math.min(canvas.width, point.x) - left);
+        rect.h = bottom - rect.y;
+      } else if (resizeHandle === 'se') {
+        rect.x = left;
+        rect.y = top;
+        rect.w = Math.max(MIN_SELECTION_SIZE, Math.min(canvas.width, point.x) - left);
+        rect.h = Math.max(MIN_SELECTION_SIZE, Math.min(canvas.height, point.y) - top);
+      } else if (resizeHandle === 'sw') {
+        rect.x = Math.max(0, Math.min(right - MIN_SELECTION_SIZE, point.x));
+        rect.y = top;
+        rect.w = right - rect.x;
+        rect.h = Math.max(MIN_SELECTION_SIZE, Math.min(canvas.height, point.y) - top);
+      }
+    }
+
+    canvas.addEventListener('pointerdown', function(e) {
+      if (e.button !== 0) return;
+      const point = getCanvasPoint(e);
+      dragging = true;
+      start = point;
+
+      resizeHandle = getResizeHandle(point);
+      if (resizeHandle) {
+        dragMode = 'resize';
+        dragStartRect = { x: rect.x, y: rect.y, w: rect.w, h: rect.h };
+      } else if (canMoveSelection(point)) {
+        dragMode = 'move';
+        dragStartRect = { x: rect.x, y: rect.y, w: rect.w, h: rect.h };
+      } else {
+        dragMode = 'select';
+        resizeHandle = null;
+        rect = { x: point.x, y: point.y, w: 0, h: 0 };
+      }
+
+      canvas.setPointerCapture(e.pointerId);
+      updateCanvasCursor(point);
+      e.preventDefault();
+    });
+
+    canvas.addEventListener('pointermove', function(e) {
+      const point = getCanvasPoint(e);
+      if (!dragging) {
+        updateCanvasCursor(point);
+        return;
+      }
+
+      if (dragMode === 'resize') {
+        resizeSelection(point);
+      } else if (dragMode === 'move') {
+        const maxX = Math.max(0, canvas.width - dragStartRect.w);
+        const maxY = Math.max(0, canvas.height - dragStartRect.h);
+        rect.x = Math.max(0, Math.min(maxX, dragStartRect.x + point.x - start.x));
+        rect.y = Math.max(0, Math.min(maxY, dragStartRect.y + point.y - start.y));
+      } else {
+        rect = {
+          x: Math.min(start.x, point.x),
+          y: Math.min(start.y, point.y),
+          w: Math.abs(point.x - start.x),
+          h: Math.abs(point.y - start.y)
+        };
+      }
+
+      draw();
+      updateCanvasCursor(point);
+      e.preventDefault();
+    });
+
+    function finishPointerDrag(e) {
+      if (!dragging) return;
+      dragging = false;
+      if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+      updateCanvasCursor(getCanvasPoint(e));
+      resizeHandle = null;
+    }
+
+    canvas.addEventListener('pointerup', finishPointerDrag);
+    canvas.addEventListener('pointercancel', finishPointerDrag);
+    canvas.addEventListener('pointerleave', function(e) {
+      if (!dragging) canvas.style.cursor = 'crosshair';
+    });
+
+    function submitCropResult(action) {
+      if (!img || rect.w < 5 || rect.h < 5) {
+        alert('먼저 자를 영역을 선택하세요.');
+        return;
+      }
+      const tc = document.createElement('canvas');
+      tc.width = Math.round(rect.w * scale.w);
+      tc.height = Math.round(rect.h * scale.h);
+      const tctx = tc.getContext('2d');
+      tctx.drawImage(img, rect.x * scale.w, rect.y * scale.h, tc.width, tc.height, 0, 0, tc.width, tc.height);
+      var dataUrl = tc.toDataURL('image/png');
+      if (dataUrl.length > 4000000) dataUrl = tc.toDataURL('image/jpeg', 0.92);
+      if (!postToHost({ type: 'aiimg-cropped', dataUrl: dataUrl, action: action })) {
+        if (window.opener) window.close();
+        return;
+      }
+      window.addEventListener('message', function onAck(e) {
+        if (e.data && e.data.type === 'crop-applied') {
+          window.removeEventListener('message', onAck);
+          window.close();
+        }
+      });
+      if (window.opener) setTimeout(function() { window.close(); }, 500);
+    }
+
+    document.getElementById('btn-apply-new').addEventListener('click', function() {
+      submitCropResult('new');
+    });
+    document.getElementById('btn-apply-current').addEventListener('click', function() {
+      submitCropResult('replace');
+    });
+
+    document.getElementById('btn-cancel').addEventListener('click', function() {
+      postToHost({ type: 'crop-cancel' });
+      if (window.opener) window.close();
+    });
+  </script>
+</body>
+</html>
