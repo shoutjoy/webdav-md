@@ -82,7 +82,7 @@ export default function LoginPage({
         </form>
 
         <p className="text-xs text-gray-500 mt-4 text-center">
-          * 브라우저에서 접근하려면 서버에 CORS 설정이 필요합니다.
+          * 로컬 실행 시 CORS와 NAS 인증서 문제를 앱의 보안 프록시가 처리합니다.
         </p>
       </div>
     </div>

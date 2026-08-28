@@ -16,7 +16,7 @@ export default function FileExplorerItem({
   onDelete,
 }) {
   return (
-    <tr className="border-b border-gray-100 hover:bg-gray-50 transition group">
+    <tr className="group border-b border-slate-100 transition hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/80">
       <td className="p-3">
         <div
           className={`flex items-center ${file.isDirectory ? 'cursor-pointer hover:text-amber-600' : 'cursor-pointer hover:text-blue-600'}`}
@@ -27,7 +27,7 @@ export default function FileExplorerItem({
           {file.isDirectory ? (
             <Folder size={18} className="text-blue-500 mr-2 shrink-0" fill="currentColor" opacity="0.2" />
           ) : (
-            <File size={18} className="text-gray-400 mr-2 flex-shrink-0" />
+            <File size={18} className="mr-2 flex-shrink-0 text-slate-400 dark:text-slate-500" />
           )}
           {
             file.isDirectory ? (
@@ -45,10 +45,10 @@ export default function FileExplorerItem({
           }
         </div>
       </td>
-      <td className="p-3 text-sm text-gray-500 whitespace-nowrap">
+      <td className="p-3 text-sm text-slate-500 whitespace-nowrap dark:text-slate-400">
         {file.isDirectory ? '-' : formatBytes(file.size)}
       </td>
-      <td className="p-3 text-sm text-gray-500 whitespace-nowrap">
+      <td className="p-3 text-sm text-slate-500 whitespace-nowrap dark:text-slate-400">
         {formatDate(file.lastModified)}
       </td>
       <td className="p-3 text-right whitespace-nowrap">
@@ -100,7 +100,10 @@ export default function FileExplorerItem({
             <Edit size={16} />
           </button>
           <button
-            onClick={() => onDelete(file.name)}
+            onClick={(event) => {
+              event.stopPropagation();
+              onDelete(file);
+            }}
             disabled={loading}
             className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded"
             title="삭제"
