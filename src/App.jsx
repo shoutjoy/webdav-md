@@ -9,12 +9,16 @@ import RenameModal from './components/RenameModal.jsx';
 import CreateDestinationModal from './components/CreateDestinationModal.jsx';
 import { normalizeRemotePath } from './webdavPaths.js';
 import { collectDirectoryEntries, shouldFallbackToCopyDelete } from './webdavMove.js';
+import { createDirectoryVerified, deleteDirectoryVerified, moveFileVerified } from './webdavMoveEngine.js';
 import { isDmergeFileName, readDmergeArchive } from './dmergeArchive.js';
+import { clearLoginSession, readLoginSession, writeLoginSession } from './loginSession.js';
 
 const SAVED_LOGIN_KEY = 'webdav-viewer-login';
 const EXPLORER_WIDTH_KEY = 'webdav-explorer-width';
+const MOBILE_EXPLORER_WIDTH_KEY = 'webdav-mobile-explorer-width';
 const EXPLORER_COMPACT_KEY = 'webdav-explorer-compact';
 const DEFAULT_EXPLORER_WIDTH = 20;
+const MOBILE_DEFAULT_EXPLORER_WIDTH = 33.333;
 const MIN_EXPLORER_WIDTH_PX = 100;
 const MAX_EXPLORER_WIDTH = 72;
 const LOCAL_WEB_DAV_PROXY_PATH = '/__webdav_proxy';
@@ -260,18 +264,24 @@ export default function App() {
   const [copiedKey, setCopiedKey] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [editorContent, setEditorContent] = useState('');
-  const [savedContent, setSavedContent] = useState('');
+  const [, setSavedContent] = useState('');
+  const [editorDirty, setEditorDirty] = useState(false);
   const [mediaPreviewUrl, setMediaPreviewUrl] = useState('');
   const [editorLoading, setEditorLoading] = useState(false);
   const [isWebDavSaving, setIsWebDavSaving] = useState(false);
   const [explorerWidth, setExplorerWidth] = useState(() => {
-    const savedWidth = Number.parseFloat(localStorage.getItem(EXPLORER_WIDTH_KEY));
+    const isMobile = window.matchMedia('(max-width: 767px)').matches;
+    const savedWidth = Number.parseFloat(localStorage.getItem(isMobile ? MOBILE_EXPLORER_WIDTH_KEY : EXPLORER_WIDTH_KEY));
     return Number.isFinite(savedWidth)
       ? Math.min(MAX_EXPLORER_WIDTH, Math.max(0, savedWidth))
-      : DEFAULT_EXPLORER_WIDTH;
+      : (isMobile ? MOBILE_DEFAULT_EXPLORER_WIDTH : DEFAULT_EXPLORER_WIDTH);
   });
   const [isExplorerCompact, setIsExplorerCompact] = useState(() => localStorage.getItem(EXPLORER_COMPACT_KEY) === 'true');
-  const [isExplorerOpen, setIsExplorerOpen] = useState(() => localStorage.getItem('webdav-explorer-open') !== 'false');
+  const [isExplorerOpen, setIsExplorerOpen] = useState(() => (
+    window.matchMedia('(max-width: 767px)').matches
+      ? false
+      : localStorage.getItem('webdav-explorer-open') !== 'false'
+  ));
   const [isDarkTheme, setIsDarkTheme] = useState(() => localStorage.getItem('md_viewer_theme') === 'dark');
   const [toastMessage, setToastMessage] = useState('');
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
@@ -301,7 +311,7 @@ export default function App() {
   const resetDirectoryState = useDirectoryStore((state) => state.resetDirectoryState);
   const setFullDirectoryTree = useDirectoryStore((state) => state.setFullDirectoryTree);
 
-  const hasEditorChanges = selectedFile?.viewMode === 'text' && editorContent !== savedContent;
+  const hasEditorChanges = selectedFile?.viewMode === 'text' && editorDirty;
 
   const createConfiguredWebDavClient = () => {
     const baseUrl = url.trim().replace(/\/$/, '');
@@ -343,39 +353,6 @@ export default function App() {
     return `${base}${encoded}`;
   };
 
-  const copyRemoteFileForMove = async (client, sourcePath, targetPath) => {
-    const runStep = async (label, path, operation) => {
-      try {
-        return await operation();
-      } catch (error) {
-        const wrapped = new Error(`${label} 실패 (${path}): ${error?.message || error}`);
-        wrapped.status = error?.status || error?.response?.status;
-        throw wrapped;
-      }
-    };
-    const contents = await runStep('원본 파일 읽기', sourcePath, () => client.getFileContents(sourcePath, { format: 'binary' }));
-    try {
-      await client.putFileContents(targetPath, contents, { overwrite: false });
-    } catch (uploadError) {
-      // A server may accept the upload even when the browser loses the
-      // response. Confirm the target before treating Failed to fetch as a
-      // failed move.
-      let createdAfterError = false;
-      try {
-        createdAfterError = await client.exists(targetPath);
-      } catch {
-        // Preserve the original upload error below.
-      }
-      if (!createdAfterError) {
-        const wrapped = new Error(`대상 파일 생성 실패 (${targetPath}): ${uploadError?.message || uploadError}`);
-        wrapped.status = uploadError?.status || uploadError?.response?.status;
-        throw wrapped;
-      }
-    }
-    const created = await runStep('대상 파일 확인', targetPath, () => client.exists(targetPath));
-    if (!created) throw new Error(`대상 파일 생성 확인 실패 (${targetPath})`);
-  };
-
   const moveRemoteItem = async (client, sourcePath, targetPath, isDirectory = false, overwrite = false, options = {}) => {
     const reportProgress = options.onProgress || (() => {});
     if (!options.copyDeleteOnly) {
@@ -398,14 +375,7 @@ export default function App() {
     const moveDirectory = isDirectory || sourceStat?.type === 'directory';
     if (!moveDirectory) {
       reportProgress({ completed: 0, total: 1, phase: '2단계 · 파일을 하나씩 이동', path: sourcePath });
-      if (overwrite) {
-        const contents = await client.getFileContents(sourcePath, { format: 'binary' });
-        await client.putFileContents(targetPath, contents, { overwrite: true });
-        if (!await client.exists(targetPath)) throw new Error(`대상 파일 덮어쓰기 확인 실패: ${targetPath}`);
-      } else {
-        await copyRemoteFileForMove(client, sourcePath, targetPath);
-      }
-      await client.deleteFile(sourcePath);
+      await moveFileVerified(client, sourcePath, targetPath, overwrite);
       reportProgress({ completed: 1, total: 1, phase: '2단계 · 이동 완료', path: targetPath });
       return;
     }
@@ -431,36 +401,14 @@ export default function App() {
     const total = directoryCount * 2 + filesToCopy.length;
     let completed = 0;
     reportProgress({ completed, total, phase: '1단계 · 대상 폴더 구조 생성', path: sourcePath });
-    try {
-      await client.createDirectory(targetPath);
-    } catch (error) {
-      let createdAfterError = false;
-      try { createdAfterError = await client.exists(targetPath); } catch { /* Preserve the create error. */ }
-      if (!createdAfterError) {
-        const wrapped = new Error(`대상 폴더 생성 실패 (${targetPath}): ${error?.message || error}`);
-        wrapped.status = error?.status || error?.response?.status;
-        throw wrapped;
-      }
-    }
-    if (!await client.exists(targetPath)) throw new Error(`대상 폴더 생성 확인 실패 (${targetPath})`);
+    await createDirectoryVerified(client, targetPath);
     completed += 1;
     reportProgress({ completed, total, phase: '1단계 · 대상 폴더 구조 생성', path: targetPath });
     for (const directoryPath of directories) {
       const relativePath = directoryPath.slice(sourcePath.length).replace(/^\/+/, '');
       if (relativePath) {
         const createdPath = joinRemotePath(targetPath, relativePath);
-        try {
-          await client.createDirectory(createdPath);
-        } catch (error) {
-          let createdAfterError = false;
-          try { createdAfterError = await client.exists(createdPath); } catch { /* Preserve the create error. */ }
-          if (!createdAfterError) {
-            const wrapped = new Error(`하위 폴더 생성 실패 (${createdPath}): ${error?.message || error}`);
-            wrapped.status = error?.status || error?.response?.status;
-            throw wrapped;
-          }
-        }
-        if (!await client.exists(createdPath)) throw new Error(`하위 폴더 생성 확인 실패 (${createdPath})`);
+        await createDirectoryVerified(client, createdPath);
         completed += 1;
         reportProgress({ completed, total, phase: '1단계 · 대상 폴더 구조 생성', path: createdPath });
       }
@@ -470,37 +418,17 @@ export default function App() {
       const entryPath = normalizeRemotePath(entry.filename);
       const relativePath = entryPath.slice(sourcePath.length).replace(/^\/+/, '');
       const copiedPath = joinRemotePath(targetPath, relativePath);
-      await copyRemoteFileForMove(client, entryPath, copiedPath);
-      try {
-        await client.deleteFile(entryPath);
-      } catch (error) {
-        const wrapped = new Error(`복사 확인 후 원본 파일 삭제 실패 (${entryPath}): ${error?.message || error}`);
-        wrapped.status = error?.status || error?.response?.status;
-        throw wrapped;
-      }
+      await moveFileVerified(client, entryPath, copiedPath, false);
       completed += 1;
       reportProgress({ completed, total, phase: '2단계 · 파일을 하나씩 이동', path: copiedPath });
     }
-    if (!await client.exists(targetPath)) throw new Error(`대상 폴더 생성 확인 실패: ${targetPath}`);
     const deepestDirectoriesFirst = [...directories].sort((a, b) => b.split('/').length - a.split('/').length);
     for (const directoryPath of deepestDirectoriesFirst) {
-      try {
-        await client.deleteFile(directoryPath);
-      } catch (error) {
-        const wrapped = new Error(`빈 원본 하위 폴더 삭제 실패 (${directoryPath}): ${error?.message || error}`);
-        wrapped.status = error?.status || error?.response?.status;
-        throw wrapped;
-      }
+      await deleteDirectoryVerified(client, directoryPath);
       completed += 1;
       reportProgress({ completed, total, phase: '2단계 · 원본 정리', path: directoryPath });
     }
-    try {
-      await client.deleteFile(sourcePath);
-    } catch (error) {
-      const wrapped = new Error(`빈 원본 폴더 삭제 실패 (${sourcePath}): ${error?.message || error}`);
-      wrapped.status = error?.status || error?.response?.status;
-      throw wrapped;
-    }
+    await deleteDirectoryVerified(client, sourcePath);
     completed += 1;
     reportProgress({ completed, total, phase: '2단계 · 이동 완료', path: targetPath });
   };
@@ -563,6 +491,7 @@ export default function App() {
 
   const returnToLoginIfUnauthorized = useCallback((err) => {
     if (err?.status !== 401) return false;
+    clearLoginSession(sessionStorage);
     clientRef.current = null;
     dmergeCacheRef.current.clear();
     setIsConnected(false);
@@ -576,19 +505,34 @@ export default function App() {
   }, [clearMediaPreview, resetDirectoryState]);
 
   // 연결 및 루트 디렉토리 읽기
-  const handleConnect = async (e) => {
-    e.preventDefault();
+  const connectWithCredentials = async ({
+    nextUrl = url,
+    nextUsername = username,
+    nextPassword = password,
+    rememberLogin = null,
+  } = {}) => {
     setLoading(true);
     setError('');
-    
+
     try {
-      const baseUrl = url.trim().replace(/\/$/, '');
-      createConfiguredWebDavClient();
+      const baseUrl = nextUrl.trim().replace(/\/$/, '');
+      const clientBaseUrl = getClientBaseUrl(baseUrl);
+      const usesLocalProxy = new URL(clientBaseUrl, window.location.origin).pathname.startsWith(LOCAL_WEB_DAV_PROXY_PATH);
+      clientRef.current = createClient(clientBaseUrl, {
+        username: nextUsername,
+        password: nextPassword,
+        ...(usesLocalProxy ? { remoteBasePath: '/' } : {}),
+      });
       const listed = await loadFullTree();
       if (listed) {
-        if (saveLoginInfo) {
-          localStorage.setItem(SAVED_LOGIN_KEY, JSON.stringify({ url: baseUrl, username }));
-        } else {
+        writeLoginSession(sessionStorage, {
+          url: baseUrl,
+          username: nextUsername,
+          password: nextPassword,
+        });
+        if (rememberLogin === true) {
+          localStorage.setItem(SAVED_LOGIN_KEY, JSON.stringify({ url: baseUrl, username: nextUsername }));
+        } else if (rememberLogin === false) {
           localStorage.removeItem(SAVED_LOGIN_KEY);
         }
         updateHistoryPath('/', true);
@@ -719,8 +663,27 @@ export default function App() {
     return window.confirm('저장하지 않은 변경사항이 있습니다. 닫으시겠습니까?');
   };
 
+  const handleEditorDocumentChange = (content, dirty) => {
+    editorContentRef.current = String(content ?? '');
+    setEditorDirty(Boolean(dirty));
+  };
+
+  const saveBeforeOpeningFile = async (file) => {
+    if (!hasEditorChanges) return true;
+    const currentName = selectedFileRef.current?.name || '현재 문서';
+    const nextName = file?.name || '선택한 파일';
+    const shouldSave = window.confirm(
+      `“${currentName}”의 내용이 변경되었습니다.\n변경 내용을 저장한 뒤 “${nextName}” 파일로 이동할까요?\n\n취소하면 현재 문서에 머뭅니다.`,
+    );
+    if (!shouldSave) return false;
+    return handleSaveFile(editorContentRef.current);
+  };
+
   const handleOpenFile = async (file) => {
-    if (!confirmEditorClose()) return;
+    const currentPath = normalizeRemotePath(selectedFileRef.current?.remotePath || '/');
+    const nextPath = normalizeRemotePath(file?.remotePath || '/');
+    if (selectedFileRef.current && currentPath === nextPath && !file.isArchiveEntry) return;
+    if (!(await saveBeforeOpeningFile(file))) return;
     if (file.isArchiveEntry) return handleOpenDmergeEntry(file);
     const fmaImage = isFmaImageFile(file.name);
     const fmaImportMode = fmaImage && nextWebDavFmaImportRef.current === 'image' ? 'append' : 'replace';
@@ -743,6 +706,8 @@ export default function App() {
     setEditorBinary(null);
     setEditorContent('');
     setSavedContent('');
+    setEditorDirty(false);
+    editorContentRef.current = '';
     setEditorBinary(null);
     setEditorLoading(true);
     setError('');
@@ -775,6 +740,8 @@ export default function App() {
         setSelectedFile({ ...file, remotePath, viewMode: 'text' });
         setEditorContent(text);
         setSavedContent(text);
+        setEditorDirty(false);
+        editorContentRef.current = text;
       }
     } catch (err) {
       if (!returnToLoginIfUnauthorized(err)) {
@@ -790,7 +757,7 @@ export default function App() {
     const selected = selectedFileRef.current;
     const file = selected?.viewMode === 'text' ? selected : lastTextFileRef.current;
     const content = typeof nextContent === 'string' ? nextContent : editorContentRef.current;
-    if (!client || !file || file.viewMode !== 'text') return;
+    if (!client || !file || file.viewMode !== 'text') return false;
 
     setEditorLoading(true);
     setIsWebDavSaving(true);
@@ -801,12 +768,16 @@ export default function App() {
       });
       setSavedContent(content);
       setEditorContent(content);
+      setEditorDirty(false);
+      editorContentRef.current = content;
       showToast(`원본 위치에 저장했습니다: ${file.remotePath}`);
       await loadDirectory(currentPath);
+      return true;
     } catch (err) {
       if (!returnToLoginIfUnauthorized(err)) {
         setError(`저장 실패: ${err.message}`);
       }
+      return false;
     } finally {
       setIsWebDavSaving(false);
       setEditorLoading(false);
@@ -846,6 +817,8 @@ export default function App() {
       lastTextFileRef.current = nextFile;
       setEditorContent(content);
       setSavedContent(content);
+      setEditorDirty(false);
+      editorContentRef.current = content;
       showToast(`새 WebDAV 파일로 저장했습니다: ${targetPath}`);
       await loadFullTree();
     } catch (err) {
@@ -934,6 +907,11 @@ export default function App() {
     }
   };
 
+  const handleConnect = (event) => {
+    event.preventDefault();
+    connectWithCredentials({ rememberLogin: saveLoginInfo });
+  };
+
   const handleOpenDmergeEntry = async (file) => {
     setEditorLoading(true);
     setError('');
@@ -960,6 +938,14 @@ export default function App() {
       return !open;
     });
   }, []);
+
+  const toggleMobileWdoc = () => {
+    if (!isExplorerOpen && isExplorerCompact) {
+      setIsExplorerCompact(false);
+      localStorage.setItem(EXPLORER_COMPACT_KEY, 'false');
+    }
+    toggleExplorer();
+  };
 
   const openExplorer = () => {
     nextWebDavFmaImportRef.current = 'image';
@@ -1009,7 +995,8 @@ export default function App() {
       document.body.style.userSelect = '';
       document.body.classList.remove('is-split-resizing');
       setExplorerWidth((width) => {
-        localStorage.setItem(EXPLORER_WIDTH_KEY, String(width));
+        const storageKey = window.matchMedia('(max-width: 767px)').matches ? MOBILE_EXPLORER_WIDTH_KEY : EXPLORER_WIDTH_KEY;
+        localStorage.setItem(storageKey, String(width));
         return width;
       });
       window.removeEventListener('pointermove', handlePointerMove);
@@ -1551,17 +1538,34 @@ export default function App() {
   };
 
   useEffect(() => {
+    let savedLogin = null;
     try {
-      const savedLogin = JSON.parse(localStorage.getItem(SAVED_LOGIN_KEY) || 'null');
-
-      if (savedLogin?.url || savedLogin?.username) {
-        setUrl(savedLogin.url || '');
-        setUsername(savedLogin.username || '');
-        setSaveLoginInfo(true);
-      }
+      savedLogin = JSON.parse(localStorage.getItem(SAVED_LOGIN_KEY) || 'null');
     } catch {
       localStorage.removeItem(SAVED_LOGIN_KEY);
     }
+
+    const activeSession = readLoginSession(sessionStorage);
+    if (activeSession) {
+      setUrl(activeSession.url);
+      setUsername(activeSession.username);
+      setPassword(activeSession.password);
+      setSaveLoginInfo(Boolean(savedLogin?.url || savedLogin?.username));
+      connectWithCredentials({
+        nextUrl: activeSession.url,
+        nextUsername: activeSession.username,
+        nextPassword: activeSession.password,
+      });
+      return;
+    }
+
+    if (savedLogin?.url || savedLogin?.username) {
+      setUrl(savedLogin.url || '');
+      setUsername(savedLogin.username || '');
+      setSaveLoginInfo(true);
+    }
+    // 저장된 세션의 자동 접속은 앱이 처음 열릴 때 한 번만 수행한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -1669,14 +1673,19 @@ export default function App() {
       const nextWidth = event.key === 'Home'
         ? DEFAULT_EXPLORER_WIDTH
         : Math.min(MAX_EXPLORER_WIDTH, Math.max(minWidth, width + (event.key === 'ArrowRight' ? keyboardStep : -keyboardStep)));
-      localStorage.setItem(EXPLORER_WIDTH_KEY, String(nextWidth));
+      const storageKey = window.matchMedia('(max-width: 767px)').matches ? MOBILE_EXPLORER_WIDTH_KEY : EXPLORER_WIDTH_KEY;
+      localStorage.setItem(storageKey, String(nextWidth));
       return nextWidth;
     });
   };
 
   const resetExplorerWidth = () => {
-    setExplorerWidth(DEFAULT_EXPLORER_WIDTH);
-    localStorage.setItem(EXPLORER_WIDTH_KEY, String(DEFAULT_EXPLORER_WIDTH));
+    const defaultWidth = window.matchMedia('(max-width: 767px)').matches
+      ? MOBILE_DEFAULT_EXPLORER_WIDTH
+      : DEFAULT_EXPLORER_WIDTH;
+    setExplorerWidth(defaultWidth);
+    const storageKey = window.matchMedia('(max-width: 767px)').matches ? MOBILE_EXPLORER_WIDTH_KEY : EXPLORER_WIDTH_KEY;
+    localStorage.setItem(storageKey, String(defaultWidth));
   };
 
   const toggleExplorerCompact = () => {
@@ -1725,8 +1734,18 @@ export default function App() {
 
   // 메인 파일 매니저 렌더링
   return (
-    <div className={`${isDarkTheme ? 'dark bg-[#111827]' : 'bg-[#eef2f7]'} min-h-screen overflow-hidden p-4 text-slate-800 transition-colors dark:text-slate-100 sm:p-6`}>
+    <div className={`webdav-shell ${isDarkTheme ? 'dark bg-[#111827]' : 'bg-[#eef2f7]'} min-h-screen overflow-hidden p-4 text-slate-800 transition-colors dark:text-slate-100 sm:p-6`}>
       <div className="mx-auto max-w-[min(1800px,98vw)]">
+        <button
+          type="button"
+          className={`mobile-wdoc-button ${isExplorerOpen ? 'is-open' : ''}`}
+          onClick={toggleMobileWdoc}
+          aria-label={isExplorerOpen ? 'wDoc 탐색기 닫기' : 'wDoc 탐색기 열기'}
+          aria-expanded={isExplorerOpen}
+          aria-controls="webdav-explorer-panel"
+        >
+          wDoc
+        </button>
         <TopNav
           currentPath={currentPath}
           publicUrl={buildPublicUrl(url, currentPath)}
@@ -1744,6 +1763,7 @@ export default function App() {
 
           onCopyFolderUrl={() => handleCopyUrl(currentPath, 'folder')}
           onDisconnect={() => {
+            clearLoginSession(sessionStorage);
             clientRef.current = null;
             dmergeCacheRef.current.clear();
             setIsConnected(false);
@@ -1758,9 +1778,10 @@ export default function App() {
 
         <div
           ref={splitContainerRef}
-          className="flex max-h-[calc(100vh-2rem)] min-h-[calc(100vh-2rem)] flex-col gap-1 overflow-hidden lg:flex-row"
+          className="webdav-app-layout flex max-h-[calc(100vh-2rem)] min-h-[calc(100vh-2rem)] flex-col gap-1 overflow-hidden lg:flex-row"
+          style={{ '--mobile-explorer-width': `${explorerWidth}%` }}
         >
-          {isExplorerOpen && <FileExplorer
+          {isExplorerOpen && <div id="webdav-explorer-panel" className="webdav-explorer-panel" style={{ flexBasis: `${explorerWidth}%` }}><FileExplorer
             files={files}
             directoryTree={directoryTree}
             loading={loading}
@@ -1792,10 +1813,10 @@ export default function App() {
             onRequestCreateFile={() => setCreateDestinationType('file')}
             onRequestCreateFolder={() => setCreateDestinationType('folder')}
             onToggleCompact={toggleExplorerCompact}
-          />}
+          /></div>}
 
           {isExplorerOpen && !isExplorerCompact && <div
-            className="split-resizer hidden shrink-0 lg:flex"
+            className="split-resizer shrink-0"
             onPointerDown={handleResizeStart}
             onKeyDown={handleResizeKeyDown}
             onDoubleClick={resetExplorerWidth}
@@ -1819,6 +1840,7 @@ export default function App() {
             explorerWidth={isExplorerOpen && !isExplorerCompact ? explorerWidth : 0}
             onSave={handleSaveFile}
             onSaveAs={handleSaveFileAs}
+            onDocumentChange={handleEditorDocumentChange}
             onSaveImageToFolder={handleSaveImageToFolder}
             onClose={handleCloseEditor}
             onToggleExplorer={toggleExplorer}

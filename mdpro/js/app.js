@@ -138,7 +138,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260829-pages-local-search-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?v=20260829-web-search-provider-1',
+    aiChat: './AI_App/aiChat/ai-chat.js?v=20260829-internet-results-actions-1',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260810-3'
@@ -13367,7 +13367,7 @@ function getScholarAIProviderRuntime() {
 }
 
 let aiChatAbortController = null;
-const AI_CHAT_GEMINI_MODELS_KEY = 'ss_ai_chat_gemini_models_v1';
+const AI_CHAT_GEMINI_MODELS_KEY = 'ss_ai_chat_gemini_models_v2';
 const aiChatGeminiModelLimits = Object.create(null);
 const AI_CHAT_DEEPSEEK_MODELS_KEY = 'ss_ai_chat_deepseek_models_v1';
 const AI_CHAT_OPENAI_MODELS_KEY = 'ss_ai_chat_openai_models_v1';
@@ -13381,26 +13381,16 @@ const LITERTLM_CLOUD_BASE_URL = 'https://llm1.abci.co.kr/v1';
 const LITERTLM_LEGACY_MODEL = 'gemma-4-E2B-it.litertlm';
 const LITERTLM_MIGRATED_MODEL = 'gemma-4-E4B';
 const AI_CHAT_GEMINI_DEFAULT_MODELS = [
+    'gemini-3.5-flash-lite',
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
     'gemini-3.5-flash',
+    'gemini-3.1-flash-lite',
     'gemini-3.1-pro-preview',
     'gemini-3-flash-preview',
-    'gemini-3.6-flash',
-    'gemini-deep-research-pro-preview',
-    'gemini-2.5-flash-tts',
-    'gemini-2.5-pro-tts',
-    'gemini-2.5-flash-native-audio-dialog',
-    'gemini-3-flash-live',
-    'gemini-3.5-live-translate',
-    'lyria-3-clip',
-    'lyria-3-pro',
-    'veo-3-fast-generate',
     'gemini-2.5-flash',
     'gemini-2.5-pro',
-    'gemini-2.5-flash-lite',
-    'gemini-3.1-flash-lite-image',
-    'gemini-3.1-flash-image',
-    'gemini-3-pro-image',
-    'gemini-2.5-flash-image'
+    'gemini-2.5-flash-lite'
 ];
 const AI_CHAT_DEEPSEEK_DEFAULT_MODELS = [
     'deepseek-v4-flash',
@@ -13412,27 +13402,23 @@ const AI_CHAT_OPENAI_DEFAULT_MODELS = [
     'gpt-5.6-luna'
 ];
 const SCHOLAR_AI_TEXT_MODELS_FALLBACK = [
+    'gemini-3.5-flash-lite',
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
     'gemini-3.5-flash',
+    'gemini-3.1-flash-lite',
     'gemini-3.1-pro-preview',
     'gemini-3-flash-preview',
-    'gemini-3.6-flash',
-    'gemini-deep-research-pro-preview',
-    'gemini-2.5-flash-tts',
-    'gemini-2.5-pro-tts',
-    'gemini-2.5-flash-native-audio-dialog',
-    'gemini-3-flash-live',
-    'gemini-3.5-live-translate',
-    'lyria-3-clip',
-    'lyria-3-pro',
-    'veo-3-fast-generate',
     'gemini-2.5-pro',
     'gemini-2.5-flash',
-    'gemini-2.5-flash-lite',
-    'gemini-2.0-flash-exp'
+    'gemini-2.5-flash-lite'
 ];
 
 function mergeAIChatGeminiModels(models) {
-    return Array.from(new Set(AI_CHAT_GEMINI_DEFAULT_MODELS.concat(Array.isArray(models) ? models : []).filter(Boolean)));
+    const available = new Set((Array.isArray(models) ? models : []).map(String).filter(Boolean));
+    return AI_CHAT_GEMINI_DEFAULT_MODELS.filter(function (model) {
+        return !available.size || available.has(model);
+    });
 }
 
 function mergeAIChatDeepseekModels(models) {
@@ -17080,7 +17066,88 @@ window.setAllSettingsContainersFolded = setAllSettingsContainersFolded;
 window.isSettingsContainerFolded = isSettingsContainerFolded;
 window.applySettingsContainerFold = applySettingsContainerFold;
 window.toggleSettingsModalCompact = toggleSettingsModalCompact;
+function getAppFullscreenHost() {
+    try {
+        if (window.frameElement && window.parent && window.parent.document) {
+            return { doc: window.parent.document, target: window.frameElement };
+        }
+    } catch (error) {
+        // 다른 출처에 포함된 경우에는 MDPRO 문서 자체를 전체화면으로 사용한다.
+    }
+    return { doc: document, target: document.documentElement };
+}
+
+function isAppFullscreenActive() {
+    var host = getAppFullscreenHost();
+    var fullscreenElement = host.doc.fullscreenElement || host.doc.webkitFullscreenElement || host.doc.msFullscreenElement;
+    return Boolean(fullscreenElement || (host.target && host.target.classList.contains('mdpro-frame-mobile-fullscreen')));
+}
+
+function syncAppFullscreenButton() {
+    var button = document.getElementById('btn-app-fullscreen');
+    if (!button) return;
+    var active = isAppFullscreenActive();
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    button.setAttribute('aria-label', active ? '전체화면 종료' : '전체화면으로 보기');
+    button.title = active ? '전체화면 종료' : '전체화면으로 보기';
+    var enterIcon = button.querySelector('.app-fullscreen-enter-icon');
+    var exitIcon = button.querySelector('.app-fullscreen-exit-icon');
+    if (enterIcon) enterIcon.classList.toggle('hidden', active);
+    if (exitIcon) exitIcon.classList.toggle('hidden', !active);
+}
+
+function setAppFullscreenFallback(active) {
+    var host = getAppFullscreenHost();
+    if (!host.target || host.target === document.documentElement) return;
+    host.target.classList.toggle('mdpro-frame-mobile-fullscreen', active);
+    host.doc.body.classList.toggle('mdpro-mobile-fullscreen-active', active);
+    syncAppFullscreenButton();
+}
+
+function toggleAppFullscreen() {
+    var host = getAppFullscreenHost();
+    var fullscreenElement = host.doc.fullscreenElement || host.doc.webkitFullscreenElement || host.doc.msFullscreenElement;
+    var fallbackActive = host.target && host.target.classList.contains('mdpro-frame-mobile-fullscreen');
+    if (fallbackActive) {
+        setAppFullscreenFallback(false);
+        return;
+    }
+    if (fullscreenElement) {
+        var exit = host.doc.exitFullscreen || host.doc.webkitExitFullscreen || host.doc.msExitFullscreen;
+        if (exit) Promise.resolve(exit.call(host.doc)).catch(function () {});
+        return;
+    }
+    var request = host.target.requestFullscreen || host.target.webkitRequestFullscreen || host.target.msRequestFullscreen;
+    if (!request) {
+        setAppFullscreenFallback(true);
+        return;
+    }
+    Promise.resolve(request.call(host.target)).then(syncAppFullscreenButton).catch(function () {
+        setAppFullscreenFallback(true);
+    });
+}
+
+document.addEventListener('fullscreenchange', syncAppFullscreenButton);
+document.addEventListener('webkitfullscreenchange', syncAppFullscreenButton);
+document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') {
+        var host = getAppFullscreenHost();
+        if (host.target && host.target.classList.contains('mdpro-frame-mobile-fullscreen')) {
+            setAppFullscreenFallback(false);
+        }
+    }
+});
+try {
+    if (window.parent && window.parent !== window) {
+        window.parent.document.addEventListener('fullscreenchange', syncAppFullscreenButton);
+        window.parent.document.addEventListener('webkitfullscreenchange', syncAppFullscreenButton);
+    }
+} catch (error) {
+    // 교차 출처 호스트에서는 자체 fullscreenchange 이벤트만 사용한다.
+}
+
 window.toggleSettingsModalFullscreen = toggleSettingsModalFullscreen;
+window.toggleAppFullscreen = toggleAppFullscreen;
 window.openGithubRepositoryShortcut = openGithubRepositoryShortcut;
 window.openLocalStorageSettings = openLocalStorageSettings;
 window.closeDeleteModal = closeDeleteModal;

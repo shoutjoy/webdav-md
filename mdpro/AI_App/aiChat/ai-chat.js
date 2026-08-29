@@ -55,26 +55,16 @@
   var MIN_CHAT_WIDTH = 340;
   var DEFAULT_POPUP_HEIGHT = 585;
   var DEFAULT_GEMINI_MODELS = [
+    'gemini-3.5-flash-lite',
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
     'gemini-3.5-flash',
+    'gemini-3.1-flash-lite',
     'gemini-3.1-pro-preview',
     'gemini-3-flash-preview',
-    'gemini-3.6-flash',
-    'gemini-deep-research-pro-preview',
-    'gemini-2.5-flash-tts',
-    'gemini-2.5-pro-tts',
-    'gemini-2.5-flash-native-audio-dialog',
-    'gemini-3-flash-live',
-    'gemini-3.5-live-translate',
-    'lyria-3-clip',
-    'lyria-3-pro',
-    'veo-3-fast-generate',
     'gemini-2.5-flash',
     'gemini-2.5-pro',
-    'gemini-2.5-flash-lite',
-    'gemini-3.1-flash-lite-image',
-    'gemini-3.1-flash-image',
-    'gemini-3-pro-image',
-    'gemini-2.5-flash-image'
+    'gemini-2.5-flash-lite'
   ];
   var DEFAULT_DEEPSEEK_MODELS = [
     'deepseek-v4-flash',
@@ -113,7 +103,7 @@
     academicSearchEnabled: false,
     internetSearchEnabled: false,
     academicSearchCount: 10,
-    geminiModel: 'gemini-3.5-flash',
+    geminiModel: 'gemini-3.5-flash-lite',
     ollamaModel: '',
     litertlmModel: '',
     deepseekModel: 'deepseek-v4-flash',
@@ -2307,7 +2297,10 @@
 
   function geminiModelLabel(model) {
     var labels = {
+      'gemini-3.5-flash-lite': 'Gemini 3.5 Flash Lite',
+      'gemini-3.7-flash': 'Gemini 3.7 Flash',
       'gemini-3.5-flash': 'Gemini 3.5 Flash',
+      'gemini-3.1-flash-lite': 'Gemini 3.1 Flash Lite',
       'gemini-3.1-pro-preview': 'Gemini 3.1 Pro Preview',
       'gemini-3-flash-preview': 'Gemini 3 Flash Preview',
       'gemini-3.6-flash': 'Gemini 3.6 Flash',
@@ -2332,9 +2325,10 @@
   }
 
   function mergeGeminiModels(models) {
-    return Array.from(new Set(DEFAULT_GEMINI_MODELS.concat(
-      (Array.isArray(models) ? models : []).map(String).filter(Boolean)
-    )));
+    var available = new Set((Array.isArray(models) ? models : []).map(String).filter(Boolean));
+    return DEFAULT_GEMINI_MODELS.filter(function (model) {
+      return !available.size || available.has(model);
+    });
   }
 
   function updateModelModeUI() {
@@ -3609,6 +3603,30 @@
     }
   }
 
+  function openMarkdownPreviewWindow(markdown, options) {
+    options = options || {};
+    var md = String(markdown || '').trim();
+    if (!md) return setStatus(options.emptyMessage || '미리보기할 내용이 없습니다.', 'error');
+    var payload = {
+      markdown: md,
+      question: String(options.question || '').trim(),
+      viewTitle: String(options.viewTitle || '').trim(),
+      contentLabel: String(options.contentLabel || '').trim(),
+      createdAt: Date.now()
+    };
+    try {
+      var payloadKey = 'aiJenaAnswerViewPayload:' + Date.now() + ':' + Math.random().toString(36).slice(2, 9);
+      localStorage.setItem(payloadKey, JSON.stringify(payload));
+      var url = new URL('./AI_App/aiChat/ai-chat-answer-view.html', root.location.href);
+      url.searchParams.set('payload', payloadKey);
+      var previewWindow = root.open(url.href, 'ai-jena-preview-' + Date.now(), 'popup=yes,width=940,height=820,resizable=yes,scrollbars=yes');
+      if (!previewWindow) throw new Error('팝업이 차단되었습니다.');
+      setStatus(options.successMessage || '새 보기 창을 열었습니다.', 'ok');
+    } catch (error) {
+      setStatus(error && error.message ? error.message : (options.errorMessage || '보기 창을 열지 못했습니다.'), 'error');
+    }
+  }
+
   function copyAnswerMarkdownRaw(message) {
     var md = String(message && message.content || '');
     if (!md.trim()) return setStatus('복사할 답변이 없습니다.', 'error');
@@ -3847,6 +3865,47 @@
     }).join('\n\n');
   }
 
+  function escapeMarkdownText(value) {
+    return String(value || '').replace(/([\\`*{}\[\]()#+.!_|>~-])/g, '\\$1');
+  }
+
+  function internetResultsMarkdown(message) {
+    var results = Array.isArray(message && message.internetSources) ? message.internetSources : [];
+    var lines = ['# 인터넷 검색 근거', ''];
+    results.forEach(function (source, index) {
+      lines.push('## ' + (index + 1) + '. ' + escapeMarkdownText(source.title || '제목 없음'), '');
+      lines.push('- 주소: [' + source.url + '](' + source.url + ')');
+      if (source.source) lines.push('- 출처: ' + escapeMarkdownText(source.source));
+      if (source.date) lines.push('- 날짜: ' + escapeMarkdownText(source.date));
+      if (source.engine) lines.push('- 검색 엔진: ' + escapeMarkdownText(source.engine));
+      if (source.channel) lines.push('- 채널: ' + escapeMarkdownText(source.channel));
+      lines.push('', source.snippet || '검색 결과 요약 없음', '');
+    });
+    return lines.join('\n').trim();
+  }
+
+  async function insertInternetResults(message, mode) {
+    try {
+      var markdown = internetResultsMarkdown(message);
+      if (!markdown.trim()) throw new Error('문서에 삽입할 인터넷 검색 근거가 없습니다.');
+      await insertIntoCurrentDocument(markdown, mode || 'cursor');
+      setStatus('인터넷 검색 근거를 ' + insertModeLabel(mode) + '했습니다.', 'ok');
+    } catch (error) {
+      setStatus(error && error.message ? error.message : '인터넷 검색 근거를 문서에 삽입하지 못했습니다.', 'error');
+    }
+  }
+
+  function openInternetResultsWindow(message) {
+    openMarkdownPreviewWindow(internetResultsMarkdown(message), {
+      question: message && (message.internetQuery || message.content) || '',
+      viewTitle: 'AI Jena 인터넷 검색 근거',
+      contentLabel: '인터넷 검색 근거',
+      emptyMessage: '새창에서 볼 인터넷 검색 근거가 없습니다.',
+      successMessage: '인터넷 검색 결과 보기 창을 열었습니다.',
+      errorMessage: '인터넷 검색 결과 보기 창을 열지 못했습니다.'
+    });
+  }
+
   function internetSystemInstruction(evidence) {
     return [
       '아래 인터넷 검색 근거만 외부 사실의 출처로 사용하여 한국어로 답하라.',
@@ -3879,6 +3938,19 @@
     var title = document.createElement('strong');
     title.textContent = '인터넷 검색 근거 ' + results.length + '건';
     head.appendChild(title);
+    var headActions = document.createElement('div');
+    headActions.className = 'ai-chat-source-actions';
+    var openWindow = document.createElement('button');
+    openWindow.type = 'button';
+    openWindow.textContent = '새창으로 보기';
+    openWindow.addEventListener('click', function () { openInternetResultsWindow(message); });
+    headActions.appendChild(openWindow);
+    var copy = document.createElement('button');
+    copy.type = 'button';
+    copy.textContent = '검색결과 복사';
+    copy.addEventListener('click', function () { copyText(internetResultsMarkdown(message)); });
+    headActions.appendChild(copy);
+    head.appendChild(headActions);
     section.appendChild(head);
     var note = document.createElement('p');
     note.textContent = (message.internetSearchEngine || 'web') + (message.internetFallbackUsed ? ' · 앱 폴백 사용' : '') + ' · AI 답변 전에 수집한 출처입니다.';
@@ -3902,6 +3974,14 @@
       var meta = document.createElement('span');
       meta.textContent = [source.source, source.date, source.engine, source.channel].filter(Boolean).join(' · ');
       item.appendChild(meta);
+      var address = document.createElement('a');
+      address.className = 'ai-chat-internet-url';
+      address.textContent = source.url;
+      address.href = source.url;
+      address.target = '_blank';
+      address.rel = 'noopener noreferrer';
+      address.title = '근거 주소를 새 창에서 열기';
+      item.appendChild(address);
       if (source.snippet) {
         var details = document.createElement('details');
         var summary = document.createElement('summary');
@@ -3915,6 +3995,25 @@
       list.appendChild(item);
     });
     section.appendChild(list);
+    var footer = document.createElement('div');
+    footer.className = 'ai-chat-academic-footer';
+    var footerLabel = document.createElement('span');
+    footerLabel.textContent = '문서에 삽입';
+    footer.appendChild(footerLabel);
+    [
+      { mode: 'replace', label: '대체 삽입' },
+      { mode: 'cursor', label: '커서 위치' },
+      { mode: 'line-below', label: '한 줄 아래' },
+      { mode: 'document-end', label: '문서 맨 아래' }
+    ].forEach(function (option) {
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = option.label;
+      button.title = '인터넷 검색 근거 전체를 ' + option.label + ' 방식으로 문서에 삽입';
+      button.addEventListener('click', function () { insertInternetResults(message, option.mode); });
+      footer.appendChild(button);
+    });
+    section.appendChild(footer);
     return section;
   }
 
