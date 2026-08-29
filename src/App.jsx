@@ -261,6 +261,7 @@ export default function App() {
   const [savedContent, setSavedContent] = useState('');
   const [mediaPreviewUrl, setMediaPreviewUrl] = useState('');
   const [editorLoading, setEditorLoading] = useState(false);
+  const [isWebDavSaving, setIsWebDavSaving] = useState(false);
   const [explorerWidth, setExplorerWidth] = useState(() => {
     const savedWidth = Number.parseFloat(localStorage.getItem(EXPLORER_WIDTH_KEY));
     return Number.isFinite(savedWidth)
@@ -674,6 +675,7 @@ export default function App() {
     if (!client || !file || file.viewMode !== 'text') return;
 
     setEditorLoading(true);
+    setIsWebDavSaving(true);
     setError('');
     try {
       await client.putFileContents(file.remotePath, content, {
@@ -688,6 +690,7 @@ export default function App() {
         setError(`저장 실패: ${err.message}`);
       }
     } finally {
+      setIsWebDavSaving(false);
       setEditorLoading(false);
     }
   };
@@ -712,6 +715,7 @@ export default function App() {
       return;
     }
     setEditorLoading(true);
+    setIsWebDavSaving(true);
     setError('');
     try {
       if (await client.exists(targetPath) && !window.confirm(`이미 존재하는 파일입니다. 덮어쓸까요?\n${targetPath}`)) return;
@@ -729,6 +733,7 @@ export default function App() {
     } catch (err) {
       if (!returnToLoginIfUnauthorized(err)) setError(`다른 이름으로 저장 실패: ${err.message}`);
     } finally {
+      setIsWebDavSaving(false);
       setEditorLoading(false);
     }
   };
@@ -739,6 +744,7 @@ export default function App() {
     if (!client || !sourceFile || !image?.src) return;
 
     setEditorLoading(true);
+    setIsWebDavSaving(true);
     setError('');
     try {
       const sourcePath = normalizeRemotePath(sourceFile.remotePath);
@@ -777,6 +783,7 @@ export default function App() {
     } catch (err) {
       if (!returnToLoginIfUnauthorized(err)) setError(`IMAGE 폴더 저장 실패: ${err.message}`);
     } finally {
+      setIsWebDavSaving(false);
       setEditorLoading(false);
     }
   };
@@ -1650,6 +1657,7 @@ export default function App() {
             binaryContent={editorBinary}
             fmaImportBatch={fmaImportBatch}
             loading={editorLoading}
+            saving={isWebDavSaving}
             explorerWidth={isExplorerOpen && !isExplorerCompact ? explorerWidth : 0}
             onSave={handleSaveFile}
             onSaveAs={handleSaveFileAs}
@@ -1672,7 +1680,7 @@ export default function App() {
       />
 
       {toastMessage && (
-        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-lg">
+        <div className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 rounded-lg bg-gray-900 px-5 py-3 text-sm font-semibold text-white shadow-2xl dark:border dark:border-slate-600">
           {toastMessage}
         </div>
       )}

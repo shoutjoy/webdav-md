@@ -3,8 +3,6 @@ import { AlertCircle, ArrowLeft, Check, Copy, FilePlus, LogOut, Menu, PanelLeft,
 
 const WD_DOCK_POSITION_KEY = 'webdav-wd-dock-position-v3';
 const VIEWPORT_MARGIN = 16;
-const MDPRO_MENU_OFFSET_X = 82;
-const MDPRO_MENU_OFFSET_Y = 48;
 
 const clampDockPosition = (x, y, width, height) => ({
   x: Math.min(Math.max(VIEWPORT_MARGIN, x), Math.max(VIEWPORT_MARGIN, window.innerWidth - width - VIEWPORT_MARGIN)),
@@ -27,19 +25,17 @@ export default function TopNav({ currentPath, publicUrl, loading, error, copiedK
 
   useEffect(() => {
     if (position) return;
-    const alignWithMdproMenu = () => {
-      const stage = document.querySelector('.mdpro-stage');
-      if (!stage || !dockRef.current) return;
-      const stageRect = stage.getBoundingClientRect();
+    const alignTopRight = () => {
+      if (!dockRef.current) return;
       const dockRect = dockRef.current.getBoundingClientRect();
       setPosition(clampDockPosition(
-        stageRect.left + MDPRO_MENU_OFFSET_X,
-        stageRect.top + MDPRO_MENU_OFFSET_Y,
+        window.innerWidth - dockRect.width - VIEWPORT_MARGIN,
+        VIEWPORT_MARGIN,
         dockRect.width,
         dockRect.height,
       ));
     };
-    const frame = window.requestAnimationFrame(alignWithMdproMenu);
+    const frame = window.requestAnimationFrame(alignTopRight);
     return () => window.cancelAnimationFrame(frame);
   }, [position]);
 
@@ -105,7 +101,7 @@ export default function TopNav({ currentPath, publicUrl, loading, error, copiedK
   return <>
     <div
       ref={dockRef}
-      className={`fixed z-50 ${position ? '' : 'left-4 top-16 opacity-0'}`}
+      className={`fixed z-50 ${position ? '' : 'right-4 top-4 opacity-0'}`}
       style={position ? { left: position.x, top: position.y } : undefined}
     >
       <button
@@ -115,14 +111,14 @@ export default function TopNav({ currentPath, publicUrl, loading, error, copiedK
         onPointerMove={handleDockPointerMove}
         onPointerUp={handleDockPointerUp}
         onPointerCancel={handleDockPointerUp}
-        className="flex h-10 touch-none select-none items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 text-white shadow-xl hover:bg-slate-800 active:cursor-grabbing"
+        className="flex h-10 touch-none select-none items-center gap-2 rounded-full border border-slate-600 bg-slate-900 px-3 text-white shadow-[0_8px_24px_rgba(15,23,42,0.32)] hover:bg-slate-800 active:cursor-grabbing dark:border-slate-500 dark:shadow-[0_10px_30px_rgba(0,0,0,0.72),0_0_0_1px_rgba(148,163,184,0.18)]"
         aria-label={open ? 'WD Dock 접기' : 'WD Dock 열기'}
         aria-expanded={open}
       >
         <span className="text-xs font-semibold tracking-wide">WD Dock</span>
         {open ? <X size={18}/> : <Menu size={18}/>} 
       </button>
-      {open && <div className={`absolute top-[calc(100%+0.4rem)] w-[min(470px,calc(100vw-2rem))] overflow-hidden rounded-xl border border-slate-200 bg-white/95 text-slate-800 shadow-2xl backdrop-blur dark:border-slate-700 dark:bg-slate-900/95 dark:text-slate-100 ${dockIsOnLeft ? 'left-0' : 'right-0'}`}>
+      {open && <div className={`absolute top-[calc(100%+0.4rem)] w-[min(470px,calc(100vw-2rem))] overflow-hidden rounded-xl border border-slate-200 bg-white/95 text-slate-800 shadow-2xl backdrop-blur dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-100 dark:shadow-[0_18px_48px_rgba(0,0,0,0.78),0_0_0_1px_rgba(148,163,184,0.16)] ${dockIsOnLeft ? 'left-0' : 'right-0'}`}>
         <div className="flex items-center gap-1.5 border-b border-slate-200 p-2 dark:border-slate-700">
           <button onClick={onGoBack} disabled={currentPath === '/' || loading} className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-30" title="상위 폴더"><ArrowLeft size={16}/></button>
           <div className="min-w-0 flex-1 truncate rounded-md bg-slate-100 px-2.5 py-1.5 font-mono text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-200">{currentPath}</div>

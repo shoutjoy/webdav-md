@@ -42,6 +42,9 @@ body { margin: 0; background: #e9edf3; }
 .fma-panel-resizer span { width:4px; height:72px; border-radius:999px; background:#64748b; }
 .fma-panel-resizer:hover span { height:96px; background:#60a5fa; }
 .mdpro-loading { position: absolute; inset: 38px 0 0; z-index: 5; display: grid; place-items: center; color: #64748b; background: rgba(248,250,252,.82); backdrop-filter: blur(3px); }
+.mdpro-saving { position:absolute; inset:38px 0 0; z-index:6; display:grid; place-items:center; pointer-events:none; background:transparent; }
+.mdpro-saving span { padding:12px 20px; border:1px solid rgba(129,140,248,.65); border-radius:10px; color:#fff; background:rgba(15,23,42,.94); box-shadow:0 16px 42px rgba(15,23,42,.32); font-size:14px; font-weight:700; letter-spacing:-.01em; }
+.dark .mdpro-saving span { border-color:rgba(129,140,248,.72); background:rgba(15,23,42,.96); }
 .split-resizer { width: 12px; cursor: col-resize; align-items: center; justify-content: center; border-radius: 8px; outline: none; touch-action: none; transition: background-color .15s; }
 .split-resizer:hover, .split-resizer:focus-visible { background: rgba(99,102,241,.12); }
 .split-resizer-grip { width: 4px; height: 64px; border-radius: 999px; background: #94a3b8; box-shadow: 0 0 0 1px rgba(255,255,255,.65); transition: height .15s, background-color .15s; }

@@ -2896,6 +2896,9 @@ async function updatePreviewPopupContent() {
         }
     } catch (_) {}
     try {
+        if (typeof applyDocumentLinkTargets === 'function') {
+            applyDocumentLinkTargets(target);
+        }
         if (snapshot.features.hasDoiLinks && typeof applyDoiLinkTargets === 'function') {
             applyDoiLinkTargets(target);
         }

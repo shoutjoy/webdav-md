@@ -5,7 +5,7 @@ const APP_BASE_URL = import.meta.env.BASE_URL;
 const MDPRO_URL = `${APP_BASE_URL}mdpro/index.html?webdav=1`;
 const FMA_URL = `${APP_BASE_URL}mdpro/Apps/fmaviewer/index.html?embedded=1`;
 
-export default function MdproEditor({ selectedFile, content, binaryContent, fmaImportBatch, loading, explorerWidth, onSave, onSaveAs, onSaveImageToFolder, onClose, onToggleExplorer, onOpenExplorer, onOpenFolderExplorer, onThemeChange }) {
+export default function MdproEditor({ selectedFile, content, binaryContent, fmaImportBatch, loading, saving, explorerWidth, onSave, onSaveAs, onSaveImageToFolder, onClose, onToggleExplorer, onOpenExplorer, onOpenFolderExplorer, onThemeChange }) {
   const mdproFrameRef = useRef(null);
   const fmaFrameRef = useRef(null);
   const documentRef = useRef({ selectedFile, content, binaryContent, fmaImportBatch });
@@ -108,7 +108,8 @@ export default function MdproEditor({ selectedFile, content, binaryContent, fmaI
 
   return <section className="mdpro-stage" style={{ flexBasis: `${100 - explorerWidth}%` }}>
     <div className="mdpro-stage-bar"><span className="mdpro-stage-dot"/><strong>MDPRO</strong><span className="mdpro-stage-path">{selectedFile?.remotePath || 'WebDAV에서 문서를 선택하세요'}</span>{isFmaOpen && <button type="button" onClick={onClose}>FMA 닫기</button>}</div>
-    {loading && <div className="mdpro-loading">WebDAV 파일을 여는 중…</div>}
+    {loading && !saving && <div className="mdpro-loading">WebDAV 파일을 여는 중…</div>}
+    {saving && <div className="mdpro-saving" role="status" aria-live="polite"><span>WebDAV에 저장합니다.</span></div>}
     <div className="mdpro-workspace">
       <iframe ref={mdproFrameRef} src={MDPRO_URL} onLoad={attachWebdavBridge} title="MDPRO 문서 편집기" className="mdpro-frame" />
       {isFmaOpen && <>

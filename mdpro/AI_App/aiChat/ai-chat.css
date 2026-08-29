@@ -1339,7 +1339,7 @@ body.theme-light .ai-chat-live-stream > strong { border-color: #c5d1e4; backgrou
 body.theme-light .ai-chat-live-stream > div { color: #334155; }
 body.theme-light .ai-chat-live-stream.answer { border-color: #9ccdbd; }
 body.theme-light .ai-chat-live-stream.answer > strong { border-color: #acd8c9; background: #e5f5ef; color: #116149; }
-body.theme-light .ai-chat-live-stream.answer > div { color: #1f4036; }
+body.theme-light .ai-chat-live-stream.answer > div { color: #fff; }
 body.theme-light .ai-chat-live-stream > div.waiting,
 body.theme-light .ai-chat-live-stream.answer > div.waiting { color: #64748b; }
 body.theme-light .ai-chat-history-sidebar { background: #f1f5f9; }

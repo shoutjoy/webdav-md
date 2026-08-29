@@ -471,6 +471,9 @@ function renderMiniPreviewContent() {
             }
         } catch (_) {}
         try {
+            if (typeof applyDocumentLinkTargets === 'function') {
+                applyDocumentLinkTargets(miniPreviewContent);
+            }
             if (snapshot.features.hasDoiLinks && typeof applyDoiLinkTargets === 'function') {
                 applyDoiLinkTargets(miniPreviewContent);
             }

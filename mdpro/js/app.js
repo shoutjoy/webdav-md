@@ -31,6 +31,30 @@ const GOOGLE_CALENDAR_OPEN_MODE_KEY = 'md_viewer_google_calendar_open_mode';
 const GOOGLE_CALENDAR_EMAIL_KEY = 'md_viewer_google_calendar_email';
 const VIEW_COPY_FAB_POSITION_KEY = 'md_viewer_view_copy_fab_position_v2';
 const VIEW_COPY_FAB_EDGE_GAP = 8;
+const FIRST_RUN_AI_SETTINGS_DEFAULTS = Object.freeze({
+    aiMasterEnabled: true,
+    scholarAI: true,
+    sspimgAI: false,
+    scholarSearchVisible: true,
+    highlightVisible: true,
+    toDocsVisible: true,
+    sitesVisible: true,
+    macroVisible: false,
+    templateVisible: false,
+    templateNewFileVisible: true,
+    noteCoverInsertVisible: true,
+    pdfMergeVisible: false,
+    chromeSplitTabVisible: false,
+    html2pptVisible: true,
+    html2pptNameVisible: false,
+    fmaViewerVisible: true,
+    fmaViewerNameVisible: false,
+    imageUploadEnabled: true
+});
+
+function withFirstRunAiSettingsDefaults(settings) {
+    return { ...FIRST_RUN_AI_SETTINGS_DEFAULTS, ...(settings || {}), id: AI_SETTINGS_KEY };
+}
 
 function getHeaderFileActionStyle() {
     const stored = localStorage.getItem(HEADER_FILE_ACTION_STYLE_KEY);
@@ -112,9 +136,9 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     html2canvas: './vendor/html2canvas/html2canvas.min.js?v=1.4.1',
     jsPdf: './vendor/jspdf/jspdf.umd.min.js?v=4.2.1',
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
-    aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260823-web-search-1',
+    aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260829-web-search-provider-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?v=20260828-aistudio-live-tokens-1',
+    aiChat: './AI_App/aiChat/ai-chat.js?v=20260829-web-search-provider-1',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260810-3'
@@ -235,8 +259,12 @@ function initializeLazyAiChatEntry() {
     const checkbox = document.getElementById('ai-chat-enabled');
     const menuCheckbox = document.getElementById('ai-chat-menu-enabled');
     const menuButton = document.getElementById('btn-ai-jena-menu');
+    const isMenuEnabled = function () {
+        const stored = localStorage.getItem(menuEnabledKey);
+        return stored == null ? true : stored === '1';
+    };
     const syncMenuButton = function () {
-        const enabled = localStorage.getItem(menuEnabledKey) === '1';
+        const enabled = isMenuEnabled();
         if (menuCheckbox) menuCheckbox.checked = enabled;
         if (menuButton) {
             menuButton.classList.toggle('hidden', !enabled);
@@ -612,6 +640,12 @@ const THEME_KEY = 'md_viewer_theme';
 const EDITOR_LIGHT_KEY = 'md_viewer_editor_light';
 const EDITOR_COMMENT_LIGHT_COLOR_KEY = 'md_viewer_comment_highlight_light';
 const EDITOR_COMMENT_DARK_COLOR_KEY = 'md_viewer_comment_highlight_dark';
+const DARK_VIEW_BOLD_COLOR_KEY = 'md_viewer_dark_view_bold_color';
+const DARK_VIEW_HEADER_COLOR_KEY = 'md_viewer_dark_view_header_color';
+const DEFAULT_DARK_VIEW_TEXT_COLORS = Object.freeze({
+    bold: '#f59e0b',
+    header: '#4f46e5'
+});
 const DEFAULT_EDITOR_COMMENT_COLORS = window.MDComment && window.MDComment.DEFAULT_EDITOR_COMMENT_COLORS
     ? window.MDComment.DEFAULT_EDITOR_COMMENT_COLORS
     : Object.freeze({ light: '#f59e0b', dark: '#facc15' });
@@ -1886,6 +1920,22 @@ function organizeSettingsDashboard() {
     ].join('');
     appendToColumn(generalColumn, headerHeadingSettings);
     applyHeaderHeadingDisplay(getHeaderHeadingDisplay(), false);
+    const darkViewTextColorSettings = document.createElement('div');
+    darkViewTextColorSettings.id = 'dark-view-text-color-settings';
+    darkViewTextColorSettings.className = 'rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-3';
+    darkViewTextColorSettings.innerHTML = [
+        '<div class="text-xs font-bold text-slate-700 dark:text-slate-200">보기 글자 색상 (다크모드)</div>',
+        '<div class="mt-3 space-y-3">',
+        '  <label class="flex items-center justify-between gap-3 text-xs font-medium text-slate-700 dark:text-slate-300"><span>Bold 색상</span><input type="color" id="dark-view-bold-color" value="' + DEFAULT_DARK_VIEW_TEXT_COLORS.bold + '" onchange="applyDarkViewTextColorSettings(true)" class="h-9 w-12 cursor-pointer rounded border border-slate-300 bg-transparent p-1 dark:border-slate-600" aria-label="다크모드 보기 Bold 색상"></label>',
+        '  <label class="flex items-center justify-between gap-3 text-xs font-medium text-slate-700 dark:text-slate-300"><span>헤더 색상</span><input type="color" id="dark-view-header-color" value="' + DEFAULT_DARK_VIEW_TEXT_COLORS.header + '" onchange="applyDarkViewTextColorSettings(true)" class="h-9 w-12 cursor-pointer rounded border border-slate-300 bg-transparent p-1 dark:border-slate-600" aria-label="다크모드 보기 헤더 색상"></label>',
+        '</div>',
+        '<div class="mt-3 flex items-center justify-between gap-3">',
+        '  <p class="text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">보기 화면의 다크모드에만 적용됩니다.</p>',
+        '  <button type="button" onclick="resetDarkViewTextColorSettings()" class="shrink-0 text-[11px] font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300">기본값으로 초기화</button>',
+        '</div>'
+    ].join('');
+    appendToColumn(generalColumn, darkViewTextColorSettings);
+    loadDarkViewTextColorSettings();
     if (aiUser) {
         aiUser.className = 'border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-slate-50 dark:bg-slate-900/50 space-y-2';
         appendToColumn(generalColumn, aiUser);
@@ -3352,6 +3402,36 @@ function applyDoiLinkTargets(root) {
 
 window.applyDoiLinkTargets = applyDoiLinkTargets;
 
+function isDocumentNavigationLink(link) {
+    if (!link || !link.getAttribute) return false;
+    const href = String(link.getAttribute('href') || '').trim();
+    if (!href || href.charAt(0) === '#') return false;
+    return !/^javascript:/i.test(href);
+}
+
+function applyDocumentLinkTargets(root) {
+    if (!root || !root.querySelectorAll) return;
+    root.querySelectorAll('a[href]').forEach(function (link) {
+        if (!isDocumentNavigationLink(link)) return;
+        link.setAttribute('target', '_blank');
+        link.setAttribute('rel', 'noopener noreferrer');
+    });
+    if (root.__documentNewWindowLinksBound) return;
+    root.__documentNewWindowLinksBound = true;
+    root.addEventListener('click', function (event) {
+        const link = event.target && event.target.closest
+            ? event.target.closest('a[href]')
+            : null;
+        if (!link || !root.contains(link) || !isDocumentNavigationLink(link)) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        const view = (link.ownerDocument && link.ownerDocument.defaultView) || window;
+        view.open(link.href, '_blank', 'noopener,noreferrer');
+    }, true);
+}
+
+window.applyDocumentLinkTargets = applyDocumentLinkTargets;
+
 function applyInline2RefLinkTargets(root) {
     if (!root || !root.querySelectorAll) return;
     root.querySelectorAll('a[title="mdpro-inline2ref-new-window"]').forEach(function (link) {
@@ -3470,6 +3550,7 @@ async function renderMarkdown(options) {
     function runPostRenderHooks() {
         if (!isCurrentRender()) return;
         try { applyMarkdownImageSizeHints(viewer); } catch (e) {}
+        try { applyDocumentLinkTargets(viewer); } catch (e) {}
         try { if (snapshot.features.hasDoiLinks) applyDoiLinkTargets(viewer); } catch (e) {}
         try { applyInline2RefLinkTargets(viewer); } catch (e) {}
         try { if (typeof bindFootnoteLinkNavigation === 'function') bindFootnoteLinkNavigation(); } catch (e) {}
@@ -8459,6 +8540,53 @@ function applyMarkdownCommentColorSettings() {
     } catch (_) {}
 }
 
+function normalizeDarkViewTextColor(value, fallback) {
+    const color = String(value || '').trim();
+    return /^#[0-9a-f]{6}$/i.test(color) ? color.toLowerCase() : fallback;
+}
+
+function loadDarkViewTextColorSettings() {
+    let savedBold = '';
+    let savedHeader = '';
+    try {
+        savedBold = localStorage.getItem(DARK_VIEW_BOLD_COLOR_KEY) || '';
+        savedHeader = localStorage.getItem(DARK_VIEW_HEADER_COLOR_KEY) || '';
+    } catch (_) {}
+    const boldColor = normalizeDarkViewTextColor(savedBold, DEFAULT_DARK_VIEW_TEXT_COLORS.bold);
+    const headerColor = normalizeDarkViewTextColor(savedHeader, DEFAULT_DARK_VIEW_TEXT_COLORS.header);
+    const boldInput = document.getElementById('dark-view-bold-color');
+    const headerInput = document.getElementById('dark-view-header-color');
+    if (boldInput) boldInput.value = boldColor;
+    if (headerInput) headerInput.value = headerColor;
+    document.documentElement.style.setProperty('--md-dark-view-bold-color', boldColor);
+    document.documentElement.style.setProperty('--md-dark-view-header-color', headerColor);
+}
+
+function applyDarkViewTextColorSettings(showFeedback) {
+    const boldInput = document.getElementById('dark-view-bold-color');
+    const headerInput = document.getElementById('dark-view-header-color');
+    const boldColor = normalizeDarkViewTextColor(boldInput && boldInput.value, DEFAULT_DARK_VIEW_TEXT_COLORS.bold);
+    const headerColor = normalizeDarkViewTextColor(headerInput && headerInput.value, DEFAULT_DARK_VIEW_TEXT_COLORS.header);
+    if (boldInput) boldInput.value = boldColor;
+    if (headerInput) headerInput.value = headerColor;
+    document.documentElement.style.setProperty('--md-dark-view-bold-color', boldColor);
+    document.documentElement.style.setProperty('--md-dark-view-header-color', headerColor);
+    try {
+        localStorage.setItem(DARK_VIEW_BOLD_COLOR_KEY, boldColor);
+        localStorage.setItem(DARK_VIEW_HEADER_COLOR_KEY, headerColor);
+    } catch (_) {}
+    if (showFeedback) showToast('다크모드 보기 글자 색상을 저장했습니다.');
+}
+
+function resetDarkViewTextColorSettings() {
+    try {
+        localStorage.removeItem(DARK_VIEW_BOLD_COLOR_KEY);
+        localStorage.removeItem(DARK_VIEW_HEADER_COLOR_KEY);
+    } catch (_) {}
+    loadDarkViewTextColorSettings();
+    showToast('다크모드 보기 글자 색상을 기본값으로 초기화했습니다.');
+}
+
 function initSettings() {
     const savedBg = localStorage.getItem('md_viewer_code_bg');
     const savedText = localStorage.getItem('md_viewer_code_text');
@@ -8473,6 +8601,7 @@ function initSettings() {
         if (textEl) textEl.value = savedText;
     }
     loadMarkdownCommentColorSettings();
+    loadDarkViewTextColorSettings();
     const savedShift = Number(localStorage.getItem(EDITOR_HORIZONTAL_SHIFT_KEY));
     editorHorizontalShiftPx = Number.isFinite(savedShift) ? Math.round(savedShift) : 0;
     applyDocumentWidthScale();
@@ -8840,23 +8969,23 @@ async function getAiSettings() {
         try {
             if (!window.MDPStorage || typeof window.MDPStorage.getStatus !== 'function'
                 || typeof window.MDPStorage.getResolvedSqliteSettings !== 'function') {
-                return localSettings;
+                return withFirstRunAiSettingsDefaults(localSettings);
             }
             const status = window.MDPStorage.getStatus();
             if (!status || status.activeMode !== 'sqlite'
                 || !status.sqliteHealth || !status.sqliteHealth.capabilities
                 || status.sqliteHealth.capabilities.settings !== true) {
-                return localSettings;
+                return withFirstRunAiSettingsDefaults(localSettings);
             }
             const resolved = await window.MDPStorage.getResolvedSqliteSettings();
             const values = resolved && resolved.values && typeof resolved.values === 'object'
                 ? resolved.values
                 : {};
             // SQLite contains allow-listed values only. Locally stored credentials remain local.
-            return { ...(localSettings || {}), ...values, id: AI_SETTINGS_KEY };
+            return withFirstRunAiSettingsDefaults({ ...(localSettings || {}), ...values });
         } catch (error) {
             console.warn('SQLite settings restore skipped:', error && error.message ? error.message : error);
-            return localSettings;
+            return withFirstRunAiSettingsDefaults(localSettings);
         }
     }
     if (!db) return await mergeSqliteSettings(readFallback());
@@ -9254,8 +9383,8 @@ async function saveDeepseekApiKey() {
     const key = (input && input.value) ? input.value.trim() : '';
     const maxTokens = Math.max(256, Math.min(384000, Number(document.getElementById('deepseek-max-tokens')?.value) || 8192));
     const timeoutSeconds = Math.max(30, Math.min(3600, Number(document.getElementById('deepseek-timeout')?.value) || 300));
-    const effortValue = String(document.getElementById('deepseek-reasoning-effort')?.value || 'high').toLowerCase();
-    const reasoningEffort = ['low', 'high', 'max'].includes(effortValue) ? effortValue : 'high';
+    const effortValue = String(document.getElementById('deepseek-reasoning-effort')?.value || 'low').toLowerCase();
+    const reasoningEffort = ['low', 'high'].includes(effortValue) ? effortValue : 'low';
     localStorage.setItem('ss_deepseek_max_tokens', String(maxTokens));
     localStorage.setItem('ss_deepseek_timeout_seconds', String(timeoutSeconds));
     localStorage.setItem('ss_deepseek_reasoning_effort', reasoningEffort);
@@ -9468,7 +9597,7 @@ function isSettingsContainerFolded(containerId) {
     const id = String(containerId || '');
     if (!id) return true;
     const state = getSettingsContainerFoldState();
-    return state[id] !== false;
+    return state[id] === true;
 }
 
 function setSettingsContainerFoldedToLocal(containerId, folded) {
@@ -9698,7 +9827,7 @@ function resetFileDownloadPrefixSetting() {
 
 function getAiUseFoldedFromLocal() {
     const v = localStorage.getItem(AI_USE_FOLD_KEY);
-    return v == null ? true : v === '1';
+    return v == null ? false : v === '1';
 }
 
 function setAiUseFoldedToLocal(folded) {
@@ -9720,17 +9849,19 @@ function toggleAiUseFold() {
 
 function getAiChatSettingsFoldedFromLocal() {
     const v = localStorage.getItem(AI_CHAT_SETTINGS_FOLD_KEY);
-    return v == null ? true : v === '1';
+    return v == null ? false : v === '1';
 }
 
 function ensureAiProviderFoldsDefault() {
     if (localStorage.getItem(AI_PROVIDER_FOLDS_DEFAULT_VERSION_KEY) === '1') return;
     [
-        AI_CHAT_SETTINGS_FOLD_KEY,
         SCHOLAR_LM_SETTINGS_FOLD_KEY,
         SCHOLAR_OLLAMA_SETTINGS_FOLD_KEY,
         'ss_litertlm_settings_folded'
     ].forEach(function (key) { localStorage.setItem(key, '1'); });
+    if (localStorage.getItem(AI_CHAT_SETTINGS_FOLD_KEY) == null) {
+        localStorage.setItem(AI_CHAT_SETTINGS_FOLD_KEY, '0');
+    }
     document.querySelectorAll('#ai-link-settings-block details').forEach(function (details) {
         details.open = false;
     });
@@ -10411,8 +10542,8 @@ function getDeepseekApiState() {
         baseUrl: baseUrl,
         maxTokens: Math.max(256, Math.min(384000, Number(localStorage.getItem('ss_deepseek_max_tokens')) || 8192)),
         timeoutSeconds: Math.max(30, Math.min(3600, Number(localStorage.getItem('ss_deepseek_timeout_seconds')) || 300)),
-        reasoningEffort: ['low', 'high', 'max'].includes(String(localStorage.getItem('ss_deepseek_reasoning_effort') || '').toLowerCase())
-            ? String(localStorage.getItem('ss_deepseek_reasoning_effort')).toLowerCase() : 'high',
+        reasoningEffort: ['low', 'high'].includes(String(localStorage.getItem('ss_deepseek_reasoning_effort') || '').toLowerCase())
+            ? String(localStorage.getItem('ss_deepseek_reasoning_effort')).toLowerCase() : 'low',
         verifiedFingerprint: String(localStorage.getItem('ss_deepseek_api_key_verified') || '')
     };
 }
@@ -12146,6 +12277,8 @@ const SETTINGS_EXPORT_LOCAL_KEYS = [
     MERMAID_DISPLAY_MODE_KEY,
     EDITOR_COMMENT_LIGHT_COLOR_KEY,
     EDITOR_COMMENT_DARK_COLOR_KEY,
+    DARK_VIEW_BOLD_COLOR_KEY,
+    DARK_VIEW_HEADER_COLOR_KEY,
     'mdpro_storage_sidebar_visibility_v1',
     'mdpro_storage_sidebar_auto_revealed_v1',
     'md_viewer_indb_enabled',
@@ -12292,6 +12425,7 @@ async function applyImportedSettingsPayload(payload) {
     if (typeof window.syncInDbStorageSettingsUi === 'function') window.syncInDbStorageSettingsUi();
     if (typeof applyCodeColorSettings === 'function') applyCodeColorSettings();
     loadMarkdownCommentColorSettings();
+    loadDarkViewTextColorSettings();
     if (typeof applyTheme === 'function') applyTheme();
     syncMermaidDisplayModeUI();
     await refreshMermaidDisplay();
@@ -12376,6 +12510,7 @@ async function resetSettingsMset() {
         document.documentElement.style.setProperty('--code-bg-color', '#1e293b');
         document.documentElement.style.setProperty('--code-text-color', '#f8fafc');
         loadMarkdownCommentColorSettings();
+        loadDarkViewTextColorSettings();
         applySettingsShortcutsFold(getSettingsShortcutsFoldedFromLocal());
         syncFileDownloadPrefixSettingUI();
 
@@ -12425,7 +12560,8 @@ async function applyAiFeatureVisibility() {
     const btnScholar = document.getElementById('btn-scholar-ai');
     const btnSsp = document.getElementById('btn-sspimg-ai');
     const btnJenaMenu = document.getElementById('btn-ai-jena-menu');
-    const jenaMenuOn = localStorage.getItem('ss_ai_chat_menu_enabled') === '1';
+    const jenaMenuStored = localStorage.getItem('ss_ai_chat_menu_enabled');
+    const jenaMenuOn = jenaMenuStored == null ? true : jenaMenuStored === '1';
     const showAiOrJenaMenu = showAi || jenaMenuOn;
     if (headerBtns) {
         if (showAiOrJenaMenu) {
@@ -14267,8 +14403,8 @@ async function callDeepseekChatText(
     const opts = options || {};
     const reasoningMode = opts.reasoningMode === true;
     const maxTokens = Math.max(256, Math.min(384000, Number(opts.maxTokens) || state.maxTokens || 8192));
-    const effort = ['low', 'high', 'max'].includes(String(opts.reasoningEffort || state.reasoningEffort).toLowerCase())
-        ? String(opts.reasoningEffort || state.reasoningEffort).toLowerCase() : 'high';
+    const effort = ['low', 'high'].includes(String(opts.reasoningEffort || state.reasoningEffort).toLowerCase())
+        ? String(opts.reasoningEffort || state.reasoningEffort).toLowerCase() : 'low';
     const timeoutSeconds = Math.max(30, Math.min(3600, Number(opts.timeoutSeconds) || state.timeoutSeconds || 300));
     const requestBody = {
         model: normalizedModel,
@@ -14505,7 +14641,7 @@ async function readAIStudioEventStream(response, emit) {
     return { candidates: [{ content: { parts: mergedParts }, finishReason: finishReason }], usageMetadata: usageMetadata };
 }
 
-async function callAIStudioChat(messages, systemInstruction, modelOverride, signal, responseMode, academicSearch, academicEvidenceCount, onStreamEvent) {
+async function callAIStudioChat(messages, systemInstruction, modelOverride, signal, responseMode, academicSearch, academicEvidenceCount, onStreamEvent, internetSearch) {
     const key = await getAIStudioKeyForChat();
     if (!key) throw new Error('AI Studio API Key가 없습니다. 앱 설정에서 API Key를 먼저 저장하세요.');
     const model = String(modelOverride || 'gemini-2.5-flash').trim();
@@ -14548,6 +14684,7 @@ async function callAIStudioChat(messages, systemInstruction, modelOverride, sign
     }
     const payload = { contents: contents, generationConfig: generationConfig };
     if (systemInstruction && !imageModel) payload.systemInstruction = { parts: [{ text: String(systemInstruction) }] };
+    if (internetSearch && !imageModel) payload.tools = [{ googleSearch: {} }];
     const streaming = !imageModel && typeof onStreamEvent === 'function';
     const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model)
         + (streaming ? ':streamGenerateContent?alt=sse&key=' : ':generateContent?key=') + encodeURIComponent(key);
@@ -14624,12 +14761,29 @@ async function callAIStudioChat(messages, systemInstruction, modelOverride, sign
         onStreamEvent({ type: 'message.end', provider: 'aistudio' });
         onStreamEvent({ type: 'chat.end', provider: 'aistudio', result: { stats: { total_output_tokens: completionTokens + reasoningTokens, reasoning_output_tokens: reasoningTokens } } });
     }
+    const groundingChunks = Array.isArray(candidate.groundingMetadata?.groundingChunks)
+        ? candidate.groundingMetadata.groundingChunks
+        : [];
+    const internetSources = groundingChunks.map(function (chunk) {
+        const web = chunk && chunk.web || {};
+        const url = String(web.uri || '').trim();
+        if (!/^https?:\/\//i.test(url)) return null;
+        return {
+            title: String(web.title || url),
+            url: url,
+            snippet: '',
+            source: String(web.title || ''),
+            engine: 'google-search',
+            channel: 'gemini-grounding'
+        };
+    }).filter(Boolean);
     return {
         provider: 'aistudio',
         model: model,
         text: text,
         reasoning: reasoning,
         images: images,
+        internetSources: internetSources,
         finishReason: candidate.finishReason || '',
         usage: {
             promptTokens: promptTokens,
@@ -14967,7 +15121,7 @@ window.AIChatBridge = Object.freeze({
                 return { provider: 'litertlm', model: result.data.model || body.model, text: String(choice.message && choice.message.content || choice.text || ''), reasoning: String(choice.message && choice.message.reasoning_content || ''), finishReason: choice.finish_reason || '', usage: result.data.usage || null, contextLength: settings.contextLength, maxOutputTokens: settings.maxGen, responseId: result.data.id || null };
             }
             if (request.provider === 'aistudio') {
-                return await callAIStudioChat(request.messages, request.systemInstruction, request.model, controller.signal, request.academicSearch ? 'quick' : request.mode, request.academicSearch, request.academicEvidenceCount, request.onStreamEvent);
+                return await callAIStudioChat(request.messages, request.systemInstruction, request.model, controller.signal, request.academicSearch ? 'quick' : request.mode, request.academicSearch, request.academicEvidenceCount, request.onStreamEvent, request.internetSearch === true);
             }
             if (request.provider === 'ollama') {
                 const result = await callOllamaChatText(
@@ -16907,6 +17061,8 @@ window.resetFileDownloadPrefixSetting = resetFileDownloadPrefixSetting;
 window.getMdProFilePrefix = getFileDownloadPrefixFromLocal;
 window.applyCodeColorSettings = applyCodeColorSettings;
 window.resetCodeColorSettings = resetCodeColorSettings;
+window.applyDarkViewTextColorSettings = applyDarkViewTextColorSettings;
+window.resetDarkViewTextColorSettings = resetDarkViewTextColorSettings;
 window.applyMarkdownCommentColorSettings = applyMarkdownCommentColorSettings;
 window.resetCodeAndCommentColorSettings = resetCodeAndCommentColorSettings;
 window.clearUnusedCache = clearUnusedCache;
