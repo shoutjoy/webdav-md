@@ -624,7 +624,7 @@
       + '        <button type="button" data-ai-chat-mode="reasoning">🧠 추론</button>'
       + '        <label class="ai-chat-reasoning-toggle" title="추론내용 표시"><input type="checkbox" id="ai-chat-show-reasoning" aria-label="추론내용 표시"></label>'
       + '        <button type="button" id="ai-chat-academic-toggle" class="ai-chat-academic-toggle" aria-pressed="false">🔎 학술검색</button>'
-      + '        <button type="button" id="ai-chat-internet-toggle" class="ai-chat-internet-toggle" aria-pressed="false">🌐 검색</button>'
+      + '        <button type="button" id="ai-chat-internet-toggle" class="ai-chat-internet-toggle" aria-pressed="false" title="LM Studio에서는 DuckDuckGo 우선, Bing RSS 폴백으로 검색합니다.">🌐 DuckDuckGo</button>'
       + '        <label id="ai-chat-academic-count-wrap" class="ai-chat-academic-count-wrap" title="목록에서 선택하거나 더블클릭하여 1~50 사이 숫자를 직접 입력하세요.">결과 <select id="ai-chat-academic-count" aria-label="검색 결과 수"><option value="5">5개</option><option value="10">10개</option><option value="20">20개</option><option value="30">30개</option><option value="50">50개</option></select><input id="ai-chat-academic-count-input" type="number" min="1" max="50" step="1" inputmode="numeric" aria-label="검색 결과 수 직접 입력" hidden></label>'
       + '      </div>'
       + '      <div class="ai-chat-compose-actions">'
@@ -1891,7 +1891,7 @@
       return;
     }
     if (state.internetSearchEnabled) {
-      help.textContent = '인터넷 검색 · ' + state.academicSearchCount + '건 · ' + (state.responseMode === 'reasoning' ? '심층' : '빠른') + ' 모드';
+      help.textContent = (state.provider === 'lmstudio' ? 'DuckDuckGo 우선 검색' : '인터넷 검색') + ' · ' + state.academicSearchCount + '건 · ' + (state.responseMode === 'reasoning' ? '심층' : '빠른') + ' 모드';
       return;
     }
     if (state.academicSearchEnabled) {
@@ -5142,7 +5142,9 @@
     if (state.fastMode) state.responseMode = 'quick';
     state.showReasoning = storageGet(SHOW_REASONING_KEY, '0') === '1';
     state.academicSearchEnabled = storageGet(ACADEMIC_SEARCH_KEY, '0') === '1';
-    state.internetSearchEnabled = storageGet(INTERNET_SEARCH_KEY, '0') === '1';
+    var savedInternetSearch = storageGet(INTERNET_SEARCH_KEY, null);
+    state.internetSearchEnabled = savedInternetSearch == null ? state.provider === 'lmstudio' : savedInternetSearch === '1';
+    if (savedInternetSearch == null) storageSet(INTERNET_SEARCH_KEY, state.internetSearchEnabled ? '1' : '0');
     if (state.academicSearchEnabled && state.internetSearchEnabled) state.internetSearchEnabled = false;
     state.academicSearchCount = normalizeAcademicCount(storageGet(ACADEMIC_COUNT_KEY, '10'));
     state.geminiModel = storageGet(GEMINI_MODEL_KEY, DEFAULT_GEMINI_MODELS[0]);

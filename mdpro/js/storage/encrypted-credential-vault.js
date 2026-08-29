@@ -10,6 +10,7 @@
         { id: 'gemini', label: 'Google AI Studio', storage: 'ss_gemini_api_key' },
         { id: 'deepseek', label: 'DeepSeek', storage: 'ss_deepseek_api_key' },
         { id: 'openai', label: 'OpenAI', storage: 'ss_openai_api_key' },
+        { id: 'serpapi', label: 'SerpApi Google Search', storage: 'ss_serpapi_api_key' },
         { id: 'imgbb', label: 'imgBB', storage: 'ss_imgbb_api_key' },
         { id: 'fmaGemini', label: 'fmaviewer AI Jena', storage: 'fma_ai_studio_api_key' }
     ]);
@@ -189,7 +190,7 @@
 
     function clearCredentialInputs() {
         if (!root.document) return;
-        ['ai-api-key', 'deepseek-api-key', 'openai-api-key', 'ai-imgbb-api-key'].forEach(function (id) {
+        ['ai-api-key', 'deepseek-api-key', 'openai-api-key', 'ai-imgbb-api-key', 'settings-serpapi-api-key'].forEach(function (id) {
             const input = root.document.getElementById(id);
             if (input) input.value = '';
         });

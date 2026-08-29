@@ -17,8 +17,11 @@
     if (!value) throw new Error('인터넷 검색어를 입력하세요.');
     var limit = Math.max(1, Math.min(50, Math.round(Number(count) || 10)));
     var searchMode = mode === 'reasoning' ? 'reasoning' : 'quick';
-    var params = new URLSearchParams({ q: value, count: String(limit), mode: searchMode });
-    var request = { cache: 'no-store', signal: options && options.signal };
+    var params = new URLSearchParams({ q: value, count: String(limit), mode: searchMode, engine: 'auto' });
+    var serpApiKey = '';
+    try { serpApiKey = String(localStorage.getItem('ss_serpapi_api_key') || '').trim(); } catch (_) {}
+    var request = { cache: 'no-store', signal: options && options.signal, headers: {} };
+    if (serpApiKey) request.headers['X-SerpApi-Key'] = serpApiKey;
     var sameOriginError = null;
     try {
       var sameOriginPayload = await readJson(await fetch('/api/web-search/?' + params, request));
