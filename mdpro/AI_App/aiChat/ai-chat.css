@@ -989,6 +989,7 @@ body.ai-chat-history-resizing { cursor: ew-resize !important; user-select: none 
   background: #213a55;
 }
 .ai-chat-academic-head strong { color: #d9f8ed; font-size: 11px; }
+.ai-chat-source-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
 .ai-chat-academic-head button {
   padding: 3px 7px;
   border: 1px solid #6683a7;
@@ -1006,6 +1007,15 @@ body.ai-chat-history-resizing { cursor: ew-resize !important; user-select: none 
 .ai-chat-academic-list article > a,
 .ai-chat-academic-list article > strong { display: block; color: #cfe4ff; font-size: 11px; font-weight: 700; line-height: 1.4; }
 .ai-chat-academic-list article > a:hover { color: #8fc5ff; text-decoration: underline; }
+.ai-chat-academic-list article > a.ai-chat-internet-url {
+  margin-top: 4px;
+  color: #82c7ff;
+  font-size: 9px;
+  font-weight: 400;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  word-break: break-all;
+}
 .ai-chat-academic-list article > span { display: block; margin-top: 3px; color: #91a8c3; font-size: 9px; line-height: 1.4; overflow-wrap: anywhere; }
 .ai-chat-academic-list details { margin-top: 4px; }
 .ai-chat-academic-list summary { color: #78dbb9; font-size: 9px; cursor: pointer; }

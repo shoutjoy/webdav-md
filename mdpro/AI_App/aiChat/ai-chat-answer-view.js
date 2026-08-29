@@ -6,6 +6,7 @@
   var markdown = '';
   var payloadKey = '';
   var zoomLevel = 1;
+  var contentLabel = '답변';
 
   function setStatus(text, kind) {
     var el = document.getElementById('av-status');
@@ -62,7 +63,7 @@
 
   async function insertRendered(mode) {
     if (!window.AIChatMarkdown) return setStatus('Markdown 모듈을 불러오지 못했습니다.', 'error');
-    if (!markdown.trim()) return setStatus('삽입할 답변이 없습니다.', 'error');
+    if (!markdown.trim()) return setStatus('삽입할 ' + contentLabel + '이 없습니다.', 'error');
     var target = appWindow();
     var bridge = target && target.AIChatBridge;
     if (!bridge || typeof bridge.insertIntoDocument !== 'function') {
@@ -77,7 +78,7 @@
         html: html,
         plainText: plain
       }));
-      setStatus('렌더된 답변을 ' + insertModeLabel(mode) + '했습니다.', 'ok');
+      setStatus('렌더된 ' + contentLabel + '을 ' + insertModeLabel(mode) + '했습니다.', 'ok');
       try { target.focus(); } catch (_) {}
     } catch (error) {
       setStatus(error && error.message ? error.message : '문서에 삽입하지 못했습니다.', 'error');
@@ -141,6 +142,13 @@
       payloadKey = new URLSearchParams(location.search).get('payload') || '';
       var payload = payloadKey ? JSON.parse(localStorage.getItem(payloadKey) || 'null') : null;
       markdown = String(payload && payload.markdown || '');
+      contentLabel = String(payload && payload.contentLabel || '답변').trim() || '답변';
+      if (payload && payload.viewTitle) {
+        var viewTitle = String(payload.viewTitle).trim();
+        document.title = viewTitle;
+        var heading = document.querySelector('.av-title-block h1');
+        if (heading) heading.textContent = viewTitle;
+      }
       document.getElementById('av-md-source').value = markdown;
       if (payload && payload.question) {
         var question = String(payload.question).replace(/\s+/g, ' ').trim();
@@ -154,7 +162,7 @@
     renderPreview();
     setStatus(markdown.trim()
       ? '삽입 버튼은 원래 MDproViewer 문서에 렌더된 HTML을 넣습니다.'
-      : '표시할 답변이 없습니다. AI Jena에서 다시 열어 주세요.', markdown.trim() ? '' : 'error');
+      : '표시할 ' + contentLabel + '이 없습니다. AI Jena에서 다시 열어 주세요.', markdown.trim() ? '' : 'error');
   }
 
   window.addEventListener('beforeunload', function () {

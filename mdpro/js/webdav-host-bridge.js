@@ -2,6 +2,8 @@
     'use strict';
     const embedded = new URLSearchParams(location.search).get('webdav') === '1';
     if (!embedded) return;
+    let savedDocumentText = '';
+    let lastReportedDocumentText = '';
 
     function requestExplorer() {
         window.parent.postMessage({ type: 'webdav-toggle-explorer' }, location.origin);
@@ -21,6 +23,19 @@
             content: currentDocumentText()
         }, location.origin);
         return true;
+    }
+
+    function reportDocumentChange(force) {
+        if (!window.__webdavHostDocument) return;
+        const content = currentDocumentText();
+        if (!force && content === lastReportedDocumentText) return;
+        lastReportedDocumentText = content;
+        window.parent.postMessage({
+            type: 'webdav-document-changed',
+            path: window.__webdavHostDocument.path,
+            content,
+            dirty: content !== savedDocumentText
+        }, location.origin);
     }
 
     function publishTheme() {
@@ -142,8 +157,17 @@
             });
             return;
         }
+        if (data?.type === 'webdav-document-saved') {
+            if (!window.__webdavHostDocument || String(data.path || '') !== window.__webdavHostDocument.path) return;
+            savedDocumentText = currentDocumentText();
+            lastReportedDocumentText = savedDocumentText;
+            reportDocumentChange(true);
+            return;
+        }
         if (data?.type !== 'webdav-open-document') return;
         window.__webdavHostDocument = { path: String(data.path || ''), fileName: String(data.fileName || 'document.md') };
+        savedDocumentText = String(data.content ?? '');
+        lastReportedDocumentText = savedDocumentText;
         if (data.binaryContent && /\.docx$/i.test(window.__webdavHostDocument.fileName) && typeof window.openDocxInEditor === 'function') {
             const file = new File([data.binaryContent], window.__webdavHostDocument.fileName, {
                 type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
@@ -157,6 +181,11 @@
         }
         if (typeof window.loadFromExternalContent === 'function') {
             window.loadFromExternalContent(String(data.content ?? ''), window.__webdavHostDocument.fileName, { notebookLmSeparators: false });
+            setTimeout(function () {
+                savedDocumentText = currentDocumentText();
+                lastReportedDocumentText = savedDocumentText;
+                reportDocumentChange(true);
+            }, 0);
             if (typeof window.showToast === 'function') window.showToast('WebDAV 문서를 MDPRO로 열었습니다.');
         }
     });
@@ -166,5 +195,9 @@
     setTimeout(installUi, 800);
     setTimeout(applyEmbeddedDefaultLayout, 850);
     setTimeout(publishTheme, 100);
+    document.addEventListener('input', function (event) {
+        if (event.target && event.target.id === 'viewer-edit-ta') reportDocumentChange(false);
+    }, true);
+    setInterval(function () { reportDocumentChange(false); }, 300);
     window.parent.postMessage({ type: 'mdpro-ready' }, location.origin);
 })();
