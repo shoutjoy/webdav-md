@@ -12,7 +12,7 @@ function getInitialFileToolsVisible() {
   }
 }
 
-function TreeItem({ item, depth, expandedPaths, selectedFolderPath, selectionMode, checkedPaths, fileToolsVisible, loading, editorLoading, copiedKey, formatBytes, onToggleFolder, onToggleExpanded, onToggleChecked, onCopyUrl, onOpenFile, onDownload, onRename, onMove, onDelete }) {
+function TreeItem({ item, depth, expandedPaths, selectedFolderPath, selectionMode, checkedPaths, fileToolsVisible, loading, editorLoading, copiedKey, formatBytes, onToggleFolder, onToggleExpanded, onToggleChecked, onCopyUrl, onOpenFile, onDownload, onRename, onMove, onDelete, onCreateFile, onCreateFolder }) {
   const expandable = item.isDirectory || item.isArchive;
   const expanded = expandable && expandedPaths.has(item.remotePath);
   const children = (item.entries || []).filter((child) => child.name !== '..');
@@ -37,6 +37,10 @@ function TreeItem({ item, depth, expandedPaths, selectedFolderPath, selectionMod
         {!item.isDirectory && !item.isArchiveEntry && <span className="ml-auto shrink-0 pl-2 text-[10px] text-slate-400">{formatBytes(item.size)}</span>}
         {item.isArchiveEntry && !item.included && <span className="ml-auto shrink-0 pl-2 text-[10px] text-slate-400">제외됨</span>}
       </button>
+      {item.isDirectory && !selectionMode && <div className="ml-1 hidden shrink-0 items-center gap-0.5 group-hover:flex group-focus-within:flex">
+        <button type="button" onClick={(event) => { event.stopPropagation(); onCreateFile(item.remotePath); }} disabled={loading} className="rounded p-1 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-slate-700" title={`${item.name}에 파일 생성`} aria-label={`${item.name} 폴더에 파일 생성`}><FilePlus2 size={14}/></button>
+        <button type="button" onClick={(event) => { event.stopPropagation(); onCreateFolder(item.remotePath); }} disabled={loading} className="rounded p-1 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-slate-700" title={`${item.name}에 폴더 생성`} aria-label={`${item.name} 폴더에 폴더 생성`}><FolderPlus size={14}/></button>
+      </div>}
       {fileToolsVisible && <div className="ml-1 hidden shrink-0 items-center gap-0.5 group-hover:flex group-focus-within:flex">
         {!item.isArchiveEntry && <button type="button" onClick={() => onCopyUrl(item.remotePath, itemKey)} className="rounded p-1 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-slate-700" title="URL 복사">{copiedKey === itemKey ? <Check size={14} className="text-green-500"/> : <Copy size={14}/>}</button>}
         {!item.isDirectory && !item.isArchive && <button type="button" onClick={() => onOpenFile(item)} disabled={editorLoading} className="rounded p-1 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-40 dark:hover:bg-slate-700" title="열기 (이미지는 FMA)"><Eye size={14}/></button>}
@@ -46,11 +50,11 @@ function TreeItem({ item, depth, expandedPaths, selectedFolderPath, selectionMod
         {!item.isArchiveEntry && <button type="button" onClick={(event) => { event.stopPropagation(); onDelete(item); }} disabled={loading} className="rounded p-1 text-slate-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40" title="삭제"><Trash2 size={14}/></button>}
       </div>}
     </div>
-    {expanded && children.map((child) => <TreeItem key={child.remotePath} item={child} depth={depth + 1} expandedPaths={expandedPaths} selectedFolderPath={selectedFolderPath} selectionMode={selectionMode} checkedPaths={checkedPaths} fileToolsVisible={fileToolsVisible} loading={loading} editorLoading={editorLoading} copiedKey={copiedKey} formatBytes={formatBytes} onToggleFolder={onToggleFolder} onToggleExpanded={onToggleExpanded} onToggleChecked={onToggleChecked} onCopyUrl={onCopyUrl} onOpenFile={onOpenFile} onDownload={onDownload} onRename={onRename} onMove={onMove} onDelete={onDelete}/>)}
+    {expanded && children.map((child) => <TreeItem key={child.remotePath} item={child} depth={depth + 1} expandedPaths={expandedPaths} selectedFolderPath={selectedFolderPath} selectionMode={selectionMode} checkedPaths={checkedPaths} fileToolsVisible={fileToolsVisible} loading={loading} editorLoading={editorLoading} copiedKey={copiedKey} formatBytes={formatBytes} onToggleFolder={onToggleFolder} onToggleExpanded={onToggleExpanded} onToggleChecked={onToggleChecked} onCopyUrl={onCopyUrl} onOpenFile={onOpenFile} onDownload={onDownload} onRename={onRename} onMove={onMove} onDelete={onDelete} onCreateFile={onCreateFile} onCreateFolder={onCreateFolder}/>)}
   </>;
 }
 
-export default function FileExplorer({ files, directoryTree, loading, editorLoading, copiedKey, isDragging, explorerWidth, compact, folderSelectionMode, formatBytes, onDragEnter, onDragLeave, onDragOver, onDrop, onOpenDirectory, onOpenArchive, onCopyUrl, onOpenFile, onDownload, onRename, onMove, onMoveSelected, onDelete, onCreateFile, onCreateFolder, onToggleCompact }) {
+export default function FileExplorer({ files, directoryTree, loading, editorLoading, copiedKey, isDragging, explorerWidth, compact, folderSelectionMode, formatBytes, onDragEnter, onDragLeave, onDragOver, onDrop, onOpenDirectory, onOpenArchive, onCopyUrl, onOpenFile, onDownload, onRename, onMove, onMoveSelected, onDelete, onCreateFile, onCreateFolder, onRequestCreateFile, onRequestCreateFolder, onToggleCompact }) {
   const [expandedPaths, setExpandedPaths] = useState(() => new Set(['/']));
   const [selectedFolderPath, setSelectedFolderPath] = useState('/');
   const [selectionMode, setSelectionMode] = useState(false);
@@ -165,15 +169,15 @@ export default function FileExplorer({ files, directoryTree, loading, editorLoad
       <div className="webdav-explorer-actions" aria-label="새 항목 만들기">
         <button type="button" className={`webdav-selection-move ${selectionMode ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-100' : ''}`} onClick={moveCheckedItems} disabled={loading} title={selectionMode ? (checkedItems.size ? `선택한 ${checkedItems.size}개 항목을 함께 이동` : '선택이동 취소') : '이동할 항목 선택 시작'} aria-label={selectionMode ? (checkedItems.size ? `선택이동 실행 ${checkedItems.size}개` : '선택이동 취소') : '선택이동 시작'}><FolderInput size={15}/><span>{selectionMode ? (checkedItems.size ? `이동 ${checkedItems.size}` : '선택취소') : '선택이동'}</span></button>
         {selectionMode && <button type="button" onClick={() => { setCheckedItems(new Map()); setSelectionMode(false); setMoveRequest(null); setMoveActionError(''); }} disabled={loading} title="선택이동 모드 해제" aria-label="선택이동 모드 해제"><X size={16}/></button>}
-        <button type="button" onClick={() => onCreateFile(selectedFolderPath)} disabled={loading} title={`${selectedFolderPath}에 새 Markdown 파일 만들기`} aria-label="선택한 폴더에 새 Markdown 파일 만들기"><FilePlus2 size={16}/></button>
-        <button type="button" onClick={() => onCreateFolder(selectedFolderPath)} disabled={loading} title={`${selectedFolderPath}에 새 폴더 만들기`} aria-label="선택한 폴더에 새 폴더 만들기"><FolderPlus size={16}/></button>
+        <button type="button" onClick={onRequestCreateFile} disabled={loading} title="ROOT부터 위치를 선택해 새 Markdown 파일 만들기" aria-label="새 Markdown 파일 생성 위치 선택"><FilePlus2 size={16}/></button>
+        <button type="button" onClick={onRequestCreateFolder} disabled={loading} title="ROOT부터 위치를 선택해 새 폴더 만들기" aria-label="새 폴더 생성 위치 선택"><FolderPlus size={16}/></button>
         <button type="button" className={!fileToolsVisible ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-100' : ''} onClick={toggleFileTools} title={fileToolsVisible ? '파일 행 도구 숨기기' : '파일 행 도구 표시'} aria-label={fileToolsVisible ? '파일 행 도구 숨기기' : '파일 행 도구 표시'} aria-pressed={!fileToolsVisible}>{fileToolsVisible ? <EyeOff size={16}/> : <Eye size={16}/>}</button>
       </div>
       <button type="button" className="webdav-collapse-button" onClick={onToggleCompact} title="WebDAV를 한 줄 띠로 접기" aria-label="WebDAV를 한 줄 띠로 접기"><PanelLeftClose size={16}/></button>
     </div>
     {isDragging && <div className="absolute inset-0 z-20 flex items-center justify-center border-2 border-dashed border-indigo-400 bg-indigo-50/90 text-indigo-600 pointer-events-none dark:bg-slate-900/90"><Upload size={20} className="mr-2"/>파일/폴더를 여기에 놓으세요</div>}
     {rootEntries.length === 0 && <div className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">{loading ? 'WebDAV 파일 목록을 불러오는 중입니다…' : '폴더가 비어있습니다.'}</div>}
-    {rootEntries.map((item) => <TreeItem key={item.remotePath} item={item} depth={0} expandedPaths={expandedPaths} selectedFolderPath={selectedFolderPath} selectionMode={selectionMode} checkedPaths={checkedPaths} fileToolsVisible={fileToolsVisible} loading={loading} editorLoading={editorLoading} copiedKey={copiedKey} formatBytes={formatBytes} onToggleFolder={toggleFolder} onToggleExpanded={toggleExpandedOnly} onToggleChecked={toggleChecked} onCopyUrl={onCopyUrl} onOpenFile={onOpenFile} onDownload={onDownload} onRename={onRename} onMove={(item) => { setMoveActionError(''); setMoveRequest({ items: [item], bulk: false }); }} onDelete={onDelete}/>)}
+    {rootEntries.map((item) => <TreeItem key={item.remotePath} item={item} depth={0} expandedPaths={expandedPaths} selectedFolderPath={selectedFolderPath} selectionMode={selectionMode} checkedPaths={checkedPaths} fileToolsVisible={fileToolsVisible} loading={loading} editorLoading={editorLoading} copiedKey={copiedKey} formatBytes={formatBytes} onToggleFolder={toggleFolder} onToggleExpanded={toggleExpandedOnly} onToggleChecked={toggleChecked} onCopyUrl={onCopyUrl} onOpenFile={onOpenFile} onDownload={onDownload} onRename={onRename} onMove={(item) => { setMoveActionError(''); setMoveRequest({ items: [item], bulk: false }); }} onDelete={onDelete} onCreateFile={onCreateFile} onCreateFolder={onCreateFolder}/>)}
     <MoveDestinationModal key={moveRequest?.items?.map((item) => item.remotePath).join('|') || 'closed'} items={moveRequest?.items} directoryTree={directoryTree} loading={loading} actionError={moveActionError} onConfirm={confirmMove} onCancel={() => { if (!loading) { setMoveRequest(null); setMoveActionError(''); } }}/>
   </div>;
 }

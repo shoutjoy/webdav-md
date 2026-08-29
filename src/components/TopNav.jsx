@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertCircle, ArrowLeft, Check, Copy, FilePlus, LogOut, Menu, PanelLeft, RefreshCw, Upload, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Check, Copy, FilePlus, FolderPlus, LogOut, Menu, PanelLeft, RefreshCw, Upload, X } from 'lucide-react';
 
 const WD_DOCK_POSITION_KEY = 'webdav-wd-dock-position-v3';
 const VIEWPORT_MARGIN = 16;
@@ -9,7 +9,7 @@ const clampDockPosition = (x, y, width, height) => ({
   y: Math.min(Math.max(VIEWPORT_MARGIN, y), Math.max(VIEWPORT_MARGIN, window.innerHeight - height - VIEWPORT_MARGIN)),
 });
 
-export default function TopNav({ currentPath, publicUrl, loading, error, copiedKey, fileInputRef, onGoBack, onUpload, onNewFile, onRefresh, explorerOpen, onToggleExplorer, onCopyFolderUrl, onDisconnect }) {
+export default function TopNav({ currentPath, publicUrl, loading, error, copiedKey, fileInputRef, onGoBack, onUpload, onNewFile, onNewFolder, onRefresh, explorerOpen, onToggleExplorer, onCopyFolderUrl, onDisconnect }) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState(() => {
     try {
@@ -125,7 +125,8 @@ export default function TopNav({ currentPath, publicUrl, loading, error, copiedK
           <button onClick={onToggleExplorer} className={`rounded-md p-1.5 ${explorerOpen ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600 hover:bg-slate-100'}`} title="탐색기 열기/접기"><PanelLeft size={16}/></button>
           <input type="file" ref={fileInputRef} onChange={onUpload} className="hidden" multiple/>
           <button onClick={() => fileInputRef.current?.click()} disabled={loading} className="rounded-md bg-indigo-600 p-1.5 text-white disabled:opacity-40" title="업로드"><Upload size={16}/></button>
-          <button onClick={onNewFile} disabled={loading} className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100" title="새 파일"><FilePlus size={16}/></button>
+          <button onClick={onNewFile} disabled={loading} className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100" title="ROOT부터 위치를 선택해 새 파일 생성" aria-label="새 파일 생성 위치 선택"><FilePlus size={16}/></button>
+          <button onClick={onNewFolder} disabled={loading} className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100" title="ROOT부터 위치를 선택해 새 폴더 생성" aria-label="새 폴더 생성 위치 선택"><FolderPlus size={16}/></button>
           <button onClick={onRefresh} disabled={loading} className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100" title="새로고침"><RefreshCw size={16} className={loading ? 'animate-spin' : ''}/></button>
           <button onClick={onDisconnect} className="rounded-md p-1.5 text-red-600 hover:bg-red-50" title="연결 종료"><LogOut size={16}/></button>
         </div>

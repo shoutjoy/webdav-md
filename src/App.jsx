@@ -6,8 +6,9 @@ import FileExplorer from './components/FileExplorer.jsx';
 import LoginPage from './components/LoginPage.jsx';
 import TopNav from './components/TopNav.jsx';
 import RenameModal from './components/RenameModal.jsx';
+import CreateDestinationModal from './components/CreateDestinationModal.jsx';
 import { normalizeRemotePath } from './webdavPaths.js';
-import { shouldFallbackToCopyDelete } from './webdavMove.js';
+import { collectDirectoryEntries, shouldFallbackToCopyDelete } from './webdavMove.js';
 import { isDmergeFileName, readDmergeArchive } from './dmergeArchive.js';
 
 const SAVED_LOGIN_KEY = 'webdav-viewer-login';
@@ -275,6 +276,7 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState('');
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState(null);
+  const [createDestinationType, setCreateDestinationType] = useState('');
 
   const fileInputRef = useRef(null);
   const clientRef = useRef(null);
@@ -364,7 +366,10 @@ export default function App() {
       return;
     }
 
-    const entries = await client.getDirectoryContents(sourcePath, { deep: true });
+    // Depth: infinity is not consistently implemented by WebDAV servers.
+    // Traverse each directory explicitly so a folder move includes every
+    // nested file and subfolder before the source is removed.
+    const entries = await collectDirectoryEntries(client, sourcePath);
     await client.createDirectory(targetPath);
     const directories = entries
       .filter((entry) => entry.type === 'directory')
@@ -1412,6 +1417,13 @@ export default function App() {
     }
   };
 
+  const confirmCreateDestination = (targetDirectory) => {
+    const type = createDestinationType;
+    setCreateDestinationType('');
+    if (type === 'folder') handleCreateFolder(targetDirectory);
+    else if (type === 'file') handleCreateFile(targetDirectory);
+  };
+
   useEffect(() => {
     try {
       const savedLogin = JSON.parse(localStorage.getItem(SAVED_LOGIN_KEY) || 'null');
@@ -1598,7 +1610,8 @@ export default function App() {
           fileInputRef={fileInputRef}
           onGoBack={goUp}
           onUpload={handleUpload}
-          onNewFile={handleCreateFile}
+          onNewFile={() => setCreateDestinationType('file')}
+          onNewFolder={() => setCreateDestinationType('folder')}
           onRefresh={loadFullTree}
           explorerOpen={isExplorerOpen}
           onToggleExplorer={toggleExplorer}
@@ -1649,6 +1662,8 @@ export default function App() {
             onDelete={handleDelete}
             onCreateFile={handleCreateFile}
             onCreateFolder={handleCreateFolder}
+            onRequestCreateFile={() => setCreateDestinationType('file')}
+            onRequestCreateFolder={() => setCreateDestinationType('folder')}
             onToggleCompact={toggleExplorerCompact}
           />}
 
@@ -1693,6 +1708,15 @@ export default function App() {
         onConfirm={handleConfirmRename}
         onCancel={handleCancelRename}
         loading={loading}
+      />
+
+      <CreateDestinationModal
+        key={createDestinationType || 'closed'}
+        type={createDestinationType}
+        directoryTree={directoryTree}
+        loading={loading}
+        onConfirm={confirmCreateDestination}
+        onCancel={() => setCreateDestinationType('')}
       />
 
       {toastMessage && (
