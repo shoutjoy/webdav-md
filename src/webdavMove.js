@@ -18,7 +18,14 @@ export const collectDirectoryEntries = async (client, sourcePath) => {
     if (visited.has(normalizedDirectory)) return;
     visited.add(normalizedDirectory);
 
-    const children = await client.getDirectoryContents(normalizedDirectory);
+    let children;
+    try {
+      children = await client.getDirectoryContents(normalizedDirectory);
+    } catch (error) {
+      const wrapped = new Error(`폴더 목록 요청 실패 (${normalizedDirectory}): ${error?.message || error}`);
+      wrapped.status = error?.status || error?.response?.status;
+      throw wrapped;
+    }
     for (const child of children) {
       const childPath = normalizeRemotePath(child.filename);
       if (childPath === normalizedDirectory || !childPath.startsWith(`${rootPath}/`)) continue;

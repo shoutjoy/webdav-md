@@ -24,7 +24,7 @@ const PROXIED_WEB_DAV_HOSTS = new Set(['webdav.freemath.synology.me']);
 const getClientBaseUrl = (serverUrl) => {
   const target = new URL(serverUrl);
   const currentHost = window.location.hostname.toLowerCase();
-  const isLocalApp = currentHost === 'localhost' || currentHost === '127.0.0.1';
+  const isLocalApp = import.meta.env.DEV || currentHost === 'localhost' || currentHost === '127.0.0.1';
 
   if (isLocalApp && PROXIED_WEB_DAV_HOSTS.has(target.hostname.toLowerCase())) {
     return `${window.location.origin}${LOCAL_WEB_DAV_PROXY_PATH}${target.pathname.replace(/\/$/, '')}`;
@@ -303,6 +303,19 @@ export default function App() {
 
   const hasEditorChanges = selectedFile?.viewMode === 'text' && editorContent !== savedContent;
 
+  const createConfiguredWebDavClient = () => {
+    const baseUrl = url.trim().replace(/\/$/, '');
+    const clientBaseUrl = getClientBaseUrl(baseUrl);
+    const usesLocalProxy = new URL(clientBaseUrl, window.location.origin).pathname.startsWith(LOCAL_WEB_DAV_PROXY_PATH);
+    const client = createClient(clientBaseUrl, {
+      username,
+      password,
+      ...(usesLocalProxy ? { remoteBasePath: '/' } : {}),
+    });
+    clientRef.current = client;
+    return client;
+  };
+
   const joinRemotePath = (dirPath, name) =>
     dirPath === '/' ? `/${name}` : `${dirPath.replace(/\/$/, '')}/${name}`;
 
@@ -331,9 +344,19 @@ export default function App() {
   };
 
   const copyRemoteFileForMove = async (client, sourcePath, targetPath) => {
-    const contents = await client.getFileContents(sourcePath, { format: 'binary' });
-    const uploaded = await client.putFileContents(targetPath, contents, { overwrite: false });
-    if (uploaded === false || !await client.exists(targetPath)) throw new Error(`대상 파일 생성 확인 실패: ${targetPath}`);
+    const runStep = async (label, path, operation) => {
+      try {
+        return await operation();
+      } catch (error) {
+        const wrapped = new Error(`${label} 실패 (${path}): ${error?.message || error}`);
+        wrapped.status = error?.status || error?.response?.status;
+        throw wrapped;
+      }
+    };
+    const contents = await runStep('원본 파일 읽기', sourcePath, () => client.getFileContents(sourcePath, { format: 'binary' }));
+    const uploaded = await runStep('대상 파일 생성', targetPath, () => client.putFileContents(targetPath, contents, { overwrite: false }));
+    const created = await runStep('대상 파일 확인', targetPath, () => client.exists(targetPath));
+    if (uploaded === false || !created) throw new Error(`대상 파일 생성 확인 실패 (${targetPath})`);
   };
 
   const moveRemoteItem = async (client, sourcePath, targetPath, isDirectory = false, overwrite = false, options = {}) => {
@@ -373,7 +396,14 @@ export default function App() {
     // Depth: infinity is not consistently implemented by WebDAV servers.
     // Traverse each directory explicitly so a folder move includes every
     // nested file and subfolder before the source is removed.
-    const entries = await collectDirectoryEntries(client, sourcePath);
+    let entries;
+    try {
+      entries = await collectDirectoryEntries(client, sourcePath);
+    } catch (error) {
+      const wrapped = new Error(`원본 폴더 내용 읽기 실패 (${sourcePath}): ${error?.message || error}`);
+      wrapped.status = error?.status || error?.response?.status;
+      throw wrapped;
+    }
     const directories = entries
       .filter((entry) => entry.type === 'directory')
       .map((entry) => normalizeRemotePath(entry.filename))
@@ -383,12 +413,24 @@ export default function App() {
     const total = 1 + directories.length + filesToCopy.length;
     let completed = 0;
     reportProgress({ completed, total, path: sourcePath });
-    await client.createDirectory(targetPath);
+    try {
+      await client.createDirectory(targetPath);
+    } catch (error) {
+      const wrapped = new Error(`대상 폴더 생성 실패 (${targetPath}): ${error?.message || error}`);
+      wrapped.status = error?.status || error?.response?.status;
+      throw wrapped;
+    }
     for (const directoryPath of directories) {
       const relativePath = directoryPath.slice(sourcePath.length).replace(/^\/+/, '');
       if (relativePath) {
         const createdPath = joinRemotePath(targetPath, relativePath);
-        await client.createDirectory(createdPath);
+        try {
+          await client.createDirectory(createdPath);
+        } catch (error) {
+          const wrapped = new Error(`하위 폴더 생성 실패 (${createdPath}): ${error?.message || error}`);
+          wrapped.status = error?.status || error?.response?.status;
+          throw wrapped;
+        }
       }
     }
     for (const entry of filesToCopy) {
@@ -396,18 +438,36 @@ export default function App() {
       const relativePath = entryPath.slice(sourcePath.length).replace(/^\/+/, '');
       const copiedPath = joinRemotePath(targetPath, relativePath);
       await copyRemoteFileForMove(client, entryPath, copiedPath);
-      await client.deleteFile(entryPath);
+      try {
+        await client.deleteFile(entryPath);
+      } catch (error) {
+        const wrapped = new Error(`복사 확인 후 원본 파일 삭제 실패 (${entryPath}): ${error?.message || error}`);
+        wrapped.status = error?.status || error?.response?.status;
+        throw wrapped;
+      }
       completed += 1;
       reportProgress({ completed, total, path: copiedPath });
     }
     if (!await client.exists(targetPath)) throw new Error(`대상 폴더 생성 확인 실패: ${targetPath}`);
     const deepestDirectoriesFirst = [...directories].sort((a, b) => b.split('/').length - a.split('/').length);
     for (const directoryPath of deepestDirectoriesFirst) {
-      await client.deleteFile(directoryPath);
+      try {
+        await client.deleteFile(directoryPath);
+      } catch (error) {
+        const wrapped = new Error(`빈 원본 하위 폴더 삭제 실패 (${directoryPath}): ${error?.message || error}`);
+        wrapped.status = error?.status || error?.response?.status;
+        throw wrapped;
+      }
       completed += 1;
       reportProgress({ completed, total, path: directoryPath });
     }
-    await client.deleteFile(sourcePath);
+    try {
+      await client.deleteFile(sourcePath);
+    } catch (error) {
+      const wrapped = new Error(`빈 원본 폴더 삭제 실패 (${sourcePath}): ${error?.message || error}`);
+      wrapped.status = error?.status || error?.response?.status;
+      throw wrapped;
+    }
     completed += 1;
     reportProgress({ completed, total, path: targetPath });
   };
@@ -490,13 +550,7 @@ export default function App() {
     
     try {
       const baseUrl = url.trim().replace(/\/$/, '');
-      const clientBaseUrl = getClientBaseUrl(baseUrl);
-      const usesLocalProxy = new URL(clientBaseUrl, window.location.origin).pathname.startsWith(LOCAL_WEB_DAV_PROXY_PATH);
-      clientRef.current = createClient(clientBaseUrl, {
-        username,
-        password,
-        ...(usesLocalProxy ? { remoteBasePath: '/' } : {}),
-      });
+      createConfiguredWebDavClient();
       const listed = await loadFullTree();
       if (listed) {
         if (saveLoginInfo) {
@@ -1273,8 +1327,7 @@ export default function App() {
     }
 
     const targetPath = joinRemotePath(targetDirectory, targetName);
-    const client = clientRef.current;
-    if (!client) return false;
+    const client = createConfiguredWebDavClient();
     setLoading(true);
     setError('');
     try {
@@ -1306,7 +1359,7 @@ export default function App() {
       return true;
     } catch (err) {
       if (!returnToLoginIfUnauthorized(err)) setError(`이동 실패: ${err.message}`);
-      return false;
+      throw err;
     } finally {
       setLoading(false);
     }
@@ -1358,8 +1411,7 @@ export default function App() {
       plannedItems.push({ item, sourcePath, targetName, overwrite: duplicateExisting && options.conflictPolicy === 'overwrite' });
     }
 
-    const client = clientRef.current;
-    if (!client) return false;
+    const client = createConfiguredWebDavClient();
     setLoading(true);
     setError('');
     setMoveProgress({ percent: 0, completed: 0, total: plannedItems.length, path: '' });
@@ -1416,7 +1468,7 @@ export default function App() {
       if (!returnToLoginIfUnauthorized(err)) {
         setError(`선택이동 실패 (${movedPairs.length}/${moveItems.length}개 완료): ${err.message}`);
       }
-      return movedPairs.length > 0;
+      throw err;
     } finally {
       setLoading(false);
     }
