@@ -19,24 +19,24 @@
     var searchMode = mode === 'reasoning' ? 'reasoning' : 'quick';
     var params = new URLSearchParams({ q: value, count: String(limit), mode: searchMode });
     var request = { cache: 'no-store', signal: options && options.signal };
-    var primaryError = null;
+    var sameOriginError = null;
     try {
-      return await readJson(await fetch(INTEGRATED_BASE + '/web-search/?' + params, request));
+      var sameOriginPayload = await readJson(await fetch('/api/web-search/?' + params, request));
+      sameOriginPayload.fallbackUsed = true;
+      if (!sameOriginPayload.fallbackMessage) sameOriginPayload.fallbackMessage = 'WebDAV 앱 검색 중계를 사용했습니다.';
+      return sameOriginPayload;
     } catch (error) {
       if (error && error.name === 'AbortError') throw error;
-      primaryError = error;
+      sameOriginError = error;
     }
     try {
-      var payload = await readJson(await fetch('/api/web-search/?' + params, request));
-      payload.fallbackUsed = true;
-      if (!payload.fallbackMessage) payload.fallbackMessage = '통합 검색 서비스 대신 앱 검색을 사용했습니다.';
-      return payload;
-    } catch (fallbackError) {
-      if (fallbackError && fallbackError.name === 'AbortError') throw fallbackError;
-      if (primaryError && /Failed to fetch|fetch failed|NetworkError|Load failed/i.test(String(primaryError.message || primaryError))) {
+      return await readJson(await fetch(INTEGRATED_BASE + '/web-search/?' + params, request));
+    } catch (integratedError) {
+      if (integratedError && integratedError.name === 'AbortError') throw integratedError;
+      if (/Failed to fetch|fetch failed|NetworkError|Load failed/i.test(String(integratedError && integratedError.message || integratedError))) {
         throw new Error('AI Jena 로컬 검색 서버(127.0.0.1:8765)가 실행되지 않았거나 이 페이지의 접근이 허용되지 않았습니다. AI Studio를 선택하면 내장 Google 검색을 사용할 수 있습니다.');
       }
-      throw new Error((fallbackError && fallbackError.message) || (primaryError && primaryError.message) || '인터넷 검색 서비스를 사용할 수 없습니다.');
+      throw new Error((integratedError && integratedError.message) || (sameOriginError && sameOriginError.message) || '인터넷 검색 서비스를 사용할 수 없습니다.');
     }
   }
 

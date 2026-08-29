@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { cpSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { createWebSearchMiddleware } from './src/webSearchProxy.js';
 
 const WEB_DAV_PROXY_PATH = '/__webdav_proxy';
 const WEB_DAV_TARGET = 'https://webdav.freemath.synology.me';
@@ -18,6 +19,15 @@ export default defineConfig(({ mode }) => {
         name: 'copy-mdpro-runtime',
         closeBundle() {
           cpSync(resolve('mdpro'), resolve('dist/mdpro'), { recursive: true, force: true });
+        },
+      },
+      {
+        name: 'ai-jena-web-search-proxy',
+        configureServer(server) {
+          server.middlewares.use(createWebSearchMiddleware());
+        },
+        configurePreviewServer(server) {
+          server.middlewares.use(createWebSearchMiddleware());
         },
       },
     ],

@@ -92,7 +92,7 @@ export default function FileExplorerItem({
             </button>
           )}
           <button
-            onClick={() => onRename(file.name)}
+            onClick={() => onRename(file)}
             disabled={loading}
             className="p-1.5 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded"
             title="이름 변경"

@@ -7,6 +7,7 @@ import LoginPage from './components/LoginPage.jsx';
 import TopNav from './components/TopNav.jsx';
 import RenameModal from './components/RenameModal.jsx';
 import { normalizeRemotePath } from './webdavPaths.js';
+import { shouldFallbackToCopyDelete } from './webdavMove.js';
 import { isDmergeFileName, readDmergeArchive } from './dmergeArchive.js';
 
 const SAVED_LOGIN_KEY = 'webdav-viewer-login';
@@ -273,7 +274,7 @@ export default function App() {
   const [isDarkTheme, setIsDarkTheme] = useState(() => localStorage.getItem('md_viewer_theme') === 'dark');
   const [toastMessage, setToastMessage] = useState('');
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
-  const [renameTargetName, setRenameTargetName] = useState('');
+  const [renameTarget, setRenameTarget] = useState(null);
 
   const fileInputRef = useRef(null);
   const clientRef = useRef(null);
@@ -343,7 +344,10 @@ export default function App() {
       });
       return;
     } catch (error) {
-      if (error?.status !== 400) throw error;
+      // Some WebDAV servers allow file MOVE but reject collection MOVE, or do
+      // not expose MOVE through CORS. In those cases use the same verified
+      // copy-then-delete path that already keeps file moves working.
+      if (!shouldFallbackToCopyDelete(error)) throw error;
     }
 
     const sourceStat = isDirectory ? null : await client.stat(sourcePath);
@@ -1114,14 +1118,21 @@ export default function App() {
   };
 
   // 파일 이름 변경 (모달 열기)
-  const handleOpenRenameModal = (fileName) => {
-    setRenameTargetName(fileName);
+  const handleOpenRenameModal = (item) => {
+    const target = typeof item === 'string'
+      ? { name: item, remotePath: joinRemotePath(currentPath, item) }
+      : item;
+    if (!target?.name || !target?.remotePath) {
+      setError('이름을 변경할 항목의 경로를 확인할 수 없습니다.');
+      return;
+    }
+    setRenameTarget(target);
     setIsRenameModalOpen(true);
   };
 
   // 파일 이름 변경 (모달 확인)
   const handleConfirmRename = async (newName) => {
-    const oldName = renameTargetName;
+    const oldName = renameTarget?.name || '';
     if (!newName || newName === oldName) {
       setIsRenameModalOpen(false);
       return;
@@ -1133,10 +1144,14 @@ export default function App() {
     setLoading(true);
     setError('');
     try {
-      const oldPath = joinRemotePath(currentPath, oldName);
-      const newPath = joinRemotePath(currentPath, newName);
-      await moveRemoteItem(client, oldPath, newPath);
-      await loadDirectory(currentPath);
+      const oldPath = normalizeRemotePath(renameTarget.remotePath);
+      const parentPath = oldPath.split('/').slice(0, -1).join('/') || '/';
+      const newPath = joinRemotePath(parentPath, newName);
+      await moveRemoteItem(client, oldPath, newPath, Boolean(renameTarget.isDirectory));
+      if (selectedFile?.remotePath && normalizeRemotePath(selectedFile.remotePath) === oldPath) {
+        setSelectedFile((file) => ({ ...file, name: newName, remotePath: newPath }));
+      }
+      await loadFullTree();
       showToast(`'${oldName}'이(가) '${newName}'으로 변경되었습니다.`);
     } catch (err) {
       if (!returnToLoginIfUnauthorized(err)) {
@@ -1145,13 +1160,14 @@ export default function App() {
     } finally {
       setLoading(false);
       setIsRenameModalOpen(false);
+      setRenameTarget(null);
     }
   };
 
   // 파일 이름 변경 (모달 취소)
   const handleCancelRename = () => {
     setIsRenameModalOpen(false);
-    setRenameTargetName('');
+    setRenameTarget(null);
   };
 
   // 새 파일 만들기
@@ -1673,7 +1689,7 @@ export default function App() {
 
       <RenameModal
         isOpen={isRenameModalOpen}
-        currentName={renameTargetName}
+        currentName={renameTarget?.name || ''}
         onConfirm={handleConfirmRename}
         onCancel={handleCancelRename}
         loading={loading}
