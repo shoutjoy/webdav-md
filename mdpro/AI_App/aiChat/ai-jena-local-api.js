@@ -20,11 +20,12 @@
     var params = new URLSearchParams({ q: value, count: String(limit), mode: searchMode, engine: 'auto' });
     var serpApiKey = '';
     try { serpApiKey = String(localStorage.getItem('ss_serpapi_api_key') || '').trim(); } catch (_) {}
-    var request = { cache: 'no-store', signal: options && options.signal, headers: {} };
-    if (serpApiKey) request.headers['X-SerpApi-Key'] = serpApiKey;
+    var request = { cache: 'no-store', signal: options && options.signal };
+    var sameOriginRequest = { cache: 'no-store', signal: options && options.signal, headers: {} };
+    if (serpApiKey) sameOriginRequest.headers['X-SerpApi-Key'] = serpApiKey;
     var sameOriginError = null;
     try {
-      var sameOriginPayload = await readJson(await fetch('/api/web-search/?' + params, request));
+      var sameOriginPayload = await readJson(await fetch('/api/web-search/?' + params, sameOriginRequest));
       sameOriginPayload.fallbackUsed = true;
       if (!sameOriginPayload.fallbackMessage) sameOriginPayload.fallbackMessage = 'WebDAV 앱 검색 중계를 사용했습니다.';
       return sameOriginPayload;
