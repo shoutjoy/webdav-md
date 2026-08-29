@@ -88,7 +88,7 @@ export default function MoveDestinationModal({ items, directoryTree, loading, pr
       </div>}
       <div className="border-t border-slate-200 px-4 py-2 text-xs text-slate-500 dark:border-slate-700">선택 위치: <span className="font-mono text-slate-800 dark:text-slate-200">{selectedPath || '폴더를 선택하세요'}</span></div>
       {loading && progress && <div className="border-t border-slate-200 px-4 py-3 dark:border-slate-700" aria-live="polite">
-        <div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-300"><span>파일 복사 및 확인 중</span><span>{progress.percent}%</span></div>
+        <div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-300"><span>{progress.phase || '이동 준비 중'}</span><span>{progress.percent}%</span></div>
         <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progress.percent}>
           <div className="h-full rounded-full bg-indigo-600 transition-[width] duration-200" style={{ width: `${progress.percent}%` }}/>
         </div>

@@ -9,6 +9,21 @@ and the NAS certificate-name mismatch without sending credentials to a third-par
 proxy. Other WebDAV hosts continue to connect directly and therefore need their own
 CORS configuration.
 
+## AI Jena web search
+
+The Vite development and preview servers expose `/api/web-search`. AI Jena uses
+Google Custom Search when both `GOOGLE_CUSTOM_SEARCH_API_KEY` and
+`GOOGLE_CUSTOM_SEARCH_ENGINE_ID` are present, otherwise DuckDuckGo HTML search is
+used first and Bing RSS is the final fallback. Keep these server-only values in a
+local `.env`; do not use the `VITE_` prefix because that would expose them to the
+browser bundle. Google Custom Search support is intended for existing API
+customers; the API is no longer open to new customers.
+
+AI Jena can also store a SerpApi key in its settings. When configured, the key
+is sent only to the same-origin Vite middleware in an `X-SerpApi-Key` header;
+the middleware calls SerpApi's Google engine and never writes the key into a
+generated asset. SerpApi is tried before the other search providers.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

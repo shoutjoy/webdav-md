@@ -24,10 +24,16 @@ export default defineConfig(({ mode }) => {
       {
         name: 'ai-jena-web-search-proxy',
         configureServer(server) {
-          server.middlewares.use(createWebSearchMiddleware());
+          server.middlewares.use(createWebSearchMiddleware({
+            googleApiKey: env.GOOGLE_CUSTOM_SEARCH_API_KEY,
+            googleSearchEngineId: env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID,
+          }));
         },
         configurePreviewServer(server) {
-          server.middlewares.use(createWebSearchMiddleware());
+          server.middlewares.use(createWebSearchMiddleware({
+            googleApiKey: env.GOOGLE_CUSTOM_SEARCH_API_KEY,
+            googleSearchEngineId: env.GOOGLE_CUSTOM_SEARCH_ENGINE_ID,
+          }));
         },
       },
     ],

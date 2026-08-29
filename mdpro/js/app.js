@@ -136,7 +136,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     html2canvas: './vendor/html2canvas/html2canvas.min.js?v=1.4.1',
     jsPdf: './vendor/jspdf/jspdf.umd.min.js?v=4.2.1',
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
-    aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260829-web-search-provider-2',
+    aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260829-serpapi-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
     aiChat: './AI_App/aiChat/ai-chat.js?v=20260829-web-search-provider-1',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
@@ -9264,6 +9264,66 @@ function setCredentialConnectionVisual(inputId, statusId, state, message) {
 }
 
 window.setCredentialConnectionVisual = setCredentialConnectionVisual;
+
+const SERPAPI_STORAGE_KEY = 'ss_serpapi_api_key';
+const SERPAPI_VERIFIED_KEY = 'ss_serpapi_api_key_verified';
+
+function updateSerpApiKeyConnectionUI() {
+    const input = document.getElementById('settings-serpapi-api-key');
+    if (!input) return false;
+    const key = String(input.value || '').trim();
+    if (!key) {
+        setCredentialConnectionVisual('settings-serpapi-api-key', 'settings-serpapi-api-key-feedback', 'neutral', '키를 입력하면 SerpApi Google 검색을 우선 사용합니다.');
+        return false;
+    }
+    const verified = localStorage.getItem(SERPAPI_VERIFIED_KEY) === credentialFingerprint(key);
+    setCredentialConnectionVisual('settings-serpapi-api-key', 'settings-serpapi-api-key-feedback', verified ? 'connected' : 'neutral', verified ? '연결됨: SerpApi Google 검색 확인 완료' : '키 저장·연결 확인을 눌러 실제 검색을 확인하세요.');
+    return true;
+}
+
+async function saveSerpApiSettings() {
+    const input = document.getElementById('settings-serpapi-api-key');
+    const key = String(input && input.value || '').trim();
+    if (!key) {
+        setCredentialConnectionVisual('settings-serpapi-api-key', 'settings-serpapi-api-key-feedback', 'error', 'SerpApi API Key를 입력하세요.');
+        return false;
+    }
+    localStorage.setItem(SERPAPI_STORAGE_KEY, key);
+    localStorage.removeItem(SERPAPI_VERIFIED_KEY);
+    setCredentialConnectionVisual('settings-serpapi-api-key', 'settings-serpapi-api-key-feedback', 'checking', 'SerpApi 연결을 확인하는 중...');
+    try {
+        const params = new URLSearchParams({ q: 'OpenAI', count: '1', engine: 'serpapi' });
+        const response = await fetch('/api/web-search?' + params, { cache: 'no-store', headers: { 'X-SerpApi-Key': key } });
+        const payload = await response.json().catch(function () { return {}; });
+        if (!response.ok || payload.ok === false || payload.engine !== 'serpapi-google') throw new Error(payload.error || 'SerpApi 검색 결과를 확인하지 못했습니다.');
+        localStorage.setItem(SERPAPI_VERIFIED_KEY, credentialFingerprint(key));
+        setCredentialConnectionVisual('settings-serpapi-api-key', 'settings-serpapi-api-key-feedback', 'connected', '저장됨 · 연결됨: SerpApi Google 검색 확인 완료');
+        return true;
+    } catch (error) {
+        setCredentialConnectionVisual('settings-serpapi-api-key', 'settings-serpapi-api-key-feedback', 'error', '키는 저장됨 · 연결 확인 실패: ' + (error && error.message ? error.message : error));
+        return false;
+    }
+}
+
+function clearSerpApiSettings() {
+    localStorage.removeItem(SERPAPI_STORAGE_KEY);
+    localStorage.removeItem(SERPAPI_VERIFIED_KEY);
+    const input = document.getElementById('settings-serpapi-api-key');
+    if (input) input.value = '';
+    setCredentialConnectionVisual('settings-serpapi-api-key', 'settings-serpapi-api-key-feedback', 'neutral', 'SerpApi 키를 삭제했습니다. DuckDuckGo와 Bing RSS 검색은 계속 사용할 수 있습니다.');
+    return true;
+}
+
+function loadSerpApiSettingsUI() {
+    const input = document.getElementById('settings-serpapi-api-key');
+    if (input) input.value = getProtectedAiCredential('serpapi', SERPAPI_STORAGE_KEY);
+    updateSerpApiKeyConnectionUI();
+}
+
+window.updateSerpApiKeyConnectionUI = updateSerpApiKeyConnectionUI;
+window.saveSerpApiSettings = saveSerpApiSettings;
+window.clearSerpApiSettings = clearSerpApiSettings;
+document.addEventListener('DOMContentLoaded', loadSerpApiSettingsUI);
 
 function validateApiKeyInputUI() {
     const input = document.getElementById('ai-api-key');

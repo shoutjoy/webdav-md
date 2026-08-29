@@ -354,9 +354,26 @@ export default function App() {
       }
     };
     const contents = await runStep('원본 파일 읽기', sourcePath, () => client.getFileContents(sourcePath, { format: 'binary' }));
-    const uploaded = await runStep('대상 파일 생성', targetPath, () => client.putFileContents(targetPath, contents, { overwrite: false }));
+    try {
+      await client.putFileContents(targetPath, contents, { overwrite: false });
+    } catch (uploadError) {
+      // A server may accept the upload even when the browser loses the
+      // response. Confirm the target before treating Failed to fetch as a
+      // failed move.
+      let createdAfterError = false;
+      try {
+        createdAfterError = await client.exists(targetPath);
+      } catch {
+        // Preserve the original upload error below.
+      }
+      if (!createdAfterError) {
+        const wrapped = new Error(`대상 파일 생성 실패 (${targetPath}): ${uploadError?.message || uploadError}`);
+        wrapped.status = uploadError?.status || uploadError?.response?.status;
+        throw wrapped;
+      }
+    }
     const created = await runStep('대상 파일 확인', targetPath, () => client.exists(targetPath));
-    if (uploaded === false || !created) throw new Error(`대상 파일 생성 확인 실패 (${targetPath})`);
+    if (!created) throw new Error(`대상 파일 생성 확인 실패 (${targetPath})`);
   };
 
   const moveRemoteItem = async (client, sourcePath, targetPath, isDirectory = false, overwrite = false, options = {}) => {
@@ -380,7 +397,7 @@ export default function App() {
     const sourceStat = isDirectory ? null : await client.stat(sourcePath);
     const moveDirectory = isDirectory || sourceStat?.type === 'directory';
     if (!moveDirectory) {
-      reportProgress({ completed: 0, total: 1, path: sourcePath });
+      reportProgress({ completed: 0, total: 1, phase: '2단계 · 파일을 하나씩 이동', path: sourcePath });
       if (overwrite) {
         const contents = await client.getFileContents(sourcePath, { format: 'binary' });
         await client.putFileContents(targetPath, contents, { overwrite: true });
@@ -389,7 +406,7 @@ export default function App() {
         await copyRemoteFileForMove(client, sourcePath, targetPath);
       }
       await client.deleteFile(sourcePath);
-      reportProgress({ completed: 1, total: 1, path: targetPath });
+      reportProgress({ completed: 1, total: 1, phase: '2단계 · 이동 완료', path: targetPath });
       return;
     }
 
@@ -410,16 +427,24 @@ export default function App() {
       .filter((path) => path !== sourcePath)
       .sort((a, b) => a.split('/').length - b.split('/').length);
     const filesToCopy = entries.filter((entry) => entry.type !== 'directory');
-    const total = 1 + directories.length + filesToCopy.length;
+    const directoryCount = 1 + directories.length;
+    const total = directoryCount * 2 + filesToCopy.length;
     let completed = 0;
-    reportProgress({ completed, total, path: sourcePath });
+    reportProgress({ completed, total, phase: '1단계 · 대상 폴더 구조 생성', path: sourcePath });
     try {
       await client.createDirectory(targetPath);
     } catch (error) {
-      const wrapped = new Error(`대상 폴더 생성 실패 (${targetPath}): ${error?.message || error}`);
-      wrapped.status = error?.status || error?.response?.status;
-      throw wrapped;
+      let createdAfterError = false;
+      try { createdAfterError = await client.exists(targetPath); } catch { /* Preserve the create error. */ }
+      if (!createdAfterError) {
+        const wrapped = new Error(`대상 폴더 생성 실패 (${targetPath}): ${error?.message || error}`);
+        wrapped.status = error?.status || error?.response?.status;
+        throw wrapped;
+      }
     }
+    if (!await client.exists(targetPath)) throw new Error(`대상 폴더 생성 확인 실패 (${targetPath})`);
+    completed += 1;
+    reportProgress({ completed, total, phase: '1단계 · 대상 폴더 구조 생성', path: targetPath });
     for (const directoryPath of directories) {
       const relativePath = directoryPath.slice(sourcePath.length).replace(/^\/+/, '');
       if (relativePath) {
@@ -427,12 +452,20 @@ export default function App() {
         try {
           await client.createDirectory(createdPath);
         } catch (error) {
-          const wrapped = new Error(`하위 폴더 생성 실패 (${createdPath}): ${error?.message || error}`);
-          wrapped.status = error?.status || error?.response?.status;
-          throw wrapped;
+          let createdAfterError = false;
+          try { createdAfterError = await client.exists(createdPath); } catch { /* Preserve the create error. */ }
+          if (!createdAfterError) {
+            const wrapped = new Error(`하위 폴더 생성 실패 (${createdPath}): ${error?.message || error}`);
+            wrapped.status = error?.status || error?.response?.status;
+            throw wrapped;
+          }
         }
+        if (!await client.exists(createdPath)) throw new Error(`하위 폴더 생성 확인 실패 (${createdPath})`);
+        completed += 1;
+        reportProgress({ completed, total, phase: '1단계 · 대상 폴더 구조 생성', path: createdPath });
       }
     }
+    reportProgress({ completed, total, phase: '2단계 · 파일을 하나씩 이동', path: filesToCopy[0]?.filename || targetPath });
     for (const entry of filesToCopy) {
       const entryPath = normalizeRemotePath(entry.filename);
       const relativePath = entryPath.slice(sourcePath.length).replace(/^\/+/, '');
@@ -446,7 +479,7 @@ export default function App() {
         throw wrapped;
       }
       completed += 1;
-      reportProgress({ completed, total, path: copiedPath });
+      reportProgress({ completed, total, phase: '2단계 · 파일을 하나씩 이동', path: copiedPath });
     }
     if (!await client.exists(targetPath)) throw new Error(`대상 폴더 생성 확인 실패: ${targetPath}`);
     const deepestDirectoriesFirst = [...directories].sort((a, b) => b.split('/').length - a.split('/').length);
@@ -459,7 +492,7 @@ export default function App() {
         throw wrapped;
       }
       completed += 1;
-      reportProgress({ completed, total, path: directoryPath });
+      reportProgress({ completed, total, phase: '2단계 · 원본 정리', path: directoryPath });
     }
     try {
       await client.deleteFile(sourcePath);
@@ -469,7 +502,7 @@ export default function App() {
       throw wrapped;
     }
     completed += 1;
-    reportProgress({ completed, total, path: targetPath });
+    reportProgress({ completed, total, phase: '2단계 · 이동 완료', path: targetPath });
   };
 
   const updateHistoryPath = (path, replace = false) => {
@@ -1331,11 +1364,11 @@ export default function App() {
     setLoading(true);
     setError('');
     try {
-      setMoveProgress({ percent: 0, completed: 0, total: 1, path: sourcePath });
+      setMoveProgress({ percent: 0, completed: 0, total: 1, phase: item.isDirectory ? '1단계 · 대상 폴더 구조 생성' : '2단계 · 파일을 하나씩 이동', path: sourcePath });
       await moveRemoteItem(client, sourcePath, targetPath, item.isDirectory, hasDuplicate && options.conflictPolicy === 'overwrite', {
         copyDeleteOnly: true,
-        onProgress: ({ completed, total, path }) => setMoveProgress({
-          percent: Math.round((completed / Math.max(total, 1)) * 100), completed, total, path,
+        onProgress: ({ completed, total, phase, path }) => setMoveProgress({
+          percent: Math.round((completed / Math.max(total, 1)) * 100), completed, total, phase, path,
         }),
       });
       if (!await client.exists(targetPath)) throw new Error('서버에서 이동 결과를 확인할 수 없습니다.');
@@ -1414,7 +1447,7 @@ export default function App() {
     const client = createConfiguredWebDavClient();
     setLoading(true);
     setError('');
-    setMoveProgress({ percent: 0, completed: 0, total: plannedItems.length, path: '' });
+    setMoveProgress({ percent: 0, completed: 0, total: plannedItems.length, phase: '1단계 · 대상 폴더 구조 생성', path: '' });
     const movedPairs = [];
     try {
       const moveResults = [];
@@ -1424,9 +1457,9 @@ export default function App() {
         try {
           await moveRemoteItem(client, sourcePath, targetPath, item.isDirectory, overwrite, {
             copyDeleteOnly: true,
-            onProgress: ({ completed, total, path }) => setMoveProgress({
+            onProgress: ({ completed, total, phase, path }) => setMoveProgress({
               percent: Math.round(((itemIndex + completed / Math.max(total, 1)) / plannedItems.length) * 100),
-              completed: itemIndex, total: plannedItems.length, path,
+              completed: itemIndex, total: plannedItems.length, phase, path,
             }),
           });
           if (!await client.exists(targetPath)) throw new Error(`'${targetName}' 이동 결과를 서버에서 확인할 수 없습니다.`);
