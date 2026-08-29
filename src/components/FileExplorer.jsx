@@ -54,7 +54,7 @@ function TreeItem({ item, depth, expandedPaths, selectedFolderPath, selectionMod
   </>;
 }
 
-export default function FileExplorer({ files, directoryTree, loading, editorLoading, copiedKey, isDragging, explorerWidth, compact, folderSelectionMode, formatBytes, onDragEnter, onDragLeave, onDragOver, onDrop, onOpenDirectory, onOpenArchive, onCopyUrl, onOpenFile, onDownload, onRename, onMove, onMoveSelected, onDelete, onCreateFile, onCreateFolder, onRequestCreateFile, onRequestCreateFolder, onToggleCompact }) {
+export default function FileExplorer({ files, directoryTree, loading, moveProgress, editorLoading, copiedKey, isDragging, explorerWidth, compact, folderSelectionMode, formatBytes, onDragEnter, onDragLeave, onDragOver, onDrop, onOpenDirectory, onOpenArchive, onCopyUrl, onOpenFile, onDownload, onRename, onMove, onMoveSelected, onDelete, onCreateFile, onCreateFolder, onRequestCreateFile, onRequestCreateFolder, onToggleCompact }) {
   const [expandedPaths, setExpandedPaths] = useState(() => new Set(['/']));
   const [selectedFolderPath, setSelectedFolderPath] = useState('/');
   const [selectionMode, setSelectionMode] = useState(false);
@@ -178,6 +178,6 @@ export default function FileExplorer({ files, directoryTree, loading, editorLoad
     {isDragging && <div className="absolute inset-0 z-20 flex items-center justify-center border-2 border-dashed border-indigo-400 bg-indigo-50/90 text-indigo-600 pointer-events-none dark:bg-slate-900/90"><Upload size={20} className="mr-2"/>파일/폴더를 여기에 놓으세요</div>}
     {rootEntries.length === 0 && <div className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">{loading ? 'WebDAV 파일 목록을 불러오는 중입니다…' : '폴더가 비어있습니다.'}</div>}
     {rootEntries.map((item) => <TreeItem key={item.remotePath} item={item} depth={0} expandedPaths={expandedPaths} selectedFolderPath={selectedFolderPath} selectionMode={selectionMode} checkedPaths={checkedPaths} fileToolsVisible={fileToolsVisible} loading={loading} editorLoading={editorLoading} copiedKey={copiedKey} formatBytes={formatBytes} onToggleFolder={toggleFolder} onToggleExpanded={toggleExpandedOnly} onToggleChecked={toggleChecked} onCopyUrl={onCopyUrl} onOpenFile={onOpenFile} onDownload={onDownload} onRename={onRename} onMove={(item) => { setMoveActionError(''); setMoveRequest({ items: [item], bulk: false }); }} onDelete={onDelete} onCreateFile={onCreateFile} onCreateFolder={onCreateFolder}/>)}
-    <MoveDestinationModal key={moveRequest?.items?.map((item) => item.remotePath).join('|') || 'closed'} items={moveRequest?.items} directoryTree={directoryTree} loading={loading} actionError={moveActionError} onConfirm={confirmMove} onCancel={() => { if (!loading) { setMoveRequest(null); setMoveActionError(''); } }}/>
+    <MoveDestinationModal key={moveRequest?.items?.map((item) => item.remotePath).join('|') || 'closed'} items={moveRequest?.items} directoryTree={directoryTree} loading={loading} progress={moveProgress} actionError={moveActionError} onConfirm={confirmMove} onCancel={() => { if (!loading) { setMoveRequest(null); setMoveActionError(''); } }}/>
   </div>;
 }

@@ -34,7 +34,7 @@ function FolderChoice({ node, depth, expandedPaths, selectedPath, blockedPaths, 
   </>;
 }
 
-export default function MoveDestinationModal({ items, directoryTree, loading, actionError, onConfirm, onCancel }) {
+export default function MoveDestinationModal({ items, directoryTree, loading, progress, actionError, onConfirm, onCancel }) {
   const [selectedPath, setSelectedPath] = useState('');
   const [expandedPaths, setExpandedPaths] = useState(() => new Set(['/']));
   const [conflictingItems, setConflictingItems] = useState([]);
@@ -87,6 +87,13 @@ export default function MoveDestinationModal({ items, directoryTree, loading, ac
         <FolderChoice node={directoryTree} depth={0} expandedPaths={expandedPaths} selectedPath={selectedPath} blockedPaths={blockedPaths} blockedDestinationPaths={blockedDestinationPaths} onToggle={toggle} onSelect={setSelectedPath}/>
       </div>}
       <div className="border-t border-slate-200 px-4 py-2 text-xs text-slate-500 dark:border-slate-700">선택 위치: <span className="font-mono text-slate-800 dark:text-slate-200">{selectedPath || '폴더를 선택하세요'}</span></div>
+      {loading && progress && <div className="border-t border-slate-200 px-4 py-3 dark:border-slate-700" aria-live="polite">
+        <div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-300"><span>파일 복사 및 확인 중</span><span>{progress.percent}%</span></div>
+        <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progress.percent}>
+          <div className="h-full rounded-full bg-indigo-600 transition-[width] duration-200" style={{ width: `${progress.percent}%` }}/>
+        </div>
+        <div className="mt-1 truncate text-[10px] text-slate-500" title={progress.path}>{progress.path || '이동 준비 중…'}</div>
+      </div>}
       {actionError && <div className="border-t border-red-200 bg-red-50 px-4 py-2 text-xs font-medium text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">{actionError}</div>}
       <div className="flex justify-end gap-2 border-t border-slate-200 p-3 dark:border-slate-700">
         <button type="button" onClick={conflictingItems.length ? () => setConflictingItems([]) : onCancel} disabled={loading} className="rounded-md bg-slate-100 px-4 py-2 text-sm hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700">{conflictingItems.length ? '뒤로' : '취소'}</button>

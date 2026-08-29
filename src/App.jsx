@@ -277,6 +277,7 @@ export default function App() {
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState(null);
   const [createDestinationType, setCreateDestinationType] = useState('');
+  const [moveProgress, setMoveProgress] = useState(null);
 
   const fileInputRef = useRef(null);
   const clientRef = useRef(null);
@@ -335,26 +336,28 @@ export default function App() {
     if (uploaded === false || !await client.exists(targetPath)) throw new Error(`대상 파일 생성 확인 실패: ${targetPath}`);
   };
 
-  const moveRemoteItem = async (client, sourcePath, targetPath, isDirectory = false, overwrite = false) => {
-    try {
-      await client.customRequest(sourcePath, {
-        method: 'MOVE',
-        headers: {
-          Destination: buildPublicUrl(url, targetPath),
-          Overwrite: overwrite ? 'T' : 'F',
-        },
-      });
-      return;
-    } catch (error) {
-      // Some WebDAV servers allow file MOVE but reject collection MOVE, or do
-      // not expose MOVE through CORS. In those cases use the same verified
-      // copy-then-delete path that already keeps file moves working.
-      if (!shouldFallbackToCopyDelete(error)) throw error;
+  const moveRemoteItem = async (client, sourcePath, targetPath, isDirectory = false, overwrite = false, options = {}) => {
+    const reportProgress = options.onProgress || (() => {});
+    if (!options.copyDeleteOnly) {
+      try {
+        await client.customRequest(sourcePath, {
+          method: 'MOVE',
+          headers: {
+            Destination: buildPublicUrl(url, targetPath),
+            Overwrite: overwrite ? 'T' : 'F',
+          },
+        });
+        reportProgress({ completed: 1, total: 1, path: targetPath });
+        return;
+      } catch (error) {
+        if (!shouldFallbackToCopyDelete(error)) throw error;
+      }
     }
 
     const sourceStat = isDirectory ? null : await client.stat(sourcePath);
     const moveDirectory = isDirectory || sourceStat?.type === 'directory';
     if (!moveDirectory) {
+      reportProgress({ completed: 0, total: 1, path: sourcePath });
       if (overwrite) {
         const contents = await client.getFileContents(sourcePath, { format: 'binary' });
         await client.putFileContents(targetPath, contents, { overwrite: true });
@@ -363,6 +366,7 @@ export default function App() {
         await copyRemoteFileForMove(client, sourcePath, targetPath);
       }
       await client.deleteFile(sourcePath);
+      reportProgress({ completed: 1, total: 1, path: targetPath });
       return;
     }
 
@@ -370,24 +374,42 @@ export default function App() {
     // Traverse each directory explicitly so a folder move includes every
     // nested file and subfolder before the source is removed.
     const entries = await collectDirectoryEntries(client, sourcePath);
-    await client.createDirectory(targetPath);
     const directories = entries
       .filter((entry) => entry.type === 'directory')
       .map((entry) => normalizeRemotePath(entry.filename))
       .filter((path) => path !== sourcePath)
       .sort((a, b) => a.split('/').length - b.split('/').length);
+    const filesToCopy = entries.filter((entry) => entry.type !== 'directory');
+    const total = 1 + directories.length + filesToCopy.length;
+    let completed = 0;
+    reportProgress({ completed, total, path: sourcePath });
+    await client.createDirectory(targetPath);
     for (const directoryPath of directories) {
       const relativePath = directoryPath.slice(sourcePath.length).replace(/^\/+/, '');
-      if (relativePath) await client.createDirectory(joinRemotePath(targetPath, relativePath));
+      if (relativePath) {
+        const createdPath = joinRemotePath(targetPath, relativePath);
+        await client.createDirectory(createdPath);
+      }
     }
-    const filesToCopy = entries.filter((entry) => entry.type !== 'directory');
-    await Promise.all(filesToCopy.map((entry) => {
+    for (const entry of filesToCopy) {
       const entryPath = normalizeRemotePath(entry.filename);
       const relativePath = entryPath.slice(sourcePath.length).replace(/^\/+/, '');
-      return copyRemoteFileForMove(client, entryPath, joinRemotePath(targetPath, relativePath));
-    }));
+      const copiedPath = joinRemotePath(targetPath, relativePath);
+      await copyRemoteFileForMove(client, entryPath, copiedPath);
+      await client.deleteFile(entryPath);
+      completed += 1;
+      reportProgress({ completed, total, path: copiedPath });
+    }
     if (!await client.exists(targetPath)) throw new Error(`대상 폴더 생성 확인 실패: ${targetPath}`);
+    const deepestDirectoriesFirst = [...directories].sort((a, b) => b.split('/').length - a.split('/').length);
+    for (const directoryPath of deepestDirectoriesFirst) {
+      await client.deleteFile(directoryPath);
+      completed += 1;
+      reportProgress({ completed, total, path: directoryPath });
+    }
     await client.deleteFile(sourcePath);
+    completed += 1;
+    reportProgress({ completed, total, path: targetPath });
   };
 
   const updateHistoryPath = (path, replace = false) => {
@@ -1256,7 +1278,13 @@ export default function App() {
     setLoading(true);
     setError('');
     try {
-      await moveRemoteItem(client, sourcePath, targetPath, item.isDirectory, hasDuplicate && options.conflictPolicy === 'overwrite');
+      setMoveProgress({ percent: 0, completed: 0, total: 1, path: sourcePath });
+      await moveRemoteItem(client, sourcePath, targetPath, item.isDirectory, hasDuplicate && options.conflictPolicy === 'overwrite', {
+        copyDeleteOnly: true,
+        onProgress: ({ completed, total, path }) => setMoveProgress({
+          percent: Math.round((completed / Math.max(total, 1)) * 100), completed, total, path,
+        }),
+      });
       if (!await client.exists(targetPath)) throw new Error('서버에서 이동 결과를 확인할 수 없습니다.');
       if (selectedFile?.remotePath) {
         const openPath = normalizeRemotePath(selectedFile.remotePath);
@@ -1334,14 +1362,27 @@ export default function App() {
     if (!client) return false;
     setLoading(true);
     setError('');
+    setMoveProgress({ percent: 0, completed: 0, total: plannedItems.length, path: '' });
     const movedPairs = [];
     try {
-      const moveResults = await Promise.allSettled(plannedItems.map(async ({ item, sourcePath, targetName, overwrite }) => {
+      const moveResults = [];
+      for (let itemIndex = 0; itemIndex < plannedItems.length; itemIndex += 1) {
+        const { item, sourcePath, targetName, overwrite } = plannedItems[itemIndex];
         const targetPath = joinRemotePath(targetDirectory, targetName);
-        await moveRemoteItem(client, sourcePath, targetPath, item.isDirectory, overwrite);
-        if (!await client.exists(targetPath)) throw new Error(`'${targetName}' 이동 결과를 서버에서 확인할 수 없습니다.`);
-        return { sourcePath, targetPath, isDirectory: item.isDirectory, name: targetName };
-      }));
+        try {
+          await moveRemoteItem(client, sourcePath, targetPath, item.isDirectory, overwrite, {
+            copyDeleteOnly: true,
+            onProgress: ({ completed, total, path }) => setMoveProgress({
+              percent: Math.round(((itemIndex + completed / Math.max(total, 1)) / plannedItems.length) * 100),
+              completed: itemIndex, total: plannedItems.length, path,
+            }),
+          });
+          if (!await client.exists(targetPath)) throw new Error(`'${targetName}' 이동 결과를 서버에서 확인할 수 없습니다.`);
+          moveResults.push({ status: 'fulfilled', value: { sourcePath, targetPath, isDirectory: item.isDirectory, name: targetName } });
+        } catch (reason) {
+          moveResults.push({ status: 'rejected', reason });
+        }
+      }
       moveResults.forEach((result) => {
         if (result.status === 'fulfilled') movedPairs.push(result.value);
       });
@@ -1638,6 +1679,7 @@ export default function App() {
             files={files}
             directoryTree={directoryTree}
             loading={loading}
+            moveProgress={moveProgress}
             editorLoading={editorLoading}
             copiedKey={copiedKey}
             isDragging={isDragging}
