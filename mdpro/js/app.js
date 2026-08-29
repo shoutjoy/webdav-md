@@ -4065,8 +4065,6 @@ async function openDocxInEditor(file) {
     }
 }
 
-window.openDocxInEditor = openDocxInEditor;
-
 async function openPdfInEditor(file) {
     if (!file) return false;
     try {
@@ -5169,37 +5167,6 @@ async function exportMpv() {
     URL.revokeObjectURL(url);
     closeBackupModal();
     showToast("MPV backup exported as JSON.");
-}
-
-function saveCurrentDocumentToWebDav() {
-    if (window.__webdavHostDocument && window.parent && window.parent !== window) {
-        syncCurrentMarkdownFromEditor();
-        window.parent.postMessage({
-            type: 'webdav-save-document',
-            path: window.__webdavHostDocument.path,
-            fileName: window.__webdavHostDocument.fileName,
-            content: String(currentMarkdown == null ? '' : currentMarkdown)
-        }, window.location.origin);
-        showToast('WebDAV 원본 위치에 저장하는 중입니다.');
-        return true;
-    }
-    showToast('WebDAV에서 연 문서가 아닙니다.');
-    return false;
-}
-
-function saveCurrentDocumentToWebDavAs() {
-    if (window.__webdavHostDocument && window.parent && window.parent !== window) {
-        syncCurrentMarkdownFromEditor();
-        window.parent.postMessage({
-            type: 'webdav-save-document-as',
-            path: window.__webdavHostDocument.path,
-            fileName: window.__webdavHostDocument.fileName,
-            content: String(currentMarkdown == null ? '' : currentMarkdown)
-        }, window.location.origin);
-        return true;
-    }
-    showToast('WebDAV에서 연 문서가 아닙니다.');
-    return false;
 }
 
 async function saveCurrentFile() {
@@ -8331,11 +8298,14 @@ function syncEditorShiftFloatPosition() {
     const viewport = document.getElementById('content-viewport');
     if (!control || !viewport) return;
 
-    control.dataset.layout = 'footer';
-    const footerRow = document.getElementById('mdpro-footer-row');
-    if (footerRow) footerRow.prepend(control);
-    control.style.left = '';
-    control.style.bottom = '';
+    const viewportRect = viewport.getBoundingClientRect();
+    const sidebarEl = document.getElementById('sidebar');
+    const sidebarVisible = !!(sidebarEl && getComputedStyle(sidebarEl).display !== 'none');
+    const sidebarRect = sidebarVisible ? sidebarEl.getBoundingClientRect() : null;
+    const outsideSidebarLeft = sidebarRect && sidebarRect.width > 0 ? sidebarRect.right + 8 : viewportRect.left + 8;
+
+    control.style.left = `${Math.max(viewportRect.left + 8, outsideSidebarLeft)}px`;
+    control.style.bottom = `${Math.max(8, window.innerHeight - viewportRect.bottom + 8)}px`;
 
     if (editorShiftFloatPositionTrackingInstalled) return;
     editorShiftFloatPositionTrackingInstalled = true;
@@ -16701,8 +16671,6 @@ window.openFmaViewer = openFmaViewer;
 window.readFile = readFile;
 window.saveFile = saveFile;
 window.saveCurrentFile = saveCurrentFile;
-window.saveCurrentDocumentToWebDav = saveCurrentDocumentToWebDav;
-window.saveCurrentDocumentToWebDavAs = saveCurrentDocumentToWebDavAs;
 window.toggleSaveDropdown = toggleSaveDropdown;
 window.closeSaveDropdown = closeSaveDropdown;
 window.saveCurrentDocumentAsNewFile = saveCurrentDocumentAsNewFile;
