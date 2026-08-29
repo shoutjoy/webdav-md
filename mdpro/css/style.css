@@ -1210,6 +1210,12 @@
             color: #cbd5e1;
             box-shadow: 0 1px 3px rgba(0, 0, 0, .35);
         }
+        .dark .editor-format-heading { border-left-color: #0ea5e9; }
+        .dark .editor-format-list { border-left-color: #10b981; }
+        .dark .editor-format-quote { border-left-color: #a855f7; }
+        .dark .editor-format-code { border-left-color: #f59e0b; }
+        .dark .editor-format-table { border-left-color: #06b6d4; }
+        .dark .editor-format-rule { border-left-color: #64748b; }
         .dark .editor-format-marker:hover,
         .dark .editor-format-marker:focus-visible {
             border-color: #818cf8;
@@ -2979,6 +2985,21 @@ html:not(.dark) #app-status-footer button {
 #drop-zone.document-dark-mode .markdown-body th,
 #drop-zone.document-dark-mode .markdown-body td { border-color: #64748b; }
 #drop-zone.document-dark-mode .markdown-body thead th { background-color: #1e293b; }
+
+/* User colors for the main viewer. These intentionally affect dark view mode only. */
+#drop-zone.document-dark-mode #viewer.markdown-body h1,
+#drop-zone.document-dark-mode #viewer.markdown-body h2,
+#drop-zone.document-dark-mode #viewer.markdown-body h3,
+#drop-zone.document-dark-mode #viewer.markdown-body h4,
+#drop-zone.document-dark-mode #viewer.markdown-body h5,
+#drop-zone.document-dark-mode #viewer.markdown-body h6 {
+    color: var(--md-dark-view-header-color, #4f46e5);
+}
+
+#drop-zone.document-dark-mode #viewer.markdown-body b,
+#drop-zone.document-dark-mode #viewer.markdown-body strong {
+    color: var(--md-dark-view-bold-color, #f59e0b);
+}
 
 /* Main file actions default to compact icon buttons. The settings option can
    restore their labels without rebuilding the header. */

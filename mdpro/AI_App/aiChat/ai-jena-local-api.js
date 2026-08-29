@@ -33,6 +33,9 @@
       return payload;
     } catch (fallbackError) {
       if (fallbackError && fallbackError.name === 'AbortError') throw fallbackError;
+      if (primaryError && /Failed to fetch|fetch failed|NetworkError|Load failed/i.test(String(primaryError.message || primaryError))) {
+        throw new Error('AI Jena 로컬 검색 서버(127.0.0.1:8765)가 실행되지 않았거나 이 페이지의 접근이 허용되지 않았습니다. AI Studio를 선택하면 내장 Google 검색을 사용할 수 있습니다.');
+      }
       throw new Error((fallbackError && fallbackError.message) || (primaryError && primaryError.message) || '인터넷 검색 서비스를 사용할 수 없습니다.');
     }
   }
