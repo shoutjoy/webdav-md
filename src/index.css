@@ -33,9 +33,7 @@ body { margin: 0; background: #e9edf3; }
 .webdav-compact-button { width: 30px; height: 30px; flex: 0 0 auto; }
 .webdav-compact-label { writing-mode: vertical-rl; text-orientation: mixed; font-size: 11px; letter-spacing: .12em; }
 .mdpro-workspace { display:flex; width:100%; height:calc(100% - 38px); min-width:0; overflow:hidden; }
-.mdpro-frame { min-width:0; height:100%; border:0; display:block; flex:1 1 auto; background:white; }
-.mdpro-frame.mdpro-frame-mobile-fullscreen { position:fixed; inset:0; z-index:2147483647; width:100vw; width:100dvw; height:100vh; height:100dvh; max-width:none; max-height:none; background:#fff; }
-body.mdpro-mobile-fullscreen-active { overflow:hidden; touch-action:none; }
+.mdpro-frame { width:100%; min-width:0; height:100%; border:0; display:block; flex:1 1 auto; background:white; }
 .fma-dock { min-width:0; height:100%; display:flex; flex:0 0 auto; flex-direction:column; overflow:hidden; border-left:1px solid #334155; background:#080d16; }
 .fma-dock-bar { height:32px; display:flex; flex:0 0 32px; align-items:center; gap:8px; padding:0 8px; color:#dbeafe; background:#111827; border-bottom:1px solid #334155; font-size:11px; }
 .fma-dock-bar span { min-width:0; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#94a3b8; }
@@ -64,7 +62,8 @@ body.mdpro-mobile-fullscreen-active { overflow:hidden; touch-action:none; }
 }
 
 @media (max-width: 767px) {
-    .webdav-shell { padding:0 !important; }
+    html, body, #root { width:100%; height:100%; overflow:hidden; }
+    .webdav-shell { position:fixed; inset:0; width:100dvw; height:100dvh; min-height:0 !important; padding:0 !important; overflow:hidden; }
     .webdav-shell > div { max-width:none; }
     .mobile-wdoc-button {
         position:fixed;
@@ -118,6 +117,20 @@ body.mdpro-mobile-fullscreen-active { overflow:hidden; touch-action:none; }
     .mdpro-stage { width:100%; height:100dvh; flex-basis:100% !important; border-radius:0; }
     .mdpro-stage-bar { display:none; }
     .mdpro-workspace { height:100%; }
+    .mdpro-frame.mdpro-frame-mobile-fullscreen {
+        position:fixed;
+        inset:0;
+        z-index:50;
+        width:100vw;
+        width:100dvw;
+        min-width:100vw;
+        min-width:100dvw;
+        height:100vh;
+        height:100dvh;
+        max-width:none;
+        max-height:none;
+        background:#fff;
+    }
     .mdpro-loading, .mdpro-saving { inset:0; }
 }
 

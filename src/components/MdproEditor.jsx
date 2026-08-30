@@ -121,7 +121,7 @@ export default function MdproEditor({ selectedFile, content, binaryContent, fmaI
     {loading && !saving && <div className="mdpro-loading">WebDAV 파일을 여는 중…</div>}
     {saving && <div className="mdpro-saving" role="status" aria-live="polite"><span>WebDAV에 저장합니다.</span></div>}
     <div className="mdpro-workspace">
-      <iframe ref={mdproFrameRef} src={MDPRO_URL} onLoad={attachWebdavBridge} title="MDPRO 문서 편집기" className="mdpro-frame" allow="fullscreen" allowFullScreen />
+      <iframe ref={mdproFrameRef} src={MDPRO_URL} onLoad={attachWebdavBridge} title="MDPRO 문서 편집기" className="mdpro-frame mdpro-frame-mobile-fullscreen" allow="fullscreen" allowFullScreen />
       {isFmaOpen && <>
         <div className="fma-panel-resizer" onPointerDown={startFmaResize} role="separator" aria-label="문서와 FMA 너비 조절" title="드래그하여 문서와 FMA 크기 조절"><span/></div>
         <aside className="fma-dock" style={{ flexBasis: `${fmaWidth}%` }}>
