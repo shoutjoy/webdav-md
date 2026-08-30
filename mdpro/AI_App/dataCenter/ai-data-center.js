@@ -340,7 +340,16 @@
   }
 
   async function refresh() { records = (await readAll()).sort(function (a, b) { return Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0); }); render(); }
-  async function open() { ensureUi(); await migrateLegacyOnce(); var app = document.getElementById('ai-data-center-app'); app.hidden = false; fitNextToAIJena(app); applyResponsiveScale(); await refresh(); }
+  async function open() {
+    ensureUi();
+    if (root.AIChat && typeof root.AIChat.close === 'function') root.AIChat.close();
+    await migrateLegacyOnce();
+    var app = document.getElementById('ai-data-center-app');
+    app.hidden = false;
+    fitNextToAIJena(app);
+    applyResponsiveScale();
+    await refresh();
+  }
   function close() { var app = document.getElementById('ai-data-center-app'); if (app) app.hidden = true; }
 
   root.AIDataCenter = { save: save, readAll: readAll, open: open, close: close, refresh: refresh, databaseName: DB_NAME };

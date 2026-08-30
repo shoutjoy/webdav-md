@@ -321,7 +321,7 @@
             fastOutputLimit: Math.max(1, Number(config.fastMaxTokens) || 3000),
             fastTimeoutMs: Math.max(1000, Number(config.fastTimeoutMs) || 60000),
             reasoningLevel: String(config.reasoningLevel || 'auto'),
-            timeoutMs: Math.max(1000, Number(config.timeoutMs) || 90000),
+            timeoutMs: Math.max(1000, Number(config.timeoutMs) || 580000),
             topP: config.topP == null || config.topP === '' ? null : Number(config.topP)
         };
     }

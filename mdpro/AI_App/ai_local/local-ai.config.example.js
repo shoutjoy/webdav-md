@@ -5,7 +5,7 @@ const localAIConfig = {
   apiKey: '',
   temperature: 0.4,
   maxTokens: 8192,
-  timeoutMs: 90000,
+  timeoutMs: 580000,
   topP: null,
   seed: null,
   frequencyPenalty: null,

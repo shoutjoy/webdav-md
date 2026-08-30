@@ -89,3 +89,25 @@
 .aic-app.light .aic-messages article.assistant>header{background:linear-gradient(180deg,#475569,#334155);border-color:#334155;box-shadow:inset 0 1px rgba(255,255,255,.12)}
 .aic-app.light .aic-messages article.assistant>header>b{color:#5eead4;font-weight:900;text-shadow:0 1px 1px rgba(15,23,42,.35)}
 .aic-app.light .aic-messages article.assistant>header .aic-answer-actions span{color:#e2e8f0;font-weight:700}
+
+/* Mobile data center: keep the record rail compact and give answers the page. */
+@media(max-width:900px){
+  .aic-app{height:100vh!important;height:100dvh!important;max-height:100dvh;overflow:hidden}
+  .aic-app .aic-layout{grid-template-columns:minmax(118px,28%) minmax(0,1fr);min-height:0}
+  .aic-app .aic-layout>aside{max-height:none;min-height:0;border-right:1px solid #29415f;border-bottom:0;overflow:hidden}
+  .aic-app #aic-list{min-height:0;padding:7px;overflow-y:auto}
+  .aic-app .aic-list-item{gap:3px;margin-bottom:6px;padding:9px 8px}
+  .aic-app .aic-list-item strong{font-size:12px;line-height:1.35}
+  .aic-app .aic-list-item span{font-size:9px;line-height:1.35}
+  .aic-app .aic-layout nav{gap:3px;padding:5px}
+  .aic-app .aic-layout nav button{padding:6px 2px;font-size:9px}
+  .aic-app .aic-layout>main{min-width:0;padding:12px 10px}
+}
+
+@media(max-width:520px){
+  .aic-app .aic-layout{grid-template-columns:minmax(104px,27%) minmax(0,1fr)}
+  .aic-app .aic-layout nav{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .aic-app .aic-layout nav button:first-child{grid-column:1/-1}
+  .aic-app .aic-detail-head{gap:8px;padding-bottom:12px}
+  .aic-app .aic-detail-head h2{font-size:18px}
+}
