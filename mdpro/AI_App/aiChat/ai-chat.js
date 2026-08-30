@@ -560,7 +560,6 @@
       + '        <button type="button" data-ai-chat-layout="dock" role="menuitem"><span class="ai-chat-layout-label">Dock · 우측 사이드바 <kbd>Alt+2</kbd></span><span class="ai-chat-start-badge" data-ai-chat-start="dock">OFF</span></button>'
       + '        <button type="button" data-ai-chat-layout="fullscreen" role="menuitem"><span class="ai-chat-layout-label">전체화면 · 기록 보기 <kbd>Alt+3</kbd></span><span class="ai-chat-start-badge" data-ai-chat-start="fullscreen">OFF</span></button>'
       + '        <div class="ai-chat-answer-font-size"><div class="ai-chat-answer-font-head"><span>답변 폰트</span><output id="ai-chat-answer-font-size-value" for="ai-chat-answer-font-size">14px</output></div><div class="ai-chat-answer-font-controls"><button type="button" id="ai-chat-answer-font-size-down" class="ai-chat-font-size-step" aria-label="답변 폰트 줄이기">−</button><input id="ai-chat-answer-font-size" type="range" min="5" max="25" step="1" value="14" aria-label="답변 폰트"><button type="button" id="ai-chat-answer-font-size-up" class="ai-chat-font-size-step" aria-label="답변 폰트 키우기">+</button></div></div>'
-      + '        <div class="ai-chat-fast-limits ai-chat-layout-fast-limits"><label>FAST TOK <input id="ai-chat-layout-fast-token-limit" type="number" min="1" step="1" value="3000" inputmode="numeric"></label><label>LIMIT TIME <input id="ai-chat-layout-fast-time-limit" type="number" min="1" step="1" value="120" inputmode="numeric"><span>초</span></label></div>'
       + '        <button type="button" id="ai-chat-set-start-layout" class="ai-chat-set-start-layout" role="menuitem">현재 배치를 시작 위치로 지정</button>'
       + '      </div>'
       + '    </div>'
@@ -585,10 +584,6 @@
       + '    <button type="button" id="ai-chat-provider-toggle" class="ai-chat-provider-toggle" aria-expanded="false">'
       + '      <span id="ai-chat-provider-chevron" aria-hidden="true">▸</span><span id="ai-chat-provider-summary">AI 공급자 · 연결 확인 전</span><small id="ai-chat-provider-toggle-label">설정</small>'
       + '    </button>'
-      + '    <div class="ai-chat-fast-limits" aria-label="FAST 응답 설정">'
-      + '      <label>FAST TOK <input id="ai-chat-fast-token-limit" type="number" min="1" step="1" value="3000" inputmode="numeric" aria-label="FAST 최대 토큰"></label>'
-      + '      <label>LIMIT TIME <input id="ai-chat-fast-time-limit" type="number" min="1" step="1" value="120" inputmode="numeric" aria-label="FAST 제한 시간(초)"><span>초</span></label>'
-      + '    </div>'
       + '    <div id="ai-chat-provider-controls" class="ai-chat-provider-controls collapsed">'
       + '      <div class="ai-chat-provider-row">'
       + '        <label>AI 공급자<select id="ai-chat-provider"><option value="lmstudio">LM Studio</option><option value="litertlm">LiteRT-LM</option><option value="aistudio">AI Studio (Gemini)</option><option value="ollama">Ollama</option><option value="deepseek">DeepSeek (유료)</option><option value="openai-compatible">OrcaRouter / OpenAI 호환</option><option value="openai">OpenAI · ChatGPT 모델 (유료 API)</option></select></label>'
@@ -600,6 +595,13 @@
       + '        <label>답변 표시<select id="ai-chat-answer-appearance"><option value="current">현재 디자인</option><option value="plain-light">흰 바탕 · 검은 글씨</option></select></label>'
       + '        <label class="ai-chat-insert-expand-toggle" title="켜면 각 AI 답변 아래에 문서 삽입 버튼을 펼쳐 표시합니다."><input type="checkbox" id="ai-chat-insert-expand"><span>문서에 넣기 펼치기</span></label>'
       + '      </div>'
+      + '      <details class="ai-chat-fast-settings-details">'
+      + '        <summary>FAST 세부 설정</summary>'
+      + '        <div class="ai-chat-fast-limits ai-chat-provider-fast-limits" aria-label="FAST 응답 설정">'
+      + '          <label>FAST TOK <input id="ai-chat-fast-token-limit" type="number" min="1" step="1" value="3000" inputmode="numeric" aria-label="FAST 최대 토큰"></label>'
+      + '          <label>LIMIT TIME <input id="ai-chat-fast-time-limit" type="number" min="1" step="1" value="120" inputmode="numeric" aria-label="FAST 제한 시간(초)"><span>초</span></label>'
+      + '        </div>'
+      + '      </details>'
       + '    </div>'
       + '    <div id="ai-chat-status" class="ai-chat-status" role="status" aria-live="polite"></div>'
       + '    <div id="ai-chat-messages" class="ai-chat-messages"></div>'
@@ -625,6 +627,7 @@
       + '      </div>'
       + '    </div>'
       + '  </div>'
+      + '  <div id="ai-chat-mobile-size-handle" class="ai-chat-mobile-size-handle" role="separator" aria-label="AI Jena 창 너비 조절" aria-orientation="vertical" tabindex="0"><span aria-hidden="true"></span></div>'
       + '</div>';
 
     var dockSlot = document.createElement('div');
@@ -683,14 +686,6 @@
     syncFastLimitControls();
     document.getElementById('ai-chat-fast-token-limit').addEventListener('change', saveFastLimitControls);
     document.getElementById('ai-chat-fast-time-limit').addEventListener('change', saveFastLimitControls);
-    document.getElementById('ai-chat-layout-fast-token-limit').addEventListener('change', function () {
-      document.getElementById('ai-chat-fast-token-limit').value = this.value;
-      saveFastLimitControls();
-    });
-    document.getElementById('ai-chat-layout-fast-time-limit').addEventListener('change', function () {
-      document.getElementById('ai-chat-fast-time-limit').value = this.value;
-      saveFastLimitControls();
-    });
     document.getElementById('ai-chat-layout-menu-button').addEventListener('click', function (event) {
       event.stopPropagation();
       toggleLayoutMenu();
@@ -848,6 +843,7 @@
       addAttachmentFiles(event.dataTransfer && event.dataTransfer.files);
     });
     setupPopupDrag(panel);
+    setupMobilePopupResize(panel);
     setupDockResize(dockSlot);
     if (root.ResizeObserver) {
       new ResizeObserver(function () {
@@ -1019,6 +1015,11 @@
     }));
   }
 
+  function getPopupMinWidth() {
+    var preferred = root.matchMedia('(max-width: 560px)').matches ? 250 : MIN_CHAT_WIDTH;
+    return Math.min(preferred, root.innerWidth - 12);
+  }
+
   function applyPopupRect() {
     var panel = document.getElementById('ai-chat-panel');
     if (!panel || state.layout !== 'popup') return;
@@ -1032,9 +1033,9 @@
       panel.style.height = '';
       return;
     }
-    var minWidth = Math.min(MIN_CHAT_WIDTH, root.innerWidth - 12);
+    var minWidth = getPopupMinWidth();
     var minHeight = Math.min(360, root.innerHeight - 12);
-    var width = Math.max(minWidth, Math.min(DEFAULT_CHAT_WIDTH, root.innerWidth - 12));
+    var width = Math.max(minWidth, Math.min(saved.width || DEFAULT_CHAT_WIDTH, root.innerWidth - 12));
     var height = Math.max(minHeight, Math.min(saved.height || 650, root.innerHeight - 12));
     var left = Math.max(6, Math.min(saved.left, root.innerWidth - width - 6));
     var top = Math.max(6, Math.min(saved.top, root.innerHeight - height - 6));
@@ -1053,7 +1054,7 @@
     var rect = panel.getBoundingClientRect();
     var width = Math.min(rect.width, root.innerWidth - 12);
     var height = Math.min(rect.height, root.innerHeight - 12);
-    panel.style.width = Math.max(Math.min(MIN_CHAT_WIDTH, root.innerWidth - 12), width) + 'px';
+    panel.style.width = Math.max(getPopupMinWidth(), width) + 'px';
     panel.style.height = Math.max(Math.min(360, root.innerHeight - 12), height) + 'px';
     panel.style.left = Math.max(6, Math.min(rect.left, root.innerWidth - width - 6)) + 'px';
     panel.style.top = Math.max(6, Math.min(rect.top, root.innerHeight - height - 6)) + 'px';
@@ -1401,6 +1402,60 @@
     });
     panel.addEventListener('pointerup', function () {
       if (state.layout === 'popup') setTimeout(savePopupRect, 0);
+    });
+  }
+
+  function setupMobilePopupResize(panel) {
+    var handle = document.getElementById('ai-chat-mobile-size-handle');
+    if (!handle || !panel) return;
+    var startX = 0;
+    var startWidth = 0;
+    var startLeft = 0;
+
+    function isMobilePopup() {
+      return state.layout === 'popup' && root.matchMedia('(max-width: 560px)').matches;
+    }
+
+    function resizeTo(width) {
+      var minimum = Math.min(250, root.innerWidth - 12);
+      var maximum = Math.max(minimum, root.innerWidth - startLeft - 6);
+      panel.style.width = Math.round(Math.max(minimum, Math.min(width, maximum))) + 'px';
+    }
+
+    handle.addEventListener('pointerdown', function (event) {
+      if (!isMobilePopup() || (event.pointerType === 'mouse' && event.button !== 0)) return;
+      var rect = panel.getBoundingClientRect();
+      startX = event.clientX;
+      startWidth = rect.width;
+      startLeft = Math.max(6, rect.left);
+      panel.style.left = startLeft + 'px';
+      panel.style.top = Math.max(6, rect.top) + 'px';
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+      panel.style.width = startWidth + 'px';
+      handle.setPointerCapture(event.pointerId);
+      handle.classList.add('dragging');
+      event.preventDefault();
+    });
+    handle.addEventListener('pointermove', function (event) {
+      if (!handle.hasPointerCapture(event.pointerId)) return;
+      resizeTo(startWidth + event.clientX - startX);
+    });
+    function finishResize(event) {
+      if (!handle.hasPointerCapture(event.pointerId)) return;
+      handle.releasePointerCapture(event.pointerId);
+      handle.classList.remove('dragging');
+      savePopupRect();
+    }
+    handle.addEventListener('pointerup', finishResize);
+    handle.addEventListener('pointercancel', finishResize);
+    handle.addEventListener('keydown', function (event) {
+      if (!isMobilePopup() || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) return;
+      var rect = panel.getBoundingClientRect();
+      startLeft = Math.max(6, rect.left);
+      resizeTo(rect.width + (event.key === 'ArrowRight' ? 12 : -12));
+      savePopupRect();
+      event.preventDefault();
     });
   }
 
@@ -1885,7 +1940,7 @@
       return;
     }
     if (state.academicSearchEnabled) {
-      help.textContent = 'OpenAlex → Crossref · 초록 근거 ' + state.academicSearchCount + '건 우선';
+      help.textContent = 'OpenAlex → Crossref · 초록 ' + state.academicSearchCount + '건 · 추론 없이 즉시 정리';
       return;
     }
     var contextInfo = state.provider === 'lmstudio' && state.lmContextLength
@@ -4779,51 +4834,48 @@
       return { profile: profile, split: false, evidence: profile.fullEvidence, compact: false };
     }
     var contextLength = Math.max(0, Number(state.lmContextLength) || 0);
-    var smallEvidence = profile.count <= 10 || (profile.abstractCount <= 10 && profile.abstractChars <= 16000);
-    var requiredTokens = profile.fullEvidenceTokens + 3600;
-    var split = !smallEvidence && (contextLength
-      ? requiredTokens > Math.floor(contextLength * 0.9)
-      : profile.fullEvidenceTokens > 8000);
+    var requiredTokens = profile.fullEvidenceTokens + 1800;
     var mustCompact = contextLength
-      ? requiredTokens > Math.floor(contextLength * 0.9)
-      : profile.fullEvidenceTokens > 8000;
+      ? requiredTokens > Math.floor(contextLength * 0.86)
+      : profile.fullEvidenceTokens > 6500;
     if (!mustCompact) {
-      return { profile: profile, split: split, evidence: profile.fullEvidence, compact: false };
+      return { profile: profile, split: false, evidence: profile.fullEvidence, compact: false };
     }
-    var answerReserve = split ? 2500 : 3000;
+    var answerReserve = 1800;
     var contextCharBudget = contextLength
       ? Math.floor(Math.max(1400, contextLength - answerReserve) * 2.6)
-      : 6500;
-    var maxChars = Math.max(5000, contextCharBudget, profile.count * 215 + 250);
+      : 5200;
+    var maxChars = Math.max(4200, contextCharBudget, profile.count * 180 + 200);
     var evidence = root.AIChatAcademicSearch.formatEvidence(results, {
       maxChars: maxChars,
       compact: true,
       includeAll: true
     });
-    return { profile: profile, split: split, evidence: evidence, compact: true, maxChars: maxChars };
+    return { profile: profile, split: false, evidence: evidence, compact: true, maxChars: maxChars };
   }
 
   function academicSystemInstruction(evidenceText, partNumber, evidenceProfile) {
     var splitPart = Number(partNumber) || 0;
     var profile = evidenceProfile || {};
     var writingTask = splitPart ? academicPartTask(splitPart) : [
-      '근거량에 맞춰 검색 범위와 한계, 핵심 주장, 같은 방향의 연구 비교, 다른·반대·조건부 결과, 종합 해석을 자연스럽게 완결한다.',
-      '근거가 적으면 불필요하게 분량을 늘리거나 인위적으로 여러 파트로 나누지 말고 간결하게 작성한다.',
-      '근거가 많으면 중요한 주장과 연구 간 관계를 충분히 설명하되 논문 목록을 그대로 반복하지 않는다.'
+      '출력은 검색 범위 1~2문장, 핵심 결과 3~6개 항목, 짧은 종합·한계 문단 순서로 한 번에 완결한다.',
+      '서로 같은 결과는 한 항목으로 묶고, 실제로 다른 결과나 조건이 있을 때만 짧게 대비한다.',
+      '논문별 장황한 나열, 배경 설명 확장, 반복 요약은 하지 않는다.'
     ].join('\n');
     return [
-      '역할: 아래 검증 학술검색 논문을 주장 중심으로 요약하는 연구자이다.',
+      '역할: 이미 수집된 Crossref/OpenAlex 논문 초록을 빠르게 정리하는 학술 요약자이다.',
       writingStyleInstruction({ academic: true }),
-      '요약: 논문별 나열이 아니라 핵심 주장마다 근거, 연구 간 비교·조건, 제한적인 해석이나 함의를 연결한다. 관련성을 인과로 확대하지 않는다.',
+      '속도 원칙: 검색은 이미 끝났다. 추가 검색, 장시간 추론, 다단계 분석, 계획 수립, 재검토를 하지 말고 제공된 초록을 한 번 훑어 즉시 본문을 작성한다.',
+      '요약: 핵심 결과와 공통 경향만 우선 정리하고, 초록에 명시된 차이·조건·한계만 간결하게 덧붙인다. 관련성을 인과로 확대하지 않는다.',
       '근거: 아래 레코드의 인용(C), 제목(T), 공개 초록(X) 또는 같은 의미의 전체 필드만 사용한다. X가 없으면 결과 근거로 쓰지 않는다. 없는 사실·인용은 만들지 않는다.',
-      '전체성: 제공된 ' + (Number(profile.count) || '전체') + '건의 레코드를 처음부터 끝까지 모두 검토한다. 상위 일부 레코드만 보고 결론을 내리지 않는다. 답변에서 모든 논문을 나열할 필요는 없지만 관련 연구를 빠뜨리지 않고 주제별 종합에 반영한다.',
+      '범위: 제공된 ' + (Number(profile.count) || '전체') + '건 중 공개 초록이 있는 관련 레코드를 사용하되 모든 논문을 답변에 나열하지 않는다.',
       '인용 형식: 연구 결과를 서술하는 모든 주장·요약 문장에 해당 레코드의 C를 사용하여 실제 연구자와 연도를 표시한다. 한 연구는 (연구자, 연도), 여러 연구는 (연구자, 연도; 연구자, 연도) 형식으로 문장 안이나 문장 끝에 쓴다.',
       '인용 금지: S1, S2, [S1], SOURCE 1, 자료 1 같은 번호형 인용은 절대 출력하지 않는다. C가 인용 불가이면 그 레코드를 결과 주장의 근거로 사용하지 않는다. 없는 저자·연도·인용은 만들지 않는다.',
       '저자: 괄호 인용의 & 양쪽에는 공백을 둔다.',
       splitPart ? '현재 분할 범위:' : '작성 원칙:',
       writingTask,
       splitPart ? '이전·다음 파트의 내용을 반복하거나 미리 작성하지 않는다.' : '',
-      '출력: 첫 토큰부터 사용자에게 보여 줄 한국어 학술 요약 본문만 작성한다. 분석 목표, 검색 레코드 검토 과정, 적합성 판정 목록, 작성 전략, 초안 계획, 자기 수정, 체크리스트, 지시 설명은 절대 출력하지 않는다.',
+      '출력: 첫 토큰부터 짧고 완결된 한국어 학술 요약 본문만 작성한다. 분석 목표, 검색 과정, 적합성 판정 목록, 전략, 계획, 자기 수정, 체크리스트, 지시 설명은 절대 출력하지 않는다.',
       '',
       '검증 검색 레코드:',
       evidenceText
@@ -4908,9 +4960,9 @@
     var profile = evidenceProfile || {};
     return [
       '연구 주제: ' + query,
-      '작업: 시스템에 제공된 검증 학술검색 논문만 사용하여 주장 중심의 학술 요약을 작성하라.',
-      '검토 대상: 검색 레코드 ' + (Number(profile.count) || 0) + '건, 공개 초록 ' + (Number(profile.abstractCount) || 0) + '건. 제공된 레코드를 끝까지 모두 검토하라.',
-      splitPart ? '자료량이 컨텍스트 예산을 초과하여 자동 분할되었다. 현재는 분할 답변 1/3만 작성하라.' : '자료량이 한 번의 답변 범위이므로 분할하지 말고 완결된 학술 요약을 작성하라.',
+      '작업: 이미 검색된 논문 초록만 빠르게 묶어 핵심 결과를 즉시 요약하라. 추가 검색이나 장시간 분석은 하지 마라.',
+      '검토 대상: 검색 레코드 ' + (Number(profile.count) || 0) + '건, 공개 초록 ' + (Number(profile.abstractCount) || 0) + '건.',
+      splitPart ? '현재 지정된 부분만 짧게 완결하라.' : '분할하지 말고 간결한 한 번의 답변으로 완결하라.',
       reusedSources ? '직전 검색 논문을 재사용하여 새 문장으로 다시 요약하되 근거 밖의 내용을 추가하지 마라.' : ''
     ].filter(Boolean).join('\n');
   }
@@ -5038,7 +5090,7 @@
           (reusableAcademic ? '기존 검색 근거 재사용' : '검색 근거 수집 완료')
           + ' · ' + academicSearch.results.length + '건 · 공개 초록 ' + academicAbstractCount + '건'
           + (splitAcademicResponse ? ' · 근거량 초과로 자동 분할' : ' · 한 번에 완결 요약')
-          + ' · AI 요약 중...',
+          + ' · 빠른 AI 요약 중...',
           'loading'
         );
       }

@@ -679,6 +679,12 @@ export default function App() {
     return handleSaveFile(editorContentRef.current);
   };
 
+  const closeMobileWdocExplorer = () => {
+    if (!window.matchMedia('(max-width: 767px)').matches) return;
+    setIsExplorerOpen(false);
+    localStorage.setItem('webdav-explorer-open', 'false');
+  };
+
   const handleOpenFile = async (file) => {
     const currentPath = normalizeRemotePath(selectedFileRef.current?.remotePath || '/');
     const nextPath = normalizeRemotePath(file?.remotePath || '/');
@@ -743,6 +749,7 @@ export default function App() {
         setEditorDirty(false);
         editorContentRef.current = text;
       }
+      closeMobileWdocExplorer();
     } catch (err) {
       if (!returnToLoginIfUnauthorized(err)) {
         setError(`파일 열기 실패: ${err.message}`);
@@ -925,6 +932,7 @@ export default function App() {
       setEditorContent('');
       setSavedContent('');
       setEditorBinary(arrayBuffer);
+      closeMobileWdocExplorer();
     } catch (err) {
       setError(`묶음 문서 열기 실패: ${err.message}`);
     } finally {
@@ -1597,6 +1605,22 @@ export default function App() {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [hasEditorChanges]);
+
+  useEffect(() => {
+    if (!isExplorerOpen) return;
+
+    const closeMobileExplorerFromBackdrop = (event) => {
+      if (!window.matchMedia('(max-width: 767px)').matches) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest('#webdav-explorer-panel, .mobile-wdoc-button, .split-resizer')) return;
+      setIsExplorerOpen(false);
+      localStorage.setItem('webdav-explorer-open', 'false');
+    };
+
+    document.addEventListener('pointerdown', closeMobileExplorerFromBackdrop, true);
+    return () => document.removeEventListener('pointerdown', closeMobileExplorerFromBackdrop, true);
+  }, [isExplorerOpen]);
 
   useEffect(() => {
     selectedFileRef.current = selectedFile;

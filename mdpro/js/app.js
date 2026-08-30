@@ -9379,6 +9379,7 @@ async function verifyAIStudioApiKeyConnection(apiKey) {
         try {
             const models = await listAIStudioTextModels(key);
             saveStoredModelList(SCHOLAR_AI_GEMINI_MODELS_KEY, models);
+            renderSettingsGeminiModels(models);
             localStorage.setItem('ss_gemini_api_key', key);
             localStorage.setItem('ss_gemini_api_key_verified', credentialFingerprint(key));
             const currentInput = document.getElementById('ai-api-key');
@@ -9390,6 +9391,7 @@ async function verifyAIStudioApiKeyConnection(apiKey) {
             return models;
         } catch (error) {
             localStorage.removeItem('ss_gemini_api_key_verified');
+            renderSettingsGeminiModels([], error && error.message ? error.message : String(error));
             const currentInput = document.getElementById('ai-api-key');
             if (!currentInput || String(currentInput.value || '').trim() === key) {
                 setCredentialConnectionVisual('ai-api-key', 'ai-api-key-feedback', 'error', '저장됨 · 연결 확인 실패: ' + (error && error.message ? error.message : error));
@@ -12995,6 +12997,7 @@ let sidebarAILoaded = false;
 let scholarAIProviderRuntime = null;
 const SCHOLAR_AI_GEMINI_MODELS_KEY = 'ss_scholar_ai_gemini_models_v1';
 const SCHOLAR_AI_LM_MODELS_KEY = 'ss_scholar_ai_lmstudio_models_v1';
+const LM_STUDIO_TIMEOUT_580_MIGRATION_KEY = 'ss_lmstudio_timeout_580_migrated_v1';
 
 function readStoredModelList(key) {
     try {
@@ -13007,6 +13010,31 @@ function saveStoredModelList(key, models) {
     const values = Array.from(new Set((Array.isArray(models) ? models : []).map(String).filter(Boolean)));
     localStorage.setItem(key, JSON.stringify(values));
     return values;
+}
+
+function renderSettingsGeminiModels(models, errorMessage) {
+    const list = document.getElementById('settings-gemini-models-list');
+    const state = document.getElementById('settings-gemini-models-state');
+    if (!list) return;
+    const values = Array.from(new Set((Array.isArray(models) ? models : []).map(String).filter(Boolean)));
+    if (errorMessage) {
+        list.textContent = errorMessage;
+        list.className = 'mt-2 max-h-32 overflow-auto rounded border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-2 py-1.5 text-[11px] leading-5 text-red-700 dark:text-red-300';
+        if (state) {
+            state.textContent = '확인 실패';
+            state.className = 'px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 text-[10px]';
+        }
+        return;
+    }
+    list.className = 'mt-2 max-h-32 overflow-auto rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 py-1.5 text-[11px] leading-5 text-slate-600 dark:text-slate-300';
+    list.textContent = values.length ? values.join('\n') : 'API Key를 입력한 뒤 모델을 불러오세요.';
+    list.style.whiteSpace = 'pre-line';
+    if (state) {
+        state.textContent = values.length ? values.length + '개' : '확인 전';
+        state.className = values.length
+            ? 'px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[10px]'
+            : 'px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px]';
+    }
 }
 
 function notifyAiToolSettingsChanged() {
@@ -13039,7 +13067,7 @@ function readScholarAIProviderSettingsForm() {
         fastSafetyTimeout: !!(document.getElementById('settings-aichat-fast-safety-timeout') && document.getElementById('settings-aichat-fast-safety-timeout').checked),
         fastCompleteStreaming: !!(document.getElementById('settings-aichat-fast-complete-streaming') && document.getElementById('settings-aichat-fast-complete-streaming').checked),
         reasoningLevel: value('settings-aichat-reasoning-level') || 'auto',
-        timeoutMs: Number(value('settings-lmstudio-timeout') || 90) * 1000,
+        timeoutMs: Number(value('settings-lmstudio-timeout') || 580) * 1000,
         topP: value('settings-lmstudio-top-p') === '' ? null : Number(value('settings-lmstudio-top-p'))
     };
 }
@@ -13174,6 +13202,10 @@ function loadScholarAIProviderSettingsUI(legacySettings) {
     migrateLegacyScholarAIProviderSettings(legacySettings);
     let config;
     try { config = window.LocalAI.loadConfig(localStorage); } catch (_) { config = window.LocalAI.defaults || {}; }
+    if (Number(config.timeoutMs) === 90000 && localStorage.getItem(LM_STUDIO_TIMEOUT_580_MIGRATION_KEY) !== '1') {
+        config = window.LocalAI.saveConfig(Object.assign({}, config, { timeoutMs: 580000 }), localStorage);
+        localStorage.setItem(LM_STUDIO_TIMEOUT_580_MIGRATION_KEY, '1');
+    }
     const setValue = function (id, value) { const el = document.getElementById(id); if (el) el.value = value == null ? '' : value; };
     setValue('settings-lmstudio-base-url', config.baseUrl || 'http://127.0.0.1:5678/v1');
     setValue('settings-lmstudio-api-key', config.apiKey || '');
@@ -13189,9 +13221,10 @@ function loadScholarAIProviderSettingsUI(legacySettings) {
     const fastCompleteStreaming = document.getElementById('settings-aichat-fast-complete-streaming');
     if (fastCompleteStreaming) fastCompleteStreaming.checked = config.fastCompleteStreaming !== false;
     setValue('settings-aichat-reasoning-level', config.reasoningLevel || 'auto');
-    setValue('settings-lmstudio-timeout', Math.max(1, Math.round((config.timeoutMs || 90000) / 1000)));
+    setValue('settings-lmstudio-timeout', Math.max(1, Math.round((config.timeoutMs || 580000) / 1000)));
     setValue('settings-lmstudio-top-p', config.topP == null ? '' : config.topP);
     renderSettingsLMStudioLoadedModels(readStoredModelList(SCHOLAR_AI_LM_MODELS_KEY));
+    renderSettingsGeminiModels(readStoredModelList(SCHOLAR_AI_GEMINI_MODELS_KEY));
     setTimeout(function () { loadSettingsLMStudioModels({ silent: true }); }, 0);
 }
 
@@ -13255,12 +13288,14 @@ async function loadSettingsGeminiModels() {
     try {
         const models = await listAIStudioTextModels(key);
         saveStoredModelList(SCHOLAR_AI_GEMINI_MODELS_KEY, models);
+        renderSettingsGeminiModels(models);
         localStorage.setItem('ss_gemini_api_key', key);
         localStorage.setItem('ss_gemini_api_key_verified', credentialFingerprint(key));
         setCredentialConnectionVisual('ai-api-key', 'ai-api-key-feedback', 'connected', '연결됨: AI Studio · Gemini 모델 ' + models.length + '개 확인');
         setSettingsScholarAIStatus('Gemini 텍스트 모델 ' + models.length + '개를 불러왔습니다.', false);
     } catch (error) {
         localStorage.removeItem('ss_gemini_api_key_verified');
+        renderSettingsGeminiModels([], error && error.message ? error.message : String(error));
         setCredentialConnectionVisual('ai-api-key', 'ai-api-key-feedback', 'error', '연결 확인 실패: ' + (error && error.message ? error.message : error));
         setSettingsScholarAIStatus('Gemini 모델 조회 실패: ' + (error && error.message ? error.message : error), true);
     }
@@ -14718,7 +14753,8 @@ async function callAIStudioChat(messages, systemInstruction, modelOverride, sign
     const modelLimits = imageModel
         ? { inputTokenLimit: 0, outputTokenLimit: 0 }
         : await getAIChatGeminiModelLimits(model, key, signal);
-    const maxOutputTokens = Math.max(1, Number(modelLimits.outputTokenLimit) || 8192);
+    const modelMaxOutputTokens = Math.max(1, Number(modelLimits.outputTokenLimit) || 8192);
+    const maxOutputTokens = academicSearch ? Math.min(2400, modelMaxOutputTokens) : modelMaxOutputTokens;
     const generationConfig = imageModel
         ? { responseModalities: ['TEXT', 'IMAGE'] }
         : { maxOutputTokens: maxOutputTokens };
@@ -15265,6 +15301,7 @@ window.AIChatBridge = Object.freeze({
                     ? '설정된 추론 강도로 충분히 검토한 뒤 완성도 높은 최종 답변을 작성하세요. 사용자가 요청한 모든 항목·코드·설명을 누락하지 말고, 내부 계획이나 추론은 최종 답변에 섞지 마세요.'
                     : '핵심부터 바로 답하되 사용자가 요청한 코드, 설명, 형식과 분량을 완전하게 충족하세요. 인위적인 문장 수 제한을 두지 마세요.');
             const configuredMaxTokens = Math.max(1, Number(config.maxTokens) || 8192);
+            const academicMaxTokens = Math.min(2400, configuredMaxTokens);
             const configuredReasoning = String(config.reasoningLevel || 'auto').toLowerCase();
             const fastMode = request.fastMode === true;
             const configuredFastMaxTokens = Math.max(1, Number(config.fastMaxTokens) || 3000);
@@ -15272,7 +15309,9 @@ window.AIChatBridge = Object.freeze({
             const fastSafetyTimeoutMs = config.fastSafetyTimeout === false
                 ? configuredFastTimeoutMs
                 : Math.max(configuredFastTimeoutMs, 120000);
-            const requestedOutputTokens = fastMode ? Math.min(configuredFastMaxTokens, configuredMaxTokens) : (contextLength || configuredMaxTokens);
+            const requestedOutputTokens = request.academicSearch
+                ? academicMaxTokens
+                : (fastMode ? Math.min(configuredFastMaxTokens, configuredMaxTokens) : (contextLength || configuredMaxTokens));
             const baseSystemPrompt = [request.systemInstruction || '', modeInstruction].filter(Boolean).join('\n\n');
             const fixedInputTokens = estimateAIChatTokens(baseSystemPrompt) + estimateAIChatTokens(messages[lastUserIndex].content);
             const historyOutputReserve = getAIChatHistoryOutputReserve(contextLength, requestedOutputTokens, reasoningMode);
@@ -15290,7 +15329,10 @@ window.AIChatBridge = Object.freeze({
             const contextOutputBudget = contextLength
                 ? Math.max(1, contextLength - estimatedInputTokens - 256)
                 : configuredMaxTokens;
-            const requestMaxTokens = Math.max(1, Math.min(contextOutputBudget, fastMode ? configuredFastMaxTokens : contextOutputBudget));
+            const requestMaxTokens = Math.max(1, Math.min(
+                contextOutputBudget,
+                request.academicSearch ? academicMaxTokens : (fastMode ? configuredFastMaxTokens : contextOutputBudget)
+            ));
             const minimumTimeout = continuationMode
                 ? 600000
                 : (fastMode ? fastSafetyTimeoutMs : (reasoningMode ? 300000 : (request.academicSearch ? 240000 : 60000)));
