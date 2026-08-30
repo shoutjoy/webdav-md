@@ -9103,8 +9103,7 @@ function hashPassword(plain) {
 
 function isValidGoogleAiApiKey(key) {
     const k = (key || '').trim();
-    if (!k) return false;
-    return /^AIza[0-9A-Za-z_-]{35,120}$/.test(k);
+    return Boolean(k);
 }
 
 function getProtectedAiCredential(id, legacyStorageKey) {
@@ -9341,12 +9340,12 @@ function validateApiKeyInputUI() {
         return;
     }
     if (isValidGoogleAiApiKey(key)) {
-        input.className = ok + ' ai-api-key-input';
         const verified = localStorage.getItem('ss_gemini_api_key_verified') === credentialFingerprint(key)
             && getProtectedAiCredential('gemini', 'ss_gemini_api_key') === key;
+        input.className = (verified ? ok : neutral) + ' ai-api-key-input';
         if (fb && !verified) {
-            fb.textContent = 'API key 형식이 올바릅니다. 저장하면 연결을 확인합니다.';
-            fb.className = 'text-xs mt-1 text-green-600 dark:text-green-400 min-h-[1.25rem]';
+            fb.textContent = 'AI Studio 키 저장을 누르면 Google API에 연결해 실제 키를 확인합니다.';
+            fb.className = 'text-xs mt-1 text-slate-500 dark:text-slate-400 min-h-[1.25rem]';
         }
         setCredentialConnectionVisual(
             'ai-api-key',
@@ -9357,7 +9356,7 @@ function validateApiKeyInputUI() {
     } else {
         input.className = bad + ' ai-api-key-input';
         if (fb) {
-            fb.textContent = 'Invalid key format. It should usually start with AIza...';
+            fb.textContent = 'AI Studio API Key를 입력하세요.';
             fb.className = 'text-xs mt-1 text-red-600 dark:text-red-400 min-h-[1.25rem]';
         }
         setCredentialConnectionVisual('ai-api-key', 'ai-api-key-feedback', 'error');
@@ -9373,7 +9372,7 @@ let openaiApiKeyCheckPromise = null;
 
 async function verifyAIStudioApiKeyConnection(apiKey) {
     const key = String(apiKey || '').trim();
-    if (!isValidGoogleAiApiKey(key)) throw new Error('AI Studio API Key 형식이 올바르지 않습니다.');
+    if (!isValidGoogleAiApiKey(key)) throw new Error('AI Studio API Key를 입력하세요.');
     if (aiStudioConnectionCheckPromise && aiStudioConnectionCheckKey === key) return aiStudioConnectionCheckPromise;
     setCredentialConnectionVisual('ai-api-key', 'ai-api-key-feedback', 'checking', 'AI Studio 연결을 확인하는 중...');
     const request = (async function () {
@@ -9417,7 +9416,7 @@ async function saveApiKey() {
     const key = (input && input.value) ? input.value.trim() : '';
     if (key && !isValidGoogleAiApiKey(key)) {
         validateApiKeyInputUI();
-        showToast("Invalid API key format.");
+        showToast('AI Studio API Key를 입력하세요.');
         return;
     }
     await setAiSettings({ apiKey: key });
