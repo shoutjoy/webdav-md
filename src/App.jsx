@@ -5,6 +5,7 @@ import MdproEditor from './components/MdproEditor.jsx';
 import FileExplorer from './components/FileExplorer.jsx';
 import LoginPage from './components/LoginPage.jsx';
 import TopNav from './components/TopNav.jsx';
+import MobileWdocButton from './components/MobileWdocButton.jsx';
 import RenameModal from './components/RenameModal.jsx';
 import CreateDestinationModal from './components/CreateDestinationModal.jsx';
 import { normalizeRemotePath } from './webdavPaths.js';
@@ -288,6 +289,7 @@ export default function App() {
   const [renameTarget, setRenameTarget] = useState(null);
   const [createDestinationType, setCreateDestinationType] = useState('');
   const [moveProgress, setMoveProgress] = useState(null);
+  const [mobileWdocRect, setMobileWdocRect] = useState(null);
 
   const fileInputRef = useRef(null);
   const clientRef = useRef(null);
@@ -1760,16 +1762,7 @@ export default function App() {
   return (
     <div className={`webdav-shell ${isDarkTheme ? 'dark bg-[#111827]' : 'bg-[#eef2f7]'} min-h-screen overflow-hidden p-4 text-slate-800 transition-colors dark:text-slate-100 sm:p-6`}>
       <div className="mx-auto max-w-[min(1800px,98vw)]">
-        <button
-          type="button"
-          className={`mobile-wdoc-button ${isExplorerOpen ? 'is-open' : ''}`}
-          onClick={toggleMobileWdoc}
-          aria-label={isExplorerOpen ? 'wDoc 탐색기 닫기' : 'wDoc 탐색기 열기'}
-          aria-expanded={isExplorerOpen}
-          aria-controls="webdav-explorer-panel"
-        >
-          wDoc
-        </button>
+        <MobileWdocButton open={isExplorerOpen} onToggle={toggleMobileWdoc} onPositionChange={setMobileWdocRect} />
         <TopNav
           currentPath={currentPath}
           publicUrl={buildPublicUrl(url, currentPath)}
@@ -1783,6 +1776,7 @@ export default function App() {
           onNewFolder={() => setCreateDestinationType('folder')}
           onRefresh={loadFullTree}
           explorerOpen={isExplorerOpen}
+          mobileWdocRect={mobileWdocRect}
           onToggleExplorer={toggleExplorer}
 
           onCopyFolderUrl={() => handleCopyUrl(currentPath, 'folder')}

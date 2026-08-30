@@ -9,7 +9,7 @@ const clampDockPosition = (x, y, width, height) => ({
   y: Math.min(Math.max(VIEWPORT_MARGIN, y), Math.max(VIEWPORT_MARGIN, window.innerHeight - height - VIEWPORT_MARGIN)),
 });
 
-export default function TopNav({ currentPath, publicUrl, loading, error, copiedKey, fileInputRef, onGoBack, onUpload, onNewFile, onNewFolder, onRefresh, explorerOpen, onToggleExplorer, onCopyFolderUrl, onDisconnect }) {
+export default function TopNav({ currentPath, publicUrl, loading, error, copiedKey, fileInputRef, onGoBack, onUpload, onNewFile, onNewFolder, onRefresh, explorerOpen, mobileWdocRect, onToggleExplorer, onCopyFolderUrl, onDisconnect }) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState(() => {
     try {
@@ -54,6 +54,17 @@ export default function TopNav({ currentPath, publicUrl, loading, error, copiedK
   useEffect(() => {
     if (position) localStorage.setItem(WD_DOCK_POSITION_KEY, JSON.stringify(position));
   }, [position]);
+
+  useEffect(() => {
+    if (!explorerOpen || !mobileWdocRect || !dockRef.current || !window.matchMedia('(max-width: 767px)').matches) return;
+    const dockRect = dockRef.current.getBoundingClientRect();
+    setPosition(clampDockPosition(
+      mobileWdocRect.x + mobileWdocRect.width + 8,
+      mobileWdocRect.y,
+      dockRect.width,
+      dockRect.height,
+    ));
+  }, [explorerOpen, mobileWdocRect]);
 
   const handleDockPointerDown = (event) => {
     if (event.button !== 0 || !dockRef.current) return;
@@ -101,7 +112,7 @@ export default function TopNav({ currentPath, publicUrl, loading, error, copiedK
   return <>
     <div
       ref={dockRef}
-      className={`fixed z-50 ${position ? '' : 'right-4 top-4 opacity-0'}`}
+      className={`wd-dock fixed z-50 ${position ? '' : 'right-4 top-4 opacity-0'}`}
       style={position ? { left: position.x, top: position.y } : undefined}
     >
       <button

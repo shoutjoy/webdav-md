@@ -67,8 +67,6 @@ body { margin: 0; background: #e9edf3; }
     .webdav-shell > div { max-width:none; }
     .mobile-wdoc-button {
         position:fixed;
-        top:max(10px, env(safe-area-inset-top));
-        left:10px;
         z-index:80;
         display:flex;
         height:38px;
@@ -84,8 +82,12 @@ body { margin: 0; background: #e9edf3; }
         font-size:13px;
         font-weight:800;
         letter-spacing:.02em;
+        touch-action:none;
+        user-select:none;
+        will-change:left, top;
     }
     .mobile-wdoc-button.is-open { color:#fff; background:#4f46e5; border-color:#818cf8; }
+    .wd-dock { z-index:75; }
     .dark .mobile-wdoc-button { color:#e0e7ff; background:rgba(15,23,42,.94); border-color:#6366f1; }
     .dark .mobile-wdoc-button.is-open { color:#fff; background:#4f46e5; }
     .webdav-app-layout { position:relative; max-height:100dvh !important; min-height:100dvh !important; overflow:hidden; }
