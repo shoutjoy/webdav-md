@@ -1,4 +1,7 @@
-import { AlertCircle, Folder } from 'lucide-react';
+import { useState } from 'react';
+import { AlertCircle, Folder, Moon, Sun } from 'lucide-react';
+
+const LOGIN_THEME_KEY = 'webdav-login-theme';
 
 export default function LoginPage({
   url,
@@ -13,9 +16,37 @@ export default function LoginPage({
   onSaveLoginInfoChange,
   onSubmit,
 }) {
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem(LOGIN_THEME_KEY) === 'light' ? 'light' : 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
+  const toggleTheme = () => {
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(nextTheme);
+    try {
+      localStorage.setItem(LOGIN_THEME_KEY, nextTheme);
+    } catch {
+      // Keep the toggle usable when browser storage is unavailable.
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6">
+    <div className="login-screen flex items-center justify-center p-4" data-theme={theme}>
+      <div className="login-card rounded-xl w-full max-w-md p-6">
+        <div className="flex justify-end mb-3">
+          <button
+            type="button"
+            className="login-theme-toggle"
+            onClick={toggleTheme}
+            aria-label={theme === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환'}
+          >
+            {theme === 'dark' ? <Sun size={14} aria-hidden="true" /> : <Moon size={14} aria-hidden="true" />}
+            <span>{theme === 'dark' ? '라이트' : '다크'}</span>
+          </button>
+        </div>
         <div className="flex items-center justify-center mb-6 text-blue-600">
           <Folder size={40} className="mr-2" />
           <h1 className="text-2xl font-bold">WebDAV 접속</h1>

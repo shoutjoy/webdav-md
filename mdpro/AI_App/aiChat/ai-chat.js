@@ -2374,16 +2374,17 @@
       'gemini-3.1-flash-lite-image': '🍌 Nano Banana 2 Lite · 이미지',
       'gemini-3.1-flash-image': '🍌 Nano Banana 2 · 이미지',
       'gemini-3-pro-image': '🍌 Nano Banana Pro · 이미지',
+      'gemini-3-pro-image-preview': '🍌 Nano Banana Pro Preview · 이미지',
       'gemini-2.5-flash-image': '🍌 Nano Banana · 이미지'
     };
     return labels[model] || model;
   }
 
   function mergeGeminiModels(models) {
-    var available = new Set((Array.isArray(models) ? models : []).map(String).filter(Boolean));
-    return DEFAULT_GEMINI_MODELS.filter(function (model) {
-      return !available.size || available.has(model);
-    });
+    var available = Array.from(new Set((Array.isArray(models) ? models : []).map(String).filter(Boolean)));
+    if (!available.length) return [];
+    var preferred = DEFAULT_GEMINI_MODELS.filter(function (model) { return available.indexOf(model) >= 0; });
+    return preferred.concat(available.filter(function (model) { return preferred.indexOf(model) < 0; }));
   }
 
   function updateModelModeUI() {
@@ -2551,7 +2552,7 @@
         storageSet(OPENAI_COMPATIBLE_MODEL_KEY, state.openaiCompatibleModel);
         setStatus(state.openaiCompatibleModel ? 'OrcaRouter / OpenAI 호환 모델: ' + state.openaiCompatibleModel : '사용 가능한 OpenAI 호환 모델이 없습니다.', state.openaiCompatibleModel ? 'ok' : 'error');
       } else {
-        var models = silent ? bridge.getCachedGeminiModels() : await bridge.refreshGeminiModels();
+        var models = silent && bridge.hasGeminiModelCatalog() ? bridge.getCachedGeminiModels() : await bridge.refreshGeminiModels();
         if (state.provider !== requestedProvider) return;
         models = mergeGeminiModels(models);
         setModelOptions(models, state.geminiModel, false);
@@ -2560,7 +2561,7 @@
         storageSet(GEMINI_MODEL_KEY, state.geminiModel);
         setStatus(isGeminiImageModel(state.geminiModel)
           ? 'Nano Banana 이미지 모델입니다. 생성할 장면을 입력하세요.'
-          : 'AI Studio API Key와 선택한 Gemini 텍스트 모델을 사용합니다.', 'ok');
+          : 'AI Studio 전체 모델 목록입니다. 계정별 할당량과 전용 API 지원 여부는 별도 확인이 필요합니다.', 'ok');
       }
       updateHeaderModel();
       updateModelModeUI();

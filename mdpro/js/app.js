@@ -138,7 +138,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260829-pages-local-search-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?v=20260829-internet-results-actions-1',
+    aiChat: './AI_App/aiChat/ai-chat.js?v=20260831-all-models-1',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260810-3'
@@ -9377,7 +9377,8 @@ async function verifyAIStudioApiKeyConnection(apiKey) {
     setCredentialConnectionVisual('ai-api-key', 'ai-api-key-feedback', 'checking', 'AI Studio 연결을 확인하는 중...');
     const request = (async function () {
         try {
-            const models = await listAIStudioTextModels(key);
+            const models = await listAIStudioModels(key);
+            saveStoredModelList(AI_CHAT_GEMINI_MODELS_KEY, models);
             saveStoredModelList(SCHOLAR_AI_GEMINI_MODELS_KEY, models);
             renderSettingsGeminiModels(models);
             localStorage.setItem('ss_gemini_api_key', key);
@@ -12353,7 +12354,7 @@ const SETTINGS_EXPORT_LOCAL_KEYS = [
     'local_ai_lmstudio_settings_v1',
     'ss_scholar_ai_provider',
     'ss_scholar_ai_model',
-    'ss_scholar_ai_gemini_models_v1',
+    'ss_scholar_ai_gemini_models_v2',
     'ss_scholar_ai_lmstudio_models_v1',
     'ss_litertlm_settings_v1',
     'ss_litertlm_settings_folded',
@@ -12363,7 +12364,7 @@ const SETTINGS_EXPORT_LOCAL_KEYS = [
     'ss_ai_chat_provider',
     'ss_ai_chat_gemini_model',
     'ss_ai_chat_writing_style',
-    'ss_ai_chat_gemini_models_v1',
+    'ss_ai_chat_gemini_models_v3',
     'ss_scholar_ai_openai_model',
     'ss_scholar_ai_openai_models_v1',
     'ss_ai_chat_openai_model',
@@ -12995,7 +12996,7 @@ if (!window.__aiSidebarResizeBound) {
 
 let sidebarAILoaded = false;
 let scholarAIProviderRuntime = null;
-const SCHOLAR_AI_GEMINI_MODELS_KEY = 'ss_scholar_ai_gemini_models_v1';
+const SCHOLAR_AI_GEMINI_MODELS_KEY = 'ss_scholar_ai_gemini_models_v2';
 const SCHOLAR_AI_LM_MODELS_KEY = 'ss_scholar_ai_lmstudio_models_v1';
 const LM_STUDIO_TIMEOUT_580_MIGRATION_KEY = 'ss_lmstudio_timeout_580_migrated_v1';
 
@@ -13017,18 +13018,26 @@ function renderSettingsGeminiModels(models, errorMessage) {
     const state = document.getElementById('settings-gemini-models-state');
     if (!list) return;
     const values = Array.from(new Set((Array.isArray(models) ? models : []).map(String).filter(Boolean)));
+    const selected = list.value;
+    list.replaceChildren();
+    list.disabled = !!errorMessage || !values.length;
+    (errorMessage || !values.length ? [''] : values).forEach(function (model) {
+        const option = document.createElement('option');
+        option.value = model;
+        option.textContent = model || (errorMessage ? '모델 조회 실패' : 'API Key를 입력한 뒤 모델을 불러오세요.');
+        list.appendChild(option);
+    });
+    if (values.includes(selected)) list.value = selected;
+    list.title = errorMessage || 'API에 등록된 전체 모델 · 계정별 RPM/TPM/RPD는 별도 확인이 필요합니다.';
     if (errorMessage) {
-        list.textContent = errorMessage;
-        list.className = 'mt-2 max-h-32 overflow-auto rounded border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-2 py-1.5 text-[11px] leading-5 text-red-700 dark:text-red-300';
+        list.className = 'mt-2 w-full min-w-0 rounded border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-2 py-1.5 text-xs text-red-700 dark:text-red-300';
         if (state) {
             state.textContent = '확인 실패';
             state.className = 'px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 text-[10px]';
         }
         return;
     }
-    list.className = 'mt-2 max-h-32 overflow-auto rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 py-1.5 text-[11px] leading-5 text-slate-600 dark:text-slate-300';
-    list.textContent = values.length ? values.join('\n') : 'API Key를 입력한 뒤 모델을 불러오세요.';
-    list.style.whiteSpace = 'pre-line';
+    list.className = 'mt-2 w-full min-w-0 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 py-1.5 text-xs text-slate-600 dark:text-slate-300';
     if (state) {
         state.textContent = values.length ? values.length + '개' : '확인 전';
         state.className = values.length
@@ -13286,13 +13295,14 @@ async function loadSettingsGeminiModels() {
     setSettingsScholarAIStatus('Gemini 모델을 불러오는 중...', false);
     setCredentialConnectionVisual('ai-api-key', 'ai-api-key-feedback', 'checking', 'AI Studio 연결을 확인하는 중...');
     try {
-        const models = await listAIStudioTextModels(key);
+        const models = await listAIStudioModels(key);
+        saveStoredModelList(AI_CHAT_GEMINI_MODELS_KEY, models);
         saveStoredModelList(SCHOLAR_AI_GEMINI_MODELS_KEY, models);
         renderSettingsGeminiModels(models);
         localStorage.setItem('ss_gemini_api_key', key);
         localStorage.setItem('ss_gemini_api_key_verified', credentialFingerprint(key));
         setCredentialConnectionVisual('ai-api-key', 'ai-api-key-feedback', 'connected', '연결됨: AI Studio · Gemini 모델 ' + models.length + '개 확인');
-        setSettingsScholarAIStatus('Gemini 텍스트 모델 ' + models.length + '개를 불러왔습니다.', false);
+        setSettingsScholarAIStatus('AI Studio 모델 ' + models.length + '개를 불러왔습니다. 계정별 할당량은 AI Studio에서 확인하세요.', false);
     } catch (error) {
         localStorage.removeItem('ss_gemini_api_key_verified');
         renderSettingsGeminiModels([], error && error.message ? error.message : String(error));
@@ -13347,29 +13357,50 @@ async function callAIStudioText(prompt, systemInstruction, useSearch, modelOverr
 }
 
 async function listAIStudioTextModels(apiKeyOverride) {
+    const models = await listAIStudioModels(apiKeyOverride);
+    return models.filter(function (id) {
+        const info = aiChatGeminiModelLimits[id];
+        return info.supportedGenerationMethods.includes('generateContent') && !/(embedding|image|tts|audio)/i.test(id);
+    });
+}
+
+// models.list exposes the catalog, not project RPM/TPM/RPD quotas.
+// Do not infer quota availability from model names or context-window limits.
+async function listAIStudioModels(apiKeyOverride) {
     const key = String(apiKeyOverride || getProtectedAiCredential('gemini', 'ss_gemini_api_key') || '');
     if (!key.trim()) throw new Error('AI Studio API Key가 없습니다. 설정에서 API Key를 먼저 저장하세요.');
-    const url = 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=' + encodeURIComponent(key);
-    const res = await fetch(url, { headers: { Accept: 'application/json' } });
-    if (!res.ok) {
-        let message = 'Gemini 모델 조회 오류: ' + res.status;
-        try {
-            const errorData = await res.json();
-            if (errorData && errorData.error && errorData.error.message) message = errorData.error.message;
-        } catch (_) {}
-        throw new Error(message);
-    }
-    const data = await res.json();
-    const filtered = (Array.isArray(data.models) ? data.models : []).filter(function (model) {
-        const methods = Array.isArray(model.supportedGenerationMethods) ? model.supportedGenerationMethods : [];
-        const id = String(model.name || '').replace(/^models\//, '');
-        return /^gemini-/i.test(id)
-            && methods.indexOf('generateContent') >= 0
-            && !/(embedding|image)/i.test(id);
-    }).map(function (model) {
-        return String(model.name || '').replace(/^models\//, '');
-    }).filter(Boolean);
-    return Array.from(new Set(SCHOLAR_AI_TEXT_MODELS_FALLBACK.concat(filtered))).sort();
+    const models = new Map();
+    const seenTokens = new Set();
+    let pageToken = '';
+    do {
+        const url = 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=' + encodeURIComponent(key)
+            + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : '');
+        const res = await fetch(url, { headers: { Accept: 'application/json' } });
+        if (!res.ok) {
+            let message = 'Gemini 모델 조회 오류: ' + res.status;
+            try {
+                const errorData = await res.json();
+                if (errorData && errorData.error && errorData.error.message) message = errorData.error.message;
+            } catch (_) {}
+            throw new Error(message);
+        }
+        const data = await res.json();
+        (Array.isArray(data.models) ? data.models : []).forEach(function (model) {
+            const id = String(model.name || '').replace(/^models\//, '');
+            if (id) models.set(id, model);
+        });
+        pageToken = String(data.nextPageToken || '');
+        if (pageToken && seenTokens.has(pageToken)) throw new Error('AI Studio 모델 페이지 토큰이 반복됩니다. 다시 불러오세요.');
+        if (pageToken) seenTokens.add(pageToken);
+    } while (pageToken);
+    models.forEach(function (model, id) {
+        aiChatGeminiModelLimits[id] = {
+            inputTokenLimit: Math.max(0, Number(model.inputTokenLimit) || 0),
+            outputTokenLimit: Math.max(0, Number(model.outputTokenLimit) || 0),
+            supportedGenerationMethods: Array.isArray(model.supportedGenerationMethods) ? model.supportedGenerationMethods : []
+        };
+    });
+    return mergeAIChatGeminiModels(Array.from(models.keys()).sort());
 }
 
 function getScholarAIProviderRuntime() {
@@ -13401,7 +13432,7 @@ function getScholarAIProviderRuntime() {
 }
 
 let aiChatAbortController = null;
-const AI_CHAT_GEMINI_MODELS_KEY = 'ss_ai_chat_gemini_models_v2';
+const AI_CHAT_GEMINI_MODELS_KEY = 'ss_ai_chat_gemini_models_v3';
 const aiChatGeminiModelLimits = Object.create(null);
 const AI_CHAT_DEEPSEEK_MODELS_KEY = 'ss_ai_chat_deepseek_models_v1';
 const AI_CHAT_OPENAI_MODELS_KEY = 'ss_ai_chat_openai_models_v1';
@@ -13449,10 +13480,9 @@ const SCHOLAR_AI_TEXT_MODELS_FALLBACK = [
 ];
 
 function mergeAIChatGeminiModels(models) {
-    const available = new Set((Array.isArray(models) ? models : []).map(String).filter(Boolean));
-    return AI_CHAT_GEMINI_DEFAULT_MODELS.filter(function (model) {
-        return !available.size || available.has(model);
-    });
+    const available = Array.from(new Set((Array.isArray(models) ? models : []).map(String).filter(Boolean)));
+    const preferred = AI_CHAT_GEMINI_DEFAULT_MODELS.filter(function (model) { return available.includes(model); });
+    return preferred.concat(available.filter(function (model) { return !preferred.includes(model); }));
 }
 
 function mergeAIChatDeepseekModels(models) {
@@ -14262,34 +14292,7 @@ function retainAIChatHistory(messages, tokenBudget) {
 async function listAIStudioChatModels(apiKeyOverride) {
     const key = String(apiKeyOverride || await getAIStudioKeyForChat() || '').trim();
     if (!key) throw new Error('AI Studio API Key가 없습니다. 설정에서 API Key를 먼저 저장하세요.');
-    const url = 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=' + encodeURIComponent(key);
-    const res = await fetch(url, { headers: { Accept: 'application/json' } });
-    if (!res.ok) {
-        let message = 'Gemini 모델 조회 오류: ' + res.status;
-        try {
-            const errorData = await res.json();
-            if (errorData && errorData.error && errorData.error.message) message = errorData.error.message;
-        } catch (_) {}
-        throw new Error(message);
-    }
-    const data = await res.json();
-    const models = (Array.isArray(data.models) ? data.models : []).filter(function (model) {
-        const methods = Array.isArray(model.supportedGenerationMethods) ? model.supportedGenerationMethods : [];
-        const id = String(model.name || '').replace(/^models\//, '');
-        return /^gemini-/i.test(id)
-            && methods.indexOf('generateContent') >= 0
-            && !/(embedding|image)/i.test(id);
-    }).map(function (model) {
-        const id = String(model.name || '').replace(/^models\//, '');
-        if (id) {
-            aiChatGeminiModelLimits[id] = {
-                inputTokenLimit: Math.max(0, Number(model.inputTokenLimit) || 0),
-                outputTokenLimit: Math.max(0, Number(model.outputTokenLimit) || 0)
-            };
-        }
-        return id;
-    }).filter(Boolean);
-    return mergeAIChatGeminiModels(models);
+    return listAIStudioModels(key);
 }
 
 async function getAIChatGeminiModelLimits(model, key, signal) {
@@ -14725,6 +14728,11 @@ async function callAIStudioChat(messages, systemInstruction, modelOverride, sign
     const key = await getAIStudioKeyForChat();
     if (!key) throw new Error('AI Studio API Key가 없습니다. 앱 설정에서 API Key를 먼저 저장하세요.');
     const model = String(modelOverride || 'gemini-2.5-flash').trim();
+    const modelInfo = aiChatGeminiModelLimits[model];
+    if (modelInfo && Array.isArray(modelInfo.supportedGenerationMethods)
+        && !modelInfo.supportedGenerationMethods.includes('generateContent')) {
+        throw new Error('이 모델은 AI JENA 대화 API가 아닌 전용 API 연동이 필요합니다: ' + model);
+    }
     const normalized = normalizeAIChatMessages(messages);
     while (normalized.length && normalized[0].role !== 'user') normalized.shift();
     const contents = [];
@@ -15070,11 +15078,18 @@ window.AIChatBridge = Object.freeze({
         return raw.slice(start, end);
     },
     getCachedGeminiModels: function () {
-        return mergeAIChatGeminiModels(readStoredModelList(AI_CHAT_GEMINI_MODELS_KEY));
+        return localStorage.getItem(AI_CHAT_GEMINI_MODELS_KEY) === null
+            ? AI_CHAT_GEMINI_DEFAULT_MODELS.slice()
+            : mergeAIChatGeminiModels(readStoredModelList(AI_CHAT_GEMINI_MODELS_KEY));
+    },
+    hasGeminiModelCatalog: function () {
+        return localStorage.getItem(AI_CHAT_GEMINI_MODELS_KEY) !== null;
     },
     refreshGeminiModels: async function () {
         const models = await listAIStudioChatModels();
         saveStoredModelList(AI_CHAT_GEMINI_MODELS_KEY, models);
+        saveStoredModelList(SCHOLAR_AI_GEMINI_MODELS_KEY, models);
+        renderSettingsGeminiModels(models);
         return models;
     },
     getCachedOllamaModels: function () {
