@@ -2415,14 +2415,14 @@ window.onload = async () => {
         if (e.ctrlKey && e.altKey && (e.code === 'Digit3' || e.key === '3')) { e.preventDefault(); applyHeading(3); return; }
         if (e.ctrlKey && e.altKey && (e.code === 'Digit4' || e.key === '4')) { e.preventDefault(); applyHeading(4); return; }
         if (e.ctrlKey && e.altKey && (e.code === 'Digit5' || e.key === '5')) { e.preventDefault(); applyHeading(5); return; }
-        // Alt + 1 for Edit mode
-        if (e.altKey && !e.ctrlKey && !isAltGraph && (e.code === 'Digit1' || e.key === '1')) {
+        // Ctrl + 1 for Edit mode
+        if (e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey && (e.code === 'Digit1' || e.key === '1')) {
             e.preventDefault();
             if (!isEditMode) toggleMode('edit');
             return;
         }
-        // Alt + 2 for View mode
-        if (e.altKey && !e.ctrlKey && !isAltGraph && (e.code === 'Digit2' || e.key === '2')) {
+        // Ctrl + 2 for View mode
+        if (e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey && (e.code === 'Digit2' || e.key === '2')) {
             e.preventDefault();
             if (isEditMode) toggleMode('view');
             return;
