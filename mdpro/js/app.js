@@ -138,7 +138,8 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260829-pages-local-search-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?v=20260831-all-models-1',
+    aiMermaidGuard: './AI_App/aiChat/ai-jena-mermaid-guard.js?v=20260831-1',
+    aiChat: './AI_App/aiChat/ai-chat.js?v=20260831-mermaid-guard-1',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260810-3'
@@ -209,7 +210,8 @@ async function ensureAiChatLoaded() {
     await Promise.allSettled([
         loadOptionalScript('aiAcademicSearch', function () { return !!window.AIChatAcademicSearch; }),
         loadOptionalScript('aiWebSearch', function () { return !!window.AIJenaLocalAPI; }),
-        loadOptionalScript('aiMarkdown', function () { return !!window.AIChatMarkdown; })
+        loadOptionalScript('aiMarkdown', function () { return !!window.AIChatMarkdown; }),
+        loadOptionalScript('aiMermaidGuard', function () { return !!window.AIJenaMermaidGuard; })
     ]);
     await loadOptionalScript('aiChat', function () { return !!window.AIChat; });
     return true;
@@ -14921,6 +14923,7 @@ function insertAIChatTextIntoDocument(text, mode) {
         prefix = before && !/\n\s*\n$/.test(before) ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
     }
     const insertion = prefix + value + suffix;
+    pushReplaceUndoSnapshot();
     editorTextarea.focus();
     editorTextarea.setSelectionRange(start, end);
     const applied = document.execCommand('insertText', false, insertion);
@@ -15135,6 +15138,19 @@ window.AIChatBridge = Object.freeze({
         const models = result.models.map(function (item) { return item.id; }).filter(Boolean);
         saveStoredModelList(SCHOLAR_AI_LM_MODELS_KEY, models);
         return { model: result.model, models: models, contextLength: getAIChatLMContextLength(result) };
+    },
+    captureInsertTarget: function () {
+        const target = editorTextarea;
+        const revision = currentDocumentDisplayRequest;
+        const value = target && target.value;
+        const start = target && target.selectionStart;
+        const end = target && target.selectionEnd;
+        return function () {
+            if (target !== editorTextarea || revision !== currentDocumentDisplayRequest || !target
+                || value !== target.value || start !== target.selectionStart || end !== target.selectionEnd) {
+                throw new Error('검증 중 문서 또는 선택 영역이 바뀌었습니다. 삽입 위치를 확인하고 다시 시도하세요.');
+            }
+        };
     },
     insertIntoDocument: function (text, mode, options) {
         const insertOptions = options && typeof options === 'object' ? options : {};
