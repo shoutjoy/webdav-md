@@ -22,12 +22,50 @@ export async function createDirectoryVerified(client, targetPath) {
 }
 
 export async function moveFileVerified(client, sourcePath, targetPath, overwrite = false) {
+  if (sourcePath === targetPath) return;
+  // Never interpret an existing destination as evidence that a failed COPY worked.
+  const targetExisted = await client.exists(targetPath);
+  if (targetExisted && !overwrite) {
+    const error = new Error(`같은 이름의 파일이 이미 있습니다 (${targetPath})`);
+    error.status = 412;
+    throw error;
+  }
+
+  const readBytes = async (path) => {
+    const data = await client.getFileContents(path, { format: 'binary' });
+    if (data instanceof ArrayBuffer) return new Uint8Array(data);
+    if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    throw new Error(`파일 내용을 확인할 수 없습니다 (${path})`);
+  };
+  const verifyContents = async (sourceBytes) => {
+    const targetBytes = await readBytes(targetPath);
+    if (sourceBytes.length !== targetBytes.length || sourceBytes.some((byte, index) => byte !== targetBytes[index])) {
+      throw new Error(`복사한 파일의 내용이 원본과 다릅니다. 원본은 보존했습니다 (${targetPath})`);
+    }
+  };
+
   try {
     await client.copyFile(sourcePath, targetPath, { overwrite });
   } catch (error) {
+    const status = Number(error?.status || error?.response?.status || 0);
+    // Permission, conflict and lock errors must not be bypassed with PUT.
+    if (status && ![400, 405, 501, 502, 503].includes(status)) {
+      throw wrapMoveError('서버 내부 파일 복사', targetPath, error);
+    }
     let copied = false;
-    try { copied = await client.exists(targetPath); } catch { /* Preserve the COPY error. */ }
-    if (!copied) throw wrapMoveError('서버 내부 파일 복사', targetPath, error);
+    try { copied = await client.exists(targetPath); } catch { throw wrapMoveError('대상 파일 확인', targetPath, error); }
+    const sourceBytes = await readBytes(sourcePath);
+    if (!copied || targetExisted) {
+      try {
+        const upload = sourceBytes.buffer.slice(sourceBytes.byteOffset, sourceBytes.byteOffset + sourceBytes.byteLength);
+        const saved = await client.putFileContents(targetPath, upload, { overwrite });
+        if (saved === false) throw new Error('대상 파일을 저장하지 못했습니다');
+      } catch (uploadError) {
+        throw wrapMoveError('새 이름으로 파일 저장', targetPath, uploadError);
+      }
+    }
+    // Also verify a COPY whose successful response was lost before deleting.
+    await verifyContents(sourceBytes);
   }
 
   let copied = false;
