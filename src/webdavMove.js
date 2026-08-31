@@ -1,6 +1,7 @@
 import { normalizeRemotePath } from './webdavPaths.js';
 
-const COPY_DELETE_FALLBACK_STATUSES = new Set([400, 403, 405, 409, 423, 500, 501, 502, 503]);
+// PLAN B is for unsupported MOVE / transport failures, not permission or lock bypass.
+const COPY_DELETE_FALLBACK_STATUSES = new Set([400, 405, 500, 501, 502, 503, 504]);
 
 export const shouldFallbackToCopyDelete = (error) => {
   const status = Number(error?.status || error?.response?.status || 0);

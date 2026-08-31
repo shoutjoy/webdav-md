@@ -16,7 +16,7 @@ for (const scenario of ['success', 'empty', 'binary', 'overwrite', 'mismatch', '
     ? new Uint8Array([99, 0, 255, 128, 13, 10, 99]).subarray(1, 6)
     : new TextEncoder().encode('# 음악 다운로드\n한글 내용\u0000');
   const client = {
-    async exists() { return present; },
+    async exists(path) { return path === '/원본.md' ? !deleted : present; },
     async copyFile() { assert.fail('COPY must never be used'); },
     async moveFile() { assert.fail('MOVE must never be used'); },
     async getFileContents(path) {

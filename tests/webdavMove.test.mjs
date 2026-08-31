@@ -3,7 +3,10 @@ import { collectDirectoryEntries, shouldFallbackToCopyDelete } from '../src/webd
 
 assert.equal(shouldFallbackToCopyDelete(new TypeError('Failed to fetch')), true);
 assert.equal(shouldFallbackToCopyDelete({ status: 400 }), true);
-assert.equal(shouldFallbackToCopyDelete({ status: 403 }), true);
+assert.equal(shouldFallbackToCopyDelete({ status: 403 }), false);
+assert.equal(shouldFallbackToCopyDelete({ status: 409 }), false);
+assert.equal(shouldFallbackToCopyDelete({ status: 423 }), false);
+assert.equal(shouldFallbackToCopyDelete({ status: 504 }), true);
 assert.equal(shouldFallbackToCopyDelete({ response: { status: 405 } }), true);
 assert.equal(shouldFallbackToCopyDelete({ status: 501 }), true);
 assert.equal(shouldFallbackToCopyDelete({ status: 401 }), false);

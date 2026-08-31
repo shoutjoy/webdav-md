@@ -9,8 +9,7 @@ import MobileWdocButton from './components/MobileWdocButton.jsx';
 import RenameModal from './components/RenameModal.jsx';
 import CreateDestinationModal from './components/CreateDestinationModal.jsx';
 import { normalizeRemotePath } from './webdavPaths.js';
-import { collectDirectoryEntries, shouldFallbackToCopyDelete } from './webdavMove.js';
-import { createDirectoryVerified, deleteDirectoryVerified, moveFileVerified } from './webdavMoveEngine.js';
+import { createDirectoryVerified, deleteRemoteItemVerified, moveRemoteItemVerified, saveFileVerified } from './webdavMoveEngine.js';
 import { isDmergeFileName, readDmergeArchive } from './dmergeArchive.js';
 import { clearLoginSession, readLoginSession, writeLoginSession } from './loginSession.js';
 
@@ -356,83 +355,11 @@ export default function App() {
   };
 
   const moveRemoteItem = async (client, sourcePath, targetPath, isDirectory = false, overwrite = false, options = {}) => {
-    const reportProgress = options.onProgress || (() => {});
-    if (!options.copyDeleteOnly) {
-      try {
-        await client.customRequest(sourcePath, {
-          method: 'MOVE',
-          headers: {
-            Destination: buildPublicUrl(url, targetPath),
-            Overwrite: overwrite ? 'T' : 'F',
-          },
-        });
-        reportProgress({ completed: 1, total: 1, path: targetPath });
-        return;
-      } catch (error) {
-        if (!shouldFallbackToCopyDelete(error)) throw error;
-      }
+    await moveRemoteItemVerified(client, sourcePath, targetPath, { ...options, isDirectory, overwrite });
+    const lastText = lastTextFileRef.current;
+    if (lastText?.remotePath && (lastText.remotePath === sourcePath || (isDirectory && lastText.remotePath.startsWith(`${sourcePath}/`)))) {
+      lastTextFileRef.current = { ...lastText, name: lastText.remotePath === sourcePath ? targetPath.split('/').at(-1) : lastText.name, remotePath: `${targetPath}${lastText.remotePath.slice(sourcePath.length)}` };
     }
-
-    const sourceStat = isDirectory ? null : await client.stat(sourcePath);
-    const moveDirectory = isDirectory || sourceStat?.type === 'directory';
-    if (!moveDirectory) {
-      reportProgress({ completed: 0, total: 1, phase: '2단계 · 파일을 하나씩 이동', path: sourcePath });
-      await moveFileVerified(client, sourcePath, targetPath, overwrite);
-      reportProgress({ completed: 1, total: 1, phase: '2단계 · 이동 완료', path: targetPath });
-      return;
-    }
-
-    // Depth: infinity is not consistently implemented by WebDAV servers.
-    // Traverse each directory explicitly so a folder move includes every
-    // nested file and subfolder before the source is removed.
-    let entries;
-    try {
-      entries = await collectDirectoryEntries(client, sourcePath);
-    } catch (error) {
-      const wrapped = new Error(`원본 폴더 내용 읽기 실패 (${sourcePath}): ${error?.message || error}`);
-      wrapped.status = error?.status || error?.response?.status;
-      throw wrapped;
-    }
-    const directories = entries
-      .filter((entry) => entry.type === 'directory')
-      .map((entry) => normalizeRemotePath(entry.filename))
-      .filter((path) => path !== sourcePath)
-      .sort((a, b) => a.split('/').length - b.split('/').length);
-    const filesToCopy = entries.filter((entry) => entry.type !== 'directory');
-    const directoryCount = 1 + directories.length;
-    const total = directoryCount * 2 + filesToCopy.length;
-    let completed = 0;
-    reportProgress({ completed, total, phase: '1단계 · 대상 폴더 구조 생성', path: sourcePath });
-    await createDirectoryVerified(client, targetPath);
-    completed += 1;
-    reportProgress({ completed, total, phase: '1단계 · 대상 폴더 구조 생성', path: targetPath });
-    for (const directoryPath of directories) {
-      const relativePath = directoryPath.slice(sourcePath.length).replace(/^\/+/, '');
-      if (relativePath) {
-        const createdPath = joinRemotePath(targetPath, relativePath);
-        await createDirectoryVerified(client, createdPath);
-        completed += 1;
-        reportProgress({ completed, total, phase: '1단계 · 대상 폴더 구조 생성', path: createdPath });
-      }
-    }
-    reportProgress({ completed, total, phase: '2단계 · 파일을 하나씩 이동', path: filesToCopy[0]?.filename || targetPath });
-    for (const entry of filesToCopy) {
-      const entryPath = normalizeRemotePath(entry.filename);
-      const relativePath = entryPath.slice(sourcePath.length).replace(/^\/+/, '');
-      const copiedPath = joinRemotePath(targetPath, relativePath);
-      await moveFileVerified(client, entryPath, copiedPath, false);
-      completed += 1;
-      reportProgress({ completed, total, phase: '2단계 · 파일을 하나씩 이동', path: copiedPath });
-    }
-    const deepestDirectoriesFirst = [...directories].sort((a, b) => b.split('/').length - a.split('/').length);
-    for (const directoryPath of deepestDirectoriesFirst) {
-      await deleteDirectoryVerified(client, directoryPath);
-      completed += 1;
-      reportProgress({ completed, total, phase: '2단계 · 원본 정리', path: directoryPath });
-    }
-    await deleteDirectoryVerified(client, sourcePath);
-    completed += 1;
-    reportProgress({ completed, total, phase: '2단계 · 이동 완료', path: targetPath });
   };
 
   const updateHistoryPath = (path, replace = false) => {
@@ -772,7 +699,7 @@ export default function App() {
     setIsWebDavSaving(true);
     setError('');
     try {
-      await client.putFileContents(file.remotePath, content, {
+      await saveFileVerified(client, file.remotePath, content, {
         headers: { 'Content-Type': 'text/plain; charset=utf-8' },
       });
       setSavedContent(content);
@@ -816,9 +743,10 @@ export default function App() {
     setIsWebDavSaving(true);
     setError('');
     try {
-      if (await client.exists(targetPath) && !window.confirm(`이미 존재하는 파일입니다. 덮어쓸까요?\n${targetPath}`)) return;
+      const targetExists = await client.exists(targetPath);
+      if (targetExists && !window.confirm(`이미 존재하는 파일입니다. 덮어쓸까요?\n${targetPath}`)) return;
       const content = String(nextContent ?? '');
-      await client.putFileContents(targetPath, content, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+      await saveFileVerified(client, targetPath, content, { overwrite: targetExists, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
       const name = targetPath.split('/').filter(Boolean).at(-1) || copyName;
       const nextFile = { ...(selectedFileRef.current || {}), name, remotePath: targetPath, viewMode: 'text' };
       setSelectedFile(nextFile);
@@ -1210,15 +1138,25 @@ export default function App() {
     setLoading(true);
     setError('');
     try {
-      await client.deleteFile(remotePath);
-      if (selectedFile?.remotePath && normalizeRemotePath(selectedFile.remotePath) === remotePath) {
+      await deleteRemoteItemVerified(client, remotePath);
+      const isDeletedPath = (path) => path && (normalizeRemotePath(path) === remotePath || normalizeRemotePath(path).startsWith(`${remotePath}/`));
+      if (isDeletedPath(selectedFileRef.current?.remotePath)) {
         setSelectedFile(null);
+        selectedFileRef.current = null;
         setEditorContent('');
         setSavedContent('');
         setEditorBinary(null);
         clearMediaPreview();
+        setEditorDirty(false);
       }
+      if (isDeletedPath(lastTextFileRef.current?.remotePath)) lastTextFileRef.current = null;
       await loadFullTree();
+      if (isDeletedPath(currentPath)) {
+        const parent = remotePath.split('/').slice(0, -1).join('/') || '/';
+        updateHistoryPath(parent, true);
+        await loadDirectory(parent);
+      }
+      showToast(`삭제를 확인했습니다: ${remotePath}`);
     } catch (err) {
       if (!returnToLoginIfUnauthorized(err)) {
         setError(`삭제 실패: ${err.message}`);
@@ -1243,6 +1181,10 @@ export default function App() {
 
   // 파일 이름 변경 (모달 확인)
   const handleConfirmRename = async (newName) => {
+    if (newName === '.' || newName === '..' || /[\\/]/.test(newName)) {
+      setError('이름에는 경로 구분자 또는 . / ..를 사용할 수 없습니다.');
+      return;
+    }
     const oldName = renameTarget?.name || '';
     if (!newName || newName === oldName) {
       setIsRenameModalOpen(false);
@@ -1259,10 +1201,22 @@ export default function App() {
       const parentPath = oldPath.split('/').slice(0, -1).join('/') || '/';
       const newPath = joinRemotePath(parentPath, newName);
       await moveRemoteItem(client, oldPath, newPath, Boolean(renameTarget.isDirectory));
-      if (selectedFile?.remotePath && normalizeRemotePath(selectedFile.remotePath) === oldPath) {
-        setSelectedFile((file) => ({ ...file, name: newName, remotePath: newPath }));
+      const renamedPath = (path) => path && (normalizeRemotePath(path) === oldPath || normalizeRemotePath(path).startsWith(`${oldPath}/`));
+      const updateFile = (file) => renamedPath(file?.remotePath)
+        ? { ...file, name: normalizeRemotePath(file.remotePath) === oldPath ? newName : file.name, remotePath: `${newPath}${normalizeRemotePath(file.remotePath).slice(oldPath.length)}` }
+        : file;
+      const nextSelected = updateFile(selectedFileRef.current);
+      if (nextSelected !== selectedFileRef.current) {
+        setSelectedFile(nextSelected);
+        selectedFileRef.current = nextSelected;
       }
+      lastTextFileRef.current = updateFile(lastTextFileRef.current);
       await loadFullTree();
+      if (renamedPath(currentPath)) {
+        const nextPath = `${newPath}${normalizeRemotePath(currentPath).slice(oldPath.length)}`;
+        updateHistoryPath(nextPath, true);
+        await loadDirectory(nextPath);
+      }
       showToast(`'${oldName}'이(가) '${newName}'으로 변경되었습니다.`);
     } catch (err) {
       if (!returnToLoginIfUnauthorized(err)) {
@@ -1306,7 +1260,8 @@ export default function App() {
     setLoading(true);
     setError('');
     try {
-      await client.putFileContents(filePath, '', {
+      await saveFileVerified(client, filePath, '', {
+        overwrite: false,
         headers: { 'Content-Type': 'text/markdown; charset=utf-8' },
       });
       await loadDirectory(normalizedTargetDirectory);
@@ -1361,9 +1316,8 @@ export default function App() {
     setLoading(true);
     setError('');
     try {
-      setMoveProgress({ percent: 0, completed: 0, total: 1, phase: item.isDirectory ? '1단계 · 대상 폴더 구조 생성' : '2단계 · 파일을 하나씩 이동', path: sourcePath });
+      setMoveProgress({ percent: 0, completed: 0, total: 1, phase: 'PLAN A · NAS에서 이동', path: sourcePath });
       await moveRemoteItem(client, sourcePath, targetPath, item.isDirectory, hasDuplicate && options.conflictPolicy === 'overwrite', {
-        copyDeleteOnly: true,
         onProgress: ({ completed, total, phase, path }) => setMoveProgress({
           percent: Math.round((completed / Math.max(total, 1)) * 100), completed, total, phase, path,
         }),
@@ -1373,7 +1327,7 @@ export default function App() {
         const openPath = normalizeRemotePath(selectedFile.remotePath);
         if (openPath === sourcePath || (item.isDirectory && openPath.startsWith(`${sourcePath}/`))) {
           const movedOpenPath = `${targetPath}${openPath.slice(sourcePath.length)}`;
-          const nextSelectedFile = { ...selectedFile, remotePath: movedOpenPath };
+          const nextSelectedFile = { ...selectedFile, name: openPath === sourcePath ? targetName : selectedFile.name, remotePath: movedOpenPath };
           setSelectedFile(nextSelectedFile);
           selectedFileRef.current = nextSelectedFile;
         }
@@ -1444,7 +1398,7 @@ export default function App() {
     const client = createConfiguredWebDavClient();
     setLoading(true);
     setError('');
-    setMoveProgress({ percent: 0, completed: 0, total: plannedItems.length, phase: '1단계 · 대상 폴더 구조 생성', path: '' });
+    setMoveProgress({ percent: 0, completed: 0, total: plannedItems.length, phase: 'PLAN A · NAS에서 이동', path: '' });
     const movedPairs = [];
     try {
       const moveResults = [];
@@ -1453,7 +1407,6 @@ export default function App() {
         const targetPath = joinRemotePath(targetDirectory, targetName);
         try {
           await moveRemoteItem(client, sourcePath, targetPath, item.isDirectory, overwrite, {
-            copyDeleteOnly: true,
             onProgress: ({ completed, total, phase, path }) => setMoveProgress({
               percent: Math.round(((itemIndex + completed / Math.max(total, 1)) / plannedItems.length) * 100),
               completed: itemIndex, total: plannedItems.length, phase, path,
@@ -1469,15 +1422,11 @@ export default function App() {
         if (result.status === 'fulfilled') movedPairs.push(result.value);
       });
       const failedResults = moveResults.filter((result) => result.status === 'rejected');
-      if (failedResults.length) {
-        const firstError = failedResults[0].reason;
-        throw new Error(`${failedResults.length}개 이동 실패: ${firstError?.message || firstError}`);
-      }
       if (selectedFile?.remotePath) {
         const openPath = normalizeRemotePath(selectedFile.remotePath);
         const pair = movedPairs.find(({ sourcePath, isDirectory }) => openPath === sourcePath || (isDirectory && openPath.startsWith(`${sourcePath}/`)));
         if (pair) {
-          const nextSelectedFile = { ...selectedFile, remotePath: `${pair.targetPath}${openPath.slice(pair.sourcePath.length)}` };
+          const nextSelectedFile = { ...selectedFile, name: openPath === pair.sourcePath ? pair.name : selectedFile.name, remotePath: `${pair.targetPath}${openPath.slice(pair.sourcePath.length)}` };
           setSelectedFile(nextSelectedFile);
           selectedFileRef.current = nextSelectedFile;
         }
@@ -1490,6 +1439,10 @@ export default function App() {
         const movedCurrentPath = `${currentPair.targetPath}${normalizedCurrentPath.slice(currentPair.sourcePath.length)}`;
         updateHistoryPath(movedCurrentPath, true);
         await loadDirectory(movedCurrentPath);
+      }
+      if (failedResults.length) {
+        const firstError = failedResults[0].reason;
+        throw new Error(`${failedResults.length}개 이동 실패: ${firstError?.message || firstError}`);
       }
       showToast(`${movedPairs.length}개 항목을 이동했습니다: ${targetDirectory}`);
       return true;
@@ -1513,7 +1466,7 @@ export default function App() {
     const enteredName = window.prompt('새 폴더 이름을 입력하세요:', '새 폴더');
     if (!enteredName) return;
     const folderName = enteredName.trim();
-    if (!folderName || /[\\/]/.test(folderName)) {
+    if (!folderName || folderName === '.' || folderName === '..' || /[\\/]/.test(folderName)) {
       setError('폴더 이름에는 / 또는 \\ 문자를 사용할 수 없습니다.');
       return;
     }
@@ -1528,7 +1481,8 @@ export default function App() {
     setError('');
     try {
       const folderPath = joinRemotePath(normalizedTargetDirectory, folderName);
-      await client.createDirectory(folderPath);
+      if (await client.exists(folderPath)) throw new Error(`같은 이름의 항목이 이미 있습니다: ${folderPath}`);
+      await createDirectoryVerified(client, folderPath);
       await loadDirectory(normalizedTargetDirectory);
       showToast(`폴더를 만들었습니다: ${folderPath}`);
     } catch (err) {
