@@ -1,61 +1,57 @@
 import assert from 'node:assert/strict';
 import { createDirectoryVerified, moveFileVerified } from '../src/webdavMoveEngine.js';
 
-const operations = [];
 const existing = new Set();
-const client = {
-  async createDirectory(path) { operations.push(['MKCOL', path]); existing.add(path); },
-  async copyFile(source, target, options) { operations.push(['COPY', source, target, options]); existing.add(target); },
-  async exists(path) { operations.push(['EXISTS', path]); return existing.has(path); },
-  async deleteFile(path) { operations.push(['DELETE', path]); },
-};
+await createDirectoryVerified({
+  async createDirectory(path) { existing.add(path); },
+  async exists(path) { return existing.has(path); },
+}, '/target/folder');
+assert.equal(existing.has('/target/folder'), true);
 
-await createDirectoryVerified(client, '/target/folder');
-await moveFileVerified(client, '/source/a.md', '/target/folder/a.md');
-assert.deepEqual(operations, [
-  ['MKCOL', '/target/folder'],
-  ['EXISTS', '/target/folder'],
-  ['EXISTS', '/target/folder/a.md'],
-  ['COPY', '/source/a.md', '/target/folder/a.md', { overwrite: false }],
-  ['EXISTS', '/target/folder/a.md'],
-  ['DELETE', '/source/a.md'],
-]);
-
-let sourceDeleted = false;
-const acceptedDespiteLostResponse = {
-  async copyFile() { throw new TypeError('Failed to fetch'); },
-  async exists() { return this.checked ? true : (this.checked = true, false); },
-  async getFileContents() { return new Uint8Array([1, 2, 3]); },
-  async deleteFile() { sourceDeleted = true; },
-};
-await moveFileVerified(acceptedDespiteLostResponse, '/source/b.md', '/target/b.md');
-assert.equal(sourceDeleted, true);
-
-for (const scenario of ['success', 'mismatch', 'upload-failure', 'conflict', 'forbidden']) {
+for (const scenario of ['success', 'empty', 'binary', 'overwrite', 'mismatch', 'read-failure', 'upload-failure', 'lost-response', 'verify-failure', 'missing-target', 'conflict', 'forbidden', 'delete-failure']) {
   let deleted = false;
-  let uploaded = false;
-  let present = scenario === 'conflict';
-  const bytes = new TextEncoder().encode('# 음악 다운로드\n한글 내용\u0000');
-  const fallbackClient = {
+  let present = ['conflict', 'overwrite'].includes(scenario);
+  const calls = [];
+  const bytes = scenario === 'empty' ? new Uint8Array() : scenario === 'binary'
+    ? new Uint8Array([99, 0, 255, 128, 13, 10, 99]).subarray(1, 6)
+    : new TextEncoder().encode('# 음악 다운로드\n한글 내용\u0000');
+  const client = {
     async exists() { return present; },
-    async copyFile() { throw Object.assign(new Error('Invalid response'), { status: scenario === 'forbidden' ? 403 : 400 }); },
-    async getFileContents(path) { return path === '/새 이름.md' && scenario === 'mismatch' ? new Uint8Array([0]) : bytes; },
+    async copyFile() { assert.fail('COPY must never be used'); },
+    async moveFile() { assert.fail('MOVE must never be used'); },
+    async getFileContents(path) {
+      calls.push(['GET', path]);
+      if (scenario === 'read-failure' || (scenario === 'verify-failure' && path === '/대상/원본.md')) throw new Error('GET failed');
+      return path === '/대상/원본.md' && scenario === 'mismatch' ? new Uint8Array(bytes.length) : bytes;
+    },
     async putFileContents(path, data, options) {
-      uploaded = true;
-      assert.equal(path, '/새 이름.md');
-      assert.deepEqual(new Uint8Array(data), bytes);
-      assert.equal(options.overwrite, false);
+      calls.push(['PUT', path]);
+      assert.equal(path, '/대상/원본.md');
+      assert.deepEqual(new Uint8Array(data), new Uint8Array(bytes));
+      assert.equal(options.overwrite, scenario === 'overwrite');
       if (scenario === 'upload-failure') return false;
-      present = true;
+      if (scenario === 'forbidden') throw Object.assign(new Error('Forbidden'), { status: 403 });
+      present = scenario !== 'missing-target';
+      if (scenario === 'lost-response') throw new TypeError('Failed to fetch');
       return true;
     },
-    async deleteFile() { deleted = true; },
+    async deleteFile(path) {
+      calls.push(['DELETE', path]);
+      if (scenario === 'delete-failure') throw new Error('DELETE failed');
+      deleted = true;
+    },
   };
-  const result = moveFileVerified(fallbackClient, '/원본.md', '/새 이름.md');
-  if (scenario === 'success') await result;
+  const success = ['success', 'empty', 'binary', 'overwrite'].includes(scenario);
+  const result = moveFileVerified(client, '/원본.md', '/대상/원본.md', scenario === 'overwrite');
+  if (success) await result;
   else await assert.rejects(result);
-  assert.equal(deleted, scenario === 'success', `${scenario}: preserve source on failure`);
-  if (['conflict', 'forbidden'].includes(scenario)) assert.equal(uploaded, false);
+  assert.equal(deleted, success, `${scenario}: preserve source on failure`);
+  if (success || scenario === 'delete-failure') assert.deepEqual(calls, [
+    ['GET', '/원본.md'], ['PUT', '/대상/원본.md'], ['GET', '/대상/원본.md'], ['DELETE', '/원본.md'],
+  ]);
+  else assert.equal(calls.some(([method]) => method === 'DELETE'), false);
+  if (scenario === 'conflict') assert.deepEqual(calls, []);
+  if (scenario === 'read-failure') assert.equal(calls.some(([method]) => method === 'PUT'), false);
 }
-
-console.log('webdav move engine: verified COPY then DELETE workflow passed');
+await moveFileVerified({}, '/same.md', '/same.md');
+console.log('webdav move engine: GET -> PUT -> content verification -> DELETE safety tests passed');

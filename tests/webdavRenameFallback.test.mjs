@@ -40,9 +40,9 @@ try {
   assert.deepEqual(files.get(target), content);
   assert.equal(files.has(source), false);
   assert.deepEqual(requests.filter(([method]) => method !== 'PROPFIND'), [
-    ['COPY', source], ['GET', source], ['PUT', target], ['GET', target], ['DELETE', source],
+    ['GET', source], ['PUT', target], ['GET', target], ['DELETE', source],
   ]);
-  console.log('WebDAV HTTP rename: COPY 400 -> binary GET/PUT -> verified content -> DELETE passed');
+  console.log('WebDAV HTTP transfer: binary GET/PUT -> verified content -> DELETE without COPY passed');
 } finally {
   server.closeAllConnections();
   await new Promise((resolve) => server.close(resolve));
