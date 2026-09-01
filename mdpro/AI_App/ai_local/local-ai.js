@@ -25,12 +25,12 @@
     maxTokens: 8192,
     quickMaxTokens: 4096,
     reasoningMaxTokens: 8192,
-    fastMaxTokens: 3000,
-    fastTimeoutMs: 120000,
+    fastMaxTokens: 4000,
+    fastTimeoutMs: 580000,
     fastSafetyTimeout: true,
     fastCompleteStreaming: true,
     reasoningLevel: 'auto',
-    timeoutMs: 580000,
+    timeoutMs: 720000,
     topP: null,
     seed: null,
     frequencyPenalty: null,
@@ -272,7 +272,14 @@ Do not output only a reference list. Extract claims from titles and abstracts, g
   function normalizeBaseUrl(value) {
     let url = trim(value || defaults.baseUrl).replace(/\/+$/, '');
     url = url.replace(/\/chat\/completions$/i, '').replace(/\/models$/i, '');
+    if (url && !/\/v1$/i.test(url)) url += '/v1';
     return url || defaults.baseUrl;
+  }
+
+  function normalizeOptionalBaseUrl(value) {
+    const url = trim(value).replace(/\/+$/, '')
+      .replace(/\/chat\/completions$/i, '').replace(/\/models$/i, '');
+    return url && !/\/v1$/i.test(url) ? url + '/v1' : url;
   }
 
   function finiteOr(value, fallback) {
@@ -288,8 +295,14 @@ Do not output only a reference list. Extract claims from titles and abstracts, g
   function normalizeConfig(input) {
     const raw = input || {};
     const source = Object.assign({}, defaults, raw);
+    const baseUrlPrimary = normalizeBaseUrl(raw.baseUrlPrimary || raw.baseUrl || raw.lmStudioBaseUrl || source.baseUrl);
+    const baseUrlSecondary = normalizeOptionalBaseUrl(raw.baseUrlSecondary);
+    const activeBaseUrlSlot = raw.activeBaseUrlSlot === 'secondary' && baseUrlSecondary ? 'secondary' : 'primary';
     return {
-      baseUrl: normalizeBaseUrl(raw.baseUrl || raw.lmStudioBaseUrl || source.baseUrl),
+      baseUrl: activeBaseUrlSlot === 'secondary' ? baseUrlSecondary : baseUrlPrimary,
+      baseUrlPrimary: baseUrlPrimary,
+      baseUrlSecondary: baseUrlSecondary,
+      activeBaseUrlSlot: activeBaseUrlSlot,
       model: trim(raw.model || raw.modelId || raw.lmStudioModel || source.model || defaults.model),
       apiKey: trim(raw.apiKey || raw.lmStudioApiKey || source.apiKey),
       temperature: finiteOr(source.temperature, defaults.temperature),
@@ -327,7 +340,48 @@ Do not output only a reference list. Extract claims from titles and abstracts, g
   function resolveFetch(fetchImpl) {
     const fn = fetchImpl || (root && root.fetch);
     if (typeof fn !== 'function') throw new Error('fetch 구현이 필요합니다. createClient({ fetch })로 전달하세요.');
-    return fn.bind ? fn.bind(root) : fn;
+    const bound = fn.bind ? fn.bind(root) : fn;
+    return async function (url, options) {
+      options = options || {};
+      let target;
+      try { target = new URL(String(url)); } catch (_) { target = null; }
+      const isLoopback = target && (target.hostname === '127.0.0.1' || target.hostname === 'localhost' || target.hostname === '::1');
+      const tauriInvoke = root && root.__TAURI_INTERNALS__ && root.__TAURI_INTERNALS__.invoke;
+      if (isLoopback && typeof tauriInvoke === 'function') {
+        if (options.signal && options.signal.aborted) throw options.signal.reason || new DOMException('요청이 취소되었습니다.', 'AbortError');
+        const headerMap = {};
+        if (typeof Headers !== 'undefined' && options.headers instanceof Headers) {
+          options.headers.forEach(function (value, key) { headerMap[key.toLowerCase()] = value; });
+        } else {
+          Object.keys(options.headers || {}).forEach(function (key) { headerMap[key.toLowerCase()] = options.headers[key]; });
+        }
+        const result = await tauriInvoke('lmstudio_api_request', {
+          request: {
+            url: String(url),
+            method: String(options.method || 'GET').toUpperCase(),
+            authorization: headerMap.authorization || null,
+            contentType: headerMap['content-type'] || 'application/json',
+            accept: headerMap.accept || 'application/json',
+            body: options.body == null ? null : String(options.body),
+            timeoutSeconds: 3600
+          }
+        });
+        return new Response(String(result.body || ''), {
+          status: Number(result.status || 500),
+          headers: { 'Content-Type': result.contentType || 'application/json' }
+        });
+      }
+      try {
+        return await bound(url, options);
+      } catch (error) {
+        const location = root && root.location;
+        const canProxy = location && /^https?:$/.test(location.protocol) && isLoopback
+          && String(url).indexOf('/__mdviewer_lmstudio_proxy') < 0;
+        if (!canProxy || (error && error.name === 'AbortError')) throw error;
+        const proxyUrl = '/__mdviewer_lmstudio_proxy?url=' + encodeURIComponent(String(url));
+        return await bound(proxyUrl, options);
+      }
+    };
   }
 
   function createRequestSignal(externalSignal, timeoutMs) {
@@ -620,7 +674,9 @@ Do not output only a reference list. Extract claims from titles and abstracts, g
       if (options.topP != null || active.topP != null) body.top_p = options.topP == null ? active.topP : options.topP;
       if (options.previousResponseId) body.previous_response_id = String(options.previousResponseId);
       try {
-        if (options.internalStream === true && root && typeof root.XMLHttpRequest === 'function' && !options.fetch && !fetchImpl) {
+        if (options.internalStream === true && root && typeof root.XMLHttpRequest === 'function' && !options.fetch && !fetchImpl
+          && !(root.__TAURI_INTERNALS__ && typeof root.__TAURI_INTERNALS__.invoke === 'function')
+          && !(root.location && /^https?:$/.test(root.location.protocol))) {
           if (typeof options.onEvent === 'function') {
             try { options.onEvent({ type: 'transport.start', transport: 'xhr-sse' }, { text: '', reasoning: '' }); } catch (ignore) {}
           }
