@@ -19,35 +19,6 @@
         }
         .dark body { background-color: #0f172a; color: #f1f5f9; }
 
-        /* Table size picker: use opposite luminance in each theme for clear selection. */
-        .table-insert-grid-cell {
-            border-color: #cbd5e1;
-            background: #f1f5f9;
-            transition: background-color 80ms ease, border-color 80ms ease, box-shadow 80ms ease;
-        }
-        .table-insert-grid-cell:hover,
-        .table-insert-grid-cell:focus-visible {
-            border-color: #475569;
-        }
-        .table-insert-grid-cell.is-selected {
-            border-color: #0f172a;
-            background: #334155;
-            box-shadow: inset 0 0 0 1px #0f172a;
-        }
-        .dark .table-insert-grid-cell {
-            border-color: #475569;
-            background: #1e293b;
-        }
-        .dark .table-insert-grid-cell:hover,
-        .dark .table-insert-grid-cell:focus-visible {
-            border-color: #fef08a;
-        }
-        .dark .table-insert-grid-cell.is-selected {
-            border-color: #fef9c3;
-            background: #fde047;
-            box-shadow: 0 0 0 1px rgba(253, 224, 71, .35);
-        }
-
         .markdown-body {
             line-height: 1.6;
             word-wrap: break-word;
@@ -60,7 +31,6 @@
             padding: var(--md-view-padding, 24px);
         }
         #viewer-edit-ta,
-        #viewer-edit-image-data-folded,
         #viewer-edit-highlight {
             box-sizing: border-box;
             padding: var(--md-view-padding, 24px);
@@ -526,12 +496,6 @@
                 overflow: visible !important;
                 background-color: white !important;
             }
-            html.dark,
-            html.dark body.printing-active {
-                background-color: #ffffff !important;
-                color: #1e293b !important;
-                color-scheme: light;
-            }
             body.printing-active > *:not(#print-root) { display: none !important; }
             body.printing-active #print-root { display: block !important; }
             body, .markdown-body { background-color: white !important; color: #1e293b !important; }
@@ -553,63 +517,7 @@
                 margin: 0 !important;
                 padding: 0 !important;
                 overflow: visible !important;
-                background-color: #ffffff !important;
-                color: #1e293b !important;
-                color-scheme: light;
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
             }
-            /* 인쇄 결과는 현재 화면 테마와 무관하게 라이트 보기 모드 색상을 사용한다. */
-            #print-root .markdown-body h1 {
-                color: #1e3a8a !important;
-                border-bottom-color: #bfdbfe !important;
-                background: linear-gradient(90deg, rgba(219, 234, 254, .85), rgba(255, 255, 255, 0)) !important;
-            }
-            #print-root .markdown-body h2 {
-                color: #1d4ed8 !important;
-                border-bottom-color: #93c5fd !important;
-                background: linear-gradient(90deg, rgba(219, 234, 254, .7), rgba(255, 255, 255, 0)) !important;
-            }
-            #print-root .markdown-body h3 { color: #0284c7 !important; border-left-color: #38bdf8 !important; }
-            #print-root .markdown-body h4 { color: #0369a1 !important; border-left-color: #7dd3fc !important; }
-            #print-root .markdown-body h5,
-            #print-root .markdown-body h6 { color: #2563eb !important; }
-            #print-root .markdown-body b,
-            #print-root .markdown-body strong {
-                color: #7c3aed !important;
-                background: none !important;
-                text-shadow: none !important;
-            }
-            #print-root .markdown-body a,
-            #print-root .markdown-body .md-footnote-ref a,
-            #print-root .markdown-body .md-footnote-backref,
-            #print-root .markdown-body .md-footnote-url { color: #2563eb !important; }
-            #print-root .markdown-body code,
-            #print-root .markdown-body pre {
-                background-color: #e2e8f0 !important;
-                color: #1e293b !important;
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-            }
-            #print-root .markdown-body pre code {
-                background-color: transparent !important;
-                color: inherit !important;
-            }
-            #print-root .markdown-body blockquote {
-                border-left-color: #cbd5e1 !important;
-                color: #64748b !important;
-            }
-            #print-root .markdown-body table,
-            #print-root .markdown-body th,
-            #print-root .markdown-body td { border-color: #cbd5e1 !important; }
-            #print-root .markdown-body thead th { background-color: #e2e8f0 !important; }
-            #print-root .markdown-body .tbl-caption,
-            #print-root .markdown-body .md-footnotes,
-            #print-root .markdown-body .katex { color: #334155 !important; }
-            #print-root .markdown-body li::marker { color: #ef4444 !important; }
-            #print-root .markdown-body ol > li::marker { color: #10b981 !important; }
-            #print-root .markdown-body ul ul > li::marker { color: #f43f5e !important; }
-            #print-root .markdown-body ul ul ul > li::marker { color: #fda4af !important; }
             #print-root pre,
             #print-root blockquote,
             #print-root table,
@@ -1261,9 +1169,9 @@
             top: 0;
             right: calc(100% + 8px);
             z-index: 3;
-            width: 140px;
+            width: 48px;
             height: 100%;
-            overflow: visible;
+            overflow: hidden;
             pointer-events: none;
         }
         .editor-format-marker {
@@ -1282,58 +1190,6 @@
             box-shadow: 0 1px 3px rgba(15, 23, 42, .14);
             pointer-events: auto;
             cursor: pointer;
-        }
-        .editor-format-image-data {
-            right: auto;
-            left: 38px;
-            min-width: 72px;
-            border-left: 3px solid #ec4899;
-            color: #be185d;
-            letter-spacing: -.04em;
-        }
-        #editor-image-data-fold {
-            position: absolute;
-            top: 0;
-            right: 0;
-            z-index: 6;
-            width: 24px;
-            height: 20px;
-            padding: 0;
-            border: 0;
-            border-radius: 4px;
-            background: transparent;
-            color: #64748b;
-            font: 700 15px/20px ui-monospace, SFMono-Regular, Consolas, monospace;
-            text-align: center;
-            pointer-events: auto;
-            cursor: pointer;
-        }
-        #editor-image-data-fold:hover,
-        #editor-image-data-fold:focus-visible {
-            background: #e2e8f0;
-            color: #be185d;
-            outline: none;
-        }
-        #editor-image-data-fold[hidden] { display: none; }
-        #viewer-edit-image-data-folded {
-            position: absolute;
-            inset: 0;
-            z-index: 2;
-            box-sizing: border-box;
-            margin: 0;
-            background: #0f172a;
-            color: #e2e8f0;
-            resize: none;
-        }
-        #viewer-edit-image-data-folded[hidden] { display: none; }
-        #editor-doc-wrap.image-data-fold-active #viewer-edit-ta,
-        #editor-doc-wrap.image-data-fold-active #viewer-edit-highlight {
-            visibility: hidden;
-        }
-        #content-viewport.editor-light-mode #viewer-edit-image-data-folded,
-        html:not(.dark) #viewer-edit-image-data-folded {
-            background: #ffffff;
-            color: #1e293b;
         }
         .editor-format-marker:hover,
         .editor-format-marker:focus-visible {
@@ -1354,20 +1210,17 @@
             color: #cbd5e1;
             box-shadow: 0 1px 3px rgba(0, 0, 0, .35);
         }
+        .dark .editor-format-heading { border-left-color: #0ea5e9; }
+        .dark .editor-format-list { border-left-color: #10b981; }
+        .dark .editor-format-quote { border-left-color: #a855f7; }
+        .dark .editor-format-code { border-left-color: #f59e0b; }
+        .dark .editor-format-table { border-left-color: #06b6d4; }
+        .dark .editor-format-rule { border-left-color: #64748b; }
         .dark .editor-format-marker:hover,
         .dark .editor-format-marker:focus-visible {
             border-color: #818cf8;
             background: #312e81;
             color: #eef2ff;
-        }
-        .dark #editor-image-data-fold {
-            background: transparent;
-            color: #e2e8f0;
-        }
-        .dark #editor-image-data-fold:hover,
-        .dark #editor-image-data-fold:focus-visible {
-            background: #334155;
-            color: #f9a8d4;
         }
         #editor-format-measure {
             position: fixed;
@@ -1387,7 +1240,6 @@
             display: inline-block;
             width: 0;
             height: 1px;
-            overflow: hidden;
             vertical-align: top;
             padding: 0;
             margin: 0;
@@ -1640,55 +1492,23 @@
         }
         
         /* Sidebar Transitions */
-        .sidebar-primary-actions {
-            display: grid;
-            grid-template-columns: 36px minmax(0, 1fr) minmax(0, 1fr);
-            width: 100%;
-        }
-
         #editor-shift-float {
             position: fixed;
-            touch-action: none;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-
-        #editor-shift-float.is-horizontal {
-            flex-direction: row !important;
-            padding: 0.25rem 0.5rem;
-        }
-
-        #editor-shift-float.is-dragging {
-            cursor: grabbing;
-            transition: none;
-        }
-
-        #editor-shift-float .editor-shift-drag-handle,
-        #editor-shift-float .editor-shift-orientation-toggle {
-            display: inline-flex;
-            width: 30px;
-            min-height: 24px;
+            z-index: 30;
+            display: flex;
             align-items: center;
-            justify-content: center;
-            border-radius: 0.25rem;
-            border: 1px solid rgb(203 213 225);
-            color: rgb(71 85 105);
-            font-size: 14px;
-            font-weight: 700;
-            line-height: 1;
+            gap: 4px;
+            padding: 4px 6px;
+            border: 1px solid #cbd5e1;
+            border-radius: 7px;
+            background: rgba(255,255,255,.92);
+            box-shadow: 0 4px 14px rgba(15,23,42,.16);
+            backdrop-filter: blur(6px);
         }
-
-        #editor-shift-float .editor-shift-drag-handle { cursor: grab; }
-        #editor-shift-float .editor-shift-drag-handle:active { cursor: grabbing; }
-        #editor-shift-float .editor-shift-drag-handle:hover,
-        #editor-shift-float .editor-shift-orientation-toggle:hover { background: rgb(241 245 249); }
-        .dark #editor-shift-float .editor-shift-drag-handle,
-        .dark #editor-shift-float .editor-shift-orientation-toggle {
-            border-color: rgb(71 85 105);
-            color: rgb(226 232 240);
-        }
-        .dark #editor-shift-float .editor-shift-drag-handle:hover,
-        .dark #editor-shift-float .editor-shift-orientation-toggle:hover { background: rgb(51 65 85); }
+        .dark #editor-shift-float { border-color: #475569; background: rgba(30,41,59,.94); }
+        #editor-shift-float .editor-shift-direction-buttons { display: flex; align-items: center; gap: 3px; }
+        #editor-shift-float[data-layout="footer"] { position: static; flex: 0 0 auto; padding: 0; border: 0; background: transparent; box-shadow: none; backdrop-filter: none; }
+        #editor-shift-float[data-layout="footer"] .editor-shift-direction-buttons button { padding: 1px 6px; }
 
         #sidebar {
             transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1710,33 +1530,6 @@
             gap: 0.5rem;
         }
 
-        .sidebar-collapsed #storage-source-tabs {
-            width: 100%;
-            flex-direction: column;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .sidebar-collapsed #storage-source-tabs > button,
-        .sidebar-collapsed #storage-source-tabs > a {
-            width: 34px;
-            min-width: 34px;
-            height: 34px;
-            padding: 0;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .sidebar-collapsed #storage-source-tabs .storage-tab-label {
-            display: none;
-        }
-
-        .sidebar-collapsed #storage-source-tabs .storage-tab-icon {
-            width: 17px;
-            height: 17px;
-            flex: 0 0 17px;
-        }
-
         .sidebar-collapsed .doc-action-btns {
             display: none !important;
         }
@@ -1750,10 +1543,6 @@
         #sidebar:not(.sidebar-collapsed) .doc-action-btns {
             visibility: visible;
             opacity: 1;
-        }
-
-        #sidebar.sidebar-doc-actions-hidden .doc-action-btns {
-            display: none !important;
         }
 
         #sidebar:not(.sidebar-collapsed) .doc-action-btns button {
@@ -2829,12 +2618,6 @@ html:not(.dark) #google-calendar-internal-panel {
         0 38px 80px rgba(15, 23, 42, .16) !important;
 }
 
-#toolbar {
-    position: relative;
-    z-index: 50;
-    overflow: visible;
-}
-
 html:not(.dark) #toolbar {
     border-color: #7b8ca2 !important;
     background: #607187 !important;
@@ -2850,95 +2633,6 @@ html:not(.dark) #toolbar {
     align-items: center;
     justify-content: center;
     line-height: 1.2;
-}
-
-/* Compact format popovers stay on one row, even when toolbar sizing rules change. */
-.format-quick-panel {
-    width: max-content;
-    max-width: calc(100vw - 16px);
-}
-
-.format-quick-row {
-    display: flex;
-    flex-flow: row nowrap;
-    align-items: center;
-    gap: 4px;
-}
-
-.format-quick-item {
-    flex: 0 0 42px;
-    width: 42px;
-    min-width: 42px;
-    height: 36px;
-    white-space: nowrap;
-}
-
-/* Paint every edit-toolbar dropdown as one complete layer above the document. */
-.toolbar-popover:not(.hidden) {
-    z-index: 100 !important;
-    overflow: visible;
-    visibility: visible !important;
-    opacity: 1 !important;
-    isolation: isolate;
-    transform: translateZ(0);
-}
-
-.toolbar-popover button:not(.hidden),
-.toolbar-popover [role="menuitem"]:not(.hidden) {
-    position: relative;
-    z-index: 1;
-    visibility: visible !important;
-    opacity: 1 !important;
-}
-
-/* Keep hovered and keyboard-focused choices readable in every toolbar menu. */
-html:not(.dark) .toolbar-popover button:not(.hidden):hover,
-html:not(.dark) .toolbar-popover button:not(.hidden):focus-visible,
-html:not(.dark) .toolbar-popover [role="menuitem"]:not(.hidden):hover,
-html:not(.dark) .toolbar-popover [role="menuitem"]:not(.hidden):focus-visible {
-    background-color: #e2e8f0 !important;
-    color: #0f172a !important;
-}
-
-.dark .toolbar-popover button:not(.hidden):hover,
-.dark .toolbar-popover button:not(.hidden):focus-visible,
-.dark .toolbar-popover [role="menuitem"]:not(.hidden):hover,
-.dark .toolbar-popover [role="menuitem"]:not(.hidden):focus-visible {
-    background-color: #334155 !important;
-    color: #f8fafc !important;
-}
-
-.toolbar-popover button:hover svg,
-.toolbar-popover button:focus-visible svg,
-.toolbar-popover [role="menuitem"]:hover svg,
-.toolbar-popover [role="menuitem"]:focus-visible svg {
-    color: currentColor !important;
-}
-
-/* List choices must remain visible below the toolbar/document boundary. */
-#list-quick-panel:not(.hidden) {
-    display: flex !important;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 4px;
-}
-
-#list-quick-panel > button {
-    display: flex !important;
-    min-height: 36px;
-    visibility: visible !important;
-    opacity: 1 !important;
-}
-
-html:not(.dark) #list-quick-panel > button {
-    background: #fff;
-    color: #334155;
-}
-
-html:not(.dark) #list-quick-panel > button:hover,
-html:not(.dark) #list-quick-panel > button:focus-visible {
-    background: #f1f5f9;
-    color: #0f172a;
 }
 
 /* Optional Photoshop-style right-side editor toolbar. */
@@ -3262,26 +2956,6 @@ html:not(.dark) #app-status-footer button {
     border-color: #1e293b !important;
 }
 
-/* Keep the dark editor sheet distinct from the surrounding dark workspace. */
-#drop-zone.document-dark-mode #editor-doc-wrap {
-    box-sizing: border-box;
-    border: 1px solid rgba(71, 85, 105, .72) !important;
-    border-radius: 10px;
-    box-shadow:
-        0 18px 48px rgba(2, 8, 23, .72),
-        0 0 24px rgba(30, 64, 175, .18),
-        inset 0 1px 0 rgba(148, 163, 184, .05);
-    transition: border-color .18s ease, box-shadow .18s ease;
-}
-
-#drop-zone.document-dark-mode #editor-doc-wrap:focus-within {
-    border-color: rgba(96, 165, 250, .58) !important;
-    box-shadow:
-        0 20px 52px rgba(2, 8, 23, .78),
-        0 0 30px rgba(30, 64, 175, .27),
-        inset 0 1px 0 rgba(191, 219, 254, .08);
-}
-
 #drop-zone.document-dark-mode #viewer-edit-ta {
     color: #e2e8f0 !important;
     -webkit-text-fill-color: #e2e8f0;
@@ -3311,6 +2985,21 @@ html:not(.dark) #app-status-footer button {
 #drop-zone.document-dark-mode .markdown-body th,
 #drop-zone.document-dark-mode .markdown-body td { border-color: #64748b; }
 #drop-zone.document-dark-mode .markdown-body thead th { background-color: #1e293b; }
+
+/* User colors for the main viewer. These intentionally affect dark view mode only. */
+#drop-zone.document-dark-mode #viewer.markdown-body h1,
+#drop-zone.document-dark-mode #viewer.markdown-body h2,
+#drop-zone.document-dark-mode #viewer.markdown-body h3,
+#drop-zone.document-dark-mode #viewer.markdown-body h4,
+#drop-zone.document-dark-mode #viewer.markdown-body h5,
+#drop-zone.document-dark-mode #viewer.markdown-body h6 {
+    color: var(--md-dark-view-header-color, #4f46e5);
+}
+
+#drop-zone.document-dark-mode #viewer.markdown-body b,
+#drop-zone.document-dark-mode #viewer.markdown-body strong {
+    color: var(--md-dark-view-bold-color, #f59e0b);
+}
 
 /* Main file actions default to compact icon buttons. The settings option can
    restore their labels without rebuilding the header. */
@@ -3475,22 +3164,6 @@ html.ai-chat-page-pushed .app-header .app-header-actions {
     justify-content: center;
 }
 
-/* Script-created provider bodies need their own inset inside the clipped rack. */
-#ai-link-settings-block #scholar-lm-settings-body,
-#ai-link-settings-block #scholar-ollama-settings-body {
-    box-sizing: border-box;
-    width: 100%;
-    min-width: 0;
-    margin-top: 0 !important;
-    padding: 4px 18px 18px;
-    overflow-wrap: anywhere;
-}
-
-#ai-link-settings-block #scholar-lm-settings-body > *,
-#ai-link-settings-block #scholar-ollama-settings-body > * {
-    min-width: 0;
-}
-
 #ai-link-settings-block .ai-settings-rack--lmstudio { --ai-rack-rgb: 8 145 178; }
 #ai-link-settings-block .ai-settings-rack--ollama { --ai-rack-rgb: 217 119 6; }
 #ai-link-settings-block .ai-settings-rack--litertlm { --ai-rack-rgb: 37 99 235; }
@@ -3573,14 +3246,4 @@ html.ai-chat-page-pushed .app-header .app-header-actions {
     #ai-link-settings-block #litertlm-settings-body {
         padding: 4px 12px 14px;
     }
-    #ai-link-settings-block #scholar-lm-settings-body,
-    #ai-link-settings-block #scholar-ollama-settings-body {
-        padding: 4px 12px 14px;
-    }
 }
-.indb-shared-prompt-editor{margin:0 0 18px;padding:16px;border:1px solid #c7d2fe;border-radius:14px;background:linear-gradient(135deg,#eef2ff,#f8fafc)}
-.indb-shared-prompt-editor strong{display:block;color:#312e81;font-size:14px}.indb-shared-prompt-editor p{margin:5px 0 10px;color:#64748b;font-size:12px}
-.indb-shared-prompt-editor textarea{display:block;width:100%;min-height:360px;box-sizing:border-box;resize:vertical;border:1px solid #cbd5e1;border-radius:10px;padding:12px;background:#fff;color:#0f172a;font:12px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace}
-.indb-shared-prompt-editor textarea[readonly]{background:#f8fafc;color:#475569}.indb-shared-prompt-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
-.indb-shared-prompt-actions button{border:1px solid #818cf8;border-radius:8px;padding:6px 14px;background:#fff;color:#4338ca;font-weight:700}.indb-shared-prompt-actions button:last-child{background:#4f46e5;color:#fff}
-.dark .indb-shared-prompt-editor{border-color:#3730a3;background:linear-gradient(135deg,#1e1b4b,#0f172a)}.dark .indb-shared-prompt-editor strong{color:#c7d2fe}.dark .indb-shared-prompt-editor textarea,.dark .indb-shared-prompt-editor textarea[readonly]{border-color:#475569;background:#111827;color:#e2e8f0}

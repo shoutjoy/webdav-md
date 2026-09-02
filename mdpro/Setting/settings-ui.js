@@ -39,14 +39,12 @@
     const SQLITE_FEATURE_KEY = 'mdpro_sqlite_feature_enabled_v1';
     const DEFAULT_SQLITE_BACKEND = 'wasm';
 
-    const DEFAULT_SQLITE_FEATURE_ENABLED = false;
-
     function readSqliteFeatureEnabled(fallback) {
         try {
             const stored = window.localStorage.getItem(SQLITE_FEATURE_KEY);
             if (stored != null) return stored === '1';
         } catch (_) {}
-        return typeof fallback === 'boolean' ? fallback : DEFAULT_SQLITE_FEATURE_ENABLED;
+        return fallback === true;
     }
 
     function writeSqliteFeatureEnabled(enabled) {
@@ -2308,7 +2306,7 @@
         if (!elements.checkbox) return;
         const enabled = typeof featureEnabled === 'boolean'
             ? featureEnabled
-            : readSqliteFeatureEnabled(DEFAULT_SQLITE_FEATURE_ENABLED);
+            : readSqliteFeatureEnabled(elements.checkbox.checked);
         elements.checkbox.checked = enabled;
         writeSqliteFeatureEnabled(enabled);
         setSqliteSettingsPanelVisible(enabled);

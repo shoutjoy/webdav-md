@@ -1,53 +1,5 @@
 // js/inDB/inDB.js opens MarkdownProDB; app.js keeps the shared connection for editor integrations.
 let db;
-let mainDatabaseReadyPromise = null;
-let storageServiceReadyPromise = null;
-
-function ensureMainDatabaseReady() {
-    if (db) return Promise.resolve(db);
-    if (mainDatabaseReadyPromise) return mainDatabaseReadyPromise;
-    if (typeof initDB !== 'function') {
-        return Promise.reject(new Error('데이터베이스 초기화 모듈을 불러오지 못했습니다.'));
-    }
-    mainDatabaseReadyPromise = Promise.resolve()
-        .then(function () { return initDB(); })
-        .then(function (openedDb) {
-            db = openedDb || db;
-            if (!db) throw new Error('데이터베이스 연결을 만들지 못했습니다.');
-            return db;
-        })
-        .catch(function (error) {
-            mainDatabaseReadyPromise = null;
-            throw error;
-        });
-    return mainDatabaseReadyPromise;
-}
-
-function ensureStorageServiceReady() {
-    if (!window.MDPStorage || typeof window.MDPStorage.initialize !== 'function') {
-        return Promise.reject(new Error('저장소 초기화 모듈을 불러오지 못했습니다.'));
-    }
-    const currentState = typeof window.MDPStorage.getStatus === 'function'
-        ? window.MDPStorage.getStatus()
-        : null;
-    if (currentState && currentState.initialized) return Promise.resolve(currentState);
-    if (storageServiceReadyPromise) return storageServiceReadyPromise;
-
-    storageServiceReadyPromise = ensureMainDatabaseReady()
-        .then(function () {
-            const latestState = typeof window.MDPStorage.getStatus === 'function'
-                ? window.MDPStorage.getStatus()
-                : null;
-            if (latestState && latestState.initialized) return latestState;
-            return window.MDPStorage.initialize({ getIndexedDb: function () { return db; } });
-        })
-        .catch(function (error) {
-            storageServiceReadyPromise = null;
-            throw error;
-        });
-    return storageServiceReadyPromise;
-}
-window.ensureStorageServiceReady = ensureStorageServiceReady;
 const AI_SETTINGS_KEY = 'ai_settings';
 const AI_SETTINGS_FALLBACK_KEY = 'md_viewer_ai_settings_fallback';
 const AI_PASSWORD_HASH = 'dc98e82fcfb4b165f5fa390d5ca61a9245a5be6ea70a4f00020ddff029afefba';
@@ -79,6 +31,30 @@ const GOOGLE_CALENDAR_OPEN_MODE_KEY = 'md_viewer_google_calendar_open_mode';
 const GOOGLE_CALENDAR_EMAIL_KEY = 'md_viewer_google_calendar_email';
 const VIEW_COPY_FAB_POSITION_KEY = 'md_viewer_view_copy_fab_position_v2';
 const VIEW_COPY_FAB_EDGE_GAP = 8;
+const FIRST_RUN_AI_SETTINGS_DEFAULTS = Object.freeze({
+    aiMasterEnabled: true,
+    scholarAI: true,
+    sspimgAI: false,
+    scholarSearchVisible: true,
+    highlightVisible: true,
+    toDocsVisible: true,
+    sitesVisible: true,
+    macroVisible: false,
+    templateVisible: false,
+    templateNewFileVisible: true,
+    noteCoverInsertVisible: true,
+    pdfMergeVisible: false,
+    chromeSplitTabVisible: false,
+    html2pptVisible: true,
+    html2pptNameVisible: false,
+    fmaViewerVisible: true,
+    fmaViewerNameVisible: false,
+    imageUploadEnabled: true
+});
+
+function withFirstRunAiSettingsDefaults(settings) {
+    return { ...FIRST_RUN_AI_SETTINGS_DEFAULTS, ...(settings || {}), id: AI_SETTINGS_KEY };
+}
 
 function getHeaderFileActionStyle() {
     const stored = localStorage.getItem(HEADER_FILE_ACTION_STYLE_KEY);
@@ -154,15 +130,16 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     docxImport: './js/extendFiles/docx-import.js?v=20260817-dark-table-contrast-1',
     pdfJs: './js/extendFiles/pdfjs-loader.mjs?v=20260815-editable-2',
     pdfOpen: './js/extendFiles/pdf-open.js?v=20260815-editable-1',
-    docxExport: './js/extendFiles/docx-export.js?v=20260902-mermaid-image-4',
-    htmlExport: './js/export/html-export.js?v=20260902-light-theme-1',
+    docxExport: './js/extendFiles/docx-export.js?v=20260816-merge-cover-toc-2',
+    htmlExport: './js/export/html-export.js?v=20260805-image-1',
     pdfExport: './js/export/pdf-export.js?v=20260813-merge-tool-1',
     html2canvas: './vendor/html2canvas/html2canvas.min.js?v=1.4.1',
     jsPdf: './vendor/jspdf/jspdf.umd.min.js?v=4.2.1',
-    aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1-pdf-to-pv-1',
-    aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260902-web-search-recovery-2',
-    aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260902-new-window-links-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?v=20260902-search-max-tokens-1-pdf-to-pv-1',
+    aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
+    aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260829-pages-local-search-1',
+    aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
+    aiMermaidGuard: './AI_App/aiChat/ai-jena-mermaid-guard.js?v=20260831-1',
+    aiChat: './AI_App/aiChat/ai-chat.js?v=20260902-webdav-jena-port-1',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260810-3'
@@ -233,7 +210,8 @@ async function ensureAiChatLoaded() {
     await Promise.allSettled([
         loadOptionalScript('aiAcademicSearch', function () { return !!window.AIChatAcademicSearch; }),
         loadOptionalScript('aiWebSearch', function () { return !!window.AIJenaLocalAPI; }),
-        loadOptionalScript('aiMarkdown', function () { return !!window.AIChatMarkdown; })
+        loadOptionalScript('aiMarkdown', function () { return !!window.AIChatMarkdown; }),
+        loadOptionalScript('aiMermaidGuard', function () { return !!window.AIJenaMermaidGuard; })
     ]);
     await loadOptionalScript('aiChat', function () { return !!window.AIChat; });
     return true;
@@ -283,13 +261,12 @@ function initializeLazyAiChatEntry() {
     const checkbox = document.getElementById('ai-chat-enabled');
     const menuCheckbox = document.getElementById('ai-chat-menu-enabled');
     const menuButton = document.getElementById('btn-ai-jena-menu');
-    // 이전 버전에서는 두 진입 방식을 동시에 켤 수 있었다. 겹친 저장값은
-    // 메뉴 방식을 우선하여 한 번만 정리한다.
-    if (localStorage.getItem(enabledKey) === '1' && localStorage.getItem(menuEnabledKey) === '1') {
-        localStorage.setItem(enabledKey, '0');
-    }
+    const isMenuEnabled = function () {
+        const stored = localStorage.getItem(menuEnabledKey);
+        return stored == null ? true : stored === '1';
+    };
     const syncMenuButton = function () {
-        const enabled = localStorage.getItem(menuEnabledKey) === '1';
+        const enabled = isMenuEnabled();
         if (menuCheckbox) menuCheckbox.checked = enabled;
         if (menuButton) {
             menuButton.classList.toggle('hidden', !enabled);
@@ -417,11 +394,7 @@ function initializeLazyAiChatEntry() {
         checkbox.dataset.lazyAiChatBound = '1';
         checkbox.checked = localStorage.getItem(enabledKey) === '1';
         checkbox.addEventListener('change', function () {
-            if (!checkbox.checked) return;
-            if (menuCheckbox) menuCheckbox.checked = false;
-            localStorage.setItem(menuEnabledKey, '0');
             localStorage.setItem(enabledKey, checkbox.checked ? '1' : '0');
-            syncMenuButton();
             window.dispatchEvent(new CustomEvent('ai-jena-enabled-change', {
                 detail: { enabled: checkbox.checked }
             }));
@@ -432,19 +405,9 @@ function initializeLazyAiChatEntry() {
     if (menuCheckbox && !menuCheckbox.dataset.aiChatMenuBound) {
         menuCheckbox.dataset.aiChatMenuBound = '1';
         menuCheckbox.addEventListener('change', function () {
-            if (!menuCheckbox.checked) return;
-            if (checkbox) checkbox.checked = false;
-            localStorage.setItem(enabledKey, '0');
             localStorage.setItem(menuEnabledKey, menuCheckbox.checked ? '1' : '0');
-            removeLauncher();
-            if (window.AIChat && typeof window.AIChat.setEnabled === 'function') {
-                window.AIChat.setEnabled(false);
-            }
-            window.dispatchEvent(new CustomEvent('ai-jena-enabled-change', {
-                detail: { enabled: false }
-            }));
             syncMenuButton();
-            if (typeof applyAiFeatureVisibility === 'function') applyAiFeatureVisibility();
+            if (!menuCheckbox.checked && typeof applyAiFeatureVisibility === 'function') applyAiFeatureVisibility();
         });
     }
     syncMenuButton();
@@ -508,8 +471,6 @@ function enableTouchModalDrag(panel, handle, options) {
 }
 const GITHUB_SETTINGS_FOLD_KEY = 'md_viewer_github_settings_folded';
 const EDITOR_HORIZONTAL_SHIFT_KEY = 'md_viewer_editor_horizontal_shift_px';
-const EDITOR_SHIFT_FLOAT_POSITION_KEY = 'md_viewer_editor_shift_float_position';
-const EDITOR_SHIFT_FLOAT_ORIENTATION_KEY = 'md_viewer_editor_shift_float_orientation';
 
 // State
 let currentMarkdown = "";
@@ -581,7 +542,6 @@ let highlightPopupDragBound = false;
 let highlightPopupDragging = false;
 let highlightPopupDragOffsetX = 0;
 let highlightPopupDragOffsetY = 0;
-let highlightPopupDockLeft = 12;
 let highlightPopupDockTop = 80;
 let highlightSelectionSyncBound = false;
 let highlightPopupMsgBound = false;
@@ -686,6 +646,12 @@ const THEME_KEY = 'md_viewer_theme';
 const EDITOR_LIGHT_KEY = 'md_viewer_editor_light';
 const EDITOR_COMMENT_LIGHT_COLOR_KEY = 'md_viewer_comment_highlight_light';
 const EDITOR_COMMENT_DARK_COLOR_KEY = 'md_viewer_comment_highlight_dark';
+const DARK_VIEW_BOLD_COLOR_KEY = 'md_viewer_dark_view_bold_color';
+const DARK_VIEW_HEADER_COLOR_KEY = 'md_viewer_dark_view_header_color';
+const DEFAULT_DARK_VIEW_TEXT_COLORS = Object.freeze({
+    bold: '#f59e0b',
+    header: '#4f46e5'
+});
 const DEFAULT_EDITOR_COMMENT_COLORS = window.MDComment && window.MDComment.DEFAULT_EDITOR_COMMENT_COLORS
     ? window.MDComment.DEFAULT_EDITOR_COMMENT_COLORS
     : Object.freeze({ light: '#f59e0b', dark: '#facc15' });
@@ -717,21 +683,8 @@ function isDocumentFileDrag(event) {
 async function openDroppedDocumentFile(file) {
     if (!file) return false;
     const extension = getSelectedFileExtension(file);
-    if (isSelectedImageFile(file, extension)) {
-        if (isFmaViewerFeatureEnabled()) {
-            openSelectedFileInBrowserViewer(file, extension);
-        } else if (!openSelectedImageInPreviewPopup(file)) {
-            showToast('이미지를 PV 창에서 열지 못했습니다. 팝업 허용 설정을 확인하세요.');
-        }
-        return true;
-    }
     if (extension === '.docx') return openDocxInEditor(file);
     if (extension === '.pdf') return openPdfInEditor(file);
-    if (DEDICATED_LOCAL_VIEWER_EXTENSIONS.has(extension)) {
-        if (openSelectedFileInBrowserViewer(file, extension)) return true;
-        showToast('이 파일 형식은 현재 Tauri 앱 내부에서 직접 열 수 없습니다: ' + file.name);
-        return false;
-    }
     await readFile(file);
     return true;
 }
@@ -810,9 +763,6 @@ let math99PopupStartX = 0;
 let math99PopupStartY = 0;
 let math99PopupStartW = 0;
 let math99PopupStartH = 0;
-let img2MathImage = null;
-let img2MathBound = false;
-let img2MathSelection = { start: 0, end: 0 };
 
 function loadFolderCollapseState() {
     try {
@@ -845,36 +795,8 @@ function toggleFolderCollapse(folderId) {
     if (!key) return;
     folderCollapseState[key] = !isFolderCollapsed(key);
     saveFolderCollapseState();
-    Promise.resolve(renderDBList()).finally(syncToggleAllSidebarFoldersButton);
+    renderDBList();
 }
-
-function syncToggleAllSidebarFoldersButton() {
-    const button = document.getElementById('toggle-all-sidebar-folders');
-    const folderNodes = document.querySelectorAll('#db-list .sidebar-folder-node[data-folder-id]');
-    const allCollapsed = folderNodes.length > 0 && Array.from(folderNodes).every(function (node) {
-        return isFolderCollapsed(node.dataset.folderId);
-    });
-    if (!button) return allCollapsed;
-    const label = allCollapsed ? '모든 폴더 펼치기' : '모든 폴더 접기';
-    button.textContent = allCollapsed ? '▲' : '▼';
-    button.title = label;
-    button.setAttribute('aria-label', label);
-    button.setAttribute('aria-pressed', String(allCollapsed));
-    return allCollapsed;
-}
-
-function toggleAllSidebarFolders() {
-    const folderNodes = document.querySelectorAll('#db-list .sidebar-folder-node[data-folder-id]');
-    const shouldCollapse = !syncToggleAllSidebarFoldersButton();
-    folderNodes.forEach(function (node) {
-        const folderId = String(node.dataset.folderId || '');
-        if (folderId) folderCollapseState[folderId] = shouldCollapse;
-    });
-    saveFolderCollapseState();
-    Promise.resolve(renderDBList()).finally(syncToggleAllSidebarFoldersButton);
-}
-
-window.toggleAllSidebarFolders = toggleAllSidebarFolders;
 
 function getStorageSourceTabFromLocal() {
     try {
@@ -1294,36 +1216,6 @@ async function tryGetInitialFileViaTauri() {
     }
 }
 
-async function initializeTauriFileOpen() {
-    const tauri = window.__TAURI__;
-    if (tauri && tauri.event && typeof tauri.event.listen === 'function') {
-        await tauri.event.listen('mdpro-open-file', async function (event) {
-            try {
-                const opened = await applyIncomingOpenedFile(event.payload, {
-                    askBeforeReplace: true,
-                    toastMessage: '드래그한 파일을 열었습니다.',
-                    showMissingTextToast: true
-                });
-                if (opened) receivedExternalContent = true;
-            } catch (error) {
-                showToast('파일 열기 실패: ' + (error.message || error));
-            }
-        });
-        await tauri.event.listen('mdpro-open-file-error', function (event) {
-            showToast('파일 열기 실패: ' + event.payload);
-        });
-    }
-    const data = await tryGetInitialFileViaTauri();
-    if (data) {
-        const opened = await applyIncomingOpenedFile(data, {
-            askBeforeReplace: false,
-            toastMessage: '시작 파일을 열었습니다.',
-            showMissingTextToast: true
-        });
-        if (opened) receivedExternalContent = true;
-    }
-}
-
 async function applyIncomingOpenedFile(rawPayload, options) {
     const opts = options || {};
     let payload = normalizeExternalOpenPayload(rawPayload);
@@ -1339,9 +1231,7 @@ async function applyIncomingOpenedFile(rawPayload, options) {
     }
 
     const sig = buildExternalOpenSignature(payload);
-    if (sig && sig === lastExternalOpenSignature
-        && String(editorTextarea ? editorTextarea.value : currentMarkdown) === payload.text
-        && String(currentFilePath || '') === payload.path) return true;
+    if (sig && sig === lastExternalOpenSignature) return true;
 
     if (opts.askBeforeReplace) {
         const canProceed = await confirmSaveBeforeOpeningAnotherFile();
@@ -1721,17 +1611,6 @@ function readOpenAICompatibleModelsCache() {
     catch (_) { return []; }
 }
 
-function getVisibleOpenAICompatibleModelIds() {
-    const freeOnly = localStorage.getItem(OPENAI_COMPATIBLE_FREE_ONLY_KEY) !== '0';
-    const models = readOpenAICompatibleModelsCache();
-    const visible = freeOnly ? models.filter(isOpenAICompatibleFreeModel) : models;
-    const selected = String(localStorage.getItem('ss_openai_compatible_model_id') || '').trim();
-    if (selected && (!freeOnly || isOpenAICompatibleFreeModel(selected))) {
-        visible.push({ id: selected });
-    }
-    return Array.from(new Set(visible.map(function (item) { return item.id; }).filter(Boolean)));
-}
-
 function setOpenAICompatibleStatus(message, state) {
     const status = document.getElementById('openai-compatible-connection-status');
     if (!status) return;
@@ -1772,7 +1651,6 @@ function applyOpenAICompatibleModelFilter() {
     localStorage.setItem(OPENAI_COMPATIBLE_FREE_ONLY_KEY, !checkbox || checkbox.checked ? '1' : '0');
     const visible = renderOpenAICompatibleModelMenu(openAICompatibleModels);
     setOpenAICompatibleStatus((checkbox && checkbox.checked ? '무료 모델 ' : '전체 모델 ') + visible.length + '개 표시', visible.length ? 'ok' : '');
-    if (window.AIChat && typeof window.AIChat.syncSettings === 'function') window.AIChat.syncSettings();
 }
 
 function getOpenAICompatibleFormConnection() {
@@ -2048,6 +1926,22 @@ function organizeSettingsDashboard() {
     ].join('');
     appendToColumn(generalColumn, headerHeadingSettings);
     applyHeaderHeadingDisplay(getHeaderHeadingDisplay(), false);
+    const darkViewTextColorSettings = document.createElement('div');
+    darkViewTextColorSettings.id = 'dark-view-text-color-settings';
+    darkViewTextColorSettings.className = 'rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-3';
+    darkViewTextColorSettings.innerHTML = [
+        '<div class="text-xs font-bold text-slate-700 dark:text-slate-200">보기 글자 색상 (다크모드)</div>',
+        '<div class="mt-3 space-y-3">',
+        '  <label class="flex items-center justify-between gap-3 text-xs font-medium text-slate-700 dark:text-slate-300"><span>Bold 색상</span><input type="color" id="dark-view-bold-color" value="' + DEFAULT_DARK_VIEW_TEXT_COLORS.bold + '" onchange="applyDarkViewTextColorSettings(true)" class="h-9 w-12 cursor-pointer rounded border border-slate-300 bg-transparent p-1 dark:border-slate-600" aria-label="다크모드 보기 Bold 색상"></label>',
+        '  <label class="flex items-center justify-between gap-3 text-xs font-medium text-slate-700 dark:text-slate-300"><span>헤더 색상</span><input type="color" id="dark-view-header-color" value="' + DEFAULT_DARK_VIEW_TEXT_COLORS.header + '" onchange="applyDarkViewTextColorSettings(true)" class="h-9 w-12 cursor-pointer rounded border border-slate-300 bg-transparent p-1 dark:border-slate-600" aria-label="다크모드 보기 헤더 색상"></label>',
+        '</div>',
+        '<div class="mt-3 flex items-center justify-between gap-3">',
+        '  <p class="text-[10px] leading-relaxed text-slate-500 dark:text-slate-400">보기 화면의 다크모드에만 적용됩니다.</p>',
+        '  <button type="button" onclick="resetDarkViewTextColorSettings()" class="shrink-0 text-[11px] font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300">기본값으로 초기화</button>',
+        '</div>'
+    ].join('');
+    appendToColumn(generalColumn, darkViewTextColorSettings);
+    loadDarkViewTextColorSettings();
     if (aiUser) {
         aiUser.className = 'border border-slate-200 dark:border-slate-700 rounded-lg p-4 bg-slate-50 dark:bg-slate-900/50 space-y-2';
         appendToColumn(generalColumn, aiUser);
@@ -2187,9 +2081,7 @@ window.onload = async () => {
         initializeOptionalCodeMirrorPrototype();
         toggleMode('edit');
 
-        // Open native files even if optional storage initialization later fails.
-        await tauriFileOpenReady;
-        await ensureMainDatabaseReady();
+        await initDB();
         if (window.TextStyleTool && typeof window.TextStyleTool.setDatabase === 'function') {
             try {
                 await window.TextStyleTool.setDatabase(db);
@@ -2199,7 +2091,7 @@ window.onload = async () => {
             }
         }
         if (window.MDPStorage && typeof window.MDPStorage.initialize === 'function') {
-            const storageState = await ensureStorageServiceReady();
+            const storageState = await window.MDPStorage.initialize({ getIndexedDb: function () { return db; } });
             if (window.TextStyleTool && typeof window.TextStyleTool.setSqliteStorage === 'function') {
                 const fontSync = await window.TextStyleTool.setSqliteStorage(window.MDPStorage);
                 if (fontSync && fontSync.pending) {
@@ -2275,13 +2167,6 @@ window.onload = async () => {
                 showToast: showToast
             });
         }
-        const startupSettings = await getAiSettings();
-        if (window.GithubDataSettings && typeof window.GithubDataSettings.ensureUiReady === 'function') {
-            await window.GithubDataSettings.ensureUiReady();
-        }
-        if (typeof window.syncGithubSettingsFields === 'function') {
-            window.syncGithubSettingsFields(startupSettings || {});
-        }
         loadFolderCollapseState();
         currentStorageSourceTab = getStorageSourceTabFromLocal();
         updateStorageSourceTabsUI();
@@ -2342,7 +2227,7 @@ window.onload = async () => {
             refreshLucideIcons(sidebar);
         }
 
-        await initAiVisibility();
+        initAiVisibility();
 
     window.addEventListener('electron-open-file', async function (ev) {
         const detail = ev && ev.detail ? ev.detail : null;
@@ -2366,7 +2251,15 @@ window.onload = async () => {
         }).catch(function () {});
     }
 
-    if (editorTextarea) bindEditorDocumentHistory();
+    tryGetInitialFileViaTauri().then(function (data) {
+        if (!data) return;
+        applyIncomingOpenedFile(data, {
+            askBeforeReplace: false,
+            toastMessage: '시작 파일을 열었습니다.',
+            showMissingTextToast: true
+        });
+    });
+
     if (editorTextarea) editorTextarea.addEventListener('input', () => {
         currentMarkdown = editorTextarea.value;
         scheduleCurrentDocumentMetadataDisplay();
@@ -2462,14 +2355,12 @@ window.onload = async () => {
                     tidySeparatorSpacing: tidySeparatorSpacing
                 });
                 if (applied && applied.changed && typeof applied.text === 'string') {
-                    const historyBefore = beginEditorHistoryTransaction();
                     editorTextarea.value = applied.text;
                     currentMarkdown = applied.text;
                     lastEditCaretPos = Math.max(0, Math.min(Number(applied.caretPos) || 0, applied.text.length));
                     performAutoSave();
                     if (activeSidebarTab === 'toc') renderTOC();
                     renderMarkdown();
-                    commitEditorHistoryTransaction(historyBefore, 'view-toolbar');
                     requestAnimationFrame(function () {
                         if (isEditMode || !viewerContainer) return;
                         const ratio = getMarkdownRatioFromCharPos(lastEditCaretPos);
@@ -2681,13 +2572,33 @@ window.onload = async () => {
         }
         if (e.ctrlKey && !e.altKey && !e.metaKey && e.key.toLowerCase() === 'z') {
             e.preventDefault();
-            if (e.shiftKey) redoEditorDocumentHistory();
-            else undoEditorDocumentHistory();
+            let handledBySnapshot = false;
+            if (e.shiftKey) {
+                const redone = document.execCommand('redo');
+                if (!redone) handledBySnapshot = redoFromReplaceStack();
+            } else {
+                const undone = document.execCommand('undo');
+                if (!undone) handledBySnapshot = undoFromReplaceStack();
+            }
+            if (handledBySnapshot) return;
+            setTimeout(() => {
+                currentMarkdown = editorTextarea.value;
+                renderMarkdown();
+                if (activeSidebarTab === 'toc') renderTOC();
+                performAutoSave();
+            }, 10);
             return;
         }
         if (e.ctrlKey && !e.altKey && !e.metaKey && e.key.toLowerCase() === 'y') {
             e.preventDefault();
-            redoEditorDocumentHistory();
+            const redone = document.execCommand('redo');
+            if (!redone && redoFromReplaceStack()) return;
+            setTimeout(() => {
+                currentMarkdown = editorTextarea.value;
+                renderMarkdown();
+                if (activeSidebarTab === 'toc') renderTOC();
+                performAutoSave();
+            }, 10);
             return;
         }
         // Line Navigation & Modification
@@ -2722,7 +2633,6 @@ function updateContent(md) {
     notebookLmEqualsHrPreprocess = false;
     currentMarkdown = md;
     if (editorTextarea) editorTextarea.value = md;
-    resetEditorDocumentHistory();
     updateCurrentDocumentMetadataDisplay();
     mainRenderDirty = true;
     renderMarkdown({ force: !isEditMode });
@@ -3498,6 +3408,36 @@ function applyDoiLinkTargets(root) {
 
 window.applyDoiLinkTargets = applyDoiLinkTargets;
 
+function isDocumentNavigationLink(link) {
+    if (!link || !link.getAttribute) return false;
+    const href = String(link.getAttribute('href') || '').trim();
+    if (!href || href.charAt(0) === '#') return false;
+    return !/^javascript:/i.test(href);
+}
+
+function applyDocumentLinkTargets(root) {
+    if (!root || !root.querySelectorAll) return;
+    root.querySelectorAll('a[href]').forEach(function (link) {
+        if (!isDocumentNavigationLink(link)) return;
+        link.setAttribute('target', '_blank');
+        link.setAttribute('rel', 'noopener noreferrer');
+    });
+    if (root.__documentNewWindowLinksBound) return;
+    root.__documentNewWindowLinksBound = true;
+    root.addEventListener('click', function (event) {
+        const link = event.target && event.target.closest
+            ? event.target.closest('a[href]')
+            : null;
+        if (!link || !root.contains(link) || !isDocumentNavigationLink(link)) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        const view = (link.ownerDocument && link.ownerDocument.defaultView) || window;
+        view.open(link.href, '_blank', 'noopener,noreferrer');
+    }, true);
+}
+
+window.applyDocumentLinkTargets = applyDocumentLinkTargets;
+
 function applyInline2RefLinkTargets(root) {
     if (!root || !root.querySelectorAll) return;
     root.querySelectorAll('a[title="mdpro-inline2ref-new-window"]').forEach(function (link) {
@@ -3616,6 +3556,7 @@ async function renderMarkdown(options) {
     function runPostRenderHooks() {
         if (!isCurrentRender()) return;
         try { applyMarkdownImageSizeHints(viewer); } catch (e) {}
+        try { applyDocumentLinkTargets(viewer); } catch (e) {}
         try { if (snapshot.features.hasDoiLinks) applyDoiLinkTargets(viewer); } catch (e) {}
         try { applyInline2RefLinkTargets(viewer); } catch (e) {}
         try { if (typeof bindFootnoteLinkNavigation === 'function') bindFootnoteLinkNavigation(); } catch (e) {}
@@ -4306,9 +4247,7 @@ function toggleOpenSourceMenu(event) {
     if (event) event.stopPropagation();
     const menu = document.getElementById('open-source-menu');
     if (!menu) return;
-    const shouldOpen = menu.classList.contains('hidden');
-    if (shouldOpen) closeOtherHeaderMenus('open-source-menu');
-    setOpenSourceMenuVisible(shouldOpen);
+    setOpenSourceMenuVisible(menu.classList.contains('hidden'));
 }
 
 function setNewFileMenuVisible(visible) {
@@ -4324,15 +4263,7 @@ function toggleNewFileMenu(event) {
     if (event) event.stopPropagation();
     const menu = document.getElementById('new-file-menu');
     if (!menu) return;
-    const shouldOpen = menu.classList.contains('hidden');
-    if (shouldOpen) closeOtherHeaderMenus('new-file-menu');
-    setNewFileMenuVisible(shouldOpen);
-}
-
-function closeOtherHeaderMenus(exceptMenuId) {
-    if (exceptMenuId !== 'new-file-menu') setNewFileMenuVisible(false);
-    if (exceptMenuId !== 'open-source-menu') setOpenSourceMenuVisible(false);
-    if (exceptMenuId !== 'save-dropdown-menu') closeSaveDropdown();
+    setNewFileMenuVisible(menu.classList.contains('hidden'));
 }
 
 function createBlankFileFromNewMenu(event) {
@@ -4676,11 +4607,6 @@ function updateCurrentDocumentDisplay(options) {
 
 function getCurrentDbDocumentId() {
     return currentDbDocId ? String(currentDbDocId) : '';
-}
-
-function getCurrentMarkdownSnapshot() {
-    syncCurrentMarkdownFromEditor();
-    return String(currentMarkdown ?? '');
 }
 
 async function getCurrentFileGoogleDocId() {
@@ -5074,7 +5000,7 @@ async function readFile(file, options) {
         return;
     }
     const reader = new FileReader();
-    reader.onload = async (e) => {
+    reader.onload = (e) => {
         const raw = decodeOpenedTextBytes(e.target.result).text;
         const parsed = (formatApi && typeof formatApi.parseFileText === 'function')
             ? formatApi.parseFileText(name, raw)
@@ -5100,17 +5026,14 @@ async function readFile(file, options) {
                     ? parser.detectPayloadKind(data)
                     : '';
                 if (kind === 'mpv' || (data && data.format === MPV_FORMAT && Array.isArray(data.folders) && Array.isArray(data.documents))) {
-                    await restoreFromMpv(data);
+                    restoreFromMpv(data);
                     return;
                 }
                 if (kind === 'mpp') {
                     showToast('MPP file detected. Open it in GenSlide editor.');
                     return;
                 }
-            } catch (err) {
-                showToast('MPV 파일을 열 수 없습니다: ' + (err && err.message ? err.message : err));
-                return;
-            }
+            } catch (_) {}
         }
         if (kind === 'mpp') {
             showToast('MPP file detected. Open it in GenSlide editor.');
@@ -5191,13 +5114,6 @@ async function importMddDocumentFile(file, options) {
 }
 
 async function importZipDocumentFile(file) {
-    if (typeof JSZip !== 'undefined') {
-        const inspectedZip = await JSZip.loadAsync(await file.arrayBuffer());
-        if (inspectedZip.file('_mdpro_backup.json')) {
-            await restoreFromZipBackup(inspectedZip);
-            return;
-        }
-    }
     if (!db) {
         showToast('Database is not ready yet. Please try again.');
         return;
@@ -5218,10 +5134,7 @@ async function importZipDocumentFile(file) {
 }
 
 async function restoreFromMpv(data) {
-    await ensureMainDatabaseReady();
-    if (!data || !Array.isArray(data.folders) || !Array.isArray(data.documents)) {
-        throw new Error('올바른 MPV 백업 파일이 아닙니다.');
-    }
+    if (!db) return;
     const tx = db.transaction(['folders', 'documents'], 'readwrite');
     const storeFolders = tx.objectStore('folders');
     const storeDocs = tx.objectStore('documents');
@@ -5255,102 +5168,6 @@ function openBackupModal() {
 function closeBackupModal() {
     document.getElementById('backup-modal').classList.add('hidden');
     document.getElementById('backup-modal').classList.remove('flex');
-}
-
-function openMpvFilePicker(event) {
-    if (event) event.preventDefault();
-    const input = document.getElementById('file-input');
-    if (!input) {
-        showToast('파일 선택기를 열 수 없습니다.');
-        return false;
-    }
-    // Reset first so choosing the same backup twice still fires `change`.
-    input.value = '';
-    closeBackupModal();
-    input.click();
-    return true;
-}
-
-function openZipBackupFilePicker(event) {
-    if (event) event.preventDefault();
-    const input = document.getElementById('zip-backup-input');
-    if (!input) {
-        showToast('ZIP 파일 선택기를 열 수 없습니다.');
-        return false;
-    }
-    input.value = '';
-    closeBackupModal();
-    input.click();
-    return true;
-}
-
-async function handleZipBackupFileSelect(event) {
-    const input = event && event.target;
-    const file = input && input.files && input.files[0];
-    if (!file) return false;
-    try {
-        if (typeof JSZip === 'undefined') throw new Error('ZIP 모듈을 불러오지 못했습니다.');
-        const zip = await JSZip.loadAsync(await file.arrayBuffer());
-        await restoreFromZipBackup(zip);
-        return true;
-    } catch (error) {
-        showToast('ZIP 백업을 열 수 없습니다: ' + (error && error.message ? error.message : error));
-        return false;
-    } finally {
-        if (input) input.value = '';
-    }
-}
-
-async function restoreFromZipBackup(zip) {
-    const manifestEntry = zip && zip.file('_mdpro_backup.json');
-    if (manifestEntry) {
-        const manifest = JSON.parse(await manifestEntry.async('string'));
-        if (!manifest || manifest.format !== 'mdpro-zip-backup' || !Array.isArray(manifest.documents)) {
-            throw new Error('올바른 MDPro ZIP 백업 파일이 아닙니다.');
-        }
-        await restoreFromMpv({ folders: manifest.folders || [], documents: manifest.documents });
-        showToast('ZIP 백업의 모든 문서를 복원했습니다.');
-        return;
-    }
-
-    const markdownEntries = Object.keys((zip && zip.files) || {}).filter(function (path) {
-        const entry = zip.files[path];
-        return entry && !entry.dir && /\.md$/i.test(path) && !path.includes('__MACOSX/');
-    });
-    if (!markdownEntries.length) throw new Error('ZIP 안에서 Markdown 문서를 찾지 못했습니다.');
-    if (markdownEntries.length > 2000) throw new Error('ZIP 문서 수가 너무 많습니다 (최대 2,000개).');
-    const totalBytes = markdownEntries.reduce(function (sum, path) {
-        const data = zip.files[path] && zip.files[path]._data;
-        return sum + Number(data && data.uncompressedSize || 0);
-    }, 0);
-    if (totalBytes > 100 * 1024 * 1024) throw new Error('압축 해제할 문서가 너무 큽니다 (최대 100MB).');
-
-    const now = Date.now();
-    const folderIds = new Map();
-    const folders = [];
-    const documents = [];
-    for (let index = 0; index < markdownEntries.length; index++) {
-        const path = markdownEntries[index].replace(/\\/g, '/').replace(/^\/+/, '');
-        const parts = path.split('/').filter(Boolean);
-        const folderName = parts.length > 1 ? parts.slice(0, -1).join(' / ') : 'root';
-        let folderId = 'root';
-        if (folderName.toLowerCase() !== 'root') {
-            if (!folderIds.has(folderName)) {
-                folderIds.set(folderName, 'zip_folder_' + now + '_' + folderIds.size);
-                folders.push({ id: folderIds.get(folderName), name: folderName, parentId: 'root' });
-            }
-            folderId = folderIds.get(folderName);
-        }
-        documents.push({
-            id: 'zip_doc_' + now + '_' + index,
-            title: (parts[parts.length - 1] || 'untitled.md').replace(/\.md$/i, ''),
-            content: await zip.files[markdownEntries[index]].async('string'),
-            folderId: folderId,
-            updatedAt: new Date(now).toISOString()
-        });
-    }
-    await restoreFromMpv({ folders: folders, documents: documents });
-    showToast('ZIP 백업에서 ' + documents.length + '개 문서를 복원했습니다.');
 }
 
 function callSidebarLeftMergeApi(method, args) {
@@ -5393,21 +5210,6 @@ async function exportZip() {
         const path = safeDir + '/' + (doc.title || 'untitled').replace(/[/\\?*:|\"]/g, '_') + '.md';
         zip.file(path, doc.content || '');
     }
-    zip.file('_mdpro_backup.json', JSON.stringify({
-        format: 'mdpro-zip-backup',
-        version: 1,
-        exportedAt: new Date().toISOString(),
-        folders: folders || [],
-        documents: (documents || []).map(function (doc) {
-            return {
-                id: doc.id,
-                title: doc.title,
-                content: doc.content || '',
-                folderId: doc.folderId || 'root',
-                updatedAt: doc.updatedAt instanceof Date ? doc.updatedAt.toISOString() : (doc.updatedAt || null)
-            };
-        })
-    }, null, 2));
     const blob = await zip.generateAsync({ type: 'blob' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -5532,7 +5334,6 @@ function toggleSaveDropdown(event) {
     if (!menu || !toggle) return false;
     bindSaveDropdownDismiss();
     const shouldOpen = menu.classList.contains('hidden');
-    if (shouldOpen) closeOtherHeaderMenus('save-dropdown-menu');
     menu.classList.toggle('hidden', !shouldOpen);
     toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
     return shouldOpen;
@@ -6351,7 +6152,6 @@ async function renderDBList() {
     if (generation !== renderDBListGeneration) return;
     listEl.replaceChildren(...Array.from(nextList.childNodes));
     refreshLucideIcons(listEl);
-    syncToggleAllSidebarFoldersButton();
 }
 
 function scheduleStorageSearch() {
@@ -7083,9 +6883,7 @@ function getTidyActionDeps() {
         renderMarkdown: renderMarkdown,
         renderTOC: renderTOC,
         performAutoSave: performAutoSave,
-        showToast: showToast,
-        beginHistory: beginEditorHistoryTransaction,
-        commitHistory: commitEditorHistoryTransaction
+        showToast: showToast
     };
 }
 
@@ -7397,13 +7195,11 @@ function applyInlineFormatFromViewerSelection(type) {
     const replacement = before + selectedText + after;
     const nextText = source.substring(0, idx) + replacement + source.substring(idx + selectedText.length);
 
-    const historyBefore = beginEditorHistoryTransaction();
     currentMarkdown = nextText;
     if (editorTextarea) editorTextarea.value = nextText;
     renderMarkdown();
     if (activeSidebarTab === 'toc') renderTOC();
     performAutoSave();
-    commitEditorHistoryTransaction(historyBefore, 'viewer-format');
     if (selection && typeof selection.removeAllRanges === 'function') selection.removeAllRanges();
     showToast(isBold ? 'Bold ?곸슜 ?꾨즺' : 'Italic ?곸슜 ?꾨즺');
     return true;
@@ -7602,7 +7398,6 @@ function insertListAtSelection(kind) {
     const replacement = mapped.join('\n');
     const next = text.substring(0, blockStart) + replacement + text.substring(blockEnd);
 
-    const historyBefore = beginEditorHistoryTransaction();
     editorTextarea.value = next;
     currentMarkdown = next;
     editorTextarea.focus();
@@ -7612,7 +7407,6 @@ function insertListAtSelection(kind) {
     renderMarkdown();
     if (activeSidebarTab === 'toc') renderTOC();
     performAutoSave();
-    commitEditorHistoryTransaction(historyBefore, 'list');
 }
 
 const captionInsertState = {
@@ -8093,7 +7887,6 @@ function renumberAllFootnotes() {
     const selectionStart = Number(editorTextarea.selectionStart) || 0;
     const selectionEnd = Number(editorTextarea.selectionEnd) || 0;
 
-    const historyBefore = beginEditorHistoryTransaction();
     editorTextarea.value = nextText;
     currentMarkdown = nextText;
     editorTextarea.focus();
@@ -8106,7 +7899,6 @@ function renumberAllFootnotes() {
     renderMarkdown();
     if (activeSidebarTab === 'toc') renderTOC();
     performAutoSave();
-    commitEditorHistoryTransaction(historyBefore, 'footnote-renumber');
     showToast('Footnotes renumbered: ' + orderedLabels.length);
 }
 function convertSelectionPatternToTable() {
@@ -8272,11 +8064,7 @@ function closeTextStyleModal() {
 function openMermaidEditorModal() {
     const modal = document.getElementById('mermaid-editor-modal');
     if (!modal) return;
-    const frame = document.getElementById('mermaid-editor-frame');
-    const requiredSource = './js/mermaid/mermaid-editor/index.html?v=20260903-prompt-resize-12';
-    if (frame && frame.dataset) frame.dataset.src = requiredSource;
-    if (frame && String(frame.getAttribute('src') || '').indexOf('20260903-prompt-resize-12') < 0) frame.setAttribute('src', requiredSource);
-    else ensureLazyFrameLoaded(frame);
+    ensureLazyFrameLoaded('mermaid-editor-frame');
     modal.classList.remove('hidden');
     bindMermaidEditorModalDrag();
 }
@@ -8434,140 +8222,9 @@ function insertMermaidBlockFromExternal(codeText) {
 
 window.addEventListener('message', function (event) {
     const data = event && event.data ? event.data : null;
-    if (!data) return;
-    const mermaidFrame = document.getElementById('mermaid-editor-frame');
-    const fromMermaidEditor = !!(mermaidFrame && mermaidFrame.contentWindow === event.source);
-    if (data.type === 'mdv-insert-mermaid') {
-        if (!fromMermaidEditor) return;
-        insertMermaidBlockFromExternal(data.code || '');
-        if (data.closeEditor === true) closeMermaidEditorModal();
-        return;
-    }
-    if (data.type === 'mdv-open-mermaid-svg-in-image-insert') {
-        if (!fromMermaidEditor) return;
-        if (typeof window.openImageInsertModal !== 'function' || typeof window.applyImageInsertDataUrl !== 'function') {
-            showToast('이미지 넣기 모듈을 불러오지 못했습니다.');
-            return;
-        }
-        closeMermaidEditorModal();
-        window.openImageInsertModal();
-        window.applyImageInsertDataUrl(data.dataUrl || '', data.fileName || 'mermaid-diagram.svg');
-        showToast('SVG를 이미지 넣기로 옮겼습니다. 문서 저장 또는 imgBB를 선택하세요.');
-        return;
-    }
-    if (data.type === 'mdv-mermaid-history-save' && fromMermaidEditor) {
-        saveMermaidHistoryToInDb(data.record, event.source);
-        return;
-    }
-    if (data.type === 'mdv-mermaid-history-list' && fromMermaidEditor) {
-        sendMermaidHistoryFromInDb(event.source);
-        return;
-    }
-    if (data.type === 'mdv-mermaid-history-delete' && fromMermaidEditor) {
-        deleteMermaidHistoryFromInDb(data.id, event.source);
-        return;
-    }
-    if (data.type === 'mdv-analyze-image-to-mermaid' && fromMermaidEditor) analyzeImageToMermaidForEditor(data, event.source);
+    if (!data || data.type !== 'mdv-insert-mermaid') return;
+    insertMermaidBlockFromExternal(data.code || '');
 });
-
-function postMermaidHistoryRecords(targetWindow, records, error) {
-    if (!targetWindow || targetWindow.closed) return;
-    targetWindow.postMessage({ type: 'mdv-mermaid-history-records', records: records || [], error: error || '' }, '*');
-}
-
-async function saveMermaidHistoryToInDb(record, targetWindow) {
-    try {
-        if (typeof window.isInDbStorageEnabled === 'function' && !window.isInDbStorageEnabled()) throw new Error('설정에서 inDB 사용을 먼저 켜세요.');
-        if (typeof window.saveFeatureRecordToInDb !== 'function') throw new Error('inDB 저장 모듈이 준비되지 않았습니다.');
-        const saved = await window.saveFeatureRecordToInDb('mermaid_refs', Object.assign({}, record, { recordType: 'mermaid_ref', updatedAt: Date.now() }));
-        if (!saved) throw new Error('inDB가 아직 준비되지 않았거나 사용이 꺼져 있습니다.');
-        if (targetWindow && !targetWindow.closed) targetWindow.postMessage({ type: 'mdv-mermaid-history-saved', id: record && record.id }, '*');
-    } catch (error) {
-        if (targetWindow && !targetWindow.closed) targetWindow.postMessage({ type: 'mdv-mermaid-history-saved', ok: false, error: error && error.message ? error.message : String(error) }, '*');
-    }
-}
-
-async function sendMermaidHistoryFromInDb(targetWindow) {
-    try {
-        const database = window.InDbStorage && window.InDbStorage.getDatabase ? window.InDbStorage.getDatabase() : null;
-        if (!database || !database.objectStoreNames.contains('mermaid_refs')) return postMermaidHistoryRecords(targetWindow, []);
-        const records = await new Promise(function (resolve, reject) {
-            const request = database.transaction('mermaid_refs', 'readonly').objectStore('mermaid_refs').getAll();
-            request.onsuccess = function () { resolve(Array.isArray(request.result) ? request.result : []); };
-            request.onerror = function () { reject(request.error || new Error('Mermaid 기록을 읽지 못했습니다.')); };
-        });
-        postMermaidHistoryRecords(targetWindow, records.map(function (item) {
-            return { id: item.id, code: item.code, prompt: item.prompt, imageName: item.imageName, createdAt: item.createdAt, updatedAt: item.updatedAt };
-        }));
-    } catch (error) {
-        postMermaidHistoryRecords(targetWindow, [], error && error.message ? error.message : String(error));
-    }
-}
-
-async function deleteMermaidHistoryFromInDb(id, targetWindow) {
-    try {
-        if (typeof window.deleteFeatureRecordFromInDb !== 'function') throw new Error('inDB 삭제 모듈이 준비되지 않았습니다.');
-        await window.deleteFeatureRecordFromInDb('mermaid_refs', id);
-        await sendMermaidHistoryFromInDb(targetWindow);
-        showToast('Mermaid 생성 기록을 삭제했습니다.');
-    } catch (error) {
-        postMermaidHistoryRecords(targetWindow, [], error && error.message ? error.message : String(error));
-    }
-}
-
-function getMermaidVisionProviderSelection() {
-    let provider = String(localStorage.getItem('ss_ai_chat_provider') || 'lmstudio');
-    const modelKeys = {
-        aistudio: 'ss_ai_chat_gemini_model', openai: 'ss_ai_chat_openai_model', deepseek: 'ss_ai_chat_deepseek_model',
-        'openai-compatible': 'ss_ai_chat_openai_compatible_model', ollama: 'ss_ai_chat_ollama_model',
-        litertlm: 'ss_ai_chat_litertlm_model', lmstudio: 'ss_ai_chat_lmstudio_model'
-    };
-    let model = String(localStorage.getItem(modelKeys[provider] || '') || '');
-    if (provider !== 'openai' && provider !== 'aistudio') {
-        const openAIState = typeof getOpenAIApiState === 'function' ? getOpenAIApiState() : null;
-        const hasOpenAI = !!String(openAIState && openAIState.key || '').trim();
-        const hasGemini = typeof getProtectedAiCredential === 'function'
-            ? !!String(getProtectedAiCredential('gemini', 'ss_gemini_api_key') || '').trim()
-            : !!String(localStorage.getItem('ss_gemini_api_key') || '').trim();
-        if (hasOpenAI) { provider = 'openai'; model = String(localStorage.getItem(modelKeys.openai) || 'gpt-5.6-sol'); }
-        else if (hasGemini) { provider = 'aistudio'; model = String(localStorage.getItem(modelKeys.aistudio) || 'gemini-2.5-flash'); }
-        else throw new Error('이미지 분석이 가능한 OpenAI 또는 AI Studio API 키가 필요합니다. AI Jena 설정에서 연결해 주세요.');
-    }
-    if (provider === 'aistudio' && /(?:image|tts|audio|veo|lyria)/i.test(model)) model = 'gemini-2.5-flash';
-    return { provider: provider, model: model };
-}
-
-async function analyzeImageToMermaidForEditor(data, targetWindow) {
-    const reply = function (payload) {
-        if (targetWindow && !targetWindow.closed) targetWindow.postMessage(Object.assign({ type: 'mdv-image-to-mermaid-result', requestId: data.requestId }, payload), '*');
-    };
-    try {
-        if (!window.AIChatBridge || typeof window.AIChatBridge.complete !== 'function') throw new Error('AI Jena 연결 모듈이 준비되지 않았습니다.');
-        const image = data.image || {};
-        if (!/^data:image\//i.test(String(image.dataUrl || ''))) throw new Error('분석할 이미지 데이터가 없습니다.');
-        const selected = getMermaidVisionProviderSelection();
-        const streamReply = function (streamEvent) {
-            if (!streamEvent || streamEvent.type !== 'message.delta' || !streamEvent.content || !targetWindow || targetWindow.closed) return;
-            targetWindow.postMessage({ type: 'mdv-image-to-mermaid-stream', requestId: data.requestId, delta: String(streamEvent.content) }, '*');
-        };
-        const result = await window.AIChatBridge.complete({
-            provider: selected.provider,
-            model: selected.model,
-            mode: 'quick',
-            onStreamEvent: streamReply,
-            messages: [{ role: 'user', content: String(data.prompt || '').trim() || '이 이미지를 Mermaid 다이어그램으로 변환해 주세요.', attachments: [{ kind: 'image', name: image.name || 'diagram.png', type: image.type || 'image/png', size: image.size || 0, dataUrl: image.dataUrl }] }],
-            systemInstruction: [
-                'You convert reference diagram images into valid Mermaid source code.',
-                'Read every visible label and preserve structure, direction, grouping, relationships, and meaning as closely as Mermaid supports.',
-                'Choose the best Mermaid diagram type. Use quoted labels when punctuation could break syntax.',
-                'Return only one fenced mermaid code block. Do not explain, apologize, or add prose.'
-            ].join(' ')
-        });
-        reply({ ok: true, code: String(result && result.text || '') });
-    } catch (error) {
-        reply({ ok: false, error: error && error.message ? error.message : String(error) });
-    }
-}
 
 function applyTextStyleToSelection() {
     if (!isEditMode || !editorTextarea) {
@@ -8722,112 +8379,20 @@ function applyEditorHorizontalShift() {
 }
 
 let editorShiftFloatPositionTrackingInstalled = false;
-let editorShiftFloatDragInstalled = false;
-
-function clampEditorShiftFloatPosition(left, top) {
-    const control = document.getElementById('editor-shift-float');
-    const gap = 8;
-    const maxLeft = Math.max(gap, window.innerWidth - (control ? control.offsetWidth : 0) - gap);
-    const maxTop = Math.max(gap, window.innerHeight - (control ? control.offsetHeight : 0) - gap);
-    return {
-        left: Math.round(Math.max(gap, Math.min(maxLeft, Number(left) || gap))),
-        top: Math.round(Math.max(gap, Math.min(maxTop, Number(top) || gap)))
-    };
-}
-
-function saveEditorShiftFloatPosition() {
-    const control = document.getElementById('editor-shift-float');
-    if (!control || !control.classList.contains('is-positioned')) return;
-    const rect = control.getBoundingClientRect();
-    try { localStorage.setItem(EDITOR_SHIFT_FLOAT_POSITION_KEY, JSON.stringify({ left: Math.round(rect.left), top: Math.round(rect.top) })); } catch (_) {}
-}
-
-function applyEditorShiftFloatOrientation(orientation, persist) {
-    const control = document.getElementById('editor-shift-float');
-    if (!control) return;
-    const horizontal = orientation === 'horizontal';
-    control.classList.toggle('is-horizontal', horizontal);
-    const button = control.querySelector('.editor-shift-orientation-toggle');
-    if (button) {
-        button.textContent = horizontal ? '↕' : '↔';
-        button.title = horizontal ? '세로 배치로 전환' : '가로 배치로 전환';
-        button.setAttribute('aria-label', button.title);
-        button.setAttribute('aria-pressed', String(horizontal));
-    }
-    if (persist !== false) {
-        try { localStorage.setItem(EDITOR_SHIFT_FLOAT_ORIENTATION_KEY, horizontal ? 'horizontal' : 'vertical'); } catch (_) {}
-    }
-    requestAnimationFrame(syncEditorShiftFloatPosition);
-}
-
-function toggleEditorShiftFloatOrientation() {
-    const control = document.getElementById('editor-shift-float');
-    if (!control) return;
-    applyEditorShiftFloatOrientation(control.classList.contains('is-horizontal') ? 'vertical' : 'horizontal', true);
-}
-
-function bindEditorShiftFloatDrag() {
-    const control = document.getElementById('editor-shift-float');
-    const handle = control && control.querySelector('.editor-shift-drag-handle');
-    if (!control || !handle || editorShiftFloatDragInstalled) return;
-    editorShiftFloatDragInstalled = true;
-    handle.addEventListener('pointerdown', function (event) {
-        if (event.button !== 0) return;
-        const rect = control.getBoundingClientRect();
-        const startX = event.clientX;
-        const startY = event.clientY;
-        const startLeft = rect.left;
-        const startTop = rect.top;
-        control.classList.add('is-positioned', 'is-dragging');
-        control.style.left = startLeft + 'px';
-        control.style.top = startTop + 'px';
-        control.style.right = 'auto';
-        control.style.bottom = 'auto';
-        try { handle.setPointerCapture(event.pointerId); } catch (_) {}
-        const move = function (moveEvent) {
-            const next = clampEditorShiftFloatPosition(startLeft + moveEvent.clientX - startX, startTop + moveEvent.clientY - startY);
-            control.style.left = next.left + 'px';
-            control.style.top = next.top + 'px';
-            syncToastPosition();
-            moveEvent.preventDefault();
-        };
-        const finish = function () {
-            document.removeEventListener('pointermove', move);
-            document.removeEventListener('pointerup', finish);
-            document.removeEventListener('pointercancel', finish);
-            control.classList.remove('is-dragging');
-            saveEditorShiftFloatPosition();
-        };
-        document.addEventListener('pointermove', move, { passive: false });
-        document.addEventListener('pointerup', finish);
-        document.addEventListener('pointercancel', finish);
-        event.preventDefault();
-    });
-}
 
 function syncEditorShiftFloatPosition() {
     const control = document.getElementById('editor-shift-float');
     const viewport = document.getElementById('content-viewport');
-    const sidebarEl = document.getElementById('sidebar');
     if (!control || !viewport) return;
 
-    if (control.classList.contains('is-positioned')) {
-        const rect = control.getBoundingClientRect();
-        const next = clampEditorShiftFloatPosition(rect.left, rect.top);
-        control.style.left = next.left + 'px';
-        control.style.top = next.top + 'px';
-        control.style.right = 'auto';
-        control.style.bottom = 'auto';
-        syncToastPosition();
-    } else {
-        const viewportRect = viewport.getBoundingClientRect();
-        const sidebarVisible = !!(sidebarEl && getComputedStyle(sidebarEl).display !== 'none');
-        const sidebarRect = sidebarVisible ? sidebarEl.getBoundingClientRect() : null;
-        const outsideSidebarLeft = sidebarRect && sidebarRect.width > 0 ? sidebarRect.right + 8 : viewportRect.left + 8;
-        control.style.left = `${Math.max(viewportRect.left + 8, outsideSidebarLeft)}px`;
-        control.style.bottom = `${Math.max(8, window.innerHeight - viewportRect.bottom + 8)}px`;
-        syncToastPosition();
-    }
+    const viewportRect = viewport.getBoundingClientRect();
+    const sidebarEl = document.getElementById('sidebar');
+    const sidebarVisible = !!(sidebarEl && getComputedStyle(sidebarEl).display !== 'none');
+    const sidebarRect = sidebarVisible ? sidebarEl.getBoundingClientRect() : null;
+    const outsideSidebarLeft = sidebarRect && sidebarRect.width > 0 ? sidebarRect.right + 8 : viewportRect.left + 8;
+
+    control.style.left = `${Math.max(viewportRect.left + 8, outsideSidebarLeft)}px`;
+    control.style.bottom = `${Math.max(8, window.innerHeight - viewportRect.bottom + 8)}px`;
 
     if (editorShiftFloatPositionTrackingInstalled) return;
     editorShiftFloatPositionTrackingInstalled = true;
@@ -8863,21 +8428,6 @@ function sanitizeUiMessage(msg) {
 
 let toastHideTimer = null;
 
-function syncToastPosition() {
-    const toast = document.getElementById('toast');
-    const control = document.getElementById('editor-shift-float');
-    if (!toast || !control) return;
-
-    const controlRect = control.getBoundingClientRect();
-    const gap = 12;
-    const viewportGap = 16;
-    const preferredLeft = Math.round(controlRect.right + gap);
-    const availableWidth = Math.max(180, window.innerWidth - preferredLeft - viewportGap);
-    toast.style.left = `${preferredLeft}px`;
-    toast.style.right = 'auto';
-    toast.style.maxWidth = `${Math.min(720, availableWidth)}px`;
-}
-
 function hideToast() {
     const toast = document.getElementById('toast');
     if (!toast) return;
@@ -8905,7 +8455,6 @@ function showToast(msg, options) {
     if (toastHideTimer !== null) clearTimeout(toastHideTimer);
     toastHideTimer = null;
     toast.style.display = 'flex';
-    syncToastPosition();
     toast.style.opacity = '1';
     toast.style.pointerEvents = config.dismissible === true ? 'auto' : 'none';
     toast.setAttribute('aria-hidden', 'false');
@@ -8997,6 +8546,53 @@ function applyMarkdownCommentColorSettings() {
     } catch (_) {}
 }
 
+function normalizeDarkViewTextColor(value, fallback) {
+    const color = String(value || '').trim();
+    return /^#[0-9a-f]{6}$/i.test(color) ? color.toLowerCase() : fallback;
+}
+
+function loadDarkViewTextColorSettings() {
+    let savedBold = '';
+    let savedHeader = '';
+    try {
+        savedBold = localStorage.getItem(DARK_VIEW_BOLD_COLOR_KEY) || '';
+        savedHeader = localStorage.getItem(DARK_VIEW_HEADER_COLOR_KEY) || '';
+    } catch (_) {}
+    const boldColor = normalizeDarkViewTextColor(savedBold, DEFAULT_DARK_VIEW_TEXT_COLORS.bold);
+    const headerColor = normalizeDarkViewTextColor(savedHeader, DEFAULT_DARK_VIEW_TEXT_COLORS.header);
+    const boldInput = document.getElementById('dark-view-bold-color');
+    const headerInput = document.getElementById('dark-view-header-color');
+    if (boldInput) boldInput.value = boldColor;
+    if (headerInput) headerInput.value = headerColor;
+    document.documentElement.style.setProperty('--md-dark-view-bold-color', boldColor);
+    document.documentElement.style.setProperty('--md-dark-view-header-color', headerColor);
+}
+
+function applyDarkViewTextColorSettings(showFeedback) {
+    const boldInput = document.getElementById('dark-view-bold-color');
+    const headerInput = document.getElementById('dark-view-header-color');
+    const boldColor = normalizeDarkViewTextColor(boldInput && boldInput.value, DEFAULT_DARK_VIEW_TEXT_COLORS.bold);
+    const headerColor = normalizeDarkViewTextColor(headerInput && headerInput.value, DEFAULT_DARK_VIEW_TEXT_COLORS.header);
+    if (boldInput) boldInput.value = boldColor;
+    if (headerInput) headerInput.value = headerColor;
+    document.documentElement.style.setProperty('--md-dark-view-bold-color', boldColor);
+    document.documentElement.style.setProperty('--md-dark-view-header-color', headerColor);
+    try {
+        localStorage.setItem(DARK_VIEW_BOLD_COLOR_KEY, boldColor);
+        localStorage.setItem(DARK_VIEW_HEADER_COLOR_KEY, headerColor);
+    } catch (_) {}
+    if (showFeedback) showToast('다크모드 보기 글자 색상을 저장했습니다.');
+}
+
+function resetDarkViewTextColorSettings() {
+    try {
+        localStorage.removeItem(DARK_VIEW_BOLD_COLOR_KEY);
+        localStorage.removeItem(DARK_VIEW_HEADER_COLOR_KEY);
+    } catch (_) {}
+    loadDarkViewTextColorSettings();
+    showToast('다크모드 보기 글자 색상을 기본값으로 초기화했습니다.');
+}
+
 function initSettings() {
     const savedBg = localStorage.getItem('md_viewer_code_bg');
     const savedText = localStorage.getItem('md_viewer_code_text');
@@ -9011,28 +8607,11 @@ function initSettings() {
         if (textEl) textEl.value = savedText;
     }
     loadMarkdownCommentColorSettings();
+    loadDarkViewTextColorSettings();
     const savedShift = Number(localStorage.getItem(EDITOR_HORIZONTAL_SHIFT_KEY));
     editorHorizontalShiftPx = Number.isFinite(savedShift) ? Math.round(savedShift) : 0;
     applyDocumentWidthScale();
     applyEditorHorizontalShift();
-    const editorShiftFloat = document.getElementById('editor-shift-float');
-    let savedFloatOrientation = 'vertical';
-    try { savedFloatOrientation = localStorage.getItem(EDITOR_SHIFT_FLOAT_ORIENTATION_KEY) || 'vertical'; } catch (_) {}
-    applyEditorShiftFloatOrientation(savedFloatOrientation === 'horizontal' ? 'horizontal' : 'vertical', false);
-    if (editorShiftFloat) {
-        try {
-            const savedFloatPosition = JSON.parse(localStorage.getItem(EDITOR_SHIFT_FLOAT_POSITION_KEY) || 'null');
-            if (savedFloatPosition && Number.isFinite(savedFloatPosition.left) && Number.isFinite(savedFloatPosition.top)) {
-                editorShiftFloat.classList.add('is-positioned');
-                editorShiftFloat.style.left = savedFloatPosition.left + 'px';
-                editorShiftFloat.style.top = savedFloatPosition.top + 'px';
-                editorShiftFloat.style.right = 'auto';
-                editorShiftFloat.style.bottom = 'auto';
-            }
-        } catch (_) {}
-    }
-    bindEditorShiftFloatDrag();
-    syncEditorShiftFloatPosition();
     if (!editorShiftResizeBound) {
         editorShiftResizeBound = true;
         window.addEventListener('resize', applyEditorHorizontalShift);
@@ -9396,23 +8975,23 @@ async function getAiSettings() {
         try {
             if (!window.MDPStorage || typeof window.MDPStorage.getStatus !== 'function'
                 || typeof window.MDPStorage.getResolvedSqliteSettings !== 'function') {
-                return localSettings;
+                return withFirstRunAiSettingsDefaults(localSettings);
             }
             const status = window.MDPStorage.getStatus();
             if (!status || status.activeMode !== 'sqlite'
                 || !status.sqliteHealth || !status.sqliteHealth.capabilities
                 || status.sqliteHealth.capabilities.settings !== true) {
-                return localSettings;
+                return withFirstRunAiSettingsDefaults(localSettings);
             }
             const resolved = await window.MDPStorage.getResolvedSqliteSettings();
             const values = resolved && resolved.values && typeof resolved.values === 'object'
                 ? resolved.values
                 : {};
             // SQLite contains allow-listed values only. Locally stored credentials remain local.
-            return { ...(localSettings || {}), ...values, id: AI_SETTINGS_KEY };
+            return withFirstRunAiSettingsDefaults({ ...(localSettings || {}), ...values });
         } catch (error) {
             console.warn('SQLite settings restore skipped:', error && error.message ? error.message : error);
-            return localSettings;
+            return withFirstRunAiSettingsDefaults(localSettings);
         }
     }
     if (!db) return await mergeSqliteSettings(readFallback());
@@ -9496,7 +9075,7 @@ function getShareAddressSettingsSnapshot(settings) {
         : normalizeSitesList(source.sitesList);
     return {
         sitesList: normalizeSitesList(Array.isArray(source.sitesList) ? source.sitesList : currentSites)
-            .map(function (item) { return { name: item.name, url: item.url, visible: item.visible !== false }; }),
+            .map(function (item) { return { name: item.name, url: item.url }; }),
         shareSites: (Array.isArray(source.shareSites) ? source.shareSites : shareSnapshot.shareSites || [])
             .map(function (value) { return String(value || '').trim(); })
             .filter(function (value, index, list) { return value && list.indexOf(value) === index; }),
@@ -9530,7 +9109,7 @@ function hashPassword(plain) {
 
 function isValidGoogleAiApiKey(key) {
     const k = (key || '').trim();
-    return !!k;
+    return Boolean(k);
 }
 
 function getProtectedAiCredential(id, legacyStorageKey) {
@@ -9691,6 +9270,66 @@ function setCredentialConnectionVisual(inputId, statusId, state, message) {
 
 window.setCredentialConnectionVisual = setCredentialConnectionVisual;
 
+const SERPAPI_STORAGE_KEY = 'ss_serpapi_api_key';
+const SERPAPI_VERIFIED_KEY = 'ss_serpapi_api_key_verified';
+
+function updateSerpApiKeyConnectionUI() {
+    const input = document.getElementById('settings-serpapi-api-key');
+    if (!input) return false;
+    const key = String(input.value || '').trim();
+    if (!key) {
+        setCredentialConnectionVisual('settings-serpapi-api-key', 'settings-serpapi-api-key-feedback', 'neutral', '키를 입력하면 SerpApi Google 검색을 우선 사용합니다.');
+        return false;
+    }
+    const verified = localStorage.getItem(SERPAPI_VERIFIED_KEY) === credentialFingerprint(key);
+    setCredentialConnectionVisual('settings-serpapi-api-key', 'settings-serpapi-api-key-feedback', verified ? 'connected' : 'neutral', verified ? '연결됨: SerpApi Google 검색 확인 완료' : '키 저장·연결 확인을 눌러 실제 검색을 확인하세요.');
+    return true;
+}
+
+async function saveSerpApiSettings() {
+    const input = document.getElementById('settings-serpapi-api-key');
+    const key = String(input && input.value || '').trim();
+    if (!key) {
+        setCredentialConnectionVisual('settings-serpapi-api-key', 'settings-serpapi-api-key-feedback', 'error', 'SerpApi API Key를 입력하세요.');
+        return false;
+    }
+    localStorage.setItem(SERPAPI_STORAGE_KEY, key);
+    localStorage.removeItem(SERPAPI_VERIFIED_KEY);
+    setCredentialConnectionVisual('settings-serpapi-api-key', 'settings-serpapi-api-key-feedback', 'checking', 'SerpApi 연결을 확인하는 중...');
+    try {
+        const params = new URLSearchParams({ q: 'OpenAI', count: '1', engine: 'serpapi' });
+        const response = await fetch('/api/web-search?' + params, { cache: 'no-store', headers: { 'X-SerpApi-Key': key } });
+        const payload = await response.json().catch(function () { return {}; });
+        if (!response.ok || payload.ok === false || payload.engine !== 'serpapi-google') throw new Error(payload.error || 'SerpApi 검색 결과를 확인하지 못했습니다.');
+        localStorage.setItem(SERPAPI_VERIFIED_KEY, credentialFingerprint(key));
+        setCredentialConnectionVisual('settings-serpapi-api-key', 'settings-serpapi-api-key-feedback', 'connected', '저장됨 · 연결됨: SerpApi Google 검색 확인 완료');
+        return true;
+    } catch (error) {
+        setCredentialConnectionVisual('settings-serpapi-api-key', 'settings-serpapi-api-key-feedback', 'error', '키는 저장됨 · 연결 확인 실패: ' + (error && error.message ? error.message : error));
+        return false;
+    }
+}
+
+function clearSerpApiSettings() {
+    localStorage.removeItem(SERPAPI_STORAGE_KEY);
+    localStorage.removeItem(SERPAPI_VERIFIED_KEY);
+    const input = document.getElementById('settings-serpapi-api-key');
+    if (input) input.value = '';
+    setCredentialConnectionVisual('settings-serpapi-api-key', 'settings-serpapi-api-key-feedback', 'neutral', 'SerpApi 키를 삭제했습니다. DuckDuckGo와 Bing RSS 검색은 계속 사용할 수 있습니다.');
+    return true;
+}
+
+function loadSerpApiSettingsUI() {
+    const input = document.getElementById('settings-serpapi-api-key');
+    if (input) input.value = getProtectedAiCredential('serpapi', SERPAPI_STORAGE_KEY);
+    updateSerpApiKeyConnectionUI();
+}
+
+window.updateSerpApiKeyConnectionUI = updateSerpApiKeyConnectionUI;
+window.saveSerpApiSettings = saveSerpApiSettings;
+window.clearSerpApiSettings = clearSerpApiSettings;
+document.addEventListener('DOMContentLoaded', loadSerpApiSettingsUI);
+
 function validateApiKeyInputUI() {
     const input = document.getElementById('ai-api-key');
     const fb = document.getElementById('ai-api-key-feedback');
@@ -9707,11 +9346,11 @@ function validateApiKeyInputUI() {
         return;
     }
     if (isValidGoogleAiApiKey(key)) {
-        input.className = neutral + ' ai-api-key-input';
         const verified = localStorage.getItem('ss_gemini_api_key_verified') === credentialFingerprint(key)
             && getProtectedAiCredential('gemini', 'ss_gemini_api_key') === key;
+        input.className = (verified ? ok : neutral) + ' ai-api-key-input';
         if (fb && !verified) {
-            fb.textContent = '키를 저장하면 AI Studio에 연결하여 실제 사용 가능 여부를 확인합니다.';
+            fb.textContent = 'AI Studio 키 저장을 누르면 Google API에 연결해 실제 키를 확인합니다.';
             fb.className = 'text-xs mt-1 text-slate-500 dark:text-slate-400 min-h-[1.25rem]';
         }
         setCredentialConnectionVisual(
@@ -9720,6 +9359,13 @@ function validateApiKeyInputUI() {
             verified ? 'connected' : 'neutral',
             verified ? '연결됨: AI Studio API Key 확인 완료' : null
         );
+    } else {
+        input.className = bad + ' ai-api-key-input';
+        if (fb) {
+            fb.textContent = 'AI Studio API Key를 입력하세요.';
+            fb.className = 'text-xs mt-1 text-red-600 dark:text-red-400 min-h-[1.25rem]';
+        }
+        setCredentialConnectionVisual('ai-api-key', 'ai-api-key-feedback', 'error');
     }
 }
 
@@ -9732,26 +9378,27 @@ let openaiApiKeyCheckPromise = null;
 
 async function verifyAIStudioApiKeyConnection(apiKey) {
     const key = String(apiKey || '').trim();
-    if (!key) throw new Error('AI Studio API Key를 입력하세요.');
+    if (!isValidGoogleAiApiKey(key)) throw new Error('AI Studio API Key를 입력하세요.');
     if (aiStudioConnectionCheckPromise && aiStudioConnectionCheckKey === key) return aiStudioConnectionCheckPromise;
     setCredentialConnectionVisual('ai-api-key', 'ai-api-key-feedback', 'checking', 'AI Studio 연결을 확인하는 중...');
     const request = (async function () {
         try {
-            const models = await listAIStudioChatModels(key);
-            const textModels = models.filter(function (id) { return !/(?:^|[-_.])(image|imagen)(?:$|[-_.])/i.test(id); });
-            saveStoredModelList(SCHOLAR_AI_GEMINI_MODELS_KEY, textModels);
+            const models = await listAIStudioModels(key);
             saveStoredModelList(AI_CHAT_GEMINI_MODELS_KEY, models);
+            saveStoredModelList(SCHOLAR_AI_GEMINI_MODELS_KEY, models);
+            renderSettingsGeminiModels(models);
             localStorage.setItem('ss_gemini_api_key', key);
             localStorage.setItem('ss_gemini_api_key_verified', credentialFingerprint(key));
             const currentInput = document.getElementById('ai-api-key');
             if (!currentInput || String(currentInput.value || '').trim() === key) {
-                setCredentialConnectionVisual('ai-api-key', 'ai-api-key-feedback', 'connected', '연결됨: AI Studio · 사용 가능 Gemini 모델 ' + models.length + '개 확인');
+                setCredentialConnectionVisual('ai-api-key', 'ai-api-key-feedback', 'connected', '연결됨: AI Studio · Gemini 모델 ' + models.length + '개 확인');
             } else {
                 validateApiKeyInputUI();
             }
             return models;
         } catch (error) {
             localStorage.removeItem('ss_gemini_api_key_verified');
+            renderSettingsGeminiModels([], error && error.message ? error.message : String(error));
             const currentInput = document.getElementById('ai-api-key');
             if (!currentInput || String(currentInput.value || '').trim() === key) {
                 setCredentialConnectionVisual('ai-api-key', 'ai-api-key-feedback', 'error', '저장됨 · 연결 확인 실패: ' + (error && error.message ? error.message : error));
@@ -9776,8 +9423,14 @@ async function verifyAIStudioApiKeyConnection(apiKey) {
 async function saveApiKey() {
     const input = document.getElementById('ai-api-key');
     const key = (input && input.value) ? input.value.trim() : '';
-    if (!key) {
-        await setAiSettings({ apiKey: '' });
+    if (key && !isValidGoogleAiApiKey(key)) {
+        validateApiKeyInputUI();
+        showToast('AI Studio API Key를 입력하세요.');
+        return;
+    }
+    await setAiSettings({ apiKey: key });
+    if (key) localStorage.setItem('ss_gemini_api_key', key);
+    else {
         localStorage.removeItem('ss_gemini_api_key');
         localStorage.removeItem('ss_gemini_api_key_verified');
         validateApiKeyInputUI();
@@ -9786,10 +9439,9 @@ async function saveApiKey() {
     }
     try {
         await verifyAIStudioApiKeyConnection(key);
-        await setAiSettings({ apiKey: key });
         showToast('AI Studio API key가 저장되고 연결되었습니다.');
     } catch (error) {
-        showToast('AI Studio 연결 검증에 실패하여 키를 저장하지 않았습니다.');
+        showToast('API key는 저장했지만 AI Studio 연결을 확인하지 못했습니다.');
     }
 }
 
@@ -9799,8 +9451,8 @@ async function saveDeepseekApiKey() {
     const key = (input && input.value) ? input.value.trim() : '';
     const maxTokens = Math.max(256, Math.min(384000, Number(document.getElementById('deepseek-max-tokens')?.value) || 8192));
     const timeoutSeconds = Math.max(30, Math.min(3600, Number(document.getElementById('deepseek-timeout')?.value) || 300));
-    const effortValue = String(document.getElementById('deepseek-reasoning-effort')?.value || 'high').toLowerCase();
-    const reasoningEffort = ['low', 'high', 'max'].includes(effortValue) ? effortValue : 'high';
+    const effortValue = String(document.getElementById('deepseek-reasoning-effort')?.value || 'low').toLowerCase();
+    const reasoningEffort = ['low', 'high'].includes(effortValue) ? effortValue : 'low';
     localStorage.setItem('ss_deepseek_max_tokens', String(maxTokens));
     localStorage.setItem('ss_deepseek_timeout_seconds', String(timeoutSeconds));
     localStorage.setItem('ss_deepseek_reasoning_effort', reasoningEffort);
@@ -10013,7 +9665,7 @@ function isSettingsContainerFolded(containerId) {
     const id = String(containerId || '');
     if (!id) return true;
     const state = getSettingsContainerFoldState();
-    return state[id] !== false;
+    return state[id] === true;
 }
 
 function setSettingsContainerFoldedToLocal(containerId, folded) {
@@ -10243,7 +9895,7 @@ function resetFileDownloadPrefixSetting() {
 
 function getAiUseFoldedFromLocal() {
     const v = localStorage.getItem(AI_USE_FOLD_KEY);
-    return v == null ? true : v === '1';
+    return v == null ? false : v === '1';
 }
 
 function setAiUseFoldedToLocal(folded) {
@@ -10265,35 +9917,23 @@ function toggleAiUseFold() {
 
 function getAiChatSettingsFoldedFromLocal() {
     const v = localStorage.getItem(AI_CHAT_SETTINGS_FOLD_KEY);
-    return v == null ? true : v === '1';
+    return v == null ? false : v === '1';
 }
 
 function ensureAiProviderFoldsDefault() {
     if (localStorage.getItem(AI_PROVIDER_FOLDS_DEFAULT_VERSION_KEY) === '1') return;
     [
-        AI_CHAT_SETTINGS_FOLD_KEY,
         SCHOLAR_LM_SETTINGS_FOLD_KEY,
         SCHOLAR_OLLAMA_SETTINGS_FOLD_KEY,
         'ss_litertlm_settings_folded'
     ].forEach(function (key) { localStorage.setItem(key, '1'); });
+    if (localStorage.getItem(AI_CHAT_SETTINGS_FOLD_KEY) == null) {
+        localStorage.setItem(AI_CHAT_SETTINGS_FOLD_KEY, '0');
+    }
     document.querySelectorAll('#ai-link-settings-block details').forEach(function (details) {
         details.open = false;
     });
     localStorage.setItem(AI_PROVIDER_FOLDS_DEFAULT_VERSION_KEY, '1');
-}
-
-function collapseAiProviderSettingsForOpen() {
-    setAiChatSettingsFoldedToLocal(true);
-    localStorage.setItem(SCHOLAR_LM_SETTINGS_FOLD_KEY, '1');
-    localStorage.setItem(SCHOLAR_OLLAMA_SETTINGS_FOLD_KEY, '1');
-    applyAiChatSettingsFold(true);
-    applyScholarLmSettingsFold(true);
-    applyScholarOllamaSettingsFold(true);
-    setLiteRTLMSettingsFolded(true);
-    document.querySelectorAll('#ai-link-settings-block details').forEach(function (details) {
-        details.open = false;
-    });
-    initializeAiSettingsDetailsToggles();
 }
 
 function setAiChatSettingsFoldedToLocal(folded) {
@@ -10619,156 +10259,6 @@ function closeMath99Popup() {
     wrap.classList.add('hidden');
 }
 
-function cleanImg2MathLatex(value) {
-    let text = String(value || '').trim().replace(/^```(?:latex|tex|math)?\s*/i, '').replace(/\s*```$/i, '').trim();
-    try {
-        const parsed = JSON.parse(text);
-        text = String(parsed.latex || parsed.formula || parsed.tex || '').trim();
-    } catch (_error) { }
-    const wrapped = text.match(/^\$\$([\s\S]*)\$\$$|^\\\[([\s\S]*)\\\]$|^\\\(([\s\S]*)\\\)$|^\$([^$]+)\$$/);
-    if (wrapped) text = wrapped.slice(1).find(Boolean) || text;
-    return text.replace(/^\s*(?:latex|tex)\s*:\s*/i, '').trim();
-}
-
-function setImg2MathImage(file) {
-    if (!file || !String(file.type || '').startsWith('image/')) {
-        showToast('이미지 파일을 선택해 주세요.');
-        return;
-    }
-    const reader = new FileReader();
-    reader.onload = function () {
-        img2MathImage = { name: file.name || 'formula.png', type: file.type || 'image/png', size: file.size || 0, dataUrl: String(reader.result || '') };
-        const preview = document.getElementById('img2math-image-preview');
-        const label = document.getElementById('img2math-drop-label');
-        if (preview) { preview.src = img2MathImage.dataUrl; preview.classList.remove('hidden'); }
-        if (label) label.textContent = img2MathImage.name;
-        const status = document.getElementById('img2math-status');
-        if (status) status.textContent = '이미지를 불러왔습니다.';
-    };
-    reader.onerror = function () { showToast('이미지를 읽지 못했습니다.'); };
-    reader.readAsDataURL(file);
-}
-
-async function pasteImg2MathImage() {
-    const status = document.getElementById('img2math-status');
-    try {
-        if (!navigator.clipboard || typeof navigator.clipboard.read !== 'function') throw new Error('이 환경에서는 Ctrl+V를 사용해 주세요.');
-        const items = await navigator.clipboard.read();
-        for (const item of items) {
-            const type = item.types.find(function (candidate) { return candidate.startsWith('image/'); });
-            if (type) { setImg2MathImage(new File([await item.getType(type)], '붙여넣은 수식 이미지', { type: type })); return; }
-        }
-        throw new Error('클립보드에 이미지가 없습니다.');
-    } catch (error) {
-        if (status) status.textContent = error.message;
-    }
-}
-
-async function renderImg2MathPreview() {
-    const target = document.getElementById('img2math-render');
-    const result = document.getElementById('img2math-result');
-    if (!target || !result) return;
-    const latex = cleanImg2MathLatex(result.value);
-    target.textContent = latex ? '\\[' + latex + '\\]' : '인식된 수식이 여기에 렌더링됩니다.';
-    if (!latex) return;
-    try {
-        await ensureMdMathEngineLoaded();
-        if (window.MathJax.typesetClear) window.MathJax.typesetClear([target]);
-        await window.MathJax.typesetPromise([target]);
-    } catch (error) {
-        target.textContent = '수식 렌더링 오류: ' + error.message;
-    }
-}
-
-async function generateImg2Math() {
-    const status = document.getElementById('img2math-status');
-    const button = document.getElementById('img2math-generate');
-    const prompt = document.getElementById('img2math-prompt');
-    const output = document.getElementById('img2math-result');
-    if (!img2MathImage) { if (status) status.textContent = '먼저 수식 이미지를 추가해 주세요.'; return; }
-    try {
-        if (!window.AIChatBridge || typeof window.AIChatBridge.complete !== 'function') throw new Error('AI Jena 연결 모듈이 준비되지 않았습니다.');
-        const selected = getMermaidVisionProviderSelection();
-        button.disabled = true;
-        button.textContent = '수식을 인식하고 있습니다…';
-        if (status) status.textContent = 'AI가 이미지의 기호와 수식 구조를 분석하고 있습니다.';
-        const response = await window.AIChatBridge.complete({
-            provider: selected.provider,
-            model: selected.model,
-            mode: 'quick',
-            messages: [{ role: 'user', content: String(prompt.value || '').trim(), attachments: [{ kind: 'image', name: img2MathImage.name, type: img2MathImage.type, size: img2MathImage.size, dataUrl: img2MathImage.dataUrl }] }],
-            systemInstruction: 'You are a mathematical OCR engine. Read every visible formula precisely. Return only the raw LaTeX body, without dollar signs, code fences, JSON, prose, or explanation. Preserve fractions, roots, matrices, cases, accents, Greek letters, superscripts, subscripts, and delimiters.'
-        });
-        const latex = cleanImg2MathLatex(response && response.text);
-        if (!latex) throw new Error('AI 응답에서 수식을 찾지 못했습니다.');
-        output.value = latex;
-        await renderImg2MathPreview();
-        if (status) status.textContent = '수식 인식이 완료되었습니다. 결과를 수정하거나 문서에 삽입할 수 있습니다.';
-    } catch (error) {
-        if (status) status.textContent = '수식 인식 실패: ' + (error && error.message ? error.message : String(error));
-    } finally {
-        button.disabled = false;
-        button.textContent = '✦ 이미지 속 수식 TeX 생성';
-    }
-}
-
-function insertImg2MathResult() {
-    if (!isEditMode || !editorTextarea) { showToast('편집 모드에서 사용해 주세요.'); return; }
-    const output = document.getElementById('img2math-result');
-    const latex = cleanImg2MathLatex(output && output.value);
-    if (!latex) { showToast('삽입할 수식이 없습니다.'); return; }
-    const raw = String(editorTextarea.value || '');
-    const start = Math.max(0, Math.min(img2MathSelection.start, raw.length));
-    const end = Math.max(start, Math.min(img2MathSelection.end, raw.length));
-    const block = '$$\n' + latex + '\n$$';
-    editorTextarea.value = raw.slice(0, start) + block + raw.slice(end);
-    currentMarkdown = editorTextarea.value;
-    closeImg2MathPopup();
-    editorTextarea.focus();
-    editorTextarea.setSelectionRange(start + block.length, start + block.length);
-    renderMarkdown();
-    performAutoSave();
-    showToast('인식한 수식을 문서에 삽입했습니다.');
-}
-
-function bindImg2MathPopup() {
-    if (img2MathBound) return;
-    const wrap = document.getElementById('img2math-popup');
-    const drop = document.getElementById('img2math-drop');
-    const file = document.getElementById('img2math-file');
-    const result = document.getElementById('img2math-result');
-    if (!wrap || !drop || !file || !result) return;
-    img2MathBound = true;
-    document.getElementById('img2math-select').onclick = function (event) { event.stopPropagation(); file.click(); };
-    document.getElementById('img2math-paste').onclick = function (event) { event.stopPropagation(); pasteImg2MathImage(); };
-    document.getElementById('img2math-generate').onclick = generateImg2Math;
-    document.getElementById('img2math-insert').onclick = insertImg2MathResult;
-    file.onchange = function () { setImg2MathImage(file.files && file.files[0]); file.value = ''; };
-    drop.onclick = function (event) { if (!event.target.closest('button')) file.click(); };
-    ['dragenter', 'dragover'].forEach(function (name) { drop.addEventListener(name, function (event) { event.preventDefault(); drop.classList.add('border-teal-400'); }); });
-    ['dragleave', 'drop'].forEach(function (name) { drop.addEventListener(name, function (event) { event.preventDefault(); drop.classList.remove('border-teal-400'); }); });
-    drop.addEventListener('drop', function (event) { setImg2MathImage(event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0]); });
-    wrap.addEventListener('paste', function (event) { const image = Array.from(event.clipboardData && event.clipboardData.files || []).find(function (item) { return item.type.startsWith('image/'); }); if (image) { event.preventDefault(); setImg2MathImage(image); } });
-    wrap.addEventListener('mousedown', function (event) { if (event.target === wrap) closeImg2MathPopup(); });
-    document.addEventListener('keydown', function (event) {
-        if (event.key === 'Escape' && !wrap.classList.contains('hidden')) closeImg2MathPopup();
-    });
-    result.addEventListener('input', renderImg2MathPreview);
-}
-
-function openImg2MathPopup() {
-    if (!isEditMode || !editorTextarea) { showToast('편집 모드에서 사용해 주세요.'); return; }
-    img2MathSelection = { start: editorTextarea.selectionStart || 0, end: editorTextarea.selectionEnd || editorTextarea.selectionStart || 0 };
-    bindImg2MathPopup();
-    document.getElementById('math-quick-panel')?.classList.add('hidden');
-    document.getElementById('img2math-popup')?.classList.remove('hidden');
-    document.getElementById('img2math-drop')?.focus();
-}
-
-function closeImg2MathPopup() {
-    document.getElementById('img2math-popup')?.classList.add('hidden');
-}
-
 function ensureTableInsertPickerBuilt() {
     if (tableInsertPickerBuilt) return;
     const grid = document.getElementById('table-insert-grid');
@@ -10780,10 +10270,9 @@ function ensureTableInsertPickerBuilt() {
         for (let c = 1; c <= maxCols; c += 1) {
             const cell = document.createElement('button');
             cell.type = 'button';
-            cell.className = 'table-insert-grid-cell w-4 h-4 rounded-[2px] border';
+            cell.className = 'w-4 h-4 rounded-[2px] border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 hover:border-indigo-500';
             cell.dataset.rows = String(r);
             cell.dataset.cols = String(c);
-            cell.setAttribute('aria-label', r + 'x' + c + ' table');
             cell.onmouseenter = function () { previewTableInsertSize(r, c); };
             cell.onclick = function () { selectTableInsertSize(r, c); };
             grid.appendChild(cell);
@@ -10809,8 +10298,10 @@ function previewTableInsertSize(rows, cols) {
         const r = Number(cell.dataset.rows || 0);
         const c = Number(cell.dataset.cols || 0);
         const on = rows > 0 && cols > 0 && r <= rows && c <= cols;
-        cell.classList.toggle('is-selected', on);
-        cell.setAttribute('aria-pressed', on ? 'true' : 'false');
+        cell.classList.toggle('bg-amber-300', on);
+        cell.classList.toggle('border-amber-500', on);
+        cell.classList.toggle('bg-slate-100', !on);
+        cell.classList.toggle('dark:bg-slate-800', !on);
     }
 }
 
@@ -10883,141 +10374,6 @@ function insertMarkdownTableBySize(rowsInput, colsInput) {
 function selectTableInsertSize(rows, cols) {
     insertMarkdownTableBySize(rows, cols);
     closeTableInsertPicker();
-}
-
-function splitMarkdownTableRow(line) {
-    const source = String(line || '').trim();
-    const body = source.replace(/^\|/, '').replace(/\|$/, '');
-    const cells = [];
-    let value = '';
-    let escaped = false;
-    for (let i = 0; i < body.length; i += 1) {
-        const char = body[i];
-        if (char === '|' && !escaped) {
-            cells.push(value.trim());
-            value = '';
-        } else {
-            value += char;
-        }
-        if (char === '\\' && !escaped) escaped = true;
-        else escaped = false;
-    }
-    cells.push(value.trim());
-    return cells;
-}
-
-function serializeMarkdownTableRow(cells) {
-    return '| ' + cells.join(' | ') + ' |';
-}
-
-function getMarkdownTableEditContext(text, cursor) {
-    const source = String(text || '');
-    const safeCursor = Math.max(0, Math.min(source.length, Number(cursor) || 0));
-    const lineStart = source.lastIndexOf('\n', Math.max(0, safeCursor - 1)) + 1;
-    let lineEnd = source.indexOf('\n', safeCursor);
-    if (lineEnd < 0) lineEnd = source.length;
-    const currentLine = source.substring(lineStart, lineEnd);
-    if (currentLine.indexOf('|') < 0) return null;
-
-    let blockStart = lineStart;
-    while (blockStart > 0) {
-        const previousEnd = blockStart - 1;
-        const previousStart = source.lastIndexOf('\n', Math.max(0, previousEnd - 1)) + 1;
-        if (source.substring(previousStart, previousEnd).indexOf('|') < 0) break;
-        blockStart = previousStart;
-    }
-    let blockEnd = lineEnd;
-    while (blockEnd < source.length) {
-        const nextStart = blockEnd + 1;
-        let nextEnd = source.indexOf('\n', nextStart);
-        if (nextEnd < 0) nextEnd = source.length;
-        if (source.substring(nextStart, nextEnd).indexOf('|') < 0) break;
-        blockEnd = nextEnd;
-    }
-
-    const lines = source.substring(blockStart, blockEnd).split('\n');
-    const separatorIndex = lines.findIndex(function (line) {
-        const cells = splitMarkdownTableRow(line);
-        return cells.length > 0 && cells.every(function (cell) { return /^:?-{3,}:?$/.test(cell); });
-    });
-    if (separatorIndex !== 1 || lines.length < 2) return null;
-    const rowIndex = source.substring(blockStart, lineStart).split('\n').length - 1;
-    const cells = splitMarkdownTableRow(lines[rowIndex]);
-    if (!cells.length) return null;
-
-    const beforeCursor = currentLine.substring(0, Math.max(0, safeCursor - lineStart));
-    let pipeCount = 0;
-    let escaped = false;
-    for (let i = 0; i < beforeCursor.length; i += 1) {
-        const char = beforeCursor[i];
-        if (char === '|' && !escaped) pipeCount += 1;
-        if (char === '\\' && !escaped) escaped = true;
-        else escaped = false;
-    }
-    const hasLeadingPipe = /^\s*\|/.test(currentLine);
-    const columnIndex = Math.max(0, Math.min(cells.length - 1, pipeCount - (hasLeadingPipe ? 1 : 0)));
-    return { blockStart, blockEnd, lines, rowIndex, columnIndex };
-}
-
-function editMarkdownTable(action) {
-    if (!isEditMode || !editorTextarea) {
-        showToast('편집 모드에서 사용해 주세요.');
-        return false;
-    }
-    const text = editorTextarea.value;
-    const cursor = editorTextarea.selectionStart;
-    const context = getMarkdownTableEditContext(text, cursor);
-    if (!context) {
-        showToast('Markdown 표 안에 커서를 두고 다시 눌러주세요.');
-        editorTextarea.focus();
-        return false;
-    }
-
-    const lines = context.lines.slice();
-    const columnCount = Math.max.apply(null, lines.map(function (line) { return splitMarkdownTableRow(line).length; }));
-    if (action === 'add-row') {
-        const insertAt = context.rowIndex <= 1 ? 2 : context.rowIndex + 1;
-        lines.splice(insertAt, 0, serializeMarkdownTableRow(Array(columnCount).fill('')));
-    } else if (action === 'delete-row') {
-        if (context.rowIndex <= 1) {
-            showToast('머리글과 구분선은 삭제할 수 없습니다.');
-            editorTextarea.focus();
-            return false;
-        }
-        lines.splice(context.rowIndex, 1);
-    } else if (action === 'add-column' || action === 'delete-column') {
-        if (action === 'delete-column' && columnCount <= 1) {
-            showToast('표에는 열이 하나 이상 있어야 합니다.');
-            editorTextarea.focus();
-            return false;
-        }
-        for (let row = 0; row < lines.length; row += 1) {
-            const cells = splitMarkdownTableRow(lines[row]);
-            while (cells.length < columnCount) cells.push(row === 1 ? '---' : '');
-            if (action === 'add-column') cells.splice(context.columnIndex + 1, 0, row === 1 ? '---' : '');
-            else cells.splice(context.columnIndex, 1);
-            lines[row] = serializeMarkdownTableRow(cells);
-        }
-    } else {
-        return false;
-    }
-
-    const replacement = lines.join('\n');
-    const nextText = text.substring(0, context.blockStart) + replacement + text.substring(context.blockEnd);
-    const historyBefore = beginEditorHistoryTransaction();
-    editorTextarea.value = nextText;
-    currentMarkdown = nextText;
-    editorTextarea.focus();
-    const nextCursor = Math.min(context.blockStart + replacement.length, cursor + (replacement.length - (context.blockEnd - context.blockStart)));
-    editorTextarea.setSelectionRange(nextCursor, nextCursor);
-    renderMarkdown();
-    if (activeSidebarTab === 'toc') renderTOC();
-    performAutoSave();
-    commitEditorHistoryTransaction(historyBefore, 'table-edit');
-    showToast(action === 'add-row' ? '표에 행을 추가했습니다.'
-        : action === 'add-column' ? '표에 열을 추가했습니다.'
-            : action === 'delete-row' ? '표의 행을 삭제했습니다.' : '표의 열을 삭제했습니다.');
-    return true;
 }
 
 function insertInlineMathTemplate() {
@@ -11192,8 +10548,8 @@ async function togglePdfMergeVisibilitySection() {
 
 function applyNoteCoverInsertVisibility(settings) {
     const enabled = getNoteCoverInsertVisibleFromSettings(settings || {});
-    const wrap = document.getElementById('note-cover-menu-wrap');
-    if (wrap) wrap.classList.toggle('hidden', !enabled);
+    const button = document.getElementById('btn-note-cover-insert');
+    if (button) button.classList.toggle('hidden', !enabled);
 }
 
 async function toggleNoteCoverInsertSection() {
@@ -11203,102 +10559,16 @@ async function toggleNoteCoverInsertSection() {
     try { await setAiSettings({ noteCoverInsertVisible: enabled }); } catch (e) { console.error(e); }
 }
 
-function closeNoteCoverMenu() {
-    const panel = document.getElementById('note-cover-menu-panel');
-    const button = document.getElementById('btn-note-cover-menu');
-    if (panel) panel.classList.add('hidden');
-    if (button) button.setAttribute('aria-expanded', 'false');
-}
-
-function toggleNoteCoverMenu(event) {
-    if (event) event.stopPropagation();
-    const panel = document.getElementById('note-cover-menu-panel');
-    const button = document.getElementById('btn-note-cover-menu');
-    if (!panel) return;
-    const willOpen = panel.classList.contains('hidden');
-    closeNoteCoverMenu();
-    if (willOpen) {
-        panel.classList.remove('hidden');
-        if (button) button.setAttribute('aria-expanded', 'true');
-    }
-}
-
-function localIsoDate() {
-    const now = new Date();
-    const pad = value => String(value).padStart(2, '0');
-    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-}
-
-function openNoteCoverInsertDialog(event) {
-    if (event) event.stopPropagation();
-    closeNoteCoverMenu();
-    const existing = window.NoteCoverRenderer && typeof window.NoteCoverRenderer.findFirstCoverBlock === 'function'
-        ? window.NoteCoverRenderer.findFirstCoverBlock(getNoteCoverMarkdownSource()) : null;
-    if (existing) {
-        if (!isEditMode) toggleMode('edit');
-        if (editorTextarea) {
-            editorTextarea.focus();
-            editorTextarea.setSelectionRange(existing.start, existing.end);
-            editorTextarea.scrollTop = 0;
-        }
-        showToast('이미 표지가 있습니다. 삭제하려면 표지 메뉴의 “표지 지우기”를 선택하세요.');
-        return false;
-    }
-    const modal = document.getElementById('note-cover-insert-modal');
-    const titleInput = document.getElementById('note-cover-field-title');
-    const dateInput = document.getElementById('note-cover-field-date');
-    const feedback = document.getElementById('note-cover-insert-feedback');
-    const fileTitle = String(currentFileName || '').replace(/\.md$/i, '').trim();
-    if (titleInput) titleInput.value = !fileTitle || /^untitled$/i.test(fileTitle) ? '' : fileTitle;
-    if (dateInput) dateInput.value = localIsoDate();
-    if (feedback) feedback.textContent = '';
-    if (modal) {
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        window.setTimeout(() => { if (titleInput) { titleInput.focus(); titleInput.select(); } }, 0);
-    }
-    return true;
-}
-
-function closeNoteCoverInsertDialog() {
-    const modal = document.getElementById('note-cover-insert-modal');
-    if (modal) {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-    }
-    if (editorTextarea) editorTextarea.focus();
-}
-
-function confirmNoteCoverInsert(event) {
-    if (event) event.preventDefault();
-    const value = id => String((document.getElementById(id) || {}).value || '').trim();
-    const title = value('note-cover-field-title');
-    const feedback = document.getElementById('note-cover-insert-feedback');
-    if (!title) {
-        if (feedback) feedback.textContent = '제목을 입력하세요.';
-        const input = document.getElementById('note-cover-field-title');
-        if (input) input.focus();
-        return false;
-    }
-    const inserted = insertDefaultNoteCover({
-        title: title,
-        subtitle: value('note-cover-field-subtitle'),
-        author: value('note-cover-field-author'),
-        date: value('note-cover-field-date')
-    });
-    if (inserted) closeNoteCoverInsertDialog();
-    return inserted;
-}
-
-function insertDefaultNoteCover(fields) {
+function insertDefaultNoteCover() {
     if (!isEditMode) toggleMode('edit');
     if (!editorTextarea || !window.NoteCoverRenderer ||
         typeof window.NoteCoverRenderer.insertDefaultCover !== 'function') {
         showToast('표지 삽입 기능을 불러오지 못했습니다.');
         return false;
     }
-    const input = fields && typeof fields === 'object' ? fields : {};
-    const updated = window.NoteCoverRenderer.insertDefaultCover(getNoteCoverMarkdownSource(), input);
+    const fileTitle = String(currentFileName || '').replace(/\.md$/i, '').trim();
+    const title = !fileTitle || /^untitled$/i.test(fileTitle) ? '문서 제목' : fileTitle;
+    const updated = window.NoteCoverRenderer.insertDefaultCover(getNoteCoverMarkdownSource(), { title: title });
     if (!updated.changed) {
         editorTextarea.focus();
         editorTextarea.setSelectionRange(updated.selectionStart || 0, updated.selectionEnd || 0);
@@ -11321,35 +10591,6 @@ function insertDefaultNoteCover(fields) {
     return true;
 }
 
-function removeDocumentNoteCover(event) {
-    if (event) event.stopPropagation();
-    closeNoteCoverMenu();
-    if (!window.NoteCoverRenderer || typeof window.NoteCoverRenderer.findFirstCoverBlock !== 'function') {
-        showToast('표지 삭제 기능을 불러오지 못했습니다.');
-        return false;
-    }
-    const source = getNoteCoverMarkdownSource();
-    const cover = window.NoteCoverRenderer.findFirstCoverBlock(source);
-    if (!cover) {
-        showToast('지울 표지가 없습니다.');
-        return false;
-    }
-    if (!window.confirm('표지를 지울까요?')) return false;
-    let next = source.slice(0, cover.start) + source.slice(cover.end);
-    if (cover.start === 0) next = next.replace(/^\r?\n/, '');
-    const applied = applyNoteCoverMarkdownUpdate(
-        { changed: true, markdown: next },
-        'input.noteCoverRemove',
-        { historyKey: 'remove-cover', coverIndex: 0, clearSelection: true, renderAfter: true }
-    );
-    if (applied) showToast('표지를 지웠습니다.');
-    return applied;
-}
-
-document.addEventListener('click', function (event) {
-    if (!event.target.closest || !event.target.closest('#note-cover-menu-wrap')) closeNoteCoverMenu();
-});
-
 function getHtml2pptVisibleFromSettings(settings) {
     if (!settings || typeof settings.html2pptVisible !== 'boolean') return false;
     return settings.html2pptVisible;
@@ -11369,8 +10610,8 @@ function getDeepseekApiState() {
         baseUrl: baseUrl,
         maxTokens: Math.max(256, Math.min(384000, Number(localStorage.getItem('ss_deepseek_max_tokens')) || 8192)),
         timeoutSeconds: Math.max(30, Math.min(3600, Number(localStorage.getItem('ss_deepseek_timeout_seconds')) || 300)),
-        reasoningEffort: ['low', 'high', 'max'].includes(String(localStorage.getItem('ss_deepseek_reasoning_effort') || '').toLowerCase())
-            ? String(localStorage.getItem('ss_deepseek_reasoning_effort')).toLowerCase() : 'high',
+        reasoningEffort: ['low', 'high'].includes(String(localStorage.getItem('ss_deepseek_reasoning_effort') || '').toLowerCase())
+            ? String(localStorage.getItem('ss_deepseek_reasoning_effort')).toLowerCase() : 'low',
         verifiedFingerprint: String(localStorage.getItem('ss_deepseek_api_key_verified') || '')
     };
 }
@@ -12495,7 +11736,7 @@ function applyHighlightPopupLayout() {
         modal.classList.add('items-start', 'justify-start');
         panel.style.position = 'fixed';
         panel.style.top = `${highlightPopupDockTop}px`;
-        panel.style.left = `${highlightPopupDockLeft}px`;
+        panel.style.left = '12px';
         panel.style.right = 'auto';
         panel.style.margin = '0';
     } else {
@@ -12550,13 +11791,13 @@ function bindHighlightPopupDrag() {
     if (!header || !panel) return;
     enableTouchModalDrag(panel, header, {
         onStart: function (e, panelEl, rect) {
-            highlightPopupDragOffsetX = e.clientX - rect.left;
+            if (!highlightPopupDockRight) highlightPopupDragOffsetX = e.clientX - rect.left;
             highlightPopupDragOffsetY = e.clientY - rect.top;
         },
         onMove: function (e, panelEl, nextLeft, nextTop) {
             if (highlightPopupDockRight) {
-                highlightPopupDockLeft = nextLeft;
                 highlightPopupDockTop = nextTop;
+                panelEl.style.left = '12px';
             }
         }
     });
@@ -12567,7 +11808,9 @@ function bindHighlightPopupDrag() {
         if (target.closest('button') || target.closest('input') || target.closest('select') || target.closest('textarea')) return;
         highlightPopupDragging = true;
         const rect = panel.getBoundingClientRect();
-        highlightPopupDragOffsetX = e.clientX - rect.left;
+        if (!highlightPopupDockRight) {
+            highlightPopupDragOffsetX = e.clientX - rect.left;
+        }
         highlightPopupDragOffsetY = e.clientY - rect.top;
         panel.style.position = 'fixed';
         panel.style.margin = '0';
@@ -12582,11 +11825,12 @@ function bindHighlightPopupDrag() {
         const panelEl = document.getElementById('highlight-popup-panel');
         if (!panelEl) return;
         const nextTop = Math.max(8, Math.min(window.innerHeight - panelEl.offsetHeight - 8, e.clientY - highlightPopupDragOffsetY));
-        const nextLeft = Math.max(8, Math.min(window.innerWidth - panelEl.offsetWidth - 8, e.clientX - highlightPopupDragOffsetX));
-        panelEl.style.left = nextLeft + 'px';
-        if (highlightPopupDockRight) {
-            highlightPopupDockLeft = nextLeft;
+        if (!highlightPopupDockRight) {
+            const nextLeft = Math.max(8, Math.min(window.innerWidth - panelEl.offsetWidth - 8, e.clientX - highlightPopupDragOffsetX));
+            panelEl.style.left = nextLeft + 'px';
+        } else {
             highlightPopupDockTop = nextTop;
+            panelEl.style.left = '12px';
         }
         panelEl.style.top = nextTop + 'px';
         panelEl.style.right = 'auto';
@@ -12599,11 +11843,7 @@ function bindHighlightPopupDrag() {
 
 function toggleHighlightPopupDockRight() {
     highlightPopupDockRight = !highlightPopupDockRight;
-    if (!highlightPopupDockRight) {
-        highlightPopupShrink = false;
-    } else {
-        highlightPopupDockLeft = 12;
-    }
+    if (!highlightPopupDockRight) highlightPopupShrink = false;
     applyHighlightPopupLayout();
 }
 
@@ -13137,6 +12377,8 @@ const SETTINGS_EXPORT_LOCAL_KEYS = [
     MERMAID_DISPLAY_MODE_KEY,
     EDITOR_COMMENT_LIGHT_COLOR_KEY,
     EDITOR_COMMENT_DARK_COLOR_KEY,
+    DARK_VIEW_BOLD_COLOR_KEY,
+    DARK_VIEW_HEADER_COLOR_KEY,
     'mdpro_storage_sidebar_visibility_v1',
     'mdpro_storage_sidebar_auto_revealed_v1',
     'md_viewer_indb_enabled',
@@ -13150,7 +12392,7 @@ const SETTINGS_EXPORT_LOCAL_KEYS = [
     'local_ai_lmstudio_settings_v1',
     'ss_scholar_ai_provider',
     'ss_scholar_ai_model',
-    'ss_scholar_ai_gemini_models_v1',
+    'ss_scholar_ai_gemini_models_v2',
     'ss_scholar_ai_lmstudio_models_v1',
     'ss_litertlm_settings_v1',
     'ss_litertlm_settings_folded',
@@ -13160,7 +12402,7 @@ const SETTINGS_EXPORT_LOCAL_KEYS = [
     'ss_ai_chat_provider',
     'ss_ai_chat_gemini_model',
     'ss_ai_chat_writing_style',
-    'ss_ai_chat_gemini_models_v1',
+    'ss_ai_chat_gemini_models_v3',
     'ss_scholar_ai_openai_model',
     'ss_scholar_ai_openai_models_v1',
     'ss_ai_chat_openai_model',
@@ -13283,6 +12525,7 @@ async function applyImportedSettingsPayload(payload) {
     if (typeof window.syncInDbStorageSettingsUi === 'function') window.syncInDbStorageSettingsUi();
     if (typeof applyCodeColorSettings === 'function') applyCodeColorSettings();
     loadMarkdownCommentColorSettings();
+    loadDarkViewTextColorSettings();
     if (typeof applyTheme === 'function') applyTheme();
     syncMermaidDisplayModeUI();
     await refreshMermaidDisplay();
@@ -13367,6 +12610,7 @@ async function resetSettingsMset() {
         document.documentElement.style.setProperty('--code-bg-color', '#1e293b');
         document.documentElement.style.setProperty('--code-text-color', '#f8fafc');
         loadMarkdownCommentColorSettings();
+        loadDarkViewTextColorSettings();
         applySettingsShortcutsFold(getSettingsShortcutsFoldedFromLocal());
         syncFileDownloadPrefixSettingUI();
 
@@ -13416,7 +12660,8 @@ async function applyAiFeatureVisibility() {
     const btnScholar = document.getElementById('btn-scholar-ai');
     const btnSsp = document.getElementById('btn-sspimg-ai');
     const btnJenaMenu = document.getElementById('btn-ai-jena-menu');
-    const jenaMenuOn = localStorage.getItem('ss_ai_chat_menu_enabled') === '1';
+    const jenaMenuStored = localStorage.getItem('ss_ai_chat_menu_enabled');
+    const jenaMenuOn = jenaMenuStored == null ? true : jenaMenuStored === '1';
     const showAiOrJenaMenu = showAi || jenaMenuOn;
     if (headerBtns) {
         if (showAiOrJenaMenu) {
@@ -13789,9 +13034,9 @@ if (!window.__aiSidebarResizeBound) {
 
 let sidebarAILoaded = false;
 let scholarAIProviderRuntime = null;
-const SCHOLAR_AI_GEMINI_MODELS_KEY = 'ss_scholar_ai_gemini_models_v1';
+const SCHOLAR_AI_GEMINI_MODELS_KEY = 'ss_scholar_ai_gemini_models_v2';
 const SCHOLAR_AI_LM_MODELS_KEY = 'ss_scholar_ai_lmstudio_models_v1';
-const LMSTUDIO_MAX_TOKENS_DEFAULT_REVISION_KEY = 'ss_lmstudio_max_tokens_default_revision';
+const LM_STUDIO_TIMEOUT_580_MIGRATION_KEY = 'ss_lmstudio_timeout_580_migrated_v1';
 
 function readStoredModelList(key) {
     try {
@@ -13806,6 +13051,46 @@ function saveStoredModelList(key, models) {
     return values;
 }
 
+function renderSettingsGeminiModels(models, errorMessage) {
+    const list = document.getElementById('settings-gemini-models-list');
+    const state = document.getElementById('settings-gemini-models-state');
+    if (!list) return;
+    const values = Array.from(new Set((Array.isArray(models) ? models : []).map(String).filter(Boolean)));
+    const selected = list.value;
+    list.replaceChildren();
+    list.disabled = !!errorMessage || !values.length;
+    (errorMessage || !values.length ? [''] : values).forEach(function (model) {
+        const option = document.createElement('option');
+        option.value = model;
+        option.textContent = model || (errorMessage ? '모델 조회 실패' : 'API Key를 입력한 뒤 모델을 불러오세요.');
+        list.appendChild(option);
+    });
+    if (values.includes(selected)) list.value = selected;
+    list.title = errorMessage || 'API에 등록된 전체 모델 · 계정별 RPM/TPM/RPD는 별도 확인이 필요합니다.';
+    if (errorMessage) {
+        list.className = 'mt-2 w-full min-w-0 rounded border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-2 py-1.5 text-xs text-red-700 dark:text-red-300';
+        if (state) {
+            state.textContent = '확인 실패';
+            state.className = 'px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 text-[10px]';
+        }
+        return;
+    }
+    list.className = 'mt-2 w-full min-w-0 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-2 py-1.5 text-xs text-slate-600 dark:text-slate-300';
+    if (state) {
+        state.textContent = values.length ? values.length + '개' : '확인 전';
+        state.className = values.length
+            ? 'px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[10px]'
+            : 'px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px]';
+    }
+}
+
+function notifyAiToolSettingsChanged() {
+    if (window.MDPCredentialVault && typeof window.MDPCredentialVault.notifySettingsChanged === 'function') {
+        window.MDPCredentialVault.notifySettingsChanged();
+    }
+}
+window.notifyAiToolSettingsChanged = notifyAiToolSettingsChanged;
+
 function setSettingsScholarAIStatus(message, isError) {
     const status = document.getElementById('settings-scholar-ai-provider-status');
     if (!status) return;
@@ -13817,55 +13102,37 @@ function setSettingsScholarAIStatus(message, isError) {
 
 function readScholarAIProviderSettingsForm() {
     const value = function (id) { const el = document.getElementById(id); return el ? String(el.value || '').trim() : ''; };
-    const selectedUrl = document.querySelector('input[name="settings-lmstudio-base-url-slot"]:checked');
-    const baseUrlPrimary = value('settings-lmstudio-base-url');
-    const baseUrlSecondary = value('settings-lmstudio-base-url-secondary');
-    const activeBaseUrlSlot = selectedUrl && selectedUrl.value === 'secondary' && baseUrlSecondary ? 'secondary' : 'primary';
     return {
-        baseUrl: activeBaseUrlSlot === 'secondary' ? baseUrlSecondary : baseUrlPrimary,
-        baseUrlPrimary: baseUrlPrimary,
-        baseUrlSecondary: baseUrlSecondary,
-        activeBaseUrlSlot: activeBaseUrlSlot,
+        baseUrl: value('settings-lmstudio-base-url'),
         apiKey: value('settings-lmstudio-api-key'),
         temperature: Number(value('settings-lmstudio-temperature') || 0.4),
-        maxTokens: Number(value('settings-lmstudio-max-tokens') || 16384),
+        maxTokens: Number(value('settings-lmstudio-max-tokens') || 8192),
         quickMaxTokens: Number(value('settings-aichat-quick-max-tokens') || 4096),
         reasoningMaxTokens: Number(value('settings-aichat-reasoning-max-tokens') || 8192),
-        fastMaxTokens: Number(value('settings-aichat-fast-max-tokens') || 4000),
-        fastTimeoutMs: Number(value('settings-aichat-fast-timeout') || 580) * 1000,
+        fastMaxTokens: Number(value('settings-aichat-fast-max-tokens') || 3000),
+        fastTimeoutMs: Number(value('settings-aichat-fast-timeout') || 120) * 1000,
         fastSafetyTimeout: !!(document.getElementById('settings-aichat-fast-safety-timeout') && document.getElementById('settings-aichat-fast-safety-timeout').checked),
         fastCompleteStreaming: !!(document.getElementById('settings-aichat-fast-complete-streaming') && document.getElementById('settings-aichat-fast-complete-streaming').checked),
         reasoningLevel: value('settings-aichat-reasoning-level') || 'auto',
-        timeoutMs: Number(value('settings-lmstudio-timeout') || 720) * 1000,
+        timeoutMs: Number(value('settings-lmstudio-timeout') || 580) * 1000,
         topP: value('settings-lmstudio-top-p') === '' ? null : Number(value('settings-lmstudio-top-p'))
     };
 }
-
-function normalizeLMStudioBaseUrlField(input, optional) {
-    if (!input) return '';
-    let value = String(input.value || '').trim().replace(/\/+$/, '')
-        .replace(/\/chat\/completions$/i, '').replace(/\/models$/i, '');
-    if (!value && !optional) value = 'http://127.0.0.1:5678';
-    if (value && !/\/v1$/i.test(value)) value += '/v1';
-    input.value = value;
-    return value;
-}
-window.normalizeLMStudioBaseUrlField = normalizeLMStudioBaseUrlField;
 
 function syncAiJenaFastLimitsInSettings(config) {
     const source = config || {};
     const tokenInput = document.getElementById('settings-ai-jena-fast-token-limit');
     const timeInput = document.getElementById('settings-ai-jena-fast-time-limit');
-    if (tokenInput) tokenInput.value = Math.max(1, Number(source.fastMaxTokens) || 4000);
-    if (timeInput) timeInput.value = Math.max(1, Math.round((Number(source.fastTimeoutMs) || 580000) / 1000));
+    if (tokenInput) tokenInput.value = Math.max(1, Number(source.fastMaxTokens) || 3000);
+    if (timeInput) timeInput.value = Math.max(1, Math.round((Number(source.fastTimeoutMs) || 120000) / 1000));
 }
 
 function saveAiJenaFastLimitsFromSettings() {
     if (!window.LocalAI) return;
     const tokenInput = document.getElementById('settings-ai-jena-fast-token-limit');
     const timeInput = document.getElementById('settings-ai-jena-fast-time-limit');
-    const fastMaxTokens = Math.max(1, Math.round(Number(tokenInput && tokenInput.value) || 4000));
-    const fastTimeoutSeconds = Math.max(1, Math.round(Number(timeInput && timeInput.value) || 580));
+    const fastMaxTokens = Math.max(1, Math.round(Number(tokenInput && tokenInput.value) || 3000));
+    const fastTimeoutSeconds = Math.max(1, Math.round(Number(timeInput && timeInput.value) || 120));
     try {
         const current = window.LocalAI.loadConfig(localStorage);
         const config = getScholarAIProviderRuntime().saveLMStudioConfig(Object.assign({}, current, {
@@ -13888,72 +13155,12 @@ window.saveAiJenaFastLimitsFromSettings = saveAiJenaFastLimitsFromSettings;
 
 function normalizeLMStudioLoadedModels(models) {
     return (Array.isArray(models) ? models : []).map(function (item) {
-        if (typeof item === 'string') return { id: item, displayName: item, contextLength: null };
-        const firstInstance = item && Array.isArray(item.instances) ? item.instances[0] : null;
-        const reportedContextLength = Number(item && (item.contextLength || item.context_length || (firstInstance && firstInstance.contextLength)));
+        if (typeof item === 'string') return { id: item, displayName: item };
         return {
             id: String((item && (item.id || item.key)) || '').trim(),
-            displayName: String((item && (item.displayName || item.display_name || item.id || item.key)) || '').trim(),
-            contextLength: Number.isFinite(reportedContextLength) && reportedContextLength > 0 ? Math.round(reportedContextLength) : null
+            displayName: String((item && (item.displayName || item.display_name || item.id || item.key)) || '').trim()
         };
     }).filter(function (item) { return !!item.id; });
-}
-
-function updateSettingsLMStudioModelMaxTokens(contextLength) {
-    const hint = document.getElementById('settings-lmstudio-model-max-tokens');
-    const button = document.getElementById('settings-lmstudio-apply-model-max-tokens');
-    const value = Number(contextLength);
-    const valid = Number.isFinite(value) && value > 0;
-    if (hint) {
-        hint.textContent = valid
-            ? '모델 제시값 (context length): ' + Math.round(value).toLocaleString() + ' tokens'
-            : '모델 제시값: 확인할 수 없음';
-        hint.dataset.value = valid ? String(Math.round(value)) : '';
-    }
-    if (button) button.disabled = !valid;
-}
-
-function applySettingsLMStudioModelMaxTokens() {
-    const hint = document.getElementById('settings-lmstudio-model-max-tokens');
-    const input = document.getElementById('settings-lmstudio-max-tokens');
-    const value = Number(hint && hint.dataset.value);
-    if (!input || !Number.isFinite(value) || value < 1) return;
-    input.value = String(Math.round(value));
-    input.focus();
-    setSettingsScholarAIStatus('LM Studio 모델 제시값을 Max tokens에 적용했습니다. 저장 버튼을 눌러 확정하세요.', false);
-}
-window.applySettingsLMStudioModelMaxTokens = applySettingsLMStudioModelMaxTokens;
-
-function renderSettingsLMStudioModelLoader(models, message) {
-    const loader = document.getElementById('settings-lmstudio-model-loader');
-    const select = document.getElementById('settings-lmstudio-model-to-load');
-    const button = document.getElementById('settings-lmstudio-load-model-btn');
-    if (!loader || !select) return;
-    const values = Array.from(new Set((Array.isArray(models) ? models : []).map(function (item) {
-        return String(typeof item === 'string' ? item : (item && (item.key || item.id)) || '').trim();
-    }).filter(Boolean)));
-    loader.classList.remove('hidden');
-    select.replaceChildren();
-    if (!values.length) {
-        const option = document.createElement('option');
-        option.value = '';
-        option.textContent = message || '설치된 LLM을 찾지 못했습니다.';
-        select.appendChild(option);
-        if (button) button.disabled = true;
-        return;
-    }
-    values.forEach(function (model) {
-        const option = document.createElement('option');
-        option.value = model;
-        option.textContent = model;
-        select.appendChild(option);
-    });
-    if (button) button.disabled = false;
-}
-
-function hideSettingsLMStudioModelLoader() {
-    const loader = document.getElementById('settings-lmstudio-model-loader');
-    if (loader) loader.classList.add('hidden');
 }
 
 function renderSettingsLMStudioLoadedModels(models, errorMessage) {
@@ -13963,7 +13170,6 @@ function renderSettingsLMStudioLoadedModels(models, errorMessage) {
     if (!current || !detail) return;
     const loaded = normalizeLMStudioLoadedModels(models);
     if (errorMessage) {
-        updateSettingsLMStudioModelMaxTokens(null);
         current.textContent = 'LM Studio 연결 또는 로드 모델 확인 필요';
         current.className = 'mt-2 px-2 py-2 rounded border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30 text-sm font-semibold text-red-700 dark:text-red-300 break-all';
         current.classList.remove('settings-connection-glow');
@@ -13979,7 +13185,6 @@ function renderSettingsLMStudioLoadedModels(models, errorMessage) {
     }
     current.className = 'mt-2 px-2 py-2 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-sm font-semibold text-slate-800 dark:text-slate-100 break-all';
     if (!loaded.length) {
-        updateSettingsLMStudioModelMaxTokens(null);
         current.textContent = '현재 로드된 LLM 없음';
         current.classList.remove('settings-connection-glow');
         detail.textContent = 'LM Studio의 Developer → Local Server에서 모델을 Load한 뒤 다시 확인하세요.';
@@ -13992,9 +13197,7 @@ function renderSettingsLMStudioLoadedModels(models, errorMessage) {
         setCredentialConnectionVisual('settings-lmstudio-api-key', 'settings-lmstudio-api-key-feedback', 'neutral', lmKeyInput && lmKeyInput.value.trim() ? 'API Key 저장됨 · 모델 연결 확인 필요' : '선택 항목 · API Key 미사용');
         return;
     }
-    hideSettingsLMStudioModelLoader();
     const primary = loaded[0];
-    updateSettingsLMStudioModelMaxTokens(primary.contextLength);
     current.textContent = primary.displayName && primary.displayName !== primary.id
         ? primary.displayName + '  ·  ' + primary.id
         : primary.id;
@@ -14046,43 +13249,35 @@ function loadScholarAIProviderSettingsUI(legacySettings) {
     migrateLegacyScholarAIProviderSettings(legacySettings);
     let config;
     try { config = window.LocalAI.loadConfig(localStorage); } catch (_) { config = window.LocalAI.defaults || {}; }
-    if (localStorage.getItem(LMSTUDIO_MAX_TOKENS_DEFAULT_REVISION_KEY) !== '16384-v1') {
-        if (!Number(config.maxTokens) || Number(config.maxTokens) === 8192) {
-            config = getScholarAIProviderRuntime().saveLMStudioConfig(Object.assign({}, config, { maxTokens: 16384 }));
-        }
-        localStorage.setItem(LMSTUDIO_MAX_TOKENS_DEFAULT_REVISION_KEY, '16384-v1');
+    if (Number(config.timeoutMs) === 90000 && localStorage.getItem(LM_STUDIO_TIMEOUT_580_MIGRATION_KEY) !== '1') {
+        config = window.LocalAI.saveConfig(Object.assign({}, config, { timeoutMs: 580000 }), localStorage);
+        localStorage.setItem(LM_STUDIO_TIMEOUT_580_MIGRATION_KEY, '1');
     }
     const setValue = function (id, value) { const el = document.getElementById(id); if (el) el.value = value == null ? '' : value; };
-    setValue('settings-lmstudio-base-url', config.baseUrlPrimary || config.baseUrl || 'http://127.0.0.1:5678/v1');
-    setValue('settings-lmstudio-base-url-secondary', config.baseUrlSecondary || '');
-    const activeUrlSlot = document.querySelector('input[name="settings-lmstudio-base-url-slot"][value="' + (config.activeBaseUrlSlot === 'secondary' ? 'secondary' : 'primary') + '"]');
-    if (activeUrlSlot) activeUrlSlot.checked = true;
+    setValue('settings-lmstudio-base-url', config.baseUrl || 'http://127.0.0.1:5678/v1');
     setValue('settings-lmstudio-api-key', config.apiKey || '');
     setValue('settings-lmstudio-temperature', config.temperature == null ? 0.4 : config.temperature);
-    setValue('settings-lmstudio-max-tokens', config.maxTokens || 16384);
+    setValue('settings-lmstudio-max-tokens', config.maxTokens || 8192);
     setValue('settings-aichat-quick-max-tokens', config.quickMaxTokens || 4096);
     setValue('settings-aichat-reasoning-max-tokens', config.reasoningMaxTokens || 8192);
-    setValue('settings-aichat-fast-max-tokens', config.fastMaxTokens || 4000);
-    setValue('settings-aichat-fast-timeout', Math.max(1, Math.round((config.fastTimeoutMs || 580000) / 1000)));
+    setValue('settings-aichat-fast-max-tokens', config.fastMaxTokens || 3000);
+    setValue('settings-aichat-fast-timeout', Math.max(1, Math.round((config.fastTimeoutMs || 120000) / 1000)));
     syncAiJenaFastLimitsInSettings(config);
     const fastSafetyTimeout = document.getElementById('settings-aichat-fast-safety-timeout');
     if (fastSafetyTimeout) fastSafetyTimeout.checked = config.fastSafetyTimeout !== false;
     const fastCompleteStreaming = document.getElementById('settings-aichat-fast-complete-streaming');
     if (fastCompleteStreaming) fastCompleteStreaming.checked = config.fastCompleteStreaming !== false;
     setValue('settings-aichat-reasoning-level', config.reasoningLevel || 'auto');
-    setValue('settings-lmstudio-timeout', Math.max(1, Math.round((config.timeoutMs || 720000) / 1000)));
+    setValue('settings-lmstudio-timeout', Math.max(1, Math.round((config.timeoutMs || 580000) / 1000)));
     setValue('settings-lmstudio-top-p', config.topP == null ? '' : config.topP);
     renderSettingsLMStudioLoadedModels(readStoredModelList(SCHOLAR_AI_LM_MODELS_KEY));
+    renderSettingsGeminiModels(readStoredModelList(SCHOLAR_AI_GEMINI_MODELS_KEY));
     setTimeout(function () { loadSettingsLMStudioModels({ silent: true }); }, 0);
 }
 
 function saveScholarAIProviderSettingsFromUI(showStatus) {
     try {
         const config = getScholarAIProviderRuntime().saveLMStudioConfig(readScholarAIProviderSettingsForm());
-        const primaryInput = document.getElementById('settings-lmstudio-base-url');
-        const secondaryInput = document.getElementById('settings-lmstudio-base-url-secondary');
-        if (primaryInput) primaryInput.value = config.baseUrlPrimary;
-        if (secondaryInput) secondaryInput.value = config.baseUrlSecondary;
         setCredentialConnectionVisual(
             'settings-lmstudio-api-key',
             'settings-lmstudio-api-key-feedback',
@@ -14104,14 +13299,6 @@ async function loadSettingsLMStudioModels(options) {
     if (!config) return;
     if (!options.silent) setSettingsScholarAIStatus('LM Studio에서 현재 로드된 모델을 확인하는 중...', false);
     try {
-        const loaded = await getScholarAIProviderRuntime().listLMStudioLoadedModels(config);
-        if (!loaded.length) {
-            renderSettingsLMStudioLoadedModels([]);
-            const installed = await getScholarAIProviderRuntime().listLMStudioModels(config);
-            renderSettingsLMStudioModelLoader(installed, '설치된 LLM을 찾지 못했습니다.');
-            if (!options.silent) setSettingsScholarAIStatus('현재 로드 모델이 없습니다. 설치 모델을 선택해 로드하세요.', false);
-            return;
-        }
         const result = await getScholarAIProviderRuntime().syncLMStudioLoadedModel(config);
         const ids = result.models.map(function (item) { return item.id; }).filter(Boolean);
         saveStoredModelList(SCHOLAR_AI_LM_MODELS_KEY, ids);
@@ -14120,41 +13307,10 @@ async function loadSettingsLMStudioModels(options) {
     } catch (error) {
         const message = error && error.message ? error.message : String(error);
         saveStoredModelList(SCHOLAR_AI_LM_MODELS_KEY, []);
-        if (options.silent) {
-            renderSettingsLMStudioLoadedModels([]);
-            hideSettingsLMStudioModelLoader();
-            return;
-        }
-        renderSettingsLMStudioLoadedModels([], '연결 설정을 확인한 뒤 다시 시도하세요.');
-        setSettingsScholarAIStatus('LM Studio에 연결하지 못했습니다. 서버 실행 여부와 선택한 Base URL을 확인하세요.', false);
+        renderSettingsLMStudioLoadedModels([], message);
+        if (!options.silent) setSettingsScholarAIStatus('LM Studio 로드 모델 확인 실패: ' + message, true);
     }
 }
-
-async function loadSelectedSettingsLMStudioModel() {
-    const select = document.getElementById('settings-lmstudio-model-to-load');
-    const button = document.getElementById('settings-lmstudio-load-model-btn');
-    const model = String(select && select.value || '').trim();
-    if (!model) {
-        setSettingsScholarAIStatus('로드할 설치 모델을 선택하세요.', true);
-        return;
-    }
-    const config = saveScholarAIProviderSettingsFromUI(false);
-    if (!config) return;
-    if (button) button.disabled = true;
-    setSettingsScholarAIStatus('LM Studio에서 ' + model + ' 모델을 로드하는 중...', false);
-    try {
-        const result = await getScholarAIProviderRuntime().loadLMStudioModel(model, config);
-        const ids = (result.models || []).map(function (item) { return item.id; }).filter(Boolean);
-        saveStoredModelList(SCHOLAR_AI_LM_MODELS_KEY, ids);
-        renderSettingsLMStudioLoadedModels(result.models || []);
-        setSettingsScholarAIStatus('모델 로드 완료: ' + result.model, false);
-    } catch (error) {
-        setSettingsScholarAIStatus('모델을 로드하지 못했습니다: ' + (error && error.message ? error.message : error), true);
-    } finally {
-        if (button) button.disabled = false;
-    }
-}
-window.loadSelectedSettingsLMStudioModel = loadSelectedSettingsLMStudioModel;
 
 async function testSettingsLMStudioConnection() {
     const config = saveScholarAIProviderSettingsFromUI(false);
@@ -14162,8 +13318,7 @@ async function testSettingsLMStudioConnection() {
     setSettingsScholarAIStatus('LM Studio 연결을 확인하는 중...', false);
     const result = await getScholarAIProviderRuntime().testLMStudio(config);
     if (!result.ok) {
-        renderSettingsLMStudioLoadedModels([], 'Local Server를 실행하고 선택한 Base URL을 확인하세요. 다른 기기 주소를 사용한다면 LM Studio에서 CORS를 허용해야 합니다.');
-        setSettingsScholarAIStatus('연결되지 않았습니다. LM Studio Local Server와 Base URL을 확인하세요.', false);
+        setSettingsScholarAIStatus('LM Studio 연결 실패: ' + (result.error || '알 수 없는 오류'), true);
         return;
     }
     const ids = (result.models || []).map(function (item) { return item.id; }).filter(Boolean);
@@ -14172,61 +13327,24 @@ async function testSettingsLMStudioConnection() {
     setSettingsScholarAIStatus('LM Studio 연결 성공 · 현재 모델 ' + result.model + ' · ' + result.latencyMs + 'ms', false);
 }
 
-function renderSettingsGeminiModels(models, errorMessage) {
-    const modelList = document.getElementById('settings-gemini-models-list');
-    if (!modelList) return;
-    const previousValue = String(modelList.value || '');
-    const values = Array.from(new Set((Array.isArray(models) ? models : []).map(String).filter(Boolean)));
-    modelList.replaceChildren();
-    values.forEach(function (model) {
-        const option = document.createElement('option');
-        option.value = model;
-        option.textContent = model;
-        modelList.appendChild(option);
-    });
-    if (!values.length) {
-        const option = document.createElement('option');
-        option.value = '';
-        option.textContent = errorMessage ? '모델 조회 실패' : '사용 가능한 모델 없음';
-        modelList.appendChild(option);
-    }
-    modelList.disabled = !values.length;
-    modelList.title = errorMessage || '';
-    if (values.indexOf(previousValue) >= 0) modelList.value = previousValue;
-    const status = document.getElementById('settings-gemini-models-status');
-    if (status) status.textContent = errorMessage || (values.length + '개');
-}
-
-function notifyAiToolSettingsChanged() {
-    if (window.MDPCredentialVault && typeof window.MDPCredentialVault.notifySettingsChanged === 'function') {
-        window.MDPCredentialVault.notifySettingsChanged();
-    }
-}
-window.notifyAiToolSettingsChanged = notifyAiToolSettingsChanged;
-
 async function loadSettingsGeminiModels() {
     const keyInput = document.getElementById('ai-api-key');
     const key = keyInput && keyInput.value ? keyInput.value.trim() : '';
     setSettingsScholarAIStatus('Gemini 모델을 불러오는 중...', false);
     setCredentialConnectionVisual('ai-api-key', 'ai-api-key-feedback', 'checking', 'AI Studio 연결을 확인하는 중...');
     try {
-        const models = await listAIStudioChatModels(key);
-        const textModels = models.filter(function (id) { return !/(?:^|[-_.])(image|imagen)(?:$|[-_.])/i.test(id); });
-        saveStoredModelList(SCHOLAR_AI_GEMINI_MODELS_KEY, textModels);
+        const models = await listAIStudioModels(key);
         saveStoredModelList(AI_CHAT_GEMINI_MODELS_KEY, models);
+        saveStoredModelList(SCHOLAR_AI_GEMINI_MODELS_KEY, models);
+        renderSettingsGeminiModels(models);
         localStorage.setItem('ss_gemini_api_key', key);
         localStorage.setItem('ss_gemini_api_key_verified', credentialFingerprint(key));
-        setCredentialConnectionVisual('ai-api-key', 'ai-api-key-feedback', 'connected', '연결됨: AI Studio · 사용 가능 Gemini 모델 ' + models.length + '개 확인');
-        const modelStatus = document.getElementById('settings-gemini-models-status');
-        if (modelStatus) modelStatus.textContent = '사용 가능 모델 ' + models.length + '개 (텍스트 ' + textModels.length + '개)';
-        renderSettingsGeminiModels(models);
-        setSettingsScholarAIStatus('AI Studio에서 사용 가능한 Gemini 모델 ' + models.length + '개를 불러왔습니다.', false);
+        setCredentialConnectionVisual('ai-api-key', 'ai-api-key-feedback', 'connected', '연결됨: AI Studio · Gemini 모델 ' + models.length + '개 확인');
+        setSettingsScholarAIStatus('AI Studio 모델 ' + models.length + '개를 불러왔습니다. 계정별 할당량은 AI Studio에서 확인하세요.', false);
     } catch (error) {
         localStorage.removeItem('ss_gemini_api_key_verified');
+        renderSettingsGeminiModels([], error && error.message ? error.message : String(error));
         setCredentialConnectionVisual('ai-api-key', 'ai-api-key-feedback', 'error', '연결 확인 실패: ' + (error && error.message ? error.message : error));
-        const modelStatus = document.getElementById('settings-gemini-models-status');
-        if (modelStatus) modelStatus.textContent = '모델 조회 실패: ' + (error && error.message ? error.message : error);
-        renderSettingsGeminiModels([]);
         setSettingsScholarAIStatus('Gemini 모델 조회 실패: ' + (error && error.message ? error.message : error), true);
     }
 }
@@ -14279,19 +13397,22 @@ async function callAIStudioText(prompt, systemInstruction, useSearch, modelOverr
 async function listAIStudioTextModels(apiKeyOverride) {
     const models = await listAIStudioModels(apiKeyOverride);
     return models.filter(function (id) {
-        return /^(?:gemini|gemma)-/i.test(id) && !/(?:^|[-_.])(embedding|image|imagen)(?:$|[-_.])/i.test(id);
+        const info = aiChatGeminiModelLimits[id];
+        return info.supportedGenerationMethods.includes('generateContent') && !/(embedding|image|tts|audio)/i.test(id);
     });
 }
 
+// models.list exposes the catalog, not project RPM/TPM/RPD quotas.
+// Do not infer quota availability from model names or context-window limits.
 async function listAIStudioModels(apiKeyOverride) {
     const key = String(apiKeyOverride || getProtectedAiCredential('gemini', 'ss_gemini_api_key') || '');
     if (!key.trim()) throw new Error('AI Studio API Key가 없습니다. 설정에서 API Key를 먼저 저장하세요.');
-    const models = [];
+    const models = new Map();
     const seenTokens = new Set();
     let pageToken = '';
     do {
-        let url = 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=' + encodeURIComponent(key);
-        if (pageToken) url += '&pageToken=' + encodeURIComponent(pageToken);
+        const url = 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=' + encodeURIComponent(key)
+            + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : '');
         const res = await fetch(url, { headers: { Accept: 'application/json' } });
         if (!res.ok) {
             let message = 'Gemini 모델 조회 오류: ' + res.status;
@@ -14303,20 +13424,21 @@ async function listAIStudioModels(apiKeyOverride) {
         }
         const data = await res.json();
         (Array.isArray(data.models) ? data.models : []).forEach(function (model) {
-            const id = String(model && model.name || '').replace(/^models\//, '');
-            if (id) models.push(id);
-            if (id && (Number(model.inputTokenLimit) > 0 || Number(model.outputTokenLimit) > 0)) {
-                aiChatGeminiModelLimits[id] = {
-                    inputTokenLimit: Math.max(0, Number(model.inputTokenLimit) || 0),
-                    outputTokenLimit: Math.max(0, Number(model.outputTokenLimit) || 0)
-                };
-            }
+            const id = String(model.name || '').replace(/^models\//, '');
+            if (id) models.set(id, model);
         });
         pageToken = String(data.nextPageToken || '');
-        if (pageToken && seenTokens.has(pageToken)) throw new Error('AI Studio 페이지 토큰이 반복되었습니다.');
+        if (pageToken && seenTokens.has(pageToken)) throw new Error('AI Studio 모델 페이지 토큰이 반복됩니다. 다시 불러오세요.');
         if (pageToken) seenTokens.add(pageToken);
     } while (pageToken);
-    return Array.from(new Set(models));
+    models.forEach(function (model, id) {
+        aiChatGeminiModelLimits[id] = {
+            inputTokenLimit: Math.max(0, Number(model.inputTokenLimit) || 0),
+            outputTokenLimit: Math.max(0, Number(model.outputTokenLimit) || 0),
+            supportedGenerationMethods: Array.isArray(model.supportedGenerationMethods) ? model.supportedGenerationMethods : []
+        };
+    });
+    return mergeAIChatGeminiModels(Array.from(models.keys()).sort());
 }
 
 function getScholarAIProviderRuntime() {
@@ -14326,11 +13448,9 @@ function getScholarAIProviderRuntime() {
     }
     scholarAIProviderRuntime = window.ScholarAIProvider.create({
         storage: localStorage,
-        callAIStudio: function (prompt, systemInstruction, useSearch, modelOverride, signal, request) {
-            return callAIStudioChat([{ role: 'user', content: String(prompt || '') }], systemInstruction, modelOverride, signal, request && request.responseMode, useSearch, 0, request && request.onStreamEvent);
-        },
-        callOllama: function (prompt, systemInstruction, useSearch, modelOverride, signal, request) {
-            return callOllamaChatText([{ role: 'user', content: String(prompt || '') }], systemInstruction, modelOverride, signal, request && request.responseMode, request && request.onStreamEvent);
+        callAIStudio: callAIStudioText,
+        callOllama: function (prompt, systemInstruction, useSearch, modelOverride, signal) {
+            return callOllamaChatText([{ role: 'user', content: String(prompt || '') }], systemInstruction, modelOverride, signal);
         },
         callDeepseek: function (prompt, systemInstruction, useSearch, modelOverride, signal, keyOverride, baseUrlOverride) {
             return callDeepseekChatText(
@@ -14344,44 +13464,13 @@ function getScholarAIProviderRuntime() {
         },
         callOpenAI: function (prompt, systemInstruction, useSearch, modelOverride, signal, keyOverride) {
             return callOpenAIText(prompt, systemInstruction, useSearch, modelOverride, signal, keyOverride);
-        },
-        callOpenAICompatible: async function (prompt, systemInstruction, useSearch, modelOverride, signal) {
-            const connection = getStoredOpenAICompatibleConnection();
-            const model = String(modelOverride || connection.modelId || '').trim();
-            if (!model) throw new Error('OrcaRouter / OpenAI 호환 모델을 선택하세요.');
-            const messages = [];
-            if (systemInstruction) messages.push({ role: 'system', content: String(systemInstruction) });
-            messages.push({ role: 'user', content: String(prompt || '') });
-            const response = await fetch(connection.baseUrl + '/chat/completions', {
-                method: 'POST',
-                headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer ' + connection.apiKey },
-                body: JSON.stringify({ model: model, messages: messages, stream: false }),
-                signal: signal
-            });
-            if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
-            const data = await response.json();
-            const choice = data && data.choices && data.choices[0] || {};
-            return { model: String(data.model || model), text: String(choice.message && choice.message.content || choice.text || '') };
-        },
-        callLiteRTLM: async function (prompt, systemInstruction, useSearch, modelOverride, signal, request) {
-            const settings = getLiteRTLMSettings();
-            const messages = [];
-            if (systemInstruction) messages.push({ role: 'system', content: String(systemInstruction) });
-            messages.push({ role: 'user', content: String(prompt || '') });
-            const body = { model: modelOverride || settings.model, messages: messages, stream: false, max_tokens: settings.maxGen, temperature: settings.temperature, top_p: settings.topP, top_k: settings.topK, sampler: settings.sampler, thinking: settings.thinking };
-            if (settings.streaming !== false && request && typeof request.onStreamEvent === 'function') {
-                return streamLiteRTLMChat(body, settings, signal, request.onStreamEvent);
-            }
-            const result = await requestLiteRTLM('/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body), signal: signal });
-            const choice = result.data && result.data.choices && result.data.choices[0] || {};
-            return { model: result.data.model || body.model, text: String(choice.message && choice.message.content || choice.text || '') };
         }
     });
     return scholarAIProviderRuntime;
 }
 
 let aiChatAbortController = null;
-const AI_CHAT_GEMINI_MODELS_KEY = 'ss_ai_chat_gemini_models_v1';
+const AI_CHAT_GEMINI_MODELS_KEY = 'ss_ai_chat_gemini_models_v3';
 const aiChatGeminiModelLimits = Object.create(null);
 const AI_CHAT_DEEPSEEK_MODELS_KEY = 'ss_ai_chat_deepseek_models_v1';
 const AI_CHAT_OPENAI_MODELS_KEY = 'ss_ai_chat_openai_models_v1';
@@ -14392,31 +13481,19 @@ const LITERTLM_SETTINGS_KEY = 'ss_litertlm_settings_v1';
 const LITERTLM_BASE_URL_DEFAULT_MIGRATION_KEY = 'ss_litertlm_base_url_default_v1';
 const LITERTLM_MODELS_KEY = 'ss_litertlm_models_v1';
 const LITERTLM_CLOUD_BASE_URL = 'https://llm1.abci.co.kr/v1';
-const LITERTLM_ACCESS_PASSWORD_SHA256 = '0928fa207f645501893d769321bce1bcd67761d677bc2a8e6c097c1b52c8fa5d';
 const LITERTLM_LEGACY_MODEL = 'gemma-4-E2B-it.litertlm';
 const LITERTLM_MIGRATED_MODEL = 'gemma-4-E4B';
-let liteRTLMCloudUnlocked = false;
 const AI_CHAT_GEMINI_DEFAULT_MODELS = [
+    'gemini-3.5-flash-lite',
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
     'gemini-3.5-flash',
+    'gemini-3.1-flash-lite',
     'gemini-3.1-pro-preview',
     'gemini-3-flash-preview',
-    'gemini-3.6-flash',
-    'gemini-deep-research-pro-preview',
-    'gemini-2.5-flash-tts',
-    'gemini-2.5-pro-tts',
-    'gemini-2.5-flash-native-audio-dialog',
-    'gemini-3-flash-live',
-    'gemini-3.5-live-translate',
-    'lyria-3-clip',
-    'lyria-3-pro',
-    'veo-3-fast-generate',
     'gemini-2.5-flash',
     'gemini-2.5-pro',
-    'gemini-2.5-flash-lite',
-    'gemini-3.1-flash-lite-image',
-    'gemini-3.1-flash-image',
-    'gemini-3-pro-image',
-    'gemini-2.5-flash-image'
+    'gemini-2.5-flash-lite'
 ];
 const AI_CHAT_DEEPSEEK_DEFAULT_MODELS = [
     'deepseek-v4-flash',
@@ -14428,28 +13505,22 @@ const AI_CHAT_OPENAI_DEFAULT_MODELS = [
     'gpt-5.6-luna'
 ];
 const SCHOLAR_AI_TEXT_MODELS_FALLBACK = [
+    'gemini-3.5-flash-lite',
+    'gemini-3.7-flash',
+    'gemini-3.6-flash',
     'gemini-3.5-flash',
+    'gemini-3.1-flash-lite',
     'gemini-3.1-pro-preview',
     'gemini-3-flash-preview',
-    'gemini-3.6-flash',
-    'gemini-deep-research-pro-preview',
-    'gemini-2.5-flash-tts',
-    'gemini-2.5-pro-tts',
-    'gemini-2.5-flash-native-audio-dialog',
-    'gemini-3-flash-live',
-    'gemini-3.5-live-translate',
-    'lyria-3-clip',
-    'lyria-3-pro',
-    'veo-3-fast-generate',
     'gemini-2.5-pro',
     'gemini-2.5-flash',
-    'gemini-2.5-flash-lite',
-    'gemini-2.0-flash-exp'
+    'gemini-2.5-flash-lite'
 ];
 
 function mergeAIChatGeminiModels(models) {
     const available = Array.from(new Set((Array.isArray(models) ? models : []).map(String).filter(Boolean)));
-    return available;
+    const preferred = AI_CHAT_GEMINI_DEFAULT_MODELS.filter(function (model) { return available.includes(model); });
+    return preferred.concat(available.filter(function (model) { return !preferred.includes(model); }));
 }
 
 function mergeAIChatDeepseekModels(models) {
@@ -14493,22 +13564,20 @@ function normalizeOllamaBaseUrl(value) {
 }
 
 function getLiteRTLMSettings() {
-    const defaults = { mode: 'cloud', cloudName: 'cloud', cloudUrl: '', model: '', contextLength: 4096, maxGen: 2048, sampler: 'greedy', temperature: 0.3, topP: 0.9, topK: 40, thinking: true, streaming: true, renderIntervalMs: 100 };
+    const defaults = { mode: 'cloud', cloudName: 'cloud', cloudUrl: LITERTLM_CLOUD_BASE_URL, model: '', contextLength: 4096, maxGen: 2048, sampler: 'greedy', temperature: 0.3, topP: 0.9, topK: 40, thinking: true, streaming: true, renderIntervalMs: 100 };
     try {
         const settings = Object.assign({}, defaults, JSON.parse(localStorage.getItem(LITERTLM_SETTINGS_KEY) || '{}'));
         settings.mode = 'cloud';
         settings.cloudName = String(settings.cloudName || '').trim() || 'cloud';
-        settings.cloudUrl = liteRTLMCloudUnlocked ? LITERTLM_CLOUD_BASE_URL : String(settings.cloudUrl || '').trim();
-        if (isProtectedLiteRTLMUrl(settings.cloudUrl) && !liteRTLMCloudUnlocked) settings.cloudUrl = '';
+        settings.cloudUrl = LITERTLM_CLOUD_BASE_URL;
         delete settings.localUrl;
         delete settings.localName;
         if (String(settings.model || '').trim() === LITERTLM_LEGACY_MODEL) {
             settings.model = LITERTLM_MIGRATED_MODEL;
         }
-        const storedSettings = Object.assign({}, settings, { cloudUrl: isProtectedLiteRTLMUrl(settings.cloudUrl) ? '' : settings.cloudUrl });
         if (localStorage.getItem(LITERTLM_BASE_URL_DEFAULT_MIGRATION_KEY) !== '1'
-            || localStorage.getItem(LITERTLM_SETTINGS_KEY) !== JSON.stringify(storedSettings)) {
-            localStorage.setItem(LITERTLM_SETTINGS_KEY, JSON.stringify(storedSettings));
+            || localStorage.getItem(LITERTLM_SETTINGS_KEY) !== JSON.stringify(settings)) {
+            localStorage.setItem(LITERTLM_SETTINGS_KEY, JSON.stringify(settings));
             localStorage.setItem(LITERTLM_BASE_URL_DEFAULT_MIGRATION_KEY, '1');
         }
         return settings;
@@ -14535,84 +13604,9 @@ function normalizeLiteRTLMBaseUrl(value) {
     return parsed.toString().replace(/\/+$/, '').replace(/\/models$/i, '').replace(/\/chat\/completions$/i, '').replace(/\/+$/, '');
 }
 
-function isProtectedLiteRTLMUrl(value) {
-    if (!String(value || '').trim()) return false;
-    try { return normalizeLiteRTLMBaseUrl(value) === normalizeLiteRTLMBaseUrl(LITERTLM_CLOUD_BASE_URL); } catch (_) { return false; }
-}
-
 function updateLiteRTLMSettingsModeUI() {
     const cloudUrl = document.getElementById('settings-litertlm-cloud-url');
-    if (!cloudUrl) return;
-    if (liteRTLMCloudUnlocked) cloudUrl.value = LITERTLM_CLOUD_BASE_URL;
-    else if (isProtectedLiteRTLMUrl(cloudUrl.value)) cloudUrl.value = '';
-}
-
-async function hashLiteRTLMAccessPassword(value) {
-    if (!window.crypto || !window.crypto.subtle) throw new Error('이 환경에서는 안전한 비밀번호 확인을 지원하지 않습니다.');
-    const bytes = new TextEncoder().encode(String(value || ''));
-    const digest = await window.crypto.subtle.digest('SHA-256', bytes);
-    return Array.from(new Uint8Array(digest)).map(function (byte) { return byte.toString(16).padStart(2, '0'); }).join('');
-}
-
-function setLiteRTLMCloudUnlocked(unlocked, message, isError) {
-    liteRTLMCloudUnlocked = !!unlocked;
-    updateLiteRTLMSettingsModeUI();
-    const password = document.getElementById('settings-litertlm-access-password');
-    const status = document.getElementById('settings-litertlm-access-status');
-    if (password) password.setAttribute('aria-invalid', isError ? 'true' : 'false');
-    if (status) {
-        status.textContent = message || (unlocked ? '인증되었습니다. 보호 URL을 사용할 수 있습니다.' : '지정된 보호 URL만 비밀번호가 필요합니다. 다른 서버 URL은 인증 없이 사용할 수 있습니다.');
-        status.classList.toggle('text-red-600', !!isError);
-        status.classList.toggle('dark:text-red-400', !!isError);
-        status.classList.toggle('text-emerald-600', !!unlocked && !isError);
-        status.classList.toggle('dark:text-emerald-400', !!unlocked && !isError);
-    }
-}
-
-function handleLiteRTLMPasswordInput(input) {
-    const hasValue = !!(input && String(input.value || '').length);
-    setLiteRTLMCloudUnlocked(false, hasValue ? '확인 버튼을 누르거나 Enter 키로 인증하세요.' : undefined, false);
-}
-
-function handleLiteRTLMCloudUrlInput(input) {
-    const value = input ? String(input.value || '').trim() : '';
-    if (isProtectedLiteRTLMUrl(value) && !liteRTLMCloudUnlocked) {
-        input.value = '';
-        setLiteRTLMCloudUnlocked(false, '이 URL은 아래 비밀번호 인증 후 사용할 수 있습니다.', true);
-        return;
-    }
-    if (!isProtectedLiteRTLMUrl(value)) {
-        liteRTLMCloudUnlocked = false;
-        setLiteRTLMCloudUnlocked(false, value ? '사용자 서버 URL은 별도 인증 없이 사용할 수 있습니다.' : undefined, false);
-    }
-}
-
-async function unlockLiteRTLMCloudUrl() {
-    const password = document.getElementById('settings-litertlm-access-password');
-    const value = password ? String(password.value || '') : '';
-    if (!value) {
-        setLiteRTLMCloudUnlocked(false, '비밀번호를 입력하세요.', true);
-        return false;
-    }
-    try {
-        const matches = (await hashLiteRTLMAccessPassword(value)) === LITERTLM_ACCESS_PASSWORD_SHA256;
-        setLiteRTLMCloudUnlocked(matches, matches ? '인증되었습니다. Cloud URL과 연결 기능을 사용할 수 있습니다.' : '비밀번호가 올바르지 않습니다.', !matches);
-        return matches;
-    } catch (error) {
-        setLiteRTLMCloudUnlocked(false, error.message || '비밀번호를 확인하지 못했습니다.', true);
-        return false;
-    }
-}
-
-function requireLiteRTLMCloudUnlocked() {
-    if (!liteRTLMCloudUnlocked) throw new Error('LiteRT-LM Cloud URL을 사용하려면 설정 하단에서 비밀번호 인증이 필요합니다.');
-    return LITERTLM_CLOUD_BASE_URL;
-}
-
-function resolveLiteRTLMBaseUrl(value) {
-    const normalized = normalizeLiteRTLMBaseUrl(value);
-    if (isProtectedLiteRTLMUrl(normalized)) requireLiteRTLMCloudUnlocked();
-    return normalized;
+    if (cloudUrl) cloudUrl.value = LITERTLM_CLOUD_BASE_URL;
 }
 
 function setLiteRTLMSettingsFolded(folded) {
@@ -14632,7 +13626,6 @@ function toggleLiteRTLMSettingsFold() {
 }
 
 function loadLiteRTLMSettingsToUI() {
-    liteRTLMCloudUnlocked = false;
     const settings = getLiteRTLMSettings();
     const values = {
         'settings-litertlm-cloud-name': settings.cloudName,
@@ -14653,9 +13646,6 @@ function loadLiteRTLMSettingsToUI() {
     const model = document.getElementById('settings-litertlm-model');
     if (model && settings.model && !Array.from(model.options).some(function (option) { return option.value === settings.model; })) model.add(new Option(settings.model, settings.model));
     if (model) model.value = settings.model;
-    const accessPassword = document.getElementById('settings-litertlm-access-password');
-    if (accessPassword) accessPassword.value = '';
-    setLiteRTLMCloudUnlocked(false);
     updateLiteRTLMSettingsModeUI();
     // No saved preference means collapsed. Users who explicitly expand it keep
     // that choice through the stored "0" value.
@@ -14668,7 +13658,7 @@ async function saveLiteRTLMSettings(showStatus) {
     const streaming = document.getElementById('settings-litertlm-streaming');
     const mode = 'cloud';
     const settings = {
-        mode: mode, cloudName: read('settings-litertlm-cloud-name') || 'cloud', cloudUrl: read('settings-litertlm-cloud-url'),
+        mode: mode, cloudName: read('settings-litertlm-cloud-name') || 'cloud', cloudUrl: LITERTLM_CLOUD_BASE_URL,
         model: read('settings-litertlm-model'), contextLength: Math.max(1, Number(read('settings-litertlm-context-length')) || 4096),
         maxGen: Math.max(1, Number(read('settings-litertlm-max-gen')) || 2048), sampler: read('settings-litertlm-sampler') || 'greedy',
         temperature: Math.max(0, Number(read('settings-litertlm-temperature')) || 0), topP: Math.min(1, Math.max(0, Number(read('settings-litertlm-top-p')) || 0)),
@@ -14678,8 +13668,8 @@ async function saveLiteRTLMSettings(showStatus) {
     };
     const activeUrl = settings.cloudUrl;
     if (!activeUrl) throw new Error('Cloud Base URL이 설정되지 않았습니다.');
-    resolveLiteRTLMBaseUrl(activeUrl);
-    localStorage.setItem(LITERTLM_SETTINGS_KEY, JSON.stringify(Object.assign({}, settings, { cloudUrl: isProtectedLiteRTLMUrl(settings.cloudUrl) ? '' : settings.cloudUrl })));
+    normalizeLiteRTLMBaseUrl(activeUrl);
+    localStorage.setItem(LITERTLM_SETTINGS_KEY, JSON.stringify(settings));
     if (showStatus) {
         const status = document.getElementById('settings-litertlm-status');
         if (status) status.textContent = '설정을 저장했습니다. LiteRT-LM에 연결하는 중...';
@@ -14706,7 +13696,7 @@ function applyLiteRTLMMobilePreset() {
 }
 
 async function streamLiteRTLMChat(body, settings, signal, onStreamEvent) {
-    const baseUrl = resolveLiteRTLMBaseUrl(settings.cloudUrl);
+    const baseUrl = normalizeLiteRTLMBaseUrl(settings.cloudUrl || LITERTLM_CLOUD_BASE_URL);
     const emit = typeof onStreamEvent === 'function' ? onStreamEvent : function () {};
     emit({ type: 'request.start', provider: 'litertlm', context_length: settings.contextLength, max_output_tokens: settings.maxGen, render_interval_ms: settings.renderIntervalMs });
     emit({ type: 'transport.start', provider: 'litertlm' });
@@ -14771,7 +13761,7 @@ async function requestLiteRTLM(path, options) {
     // model with the panel's initial blank option. Runtime transport must use
     // persisted settings; explicit settings actions save the form beforehand.
     const settings = getLiteRTLMSettings();
-    const baseUrl = resolveLiteRTLMBaseUrl(settings.cloudUrl);
+    const baseUrl = normalizeLiteRTLMBaseUrl(settings.mode === 'cloud' ? settings.cloudUrl : settings.localUrl);
     const response = await fetch(baseUrl + path, options);
     if (!response.ok) throw new Error('HTTP ' + response.status + ': ' + (await response.text() || response.statusText));
     return { data: await response.json(), settings: settings };
@@ -15534,8 +14524,8 @@ async function callDeepseekChatText(
     const opts = options || {};
     const reasoningMode = opts.reasoningMode === true;
     const maxTokens = Math.max(256, Math.min(384000, Number(opts.maxTokens) || state.maxTokens || 8192));
-    const effort = ['low', 'high', 'max'].includes(String(opts.reasoningEffort || state.reasoningEffort).toLowerCase())
-        ? String(opts.reasoningEffort || state.reasoningEffort).toLowerCase() : 'high';
+    const effort = ['low', 'high'].includes(String(opts.reasoningEffort || state.reasoningEffort).toLowerCase())
+        ? String(opts.reasoningEffort || state.reasoningEffort).toLowerCase() : 'low';
     const timeoutSeconds = Math.max(30, Math.min(3600, Number(opts.timeoutSeconds) || state.timeoutSeconds || 300));
     const requestBody = {
         model: normalizedModel,
@@ -15772,10 +14762,15 @@ async function readAIStudioEventStream(response, emit) {
     return { candidates: [{ content: { parts: mergedParts }, finishReason: finishReason }], usageMetadata: usageMetadata };
 }
 
-async function callAIStudioChat(messages, systemInstruction, modelOverride, signal, responseMode, academicSearch, academicEvidenceCount, onStreamEvent) {
+async function callAIStudioChat(messages, systemInstruction, modelOverride, signal, responseMode, academicSearch, academicEvidenceCount, onStreamEvent, internetSearch) {
     const key = await getAIStudioKeyForChat();
     if (!key) throw new Error('AI Studio API Key가 없습니다. 앱 설정에서 API Key를 먼저 저장하세요.');
     const model = String(modelOverride || 'gemini-2.5-flash').trim();
+    const modelInfo = aiChatGeminiModelLimits[model];
+    if (modelInfo && Array.isArray(modelInfo.supportedGenerationMethods)
+        && !modelInfo.supportedGenerationMethods.includes('generateContent')) {
+        throw new Error('이 모델은 AI JENA 대화 API가 아닌 전용 API 연동이 필요합니다: ' + model);
+    }
     const normalized = normalizeAIChatMessages(messages);
     while (normalized.length && normalized[0].role !== 'user') normalized.shift();
     const contents = [];
@@ -15804,7 +14799,8 @@ async function callAIStudioChat(messages, systemInstruction, modelOverride, sign
     const modelLimits = imageModel
         ? { inputTokenLimit: 0, outputTokenLimit: 0 }
         : await getAIChatGeminiModelLimits(model, key, signal);
-    const maxOutputTokens = Math.max(1, Number(modelLimits.outputTokenLimit) || 8192);
+    const modelMaxOutputTokens = Math.max(1, Number(modelLimits.outputTokenLimit) || 8192);
+    const maxOutputTokens = academicSearch ? Math.min(2400, modelMaxOutputTokens) : modelMaxOutputTokens;
     const generationConfig = imageModel
         ? { responseModalities: ['TEXT', 'IMAGE'] }
         : { maxOutputTokens: maxOutputTokens };
@@ -15815,6 +14811,7 @@ async function callAIStudioChat(messages, systemInstruction, modelOverride, sign
     }
     const payload = { contents: contents, generationConfig: generationConfig };
     if (systemInstruction && !imageModel) payload.systemInstruction = { parts: [{ text: String(systemInstruction) }] };
+    if (internetSearch && !imageModel) payload.tools = [{ googleSearch: {} }];
     const streaming = !imageModel && typeof onStreamEvent === 'function';
     const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model)
         + (streaming ? ':streamGenerateContent?alt=sse&key=' : ':generateContent?key=') + encodeURIComponent(key);
@@ -15891,12 +14888,29 @@ async function callAIStudioChat(messages, systemInstruction, modelOverride, sign
         onStreamEvent({ type: 'message.end', provider: 'aistudio' });
         onStreamEvent({ type: 'chat.end', provider: 'aistudio', result: { stats: { total_output_tokens: completionTokens + reasoningTokens, reasoning_output_tokens: reasoningTokens } } });
     }
+    const groundingChunks = Array.isArray(candidate.groundingMetadata?.groundingChunks)
+        ? candidate.groundingMetadata.groundingChunks
+        : [];
+    const internetSources = groundingChunks.map(function (chunk) {
+        const web = chunk && chunk.web || {};
+        const url = String(web.uri || '').trim();
+        if (!/^https?:\/\//i.test(url)) return null;
+        return {
+            title: String(web.title || url),
+            url: url,
+            snippet: '',
+            source: String(web.title || ''),
+            engine: 'google-search',
+            channel: 'gemini-grounding'
+        };
+    }).filter(Boolean);
     return {
         provider: 'aistudio',
         model: model,
         text: text,
         reasoning: reasoning,
         images: images,
+        internetSources: internetSources,
         finishReason: candidate.finishReason || '',
         usage: {
             promptTokens: promptTokens,
@@ -15945,6 +14959,7 @@ function insertAIChatTextIntoDocument(text, mode) {
         prefix = before && !/\n\s*\n$/.test(before) ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
     }
     const insertion = prefix + value + suffix;
+    pushReplaceUndoSnapshot();
     editorTextarea.focus();
     editorTextarea.setSelectionRange(start, end);
     const applied = document.execCommand('insertText', false, insertion);
@@ -16210,11 +15225,18 @@ window.AIChatBridge = Object.freeze({
         return { text: raw.slice(start, end), start: start, end: end };
     },
     getCachedGeminiModels: function () {
-        return mergeAIChatGeminiModels(readStoredModelList(AI_CHAT_GEMINI_MODELS_KEY));
+        return localStorage.getItem(AI_CHAT_GEMINI_MODELS_KEY) === null
+            ? AI_CHAT_GEMINI_DEFAULT_MODELS.slice()
+            : mergeAIChatGeminiModels(readStoredModelList(AI_CHAT_GEMINI_MODELS_KEY));
+    },
+    hasGeminiModelCatalog: function () {
+        return localStorage.getItem(AI_CHAT_GEMINI_MODELS_KEY) !== null;
     },
     refreshGeminiModels: async function () {
         const models = await listAIStudioChatModels();
         saveStoredModelList(AI_CHAT_GEMINI_MODELS_KEY, models);
+        saveStoredModelList(SCHOLAR_AI_GEMINI_MODELS_KEY, models);
+        renderSettingsGeminiModels(models);
         return models;
     },
     getCachedOllamaModels: function () {
@@ -16248,11 +15270,12 @@ window.AIChatBridge = Object.freeze({
         return models;
     },
     getCachedOpenAICompatibleModels: function () {
-        return getVisibleOpenAICompatibleModelIds();
+        const models = readOpenAICompatibleModelsCache().map(function (item) { return item.id; });
+        const selected = String(localStorage.getItem('ss_openai_compatible_model_id') || '').trim();
+        return Array.from(new Set(models.concat(selected ? [selected] : []).filter(Boolean)));
     },
-    refreshOpenAICompatibleModels: async function () {
-        await fetchOpenAICompatibleModels(getStoredOpenAICompatibleConnection());
-        return getVisibleOpenAICompatibleModelIds();
+    refreshOpenAICompatibleModels: function () {
+        return fetchOpenAICompatibleModels(getStoredOpenAICompatibleConnection());
     },
     getCachedLMStudioModels: function () {
         return readStoredModelList(SCHOLAR_AI_LM_MODELS_KEY);
@@ -16274,11 +15297,7 @@ window.AIChatBridge = Object.freeze({
         const loadedIds = loaded.map(function (item) { return item.id; }).filter(Boolean);
         const models = Array.from(new Set(installedIds.concat(loadedIds)));
         saveStoredModelList(SCHOLAR_AI_LM_MODELS_KEY, models);
-        return {
-            model: result ? result.model : '',
-            models: models,
-            contextLength: result ? getAIChatLMContextLength(result) : 0
-        };
+        return { model: result ? result.model : '', models: models, contextLength: result ? getAIChatLMContextLength(result) : 0 };
     },
     loadLMStudioModel: async function (model) {
         const runtime = getScholarAIProviderRuntime();
@@ -16290,10 +15309,19 @@ window.AIChatBridge = Object.freeze({
         const loadedIds = (result.models || []).map(function (item) { return item.id; }).filter(Boolean);
         const models = Array.from(new Set(installedIds.concat(loadedIds)));
         saveStoredModelList(SCHOLAR_AI_LM_MODELS_KEY, models);
-        return {
-            model: result.model,
-            models: models,
-            contextLength: getAIChatLMContextLength(result)
+        return { model: result.model, models: models, contextLength: getAIChatLMContextLength(result) };
+    },
+    captureInsertTarget: function () {
+        const target = editorTextarea;
+        const revision = currentDocumentDisplayRequest;
+        const value = target && target.value;
+        const start = target && target.selectionStart;
+        const end = target && target.selectionEnd;
+        return function () {
+            if (target !== editorTextarea || revision !== currentDocumentDisplayRequest || !target
+                || value !== target.value || start !== target.selectionStart || end !== target.selectionEnd) {
+                throw new Error('검증 중 문서 또는 선택 영역이 바뀌었습니다. 삽입 위치를 확인하고 다시 시도하세요.');
+            }
         };
     },
     insertIntoDocument: function (text, mode, options) {
@@ -16386,7 +15414,7 @@ window.AIChatBridge = Object.freeze({
                 return { provider: 'litertlm', model: result.data.model || body.model, text: String(choice.message && choice.message.content || choice.text || ''), reasoning: String(choice.message && choice.message.reasoning_content || ''), finishReason: choice.finish_reason || '', usage: result.data.usage || null, contextLength: settings.contextLength, maxOutputTokens: settings.maxGen, responseId: result.data.id || null };
             }
             if (request.provider === 'aistudio') {
-                return await callAIStudioChat(request.messages, request.systemInstruction, request.model, controller.signal, request.academicSearch ? 'quick' : request.mode, request.academicSearch, request.academicEvidenceCount, request.onStreamEvent);
+                return await callAIStudioChat(request.messages, request.systemInstruction, request.model, controller.signal, request.academicSearch ? 'quick' : request.mode, request.academicSearch, request.academicEvidenceCount, request.onStreamEvent, request.internetSearch === true);
             }
             if (request.provider === 'ollama') {
                 const result = await callOllamaChatText(
@@ -16468,13 +15496,11 @@ window.AIChatBridge = Object.freeze({
             const messages = normalizeAIChatMessages(request.messages);
             const lastUserIndex = messages.map(function (message) { return message.role; }).lastIndexOf('user');
             if (lastUserIndex < 0) throw new Error('전송할 사용자 질문이 없습니다.');
-            const reasoningMode = request.mode === 'reasoning' && request.academicSearch !== true && request.internetSearch !== true;
+            const reasoningMode = request.mode === 'reasoning' && request.academicSearch !== true;
             const continuationMode = request.continuation === true;
             const splitAcademicMode = request.splitAcademicResponse === true;
             const modeInstruction = request.academicSearch
                 ? ''
-                : request.internetSearch
-                ? '수집된 인터넷 검색 근거를 중복 없이 주제별로 통합하고, 시스템 지시의 네 섹션을 모두 완결하세요. 출처 목록을 그대로 반복하거나 계획·추론을 출력하지 마세요.'
                 : continuationMode
                 ? '이전 응답에서 아직 작성하지 않은 본문만 이어서 작성하세요. 질문·체크리스트·계획·작업 지시·모델의 생각·이미 작성한 문장은 출력하지 마세요.'
                 : splitAcademicMode
@@ -16486,24 +15512,25 @@ window.AIChatBridge = Object.freeze({
                 : (reasoningMode
                     ? '설정된 추론 강도로 충분히 검토한 뒤 완성도 높은 최종 답변을 작성하세요. 사용자가 요청한 모든 항목·코드·설명을 누락하지 말고, 내부 계획이나 추론은 최종 답변에 섞지 마세요.'
                     : '핵심부터 바로 답하되 사용자가 요청한 코드, 설명, 형식과 분량을 완전하게 충족하세요. 인위적인 문장 수 제한을 두지 마세요.');
-            const configuredMaxTokens = Math.max(1, Number(config.maxTokens) || 16384);
+            const configuredMaxTokens = Math.max(1, Number(config.maxTokens) || 8192);
+            const academicMaxTokens = Math.min(2400, configuredMaxTokens);
             const configuredReasoning = String(config.reasoningLevel || 'auto').toLowerCase();
             const fastMode = request.fastMode === true;
-            const maximizeSearchOutput = request.academicSearch === true || request.internetSearch === true;
-            const searchTimeoutMs = 15 * 60 * 1000;
-            const configuredFastMaxTokens = Math.max(1, Number(config.fastMaxTokens) || 4000);
-            const configuredFastTimeoutMs = Math.max(1000, Number(config.fastTimeoutMs) || 580000);
+            const configuredFastMaxTokens = Math.max(1, Number(config.fastMaxTokens) || 3000);
+            const configuredFastTimeoutMs = Math.max(1000, Number(config.fastTimeoutMs) || 120000);
             const fastSafetyTimeoutMs = config.fastSafetyTimeout === false
                 ? configuredFastTimeoutMs
                 : Math.max(configuredFastTimeoutMs, 120000);
-            const requestedOutputTokens = fastMode ? Math.min(configuredFastMaxTokens, configuredMaxTokens) : (contextLength || configuredMaxTokens);
+            const requestedOutputTokens = request.academicSearch
+                ? academicMaxTokens
+                : (fastMode ? Math.min(configuredFastMaxTokens, configuredMaxTokens) : (contextLength || configuredMaxTokens));
             const baseSystemPrompt = [request.systemInstruction || '', modeInstruction].filter(Boolean).join('\n\n');
             const fixedInputTokens = estimateAIChatTokens(baseSystemPrompt) + estimateAIChatTokens(messages[lastUserIndex].content);
             const historyOutputReserve = getAIChatHistoryOutputReserve(contextLength, requestedOutputTokens, reasoningMode);
             const historyTokenBudget = contextLength
                 ? Math.max(0, contextLength - fixedInputTokens - historyOutputReserve - 256)
                 : Number.POSITIVE_INFINITY;
-            const historyCandidates = request.academicSearch || request.internetSearch ? [] : messages.slice(0, lastUserIndex);
+            const historyCandidates = request.academicSearch ? [] : messages.slice(0, lastUserIndex);
             const historyMessages = retainAIChatHistory(historyCandidates, historyTokenBudget);
             const history = historyMessages.map(function (message) {
                 return (message.role === 'assistant' ? 'AI' : '사용자') + ': ' + message.content;
@@ -16514,15 +15541,14 @@ window.AIChatBridge = Object.freeze({
             const contextOutputBudget = contextLength
                 ? Math.max(1, contextLength - estimatedInputTokens - 256)
                 : configuredMaxTokens;
-            const requestMaxTokens = maximizeSearchOutput
-                ? Math.max(1, contextOutputBudget)
-                : Math.max(1, Math.min(contextOutputBudget, fastMode ? configuredFastMaxTokens : contextOutputBudget));
+            const requestMaxTokens = Math.max(1, Math.min(
+                contextOutputBudget,
+                request.academicSearch ? academicMaxTokens : (fastMode ? configuredFastMaxTokens : contextOutputBudget)
+            ));
             const minimumTimeout = continuationMode
                 ? 600000
-                : (fastMode ? fastSafetyTimeoutMs : (reasoningMode ? 300000 : (request.academicSearch || request.internetSearch ? 240000 : 60000)));
-            const requestTimeoutMs = maximizeSearchOutput
-                ? searchTimeoutMs
-                : fastMode
+                : (fastMode ? fastSafetyTimeoutMs : (reasoningMode ? 300000 : (request.academicSearch ? 240000 : 60000)));
+            const requestTimeoutMs = fastMode
                 ? minimumTimeout
                 : Math.max(
                     minimumTimeout,
@@ -16539,7 +15565,7 @@ window.AIChatBridge = Object.freeze({
                     max_output_tokens: requestMaxTokens,
                     estimated_input_tokens: estimatedInputTokens,
                     retained_history_tokens: retainedHistoryTokens,
-                    reasoning: request.academicSearch || request.internetSearch || continuationMode || splitAcademicMode
+                    reasoning: request.academicSearch || continuationMode || splitAcademicMode
                         ? 'off'
                         : (reasoningMode ? configuredReasoning : 'off')
                 });
@@ -16548,7 +15574,7 @@ window.AIChatBridge = Object.freeze({
                 input: messages[lastUserIndex].content,
                 systemInstruction: systemPrompt,
                 model: synced.model,
-                reasoning: request.academicSearch || request.internetSearch || continuationMode || splitAcademicMode
+                reasoning: request.academicSearch || continuationMode || splitAcademicMode
                     ? 'off'
                     : (reasoningMode ? (configuredReasoning === 'auto' ? undefined : configuredReasoning) : 'off'),
                 contextLength: contextLength || undefined,
@@ -16594,16 +15620,6 @@ function ensureSidebarAILoaded() {
         if (s && s.apiKey) localStorage.setItem('ss_gemini_api_key', s.apiKey);
         if (s && s.openaiApiKey) localStorage.setItem('ss_openai_api_key', s.openaiApiKey);
         if (s && s.imgbbApiKey) localStorage.setItem('ss_imgbb_api_key', s.imgbbApiKey);
-        const storedPromptPack = String(s && s.scholarAIPromptPack || '').trim();
-        const cachedPromptPack = String(localStorage.getItem('ss_scholar_ai_system') || '').trim();
-        const defaultPromptPack = typeof window.getDefaultScholarAIPrompt === 'function' ? String(window.getDefaultScholarAIPrompt() || '').trim() : '';
-        const sourcePromptPack = storedPromptPack || cachedPromptPack || defaultPromptPack;
-        const sharedPromptPack = typeof window.mergeScholarAIQuickToolPrompts === 'function'
-            ? window.mergeScholarAIQuickToolPrompts(sourcePromptPack) : sourcePromptPack;
-        if (sharedPromptPack) localStorage.setItem('ss_scholar_ai_system', sharedPromptPack);
-        if ((!s || storedPromptPack !== sharedPromptPack) && sharedPromptPack) {
-            setAiSettings({ scholarAIPromptPack: sharedPromptPack }).catch(function () {});
-        }
     });
     window.SidebarAIConfig = {
         host: null,
@@ -16636,7 +15652,7 @@ function ensureSidebarAILoaded() {
                     maxTokens: special.maxOutputTokens,
                     timeoutMs: special.timeoutMs,
                     completeStreaming: special.completeStreaming === true,
-                    onStreamEvent: special.onStreamEvent
+                    onStreamEvent: typeof special.onStreamEvent === 'function' ? special.onStreamEvent : undefined
                 });
             },
             listScholarAIGeminiModels: function () { return listAIStudioTextModels(); },
@@ -16648,15 +15664,6 @@ function ensureSidebarAILoaded() {
             getCachedScholarAIDeepseekModels: function () { return readStoredModelList(AI_CHAT_DEEPSEEK_MODELS_KEY); },
             getCachedScholarAIOpenAIModels: function () { return mergeAIChatOpenAIModels(readStoredModelList(AI_CHAT_OPENAI_MODELS_KEY)); },
             getCachedScholarAILMStudioModels: function () { return readStoredModelList(SCHOLAR_AI_LM_MODELS_KEY); },
-            getCachedScholarAILiteRTLMModels: function () { return readStoredModelList(LITERTLM_MODELS_KEY); },
-            getCachedScholarAIOpenAICompatibleModels: function () {
-                return getVisibleOpenAICompatibleModelIds();
-            },
-            refreshLiteRTLMModels: function () { return loadSettingsLiteRTLMModels(); },
-            refreshOpenAICompatibleModels: async function () {
-                await fetchOpenAICompatibleModels(getStoredOpenAICompatibleConnection());
-                return getVisibleOpenAICompatibleModelIds();
-            },
             refreshScholarAILMStudioModels: async function () {
                 const ids = await getScholarAIProviderRuntime().listLMStudioModels();
                 saveStoredModelList(SCHOLAR_AI_LM_MODELS_KEY, ids);
@@ -16835,7 +15842,6 @@ function ensureSidebarAILoaded() {
                 const next = String(text || '').trim();
                 if (!next) localStorage.removeItem('ss_scholar_ai_system');
                 else localStorage.setItem('ss_scholar_ai_system', next);
-                setAiSettings({ scholarAIPromptPack: next }).catch(function () {});
                 notifyAiToolSettingsChanged();
             },
             getScholarAIModelId: function (provider) { return getScholarAIProviderRuntime().getModel(provider); },
@@ -17409,11 +16415,6 @@ async function initAiVisibility() {
     const sspimgEl = document.getElementById('ai-sspimg-enabled');
     const githubEl = document.getElementById('ai-github-enabled');
     const localStorageEl = document.getElementById('local-storage-enabled');
-    const githubTokenEl = document.getElementById('github-token-input');
-    const githubRepoEl = document.getElementById('github-repo-input');
-    const githubBranchEl = document.getElementById('github-branch-input');
-    const githubPullMaxEl = document.getElementById('github-pull-max-files-input');
-    const githubDefaultPushPathEl = document.getElementById('github-default-push-path-input');
     const verified = isAiAccessVerified(settings);
     if (settings) {
         if (useCheck) {
@@ -17424,25 +16425,11 @@ async function initAiVisibility() {
         if (sspimgEl) sspimgEl.checked = verified ? !!settings.sspimgAI : false;
         if (githubEl) githubEl.checked = !!settings.githubEnabled;
         if (localStorageEl) localStorageEl.checked = getLocalStorageFeatureEnabledFromSettings(settings);
-        if (githubTokenEl) githubTokenEl.value = settings.githubToken || '';
-        if (githubRepoEl) githubRepoEl.value = settings.githubRepo || '';
-        if (githubBranchEl) githubBranchEl.value = settings.githubBranch || 'main';
-        if (githubDefaultPushPathEl) githubDefaultPushPathEl.value = settings.githubDefaultPushPath || '';
-        if (githubPullMaxEl) {
-            const rawMax = Number(settings.githubPullMaxFiles);
-            const maxFiles = Number.isFinite(rawMax) ? Math.max(1, Math.min(10000, Math.floor(rawMax))) : 10000;
-            githubPullMaxEl.value = String(maxFiles);
-        }
     } else {
         if (scholarEl) scholarEl.checked = false;
         if (sspimgEl) sspimgEl.checked = false;
         if (githubEl) githubEl.checked = false;
         if (localStorageEl) localStorageEl.checked = true;
-        if (githubTokenEl) githubTokenEl.value = '';
-        if (githubRepoEl) githubRepoEl.value = '';
-        if (githubBranchEl) githubBranchEl.value = 'main';
-        if (githubDefaultPushPathEl) githubDefaultPushPathEl.value = '';
-        if (githubPullMaxEl) githubPullMaxEl.value = '10000';
     }
     enterButtonInsertBr = !!((settings && settings.enterButtonInsertBr === true) || getEnterButtonInsertBrFromLocal());
     selectionWrapEnabled = settings && typeof settings.selectionWrapEnabled === 'boolean'
@@ -17503,7 +16490,7 @@ function openSettingsModal() {
     applySettingsShortcutsFold(getSettingsShortcutsFoldedFromLocal());
     syncFileDownloadPrefixSettingUI();
     applyAiUseFold(getAiUseFoldedFromLocal());
-    collapseAiProviderSettingsForOpen();
+    applyAiChatSettingsFold(getAiChatSettingsFoldedFromLocal());
     applyShareSettingsFold(getShareSettingsFoldedFromLocal());
     applyGithubSettingsFold(getGithubSettingsFoldedFromLocal());
     loadAiSettingsToUI();
@@ -17521,10 +16508,6 @@ function openSettingsModal() {
 }
 
 const AI_WRITING_STYLE_PROMPT_KEY = 'mdpro_ai_writing_style_prompt_v1';
-const AI_WRITING_STYLE_DB_NAME = 'mdpro_writing_styles';
-const AI_WRITING_STYLE_DB_VERSION = 1;
-const AI_WRITING_STYLE_FILE_STORE = 'source_files';
-const AI_WRITING_STYLE_SETTING_STORE = 'settings';
 const DEFAULT_AI_WRITING_STYLE_PROMPT = [
     '다음 문체 지침을 모든 한국어 본문 작성과 문장 수정에 적용한다.',
     '상투적인 “-이다”, “-한다” 종결을 문장마다 반복하지 않는다. 문맥과 논리 기능에 따라 학술적 서술어를 다양하게 선택한다.',
@@ -17534,7 +16517,6 @@ const DEFAULT_AI_WRITING_STYLE_PROMPT = [
     '역할·기능은 “역할을 수행한다”, “기능을 수행한다”, 의미·가치는 “의미를 갖는다”, “중요성을 지닌다”, “핵심적 기반이 된다”로 표현할 수 있다.',
     '영향·효과는 “기여한다”, “영향을 미친다”, “효과를 나타낸다”를 사용하고, 지위·평가는 “자리매김한다”, “위상을 갖는다”, “전략적 자산으로 간주된다”, “핵심적 요소로 평가된다” 등으로 다양화한다.',
     '동일한 종결 표현을 가까운 문장 안에서 반복하지 않으며, 의미에 가장 정확한 서술어를 선택한다. 표현을 억지로 치환하거나 지나치게 장식하지 않는다.',
-    '모든 글이나 문단의 결론을 관행적으로 “기대된다”로 마무리하지 않는다. 구체적인 근거를 바탕으로 향후 효과나 변화를 전망할 필요가 있는 경우에만 “기대된다”를 사용한다.',
     '객관적이고 논리적인 학술 문체를 유지하고, 주장·근거·해석을 구분한다. 근거보다 강한 단정, 과장, 구어체, 불필요한 존댓말을 피한다.',
     '수식은 한글(HWP) 수식 입력을 고려하여 별도 요청이 없으면 복사 가능한 텍스트 형태로 제시한다.',
     '사용자가 특정 언어, 문체, 시제 또는 형식을 명시한 경우에는 해당 요청을 우선한다.'
@@ -17545,17 +16527,9 @@ function getAIWritingStylePrompt() {
     catch (_) { return DEFAULT_AI_WRITING_STYLE_PROMPT; }
 }
 
-async function loadAIWritingStylePrompt() {
+function loadAIWritingStylePrompt() {
     const input = document.getElementById('ai-writing-style-prompt');
     if (input) input.value = getAIWritingStylePrompt();
-    try {
-        const saved = await readAIWritingStyleSetting('active_prompt');
-        if (saved && saved.value) {
-            localStorage.setItem(AI_WRITING_STYLE_PROMPT_KEY, saved.value);
-            if (input) input.value = saved.value;
-        }
-        await renderAIWritingStyleFiles();
-    } catch (_) {}
 }
 
 function setAIWritingStylePromptFeedback(message, isError) {
@@ -17565,13 +16539,12 @@ function setAIWritingStylePromptFeedback(message, isError) {
     feedback.className = 'min-h-[1rem] text-[11px] ' + (isError ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400');
 }
 
-async function saveAIWritingStylePrompt() {
+function saveAIWritingStylePrompt() {
     const input = document.getElementById('ai-writing-style-prompt');
     const value = input ? String(input.value || '').trim() : '';
     if (!value) { setAIWritingStylePromptFeedback('문체 프롬프트를 입력해 주세요.', true); return false; }
     try {
         localStorage.setItem(AI_WRITING_STYLE_PROMPT_KEY, value);
-        await writeAIWritingStyleSetting('active_prompt', value);
         setAIWritingStylePromptFeedback('문체 프롬프트를 저장했습니다. 다음 AI 요청부터 적용됩니다.', false);
         return true;
     } catch (_) {
@@ -17584,166 +16557,10 @@ function resetAIWritingStylePrompt() {
     const input = document.getElementById('ai-writing-style-prompt');
     if (input) input.value = DEFAULT_AI_WRITING_STYLE_PROMPT;
     try { localStorage.removeItem(AI_WRITING_STYLE_PROMPT_KEY); } catch (_) {}
-    writeAIWritingStyleSetting('active_prompt', DEFAULT_AI_WRITING_STYLE_PROMPT).catch(function () {});
     setAIWritingStylePromptFeedback('학술 문체 기본값을 복원했습니다.', false);
 }
 
 window.getAIWritingStylePrompt = getAIWritingStylePrompt;
-
-function openAIWritingStyleDb() {
-    return new Promise(function (resolve, reject) {
-        const request = indexedDB.open(AI_WRITING_STYLE_DB_NAME, AI_WRITING_STYLE_DB_VERSION);
-        request.onupgradeneeded = function () {
-            const db = request.result;
-            if (!db.objectStoreNames.contains(AI_WRITING_STYLE_FILE_STORE)) db.createObjectStore(AI_WRITING_STYLE_FILE_STORE, { keyPath: 'id' });
-            if (!db.objectStoreNames.contains(AI_WRITING_STYLE_SETTING_STORE)) db.createObjectStore(AI_WRITING_STYLE_SETTING_STORE, { keyPath: 'key' });
-        };
-        request.onsuccess = function () { resolve(request.result); };
-        request.onerror = function () { reject(request.error || new Error('문체 inDB를 열지 못했습니다.')); };
-    });
-}
-
-async function writeAIWritingStyleSetting(key, value) {
-    const db = await openAIWritingStyleDb();
-    return new Promise(function (resolve, reject) {
-        const tx = db.transaction(AI_WRITING_STYLE_SETTING_STORE, 'readwrite');
-        tx.objectStore(AI_WRITING_STYLE_SETTING_STORE).put({ key: key, value: value, updatedAt: Date.now() });
-        tx.oncomplete = function () { db.close(); resolve(); };
-        tx.onerror = function () { db.close(); reject(tx.error); };
-    });
-}
-
-async function readAIWritingStyleSetting(key) {
-    const db = await openAIWritingStyleDb();
-    return new Promise(function (resolve, reject) {
-        const tx = db.transaction(AI_WRITING_STYLE_SETTING_STORE, 'readonly');
-        const request = tx.objectStore(AI_WRITING_STYLE_SETTING_STORE).get(key);
-        request.onsuccess = function () { resolve(request.result || null); };
-        request.onerror = function () { reject(request.error); };
-        tx.oncomplete = function () { db.close(); };
-    });
-}
-
-async function getAIWritingStyleFiles() {
-    const db = await openAIWritingStyleDb();
-    return new Promise(function (resolve, reject) {
-        const tx = db.transaction(AI_WRITING_STYLE_FILE_STORE, 'readonly');
-        const request = tx.objectStore(AI_WRITING_STYLE_FILE_STORE).getAll();
-        request.onsuccess = function () { resolve((request.result || []).sort(function (a, b) { return a.createdAt - b.createdAt; })); };
-        request.onerror = function () { reject(request.error); };
-        tx.oncomplete = function () { db.close(); };
-    });
-}
-
-async function putAIWritingStyleFiles(records) {
-    const db = await openAIWritingStyleDb();
-    return new Promise(function (resolve, reject) {
-        const tx = db.transaction(AI_WRITING_STYLE_FILE_STORE, 'readwrite');
-        records.forEach(function (record) { tx.objectStore(AI_WRITING_STYLE_FILE_STORE).put(record); });
-        tx.oncomplete = function () { db.close(); resolve(); };
-        tx.onerror = function () { db.close(); reject(tx.error); };
-    });
-}
-
-function buildAIWritingStylePrompt(files) {
-    const excerpts = files.map(function (file, index) {
-        return '[문체 자료 ' + (index + 1) + ': ' + file.name + ']\n' + String(file.text || '').trim().slice(0, 12000);
-    }).filter(function (item) { return item.trim(); });
-    return [
-        '아래 문체 자료의 어휘 선택, 문장 길이, 문장 종결, 단락 전개, 논증 방식과 표현 습관을 분석하여 최종 답변 전체에 일관되게 적용한다.',
-        '자료의 사실·주장·고유명사·수치는 답변 내용으로 복사하지 말고 문체적 특성만 모방한다. 사용자의 현재 요청과 정확성을 항상 우선한다.',
-        '자료 사이에 차이가 있으면 공통적으로 반복되는 문체 특징을 우선하며, 부자연스러운 오탈자나 비문은 모방하지 않는다.',
-        '',
-        excerpts.join('\n\n')
-    ].join('\n').trim();
-}
-
-async function renderAIWritingStyleFiles() {
-    const list = document.getElementById('ai-writing-style-file-list');
-    if (!list) return;
-    const files = await getAIWritingStyleFiles();
-    list.replaceChildren();
-    if (!files.length) {
-        const empty = document.createElement('p'); empty.className = 'text-slate-400'; empty.textContent = '저장된 문체 자료가 없습니다.'; list.appendChild(empty); return;
-    }
-    files.forEach(function (file) {
-        const row = document.createElement('div'); row.className = 'flex items-center justify-between gap-2 rounded border border-slate-200 px-2 py-1 dark:border-slate-700';
-        const label = document.createElement('span'); label.className = 'min-w-0 truncate'; label.textContent = file.name + ' · ' + Math.max(1, Math.round((file.size || 0) / 1024)) + 'KB';
-        const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'shrink-0 text-rose-600 hover:underline'; remove.textContent = '삭제'; remove.onclick = function () { deleteAIWritingStyleFile(file.id); };
-        row.append(label, remove); list.appendChild(row);
-    });
-}
-
-async function importAIWritingStyleSourceFiles(event) {
-    const input = event && event.target;
-    const files = Array.from(input && input.files || []);
-    if (!files.length) return;
-    try {
-        const records = await Promise.all(files.map(async function (file) {
-            return { id: (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random()), name: file.name, type: file.type || 'text/plain', size: file.size, text: await file.text(), createdAt: Date.now() };
-        }));
-        await putAIWritingStyleFiles(records);
-        const allFiles = await getAIWritingStyleFiles();
-        const prompt = buildAIWritingStylePrompt(allFiles);
-        const textarea = document.getElementById('ai-writing-style-prompt');
-        if (textarea) textarea.value = prompt;
-        localStorage.setItem(AI_WRITING_STYLE_PROMPT_KEY, prompt);
-        await writeAIWritingStyleSetting('active_prompt', prompt);
-        await renderAIWritingStyleFiles();
-        setAIWritingStylePromptFeedback(files.length + '개 파일을 inDB에 저장하고 문체 프롬프트를 자동 생성했습니다.', false);
-    } catch (error) { setAIWritingStylePromptFeedback('문체 파일 처리 실패: ' + (error.message || error), true); }
-    if (input) input.value = '';
-}
-
-async function deleteAIWritingStyleFile(id) {
-    const db = await openAIWritingStyleDb();
-    await new Promise(function (resolve, reject) {
-        const tx = db.transaction(AI_WRITING_STYLE_FILE_STORE, 'readwrite'); tx.objectStore(AI_WRITING_STYLE_FILE_STORE).delete(id);
-        tx.oncomplete = function () { db.close(); resolve(); }; tx.onerror = function () { db.close(); reject(tx.error); };
-    });
-    const files = await getAIWritingStyleFiles();
-    if (files.length) {
-        const prompt = buildAIWritingStylePrompt(files); localStorage.setItem(AI_WRITING_STYLE_PROMPT_KEY, prompt); await writeAIWritingStyleSetting('active_prompt', prompt);
-        const textarea = document.getElementById('ai-writing-style-prompt'); if (textarea) textarea.value = prompt;
-    } else {
-        localStorage.setItem(AI_WRITING_STYLE_PROMPT_KEY, DEFAULT_AI_WRITING_STYLE_PROMPT);
-        await writeAIWritingStyleSetting('active_prompt', DEFAULT_AI_WRITING_STYLE_PROMPT);
-        const textarea = document.getElementById('ai-writing-style-prompt'); if (textarea) textarea.value = DEFAULT_AI_WRITING_STYLE_PROMPT;
-    }
-    await renderAIWritingStyleFiles();
-}
-
-async function exportAIWritingStylePackage() {
-    const payload = { format: 'mdpro-writing-style', version: 1, exportedAt: new Date().toISOString(), prompt: getAIWritingStylePrompt(), files: await getAIWritingStyleFiles() };
-    const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
-    const link = document.createElement('a'); link.href = url; link.download = 'mdpro-writing-style.mstyle'; link.click(); setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-    setAIWritingStylePromptFeedback('문체 프롬프트와 자료 파일을 내보냈습니다.', false);
-}
-
-async function importAIWritingStylePackage(event) {
-    const input = event && event.target; const file = input && input.files && input.files[0]; if (!file) return;
-    try {
-        const payload = JSON.parse(await file.text());
-        if (!payload || payload.format !== 'mdpro-writing-style' || !Array.isArray(payload.files)) throw new Error('지원하지 않는 문체 파일입니다.');
-        await putAIWritingStyleFiles(payload.files);
-        const prompt = String(payload.prompt || buildAIWritingStylePrompt(await getAIWritingStyleFiles())).trim();
-        localStorage.setItem(AI_WRITING_STYLE_PROMPT_KEY, prompt); await writeAIWritingStyleSetting('active_prompt', prompt);
-        const textarea = document.getElementById('ai-writing-style-prompt'); if (textarea) textarea.value = prompt;
-        await renderAIWritingStyleFiles(); setAIWritingStylePromptFeedback('문체 패키지를 불러와 inDB에 저장했습니다.', false);
-    } catch (error) { setAIWritingStylePromptFeedback('문체 불러오기 실패: ' + (error.message || error), true); }
-    if (input) input.value = '';
-}
-
-function openAIWritingStyleSettings() {
-    if (typeof openSettingsModal === 'function') openSettingsModal();
-    const details = document.getElementById('ai-writing-style-prompt-settings');
-    if (details) { details.open = true; setTimeout(function () { details.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 50); }
-    loadAIWritingStylePrompt();
-}
-window.openAIWritingStyleSettings = openAIWritingStyleSettings;
-window.importAIWritingStyleSourceFiles = importAIWritingStyleSourceFiles;
-window.exportAIWritingStylePackage = exportAIWritingStylePackage;
-window.importAIWritingStylePackage = importAIWritingStylePackage;
 
 function focusGoogleCalendarSettings() {
     const settingsBody = document.getElementById('settings-modal-body');
@@ -18121,7 +16938,6 @@ function askStorageSaveLocation(origin, targetSource) {
 async function ensureDatabaseStorageMode(storageMode) {
     const requestedMode = storageMode === 'sqlite' ? 'sqlite' : 'indb';
     if (!window.MDPStorage || typeof window.MDPStorage.requestMode !== 'function') return false;
-    await ensureStorageServiceReady();
     if (getActiveStorageMode() !== requestedMode) {
         const state = await window.MDPStorage.requestMode(requestedMode);
         const actualMode = state && state.activeMode === 'sqlite' ? 'sqlite' : 'indb';
@@ -18328,7 +17144,6 @@ window.openPdfMergeWindow = openPdfMergeWindow;
 window.printPage = printPage;
 window.copyViewFormattedToClipboard = copyViewFormattedToClipboard;
 window.getCurrentDbDocumentId = getCurrentDbDocumentId;
-window.getCurrentMarkdownSnapshot = getCurrentMarkdownSnapshot;
 window.getCurrentFileGoogleDocId = getCurrentFileGoogleDocId;
 window.setCurrentFileGoogleDocId = setCurrentFileGoogleDocId;
 window.toggleSidebarVisibility = toggleSidebarVisibility;
@@ -18407,7 +17222,6 @@ window.adjustHeaderScale = adjustHeaderScale;
 window.setMainHeaderBackgroundRemoved = setMainHeaderBackgroundRemoved;
 window.adjustEditorHorizontalShift = adjustEditorHorizontalShift;
 window.resetEditorHorizontalShift = resetEditorHorizontalShift;
-window.toggleEditorShiftFloatOrientation = toggleEditorShiftFloatOrientation;
 if (window.ScholarSearchApp && typeof window.ScholarSearchApp.connectHost === 'function') {
     window.ScholarSearchApp.connectHost({
         dbGetter: function () { return db; },
@@ -18434,11 +17248,6 @@ window.insertSelectedTemplateAsNewFile = insertSelectedTemplateAsNewFile;
 window.toggleTemplateSection = toggleTemplateSection;
 window.toggleNoteCoverInsertSection = toggleNoteCoverInsertSection;
 window.insertDefaultNoteCover = insertDefaultNoteCover;
-window.openNoteCoverInsertDialog = openNoteCoverInsertDialog;
-window.closeNoteCoverInsertDialog = closeNoteCoverInsertDialog;
-window.confirmNoteCoverInsert = confirmNoteCoverInsert;
-window.toggleNoteCoverMenu = toggleNoteCoverMenu;
-window.removeDocumentNoteCover = removeDocumentNoteCover;
 window.toggleHtml2pptPanel = toggleHtml2pptPanel;
 window.openHtml2pptPanel = openHtml2pptPanel;
 window.closeHtml2pptPanel = closeHtml2pptPanel;
@@ -18460,9 +17269,6 @@ window.scrollToDocumentBottom = scrollToDocumentBottom;
 window.closeSaveModal = closeSaveModal;
 window.confirmSaveModal = confirmSaveModal;
 window.openBackupModal = openBackupModal;
-window.openMpvFilePicker = openMpvFilePicker;
-window.openZipBackupFilePicker = openZipBackupFilePicker;
-window.handleZipBackupFileSelect = handleZipBackupFileSelect;
 window.closeBackupModal = closeBackupModal;
 window.openMergeModal = openMergeModal;
 window.closeMergeModal = closeMergeModal;
@@ -18524,7 +17330,88 @@ window.setAllSettingsContainersFolded = setAllSettingsContainersFolded;
 window.isSettingsContainerFolded = isSettingsContainerFolded;
 window.applySettingsContainerFold = applySettingsContainerFold;
 window.toggleSettingsModalCompact = toggleSettingsModalCompact;
+function getAppFullscreenHost() {
+    try {
+        if (window.frameElement && window.parent && window.parent.document) {
+            return { doc: window.parent.document, target: window.frameElement };
+        }
+    } catch (error) {
+        // 다른 출처에 포함된 경우에는 MDPRO 문서 자체를 전체화면으로 사용한다.
+    }
+    return { doc: document, target: document.documentElement };
+}
+
+function isAppFullscreenActive() {
+    var host = getAppFullscreenHost();
+    var fullscreenElement = host.doc.fullscreenElement || host.doc.webkitFullscreenElement || host.doc.msFullscreenElement;
+    return Boolean(fullscreenElement || (host.target && host.target.classList.contains('mdpro-frame-mobile-fullscreen')));
+}
+
+function syncAppFullscreenButton() {
+    var button = document.getElementById('btn-app-fullscreen');
+    if (!button) return;
+    var active = isAppFullscreenActive();
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    button.setAttribute('aria-label', active ? '전체화면 종료' : '전체화면으로 보기');
+    button.title = active ? '전체화면 종료' : '전체화면으로 보기';
+    var enterIcon = button.querySelector('.app-fullscreen-enter-icon');
+    var exitIcon = button.querySelector('.app-fullscreen-exit-icon');
+    if (enterIcon) enterIcon.classList.toggle('hidden', active);
+    if (exitIcon) exitIcon.classList.toggle('hidden', !active);
+}
+
+function setAppFullscreenFallback(active) {
+    var host = getAppFullscreenHost();
+    if (!host.target || host.target === document.documentElement) return;
+    host.target.classList.toggle('mdpro-frame-mobile-fullscreen', active);
+    host.doc.body.classList.toggle('mdpro-mobile-fullscreen-active', active);
+    syncAppFullscreenButton();
+}
+
+function toggleAppFullscreen() {
+    var host = getAppFullscreenHost();
+    var fullscreenElement = host.doc.fullscreenElement || host.doc.webkitFullscreenElement || host.doc.msFullscreenElement;
+    var fallbackActive = host.target && host.target.classList.contains('mdpro-frame-mobile-fullscreen');
+    if (fallbackActive) {
+        setAppFullscreenFallback(false);
+        return;
+    }
+    if (fullscreenElement) {
+        var exit = host.doc.exitFullscreen || host.doc.webkitExitFullscreen || host.doc.msExitFullscreen;
+        if (exit) Promise.resolve(exit.call(host.doc)).catch(function () {});
+        return;
+    }
+    var request = host.target.requestFullscreen || host.target.webkitRequestFullscreen || host.target.msRequestFullscreen;
+    if (!request) {
+        setAppFullscreenFallback(true);
+        return;
+    }
+    Promise.resolve(request.call(host.target)).then(syncAppFullscreenButton).catch(function () {
+        setAppFullscreenFallback(true);
+    });
+}
+
+document.addEventListener('fullscreenchange', syncAppFullscreenButton);
+document.addEventListener('webkitfullscreenchange', syncAppFullscreenButton);
+document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') {
+        var host = getAppFullscreenHost();
+        if (host.target && host.target.classList.contains('mdpro-frame-mobile-fullscreen')) {
+            setAppFullscreenFallback(false);
+        }
+    }
+});
+try {
+    if (window.parent && window.parent !== window) {
+        window.parent.document.addEventListener('fullscreenchange', syncAppFullscreenButton);
+        window.parent.document.addEventListener('webkitfullscreenchange', syncAppFullscreenButton);
+    }
+} catch (error) {
+    // 교차 출처 호스트에서는 자체 fullscreenchange 이벤트만 사용한다.
+}
+
 window.toggleSettingsModalFullscreen = toggleSettingsModalFullscreen;
+window.toggleAppFullscreen = toggleAppFullscreen;
 window.openGithubRepositoryShortcut = openGithubRepositoryShortcut;
 window.openLocalStorageSettings = openLocalStorageSettings;
 window.closeDeleteModal = closeDeleteModal;
@@ -18565,6 +17452,8 @@ window.resetFileDownloadPrefixSetting = resetFileDownloadPrefixSetting;
 window.getMdProFilePrefix = getFileDownloadPrefixFromLocal;
 window.applyCodeColorSettings = applyCodeColorSettings;
 window.resetCodeColorSettings = resetCodeColorSettings;
+window.applyDarkViewTextColorSettings = applyDarkViewTextColorSettings;
+window.resetDarkViewTextColorSettings = resetDarkViewTextColorSettings;
 window.applyMarkdownCommentColorSettings = applyMarkdownCommentColorSettings;
 window.resetCodeAndCommentColorSettings = resetCodeAndCommentColorSettings;
 window.clearUnusedCache = clearUnusedCache;
@@ -18579,7 +17468,6 @@ window.applyHeading = applyHeading;
 window.insertListAtSelection = insertListAtSelection;
 window.handleTableInsertion = handleTableInsertion;
 window.toggleTableInsertPicker = toggleTableInsertPicker;
-window.editMarkdownTable = editMarkdownTable;
 window.closeTableInsertPicker = closeTableInsertPicker;
 window.prepareCaptionPanel = prepareCaptionPanel;
 window.toggleCaptionInsertPanel = toggleCaptionInsertPanel;
@@ -18622,17 +17510,9 @@ function closeFindReplace() {
 }
 
 let lastFindIndex = -1;
-const EDITOR_HISTORY_LIMIT = 200;
-const EDITOR_TYPING_GROUP_MS = 750;
-const editorDocumentHistory = {
-    past: [],
-    future: [],
-    pendingBeforeInput: null,
-    current: null,
-    applying: false,
-    lastInputAt: 0,
-    lastInputKind: ''
-};
+const replaceUndoStack = [];
+const replaceRedoStack = [];
+const REPLACE_UNDO_LIMIT = 80;
 
 function captureEditorSnapshot() {
     if (!editorTextarea) return null;
@@ -18645,101 +17525,8 @@ function captureEditorSnapshot() {
     };
 }
 
-function editorSnapshotsEqual(a, b) {
-    return !!a && !!b && a.value === b.value;
-}
-
-function getEditorInputHistoryKind(inputType) {
-    const value = String(inputType || '');
-    if (value === 'insertText' || value === 'insertCompositionText') return 'typing';
-    if (value.indexOf('delete') === 0) return 'delete';
-    return value || 'edit';
-}
-
-function pushEditorHistoryBefore(before, after, options) {
-    if (!before || !after || editorSnapshotsEqual(before, after)) {
-        editorDocumentHistory.current = after || before || editorDocumentHistory.current;
-        return false;
-    }
-    const opts = options || {};
-    const now = Date.now();
-    const kind = String(opts.kind || 'edit');
-    const coalesce = !!opts.coalesce
-        && editorDocumentHistory.past.length > 0
-        && editorDocumentHistory.lastInputKind === kind
-        && now - editorDocumentHistory.lastInputAt <= EDITOR_TYPING_GROUP_MS;
-    if (!coalesce) {
-        editorDocumentHistory.past.push(before);
-        if (editorDocumentHistory.past.length > EDITOR_HISTORY_LIMIT) editorDocumentHistory.past.shift();
-    }
-    editorDocumentHistory.future.length = 0;
-    editorDocumentHistory.current = after;
-    editorDocumentHistory.lastInputAt = now;
-    editorDocumentHistory.lastInputKind = kind;
-    return true;
-}
-
-function beginEditorHistoryTransaction() {
-    return captureEditorSnapshot();
-}
-
-function commitEditorHistoryTransaction(before, kind) {
-    const after = captureEditorSnapshot();
-    if (!after) return false;
-    // A real input event already recorded this exact result.
-    if (editorSnapshotsEqual(editorDocumentHistory.current, after)) return false;
-    return pushEditorHistoryBefore(before || editorDocumentHistory.current, after, { kind: kind || 'command' });
-}
-
-function resetEditorDocumentHistory() {
-    editorDocumentHistory.past.length = 0;
-    editorDocumentHistory.future.length = 0;
-    editorDocumentHistory.pendingBeforeInput = null;
-    editorDocumentHistory.current = captureEditorSnapshot();
-    editorDocumentHistory.lastInputAt = 0;
-    editorDocumentHistory.lastInputKind = '';
-}
-
-function bindEditorDocumentHistory() {
-    if (!editorTextarea || editorTextarea.__documentHistoryBound) return;
-    editorTextarea.__documentHistoryBound = true;
-    resetEditorDocumentHistory();
-    editorTextarea.addEventListener('beforeinput', function () {
-        if (editorDocumentHistory.applying) return;
-        editorDocumentHistory.pendingBeforeInput = captureEditorSnapshot();
-    });
-    editorTextarea.addEventListener('input', function (event) {
-        if (editorDocumentHistory.applying) return;
-        const before = editorDocumentHistory.pendingBeforeInput || editorDocumentHistory.current;
-        const after = captureEditorSnapshot();
-        const kind = getEditorInputHistoryKind(event && event.inputType);
-        pushEditorHistoryBefore(before, after, {
-            kind: kind,
-            coalesce: kind === 'typing' || kind === 'delete'
-        });
-        editorDocumentHistory.pendingBeforeInput = null;
-    });
-    // Toolbar and menu commands sometimes assign textarea.value directly and
-    // therefore produce no browser input event. Capture those synchronous
-    // command boundaries so they join the same document history.
-    function captureUiCommand(event) {
-        if (editorDocumentHistory.applying) return;
-        if (event && event.type === 'keydown') {
-            const key = String(event.key || '').toLowerCase();
-            if (!(event.ctrlKey || event.metaKey || event.altKey) && key !== 'tab' && key !== 'enter') return;
-        }
-        const before = beginEditorHistoryTransaction();
-        setTimeout(function () {
-            commitEditorHistoryTransaction(before, event && event.type === 'keydown' ? 'keyboard-command' : 'toolbar-command');
-        }, 0);
-    }
-    document.addEventListener('click', captureUiCommand, true);
-    document.addEventListener('keydown', captureUiCommand, true);
-}
-
 function applyEditorSnapshot(snapshot) {
     if (!editorTextarea || !snapshot) return false;
-    editorDocumentHistory.applying = true;
     editorTextarea.value = String(snapshot.value || '');
     const max = editorTextarea.value.length;
     const start = Math.max(0, Math.min(Number(snapshot.selectionStart) || 0, max));
@@ -18752,42 +17539,38 @@ function applyEditorSnapshot(snapshot) {
     renderMarkdown();
     if (activeSidebarTab === 'toc') renderTOC();
     performAutoSave();
-    editorDocumentHistory.current = captureEditorSnapshot();
-    editorDocumentHistory.pendingBeforeInput = null;
-    editorDocumentHistory.lastInputAt = 0;
-    editorDocumentHistory.lastInputKind = '';
-    editorDocumentHistory.applying = false;
     return true;
 }
 
 function pushReplaceUndoSnapshot() {
-    return beginEditorHistoryTransaction();
+    const snap = captureEditorSnapshot();
+    if (!snap) return;
+    replaceUndoStack.push(snap);
+    if (replaceUndoStack.length > REPLACE_UNDO_LIMIT) replaceUndoStack.shift();
+    replaceRedoStack.length = 0;
 }
 
-function undoEditorDocumentHistory() {
-    if (!editorDocumentHistory.past.length) return false;
-    const prev = editorDocumentHistory.past.pop();
+function undoFromReplaceStack() {
+    if (!replaceUndoStack.length) return false;
+    const prev = replaceUndoStack.pop();
     const current = captureEditorSnapshot();
     if (current) {
-        editorDocumentHistory.future.push(current);
-        if (editorDocumentHistory.future.length > EDITOR_HISTORY_LIMIT) editorDocumentHistory.future.shift();
+        replaceRedoStack.push(current);
+        if (replaceRedoStack.length > REPLACE_UNDO_LIMIT) replaceRedoStack.shift();
     }
     return applyEditorSnapshot(prev);
 }
 
-function redoEditorDocumentHistory() {
-    if (!editorDocumentHistory.future.length) return false;
-    const next = editorDocumentHistory.future.pop();
+function redoFromReplaceStack() {
+    if (!replaceRedoStack.length) return false;
+    const next = replaceRedoStack.pop();
     const current = captureEditorSnapshot();
     if (current) {
-        editorDocumentHistory.past.push(current);
-        if (editorDocumentHistory.past.length > EDITOR_HISTORY_LIMIT) editorDocumentHistory.past.shift();
+        replaceUndoStack.push(current);
+        if (replaceUndoStack.length > REPLACE_UNDO_LIMIT) replaceUndoStack.shift();
     }
     return applyEditorSnapshot(next);
 }
-
-function undoFromReplaceStack() { return undoEditorDocumentHistory(); }
-function redoFromReplaceStack() { return redoEditorDocumentHistory(); }
 
 function swapFindReplaceValues() {
     const findInput = document.getElementById('find-input');
@@ -18914,9 +17697,7 @@ function replaceRangeWithOptions(text, start, end, replacement) {
 function replaceTextareaContentWithUndo(nextText, selectionStart, selectionEnd) {
     if (!editorTextarea) return;
     const normalizedText = String(nextText || '');
-    const historyBefore = normalizedText !== String(editorTextarea.value || '')
-        ? beginEditorHistoryTransaction()
-        : null;
+    if (normalizedText !== String(editorTextarea.value || '')) pushReplaceUndoSnapshot();
     editorTextarea.focus();
     editorTextarea.setSelectionRange(0, editorTextarea.value.length);
     const applied = document.execCommand('insertText', false, normalizedText);
@@ -18927,7 +17708,6 @@ function replaceTextareaContentWithUndo(nextText, selectionStart, selectionEnd) 
         const safeEnd = Math.max(0, Math.min(selectionEnd, max));
         editorTextarea.setSelectionRange(safeStart, safeEnd);
     }
-    if (historyBefore) commitEditorHistoryTransaction(historyBefore, 'replace');
 }
 
 function getReplaceSearchBounds(text) {
@@ -19136,10 +17916,3 @@ window.findPrev = findPrev;
 window.replaceCurrent = replaceCurrent;
 window.replaceAll = replaceAll;
 window.swapFindReplaceValues = swapFindReplaceValues;
-
-// This deferred script runs when the editor DOM exists. Do not wait for
-// window.load or MiniPreviewUI.ready: remote resources may never finish offline.
-const tauriFileOpenReady = initializeTauriFileOpen().catch(function (error) {
-    console.error('Native file initialization failed:', error);
-    showToast('파일 연결 초기화 실패: ' + (error.message || error));
-});

@@ -240,7 +240,6 @@ html.ai-chat-page-pushed .ai-chat-panel.layout-popup {
 .ai-chat-history-actions { display: flex; align-items: center; gap: 4px; margin-top: 4px; }
 .ai-chat-history-action { min-width: 25px; height: 24px; padding: 0 6px; border: 0; border-radius: 5px; background: transparent; color: #b7c6db; cursor: pointer; }
 .ai-chat-history-action:hover { background: #344b69; color: #fff; }
-.ai-chat-history-action svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; vertical-align: middle; }
 .ai-chat-history-delete { margin-left: 0; color: #ffb0b7; font: normal 16px/1 sans-serif; }
 .ai-chat-history-delete:hover { background: #b42336; color: #fff; }
 .ai-chat-history-rename-form { display: grid; gap: 7px; margin-top: 6px; padding-top: 8px; border-top: 1px solid #49617f; cursor: default; }
@@ -283,6 +282,7 @@ html.ai-chat-page-pushed .ai-chat-panel.layout-popup {
 .ai-chat-panel.layout-fullscreen .ai-chat-header .ai-chat-icon-action { width: auto; min-width: 34px; padding: 4px 9px; }
 .ai-chat-panel.layout-fullscreen .ai-chat-action-label,
 .ai-chat-panel.layout-fullscreen .ai-chat-menu-caret { display: inline; }
+.ai-chat-header #ai-chat-copy-all .ai-chat-action-label { display: none; }
 .ai-chat-layout-menu-wrap { position: relative; }
 .ai-chat-layout-menu {
   position: absolute;
@@ -672,7 +672,6 @@ body.ai-chat-history-resizing { cursor: ew-resize !important; user-select: none 
 .ai-chat-document-write-toggle input { width: 15px; height: 15px; margin: 0; accent-color: #14b8a6; cursor: pointer; }
 .ai-chat-document-write-toggle:has(input:checked) { border-color: #2dd4bf; background: #0f766e; color: #fff; box-shadow: 0 0 0 2px rgba(45,212,191,.15); }
 .ai-chat-document-write-row select { width: 48px; min-height: 30px; padding: 4px 5px; border: 1px solid #47647b; border-radius: 7px; background: #172b3b; color: #d9edf3; font-size: 16px; font-weight: 800; text-align: center; cursor: pointer; }
-.ai-chat-sentence-only { width: 17px; height: 17px; margin: 0; accent-color: #14b8a6; cursor: pointer; }
 body.theme-light .ai-chat-document-write-toggle { border-color: #48484a; background: #2c2c2e; color: #d1d1d6; box-shadow: none; }
 body.theme-light .ai-chat-document-write-toggle:hover { background: #3a3a3c; }
 body.theme-light .ai-chat-document-write-toggle:has(input:checked) { border-color: #2dd4bf; background: #0f766e; color: #fff; box-shadow: 0 0 0 2px rgba(45,212,191,.18); }

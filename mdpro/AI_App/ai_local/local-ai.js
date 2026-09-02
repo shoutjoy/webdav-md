@@ -22,7 +22,7 @@
     model: 'google/gemma-4-e4b',
     apiKey: '',
     temperature: 0.4,
-    maxTokens: 16384,
+    maxTokens: 8192,
     quickMaxTokens: 4096,
     reasoningMaxTokens: 8192,
     fastMaxTokens: 4000,
@@ -371,15 +371,10 @@ Do not output only a reference list. Extract claims from titles and abstracts, g
           headers: { 'Content-Type': result.contentType || 'application/json' }
         });
       }
-      const location = root && root.location;
-      const isLocalWebApp = location && /^https?:$/.test(location.protocol)
-        && (location.hostname === '127.0.0.1' || location.hostname === 'localhost' || location.hostname === '::1');
-      if (isLoopback && isLocalWebApp && String(url).indexOf('/__mdviewer_lmstudio_proxy') < 0) {
-        return await bound('/__mdviewer_lmstudio_proxy?url=' + encodeURIComponent(String(url)), options);
-      }
       try {
         return await bound(url, options);
       } catch (error) {
+        const location = root && root.location;
         const canProxy = location && /^https?:$/.test(location.protocol) && isLoopback
           && String(url).indexOf('/__mdviewer_lmstudio_proxy') < 0;
         if (!canProxy || (error && error.name === 'AbortError')) throw error;

@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
     const SITES_SETTINGS_FOLD_KEY = 'md_viewer_sites_settings_folded';
     let sitesPanelOpen = false;
@@ -15,8 +15,6 @@
     let sitesPanelResizing = false;
     let sitesPanelSavedWidth = '';
     let sitesPanelSavedHeight = '';
-    const SITES_AI_JENA_GAP = 120;
-    const SITES_DOCK_BOTTOM_GAP = 74;
     let editingSiteIndex = -1;
     let editingPreferencesSiteIndex = -1;
 
@@ -32,8 +30,7 @@
         { name: 'Napkin', url: 'https://app.napkin.ai/' },
         { name: 'Mermaid AI', url: 'https://mermaid.ai/' },
         { name: 'online Photoshop (photopea)', url: 'https://www.photopea.com/' },
-        { name: 'colab.new', url: 'http://colab.new' },
-        { name: '인포그래픽 만화', url: 'https://gemini.google.com/share/bbaf65f86ad2?skid=93184a42-374a-45ef-a33e-46657407c892', visible: false }
+        { name: 'colab.new', url: 'http://colab.new' }
     ];
 
     async function loadHtmlFragment(path) {
@@ -174,7 +171,7 @@
             .map(function (item) {
                 const name = String(item && item.name ? item.name : '').trim();
                 const url = String(item && item.url ? item.url : '').trim();
-                return { name: name, url: url, visible: item && item.visible !== false };
+                return { name: name, url: url };
             })
             .filter(function (item) { return !!item.url; });
 
@@ -227,11 +224,6 @@
             return u === 'https://www.photopea.com' || u === 'https://photopea.com';
         });
         if (!hasPhotopea) base.push({ name: 'online Photoshop (photopea)', url: 'https://www.photopea.com/' });
-        const infographicComicUrl = 'https://gemini.google.com/share/bbaf65f86ad2?skid=93184a42-374a-45ef-a33e-46657407c892';
-        const hasInfographicComic = base.some(function (item) {
-            return normalizeUrl(item && item.url ? item.url : '') === normalizeUrl(infographicComicUrl);
-        });
-        if (!hasInfographicComic) base.push({ name: '인포그래픽 만화', url: infographicComicUrl, visible: false });
         return base;
     }
 
@@ -239,7 +231,7 @@
         const listEl = document.getElementById('sites-list');
         if (listEl) {
             listEl.innerHTML = '';
-            sitesList.filter(function (site) { return site.visible !== false; }).forEach(function (site) {
+            sitesList.forEach(function (site) {
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 if (sitesPanelCompact) {
@@ -302,18 +294,6 @@
             del.onclick = function () { removeSiteAt(idx); };
             row.appendChild(del);
 
-            const visibleLabel = document.createElement('label');
-            visibleLabel.className = 'shrink-0 inline-flex items-center gap-1 text-[11px] text-slate-600 dark:text-slate-300 cursor-pointer select-none';
-            const visible = document.createElement('input');
-            visible.type = 'checkbox';
-            visible.checked = site.visible !== false;
-            visible.className = 'rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500';
-            visible.setAttribute('aria-label', (site.name || site.url) + ' 보이기');
-            visible.onchange = function () { setSiteVisibility(idx, visible.checked); };
-            visibleLabel.appendChild(visible);
-            visibleLabel.appendChild(document.createTextNode('보이기'));
-            row.appendChild(visibleLabel);
-
             listEl.appendChild(row);
         });
     }
@@ -345,14 +325,6 @@
             del.textContent = 'Delete';
             del.onclick = function () { removeSiteAt(idx); };
             row.appendChild(del);
-
-            const visible = document.createElement('input');
-            visible.type = 'checkbox';
-            visible.checked = site.visible !== false;
-            visible.title = 'Show site';
-            visible.setAttribute('aria-label', (site.name || site.url) + ' 보이기');
-            visible.onchange = function () { setSiteVisibility(idx, visible.checked); };
-            row.appendChild(visible);
 
             listEl.appendChild(row);
         });
@@ -404,31 +376,9 @@
         renderSitesPanel();
     }
 
-    function getOpenAiJenaDockWidth() {
-        const panel = document.getElementById('ai-chat-panel');
-        const dock = document.getElementById('ai-chat-dock-slot');
-        const isOpen = !!(panel && dock
-            && panel.classList.contains('open')
-            && panel.classList.contains('layout-dock')
-            && dock.classList.contains('active'));
-        return isOpen ? Math.max(0, dock.getBoundingClientRect().width) : 0;
-    }
-
-    function positionSitesPanelForAiJena() {
-        const panel = document.getElementById('sites-panel');
-        if (!panel || sitesPanelCompact || sitesPanelMoved) return;
-        const dockWidth = getOpenAiJenaDockWidth();
-        panel.style.left = '';
-        panel.style.top = '';
-        panel.style.right = (dockWidth > 0 ? dockWidth + SITES_AI_JENA_GAP : 12) + 'px';
-        panel.style.bottom = (dockWidth > 0 ? SITES_DOCK_BOTTOM_GAP : 12) + 'px';
-        panel.classList.toggle('ai-jena-dock-adjacent', dockWidth > 0);
-    }
-
     function toggleSitesCompactMode() {
         sitesPanelCompact = !sitesPanelCompact;
         applySitesPanelMode();
-        positionSitesPanelForAiJena();
     }
 
     function toggleSitesSettingsPanel() {
@@ -541,7 +491,6 @@
         bindSitesPanelDrag();
         bindSitesPanelResize();
         applySitesPanelMode();
-        positionSitesPanelForAiJena();
         renderSitesPanel();
         panel.classList.remove('hidden');
         panel.classList.add('flex');
@@ -561,13 +510,6 @@
         else openSitesPanel();
     }
 
-    window.addEventListener('ai-jena-layout-change', function () {
-        if (sitesPanelOpen) positionSitesPanelForAiJena();
-    });
-    window.addEventListener('resize', function () {
-        if (sitesPanelOpen) positionSitesPanelForAiJena();
-    });
-
     function buildSiteNameFromUrl(url) {
         try {
             const u = new URL(url);
@@ -581,13 +523,6 @@
     async function saveSitesListToSettings() {
         if (typeof setAiSettings !== 'function') return;
         await setAiSettings({ sitesList: sitesList.slice() });
-    }
-
-    async function setSiteVisibility(index, visible) {
-        if (index < 0 || index >= sitesList.length) return;
-        sitesList[index] = Object.assign({}, sitesList[index], { visible: !!visible });
-        await saveSitesListToSettings();
-        renderSitesPanel();
     }
 
     function normalizeUrlForCompare(url) {
@@ -694,9 +629,9 @@
         const displayName = String(nameInput && nameInput.value ? nameInput.value : '').trim()
             || buildSiteNameFromUrl(normalized);
         if (editing) {
-            sitesList[editingPreferencesSiteIndex] = { name: displayName, url: normalized, visible: sitesList[editingPreferencesSiteIndex].visible !== false };
+            sitesList[editingPreferencesSiteIndex] = { name: displayName, url: normalized };
         } else {
-            sitesList.push({ name: displayName, url: normalized, visible: true });
+            sitesList.push({ name: displayName, url: normalized });
         }
         await saveSitesListToSettings();
         renderSitesPanel();
@@ -733,9 +668,9 @@
         }
         const displayName = String(nameInput && nameInput.value ? nameInput.value : '').trim() || buildSiteNameFromUrl(normalized);
         if (editing) {
-            sitesList[editingSiteIndex] = { name: displayName, url: normalized, visible: sitesList[editingSiteIndex].visible !== false };
+            sitesList[editingSiteIndex] = { name: displayName, url: normalized };
         } else {
-            sitesList.push({ name: displayName, url: normalized, visible: true });
+            sitesList.push({ name: displayName, url: normalized });
         }
         await saveSitesListToSettings();
         renderSitesPanel();
@@ -816,3 +751,4 @@ window.ensureSitesShowUiReady = ensureSitesShowUiReady;
 ensureSitesShowUiReady();
 document.addEventListener('DOMContentLoaded', ensureSitesShowUiReady);
 window.addEventListener('load', ensureSitesShowUiReady);
+
