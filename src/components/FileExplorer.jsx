@@ -4,11 +4,6 @@ import MoveDestinationModal from './MoveDestinationModal.jsx';
 
 const FILE_TOOLS_VISIBLE_KEY = 'webdav-file-tools-visible';
 
-function getTreeItemTitle(item, selectionMode) {
-  if (window.matchMedia('(max-width: 767px)').matches) return undefined;
-  return selectionMode && !item.isArchiveEntry ? `${item.name} 이동 항목 선택` : item.remotePath;
-}
-
 function getInitialFileToolsVisible() {
   try {
     return localStorage.getItem(FILE_TOOLS_VISIBLE_KEY) !== 'false';
@@ -35,7 +30,7 @@ function TreeItem({ item, depth, expandedPaths, selectedFolderPath, selectionMod
         className="mr-1.5 h-3.5 w-3.5 shrink-0 accent-indigo-600"
         aria-label={`${item.name} 선택`}
       />}
-      <button type="button" onClick={() => selectionMode && !item.isArchiveEntry ? onToggleChecked(item) : (expandable ? onToggleFolder(item) : onOpenFile(item))} className="flex min-w-0 flex-1 items-center gap-1.5 py-2 text-left" title={getTreeItemTitle(item, selectionMode)}>
+      <button type="button" onClick={() => selectionMode && !item.isArchiveEntry ? onToggleChecked(item) : (expandable ? onToggleFolder(item) : onOpenFile(item))} className="flex min-w-0 flex-1 items-center gap-1.5 py-2 text-left" aria-label={selectionMode && !item.isArchiveEntry ? `${item.name} 이동 항목 선택` : item.remotePath}>
         {item.isDirectory ? (expanded ? <FolderOpen size={16} className="shrink-0 text-amber-400"/> : <Folder size={16} className="shrink-0 text-amber-400"/>) : item.isArchive ? <Archive size={16} className="shrink-0 text-indigo-500"/> : <FileText size={15} className="shrink-0 text-blue-500 dark:text-blue-400"/>}
         <span className="min-w-0 truncate">{item.name}</span>
         {expandable && item.loaded && <span className="ml-1 rounded-full bg-slate-200 px-1.5 text-[10px] text-slate-600 dark:bg-slate-700 dark:text-slate-300">{children.length}</span>}

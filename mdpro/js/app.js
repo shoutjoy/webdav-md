@@ -138,8 +138,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260829-pages-local-search-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiMermaidGuard: './AI_App/aiChat/ai-jena-mermaid-guard.js?v=20260831-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?v=20260831-mermaid-guard-1',
+    aiChat: './AI_App/aiChat/ai-chat.js?v=20260901-direct-generation-1',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260810-3'
@@ -210,8 +209,7 @@ async function ensureAiChatLoaded() {
     await Promise.allSettled([
         loadOptionalScript('aiAcademicSearch', function () { return !!window.AIChatAcademicSearch; }),
         loadOptionalScript('aiWebSearch', function () { return !!window.AIJenaLocalAPI; }),
-        loadOptionalScript('aiMarkdown', function () { return !!window.AIChatMarkdown; }),
-        loadOptionalScript('aiMermaidGuard', function () { return !!window.AIJenaMermaidGuard; })
+        loadOptionalScript('aiMarkdown', function () { return !!window.AIChatMarkdown; })
     ]);
     await loadOptionalScript('aiChat', function () { return !!window.AIChat; });
     return true;
