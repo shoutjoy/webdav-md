@@ -10,6 +10,7 @@ const WEB_DAV_TARGET = 'https://webdav.freemath.synology.me';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
+  const basePath = env.VITE_BASE_PATH || process.env.VITE_BASE_PATH || '/';
 
   return {
     plugins: [
@@ -37,7 +38,7 @@ export default defineConfig(({ mode }) => {
         },
       },
     ],
-    base: env.VITE_BASE_PATH || '/',
+    base: basePath,
     server: {
       proxy: {
         [WEB_DAV_PROXY_PATH]: {
