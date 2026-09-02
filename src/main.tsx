@@ -13,7 +13,7 @@ const router = createBrowserRouter([
     element: <App />,
   },
 ], {
-  basename: import.meta.env.VITE_BASE_PATH ?? '/',
+  basename: import.meta.env.BASE_URL ?? '/',
 });
 
 // 1. WebDAV loader 타입 및 함수 정의
