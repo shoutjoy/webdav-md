@@ -10,7 +10,19 @@ const WEB_DAV_TARGET = 'https://webdav.freemath.synology.me';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
-  const basePath = env.VITE_BASE_PATH || process.env.VITE_BASE_PATH || '/';
+  let basePath = env.VITE_BASE_PATH || process.env.VITE_BASE_PATH || '';
+
+  if (!basePath && process.env.GITHUB_REPOSITORY) {
+    const repositoryName = process.env.GITHUB_REPOSITORY.split('/')[1];
+    const owner = process.env.GITHUB_REPOSITORY_OWNER || process.env.GITHUB_REPOSITORY.split('/')[0];
+    if (repositoryName && owner && repositoryName === `${owner}.github.io`) {
+      basePath = '/';
+    } else if (repositoryName) {
+      basePath = `/${repositoryName}/`;
+    }
+  }
+
+  basePath = basePath || '/';
 
   return {
     plugins: [
