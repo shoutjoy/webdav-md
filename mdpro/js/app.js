@@ -138,8 +138,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260829-pages-local-search-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiMermaidGuard: './AI_App/aiChat/ai-jena-mermaid-guard.js?v=20260831-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?v=20260902-webdav-jena-port-1',
+    aiChat: './AI_App/aiChat/ai-chat.js?v=20260831-all-models-1',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260810-3'
@@ -210,8 +209,7 @@ async function ensureAiChatLoaded() {
     await Promise.allSettled([
         loadOptionalScript('aiAcademicSearch', function () { return !!window.AIChatAcademicSearch; }),
         loadOptionalScript('aiWebSearch', function () { return !!window.AIJenaLocalAPI; }),
-        loadOptionalScript('aiMarkdown', function () { return !!window.AIChatMarkdown; }),
-        loadOptionalScript('aiMermaidGuard', function () { return !!window.AIJenaMermaidGuard; })
+        loadOptionalScript('aiMarkdown', function () { return !!window.AIChatMarkdown; })
     ]);
     await loadOptionalScript('aiChat', function () { return !!window.AIChat; });
     return true;
@@ -580,10 +578,6 @@ let html2pptSavedWidth = '';
 let html2pptSavedHeight = '';
 let html2pptFullscreen = false;
 let html2pptRestoreState = null;
-const HTML2PPT_AI_JENA_SIDE_GAP = 48;
-const HTML2PPT_AI_JENA_LEFT_GAP = 72;
-const HTML2PPT_AI_JENA_TOP_GAP = 114;
-const HTML2PPT_AI_JENA_BOTTOM_GAP = 76;
 let templateCustomList = [];
 let settingsModalDragBound = false;
 let settingsModalDragging = false;
@@ -11372,23 +11366,12 @@ async function toggleTemplateNewFileSection() {
     try { await setAiSettings({ templateNewFileVisible: enabled }); } catch (e) { console.error(e); }
 }
 
-function getHtml2pptOpenAiJenaDockWidth() {
-    const chatPanel = document.getElementById('ai-chat-panel');
-    const dockSlot = document.getElementById('ai-chat-dock-slot');
-    const dockOpen = !!(chatPanel && dockSlot
-        && chatPanel.classList.contains('open')
-        && chatPanel.classList.contains('layout-dock')
-        && dockSlot.classList.contains('active'));
-    return dockOpen ? Math.max(0, dockSlot.getBoundingClientRect().width) : 0;
-}
-
 function applyHtml2pptPanelLayout() {
     const panel = document.getElementById('html2ppt-panel');
     const dockBtn = document.getElementById('html2ppt-panel-dock-btn');
     const fullBtn = document.getElementById('html2ppt-panel-full-btn');
     const resizeHandle = document.getElementById('html2ppt-panel-resizer');
     if (!panel) return;
-    const aiJenaDockWidth = getHtml2pptOpenAiJenaDockWidth();
 
     if (html2pptFullscreen) {
         panel.style.left = '8px';
@@ -11401,20 +11384,7 @@ function applyHtml2pptPanelLayout() {
         panel.style.maxHeight = 'none';
         if (dockBtn) dockBtn.disabled = true;
         if (resizeHandle) resizeHandle.style.display = 'none';
-    } else if (html2pptDockRight && aiJenaDockWidth > 0 && !html2pptMoved) {
-        const viewportWidth = window.innerWidth || document.documentElement.clientWidth || 1280;
-        const workspaceWidth = Math.max(0, viewportWidth - aiJenaDockWidth);
-        panel.style.left = (workspaceWidth >= 1100 ? HTML2PPT_AI_JENA_LEFT_GAP : 12) + 'px';
-        panel.style.top = HTML2PPT_AI_JENA_TOP_GAP + 'px';
-        panel.style.right = (aiJenaDockWidth + (workspaceWidth >= 700 ? HTML2PPT_AI_JENA_SIDE_GAP : 12)) + 'px';
-        panel.style.bottom = HTML2PPT_AI_JENA_BOTTOM_GAP + 'px';
-        panel.style.width = 'auto';
-        panel.style.height = 'auto';
-        panel.style.maxWidth = 'none';
-        panel.style.maxHeight = 'none';
-        panel.classList.add('ai-jena-dock-adjacent');
     } else if (html2pptDockRight) {
-        panel.classList.remove('ai-jena-dock-adjacent');
         panel.style.left = 'auto';
         panel.style.top = '80px';
         panel.style.right = '12px';
@@ -11423,7 +11393,6 @@ function applyHtml2pptPanelLayout() {
         panel.style.height = html2pptSavedHeight || 'min(760px,86vh)';
         html2pptMoved = false;
     } else if (!html2pptMoved) {
-        panel.classList.remove('ai-jena-dock-adjacent');
         panel.style.left = '';
         panel.style.top = '80px';
         panel.style.right = '12px';
@@ -11589,13 +11558,6 @@ function toggleHtml2pptPanel() {
     if (html2pptPanelOpen) closeHtml2pptPanel();
     else openHtml2pptPanel();
 }
-
-window.addEventListener('ai-jena-layout-change', function () {
-    if (html2pptPanelOpen && !html2pptMoved) applyHtml2pptPanelLayout();
-});
-window.addEventListener('resize', function () {
-    if (html2pptPanelOpen && !html2pptMoved) applyHtml2pptPanelLayout();
-});
 
 function applyHtml2pptVisibility(settings) {
     const enabled = getHtml2pptVisibleFromSettings(settings || {});
@@ -14959,7 +14921,6 @@ function insertAIChatTextIntoDocument(text, mode) {
         prefix = before && !/\n\s*\n$/.test(before) ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
     }
     const insertion = prefix + value + suffix;
-    pushReplaceUndoSnapshot();
     editorTextarea.focus();
     editorTextarea.setSelectionRange(start, end);
     const applied = document.execCommand('insertText', false, insertion);
@@ -14971,106 +14932,6 @@ function insertAIChatTextIntoDocument(text, mode) {
     editorTextarea.setSelectionRange(caret, caret);
     currentMarkdown = String(editorTextarea.value || '');
     lastEditCaretPos = caret;
-    performAutoSave();
-    if (activeSidebarTab === 'toc') renderTOC();
-    return true;
-}
-
-function beginAIChatDocumentWrite(mode, selectionSnapshot) {
-    if (!editorTextarea) throw new Error('문서 편집기를 찾지 못했습니다.');
-    if (!isEditMode) toggleMode('edit');
-    const insertMode = mode === 'replace-selection' ? 'replace-selection' : (mode === 'document-end' ? 'document-end' : 'cursor');
-    const raw = String(editorTextarea.value || '');
-    let start;
-    let end;
-    if (insertMode === 'replace-selection') {
-        const expected = String(selectionSnapshot && selectionSnapshot.text || '');
-        start = Math.max(0, Math.min(Number(selectionSnapshot && selectionSnapshot.start) || 0, raw.length));
-        end = Math.max(start, Math.min(Number(selectionSnapshot && selectionSnapshot.end) || start, raw.length));
-        if (!expected || raw.slice(start, end) !== expected) {
-            throw new Error('선택 이후 문서가 변경되어 원래 영역을 안전하게 수정할 수 없습니다. 영역을 다시 선택해 주세요.');
-        }
-    } else {
-        start = insertMode === 'document-end'
-            ? raw.length
-            : Math.max(0, Math.min(Number(editorTextarea.selectionStart) || 0, raw.length));
-        end = start;
-    }
-    let prefix = '';
-    if (insertMode !== 'replace-selection' && raw.slice(0, start) && !/\n\s*\n$/.test(raw.slice(0, start))) {
-        prefix = raw.slice(0, start).endsWith('\n') ? '\n' : '\n\n';
-    }
-    if (prefix) editorTextarea.setRangeText(prefix, start, start, 'end');
-    start += prefix.length;
-    end = insertMode === 'replace-selection' ? end + prefix.length : start;
-    editorTextarea.dispatchEvent(new Event('input', { bubbles: true }));
-    return {
-        start: start,
-        end: end,
-        text: insertMode === 'replace-selection' ? String(selectionSnapshot.text || '') : '',
-        active: true,
-        replacedSelection: insertMode === 'replace-selection',
-        originalText: insertMode === 'replace-selection' ? String(selectionSnapshot.text || '') : ''
-    };
-}
-
-let aiChatDocumentFollowFrame = 0;
-function followAIChatDocumentWrite(session) {
-    if (!editorTextarea || !session || !session.active) return;
-    if (aiChatDocumentFollowFrame) cancelAnimationFrame(aiChatDocumentFollowFrame);
-    aiChatDocumentFollowFrame = requestAnimationFrame(function () {
-        aiChatDocumentFollowFrame = 0;
-        if (!editorTextarea || !session) return;
-        const value = String(editorTextarea.value || '');
-        const caret = Math.max(0, Math.min(Number(session.end) || 0, value.length));
-        const style = getComputedStyle(editorTextarea);
-        const mirror = document.createElement('div');
-        const marker = document.createElement('span');
-        mirror.setAttribute('aria-hidden', 'true');
-        Object.assign(mirror.style, {
-            position: 'fixed', left: '-100000px', top: '0', visibility: 'hidden',
-            boxSizing: style.boxSizing, width: editorTextarea.clientWidth + 'px',
-            padding: style.padding, border: style.border, font: style.font,
-            letterSpacing: style.letterSpacing, lineHeight: style.lineHeight,
-            whiteSpace: 'pre-wrap', overflowWrap: 'break-word', wordBreak: style.wordBreak
-        });
-        mirror.textContent = value.slice(0, caret);
-        marker.textContent = '\u200b';
-        mirror.appendChild(marker);
-        document.body.appendChild(mirror);
-        const caretTop = marker.offsetTop;
-        mirror.remove();
-        const visibleTop = editorTextarea.scrollTop;
-        const visibleBottom = visibleTop + editorTextarea.clientHeight;
-        const lineHeight = parseFloat(style.lineHeight) || 28;
-        if (caretTop > visibleBottom - lineHeight * 2 || caretTop < visibleTop + lineHeight) {
-            editorTextarea.scrollTop = Math.max(0, caretTop - editorTextarea.clientHeight * 0.72);
-        }
-    });
-}
-
-function updateAIChatDocumentWrite(session, text) {
-    if (!editorTextarea || !session || !session.active) return false;
-    const value = String(text || '');
-    const raw = String(editorTextarea.value || '');
-    const start = Math.max(0, Math.min(Number(session.start) || 0, raw.length));
-    const end = Math.max(start, Math.min(Number(session.end) || start, raw.length));
-    editorTextarea.setRangeText(value, start, end, 'end');
-    session.start = start;
-    session.end = start + value.length;
-    session.text = value;
-    currentMarkdown = String(editorTextarea.value || '');
-    lastEditCaretPos = session.end;
-    editorTextarea.dispatchEvent(new Event('input', { bubbles: true }));
-    followAIChatDocumentWrite(session);
-    return true;
-}
-
-function finishAIChatDocumentWrite(session, text, status) {
-    if (!session || !session.active) return false;
-    const finalText = status === 'error' && session.replacedSelection ? session.originalText : text;
-    updateAIChatDocumentWrite(session, finalText);
-    session.active = false;
     performAutoSave();
     if (activeSidebarTab === 'toc') renderTOC();
     return true;
@@ -15216,14 +15077,6 @@ window.AIChatBridge = Object.freeze({
         const end = Math.max(start, Math.min(Number(editorTextarea.selectionEnd) || start, raw.length));
         return raw.slice(start, end);
     },
-    captureDocumentSelection: function () {
-        if (!editorTextarea) return null;
-        const raw = String(editorTextarea.value || '');
-        const start = Math.max(0, Math.min(Number(editorTextarea.selectionStart) || 0, raw.length));
-        const end = Math.max(start, Math.min(Number(editorTextarea.selectionEnd) || start, raw.length));
-        if (end <= start) return null;
-        return { text: raw.slice(start, end), start: start, end: end };
-    },
     getCachedGeminiModels: function () {
         return localStorage.getItem(AI_CHAT_GEMINI_MODELS_KEY) === null
             ? AI_CHAT_GEMINI_DEFAULT_MODELS.slice()
@@ -15277,52 +15130,11 @@ window.AIChatBridge = Object.freeze({
     refreshOpenAICompatibleModels: function () {
         return fetchOpenAICompatibleModels(getStoredOpenAICompatibleConnection());
     },
-    getCachedLMStudioModels: function () {
-        return readStoredModelList(SCHOLAR_AI_LM_MODELS_KEY);
-    },
     refreshLMStudioModels: async function () {
-        const runtime = getScholarAIProviderRuntime();
-        const installed = await runtime.listLMStudioModels();
-        let loaded = [];
-        let result = null;
-        try {
-            result = await runtime.syncLMStudioLoadedModel();
-            loaded = result.models || [];
-        } catch (error) {
-            if (!/현재 로드된 LLM이 없습니다/.test(String(error && error.message || error))) throw error;
-        }
-        const installedIds = installed.map(function (item) {
-            return String(typeof item === 'string' ? item : (item && (item.key || item.id)) || '').trim();
-        }).filter(Boolean);
-        const loadedIds = loaded.map(function (item) { return item.id; }).filter(Boolean);
-        const models = Array.from(new Set(installedIds.concat(loadedIds)));
-        saveStoredModelList(SCHOLAR_AI_LM_MODELS_KEY, models);
-        return { model: result ? result.model : '', models: models, contextLength: result ? getAIChatLMContextLength(result) : 0 };
-    },
-    loadLMStudioModel: async function (model) {
-        const runtime = getScholarAIProviderRuntime();
-        const result = await runtime.loadLMStudioModel(model);
-        const installed = await runtime.listLMStudioModels();
-        const installedIds = installed.map(function (item) {
-            return String(typeof item === 'string' ? item : (item && (item.key || item.id)) || '').trim();
-        }).filter(Boolean);
-        const loadedIds = (result.models || []).map(function (item) { return item.id; }).filter(Boolean);
-        const models = Array.from(new Set(installedIds.concat(loadedIds)));
+        const result = await getScholarAIProviderRuntime().syncLMStudioLoadedModel();
+        const models = result.models.map(function (item) { return item.id; }).filter(Boolean);
         saveStoredModelList(SCHOLAR_AI_LM_MODELS_KEY, models);
         return { model: result.model, models: models, contextLength: getAIChatLMContextLength(result) };
-    },
-    captureInsertTarget: function () {
-        const target = editorTextarea;
-        const revision = currentDocumentDisplayRequest;
-        const value = target && target.value;
-        const start = target && target.selectionStart;
-        const end = target && target.selectionEnd;
-        return function () {
-            if (target !== editorTextarea || revision !== currentDocumentDisplayRequest || !target
-                || value !== target.value || start !== target.selectionStart || end !== target.selectionEnd) {
-                throw new Error('검증 중 문서 또는 선택 영역이 바뀌었습니다. 삽입 위치를 확인하고 다시 시도하세요.');
-            }
-        };
     },
     insertIntoDocument: function (text, mode, options) {
         const insertOptions = options && typeof options === 'object' ? options : {};
@@ -15330,15 +15142,6 @@ window.AIChatBridge = Object.freeze({
             ? insertOptions.html
             : text;
         return insertAIChatTextIntoDocument(value, mode);
-    },
-    beginDocumentWrite: function (mode, selectionSnapshot) {
-        return beginAIChatDocumentWrite(mode, selectionSnapshot);
-    },
-    updateDocumentWrite: function (session, text) {
-        return updateAIChatDocumentWrite(session, text);
-    },
-    finishDocumentWrite: function (session, text, status) {
-        return finishAIChatDocumentWrite(session, text, status);
     },
     saveImageForDocument: function (image, index) {
         return saveAIChatGeneratedImageForDocument(image, index);
@@ -15648,11 +15451,8 @@ function ensureSidebarAILoaded() {
                     model: modelOverride,
                     responseMode: special.mode,
                     reasoning: special.reasoning,
-                    fastMode: special.fastMode === true,
                     maxTokens: special.maxOutputTokens,
-                    timeoutMs: special.timeoutMs,
-                    completeStreaming: special.completeStreaming === true,
-                    onStreamEvent: typeof special.onStreamEvent === 'function' ? special.onStreamEvent : undefined
+                    timeoutMs: special.timeoutMs
                 });
             },
             listScholarAIGeminiModels: function () { return listAIStudioTextModels(); },
@@ -15824,15 +15624,7 @@ function ensureSidebarAILoaded() {
             },
             getScholarAISystemInstruction: function () {
                 const saved = (localStorage.getItem('ss_scholar_ai_system') || '').trim();
-                if (saved) {
-                    const merged = typeof window.mergeScholarAIQuickToolPrompts === 'function'
-                        ? window.mergeScholarAIQuickToolPrompts(saved) : saved;
-                    if (merged !== saved) {
-                        localStorage.setItem('ss_scholar_ai_system', merged);
-                        setAiSettings({ scholarAIPromptPack: merged }).catch(function () {});
-                    }
-                    return merged;
-                }
+                if (saved) return saved;
                 if (typeof window.getDefaultScholarAIPrompt === 'function') {
                     try { return window.getDefaultScholarAIPrompt() || ''; } catch (e) {}
                 }

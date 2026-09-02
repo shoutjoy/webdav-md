@@ -10,6 +10,7 @@
         { id: 'gemini', label: 'Google AI Studio', storage: 'ss_gemini_api_key' },
         { id: 'deepseek', label: 'DeepSeek', storage: 'ss_deepseek_api_key' },
         { id: 'openai', label: 'OpenAI', storage: 'ss_openai_api_key' },
+        { id: 'serpapi', label: 'SerpApi Google Search', storage: 'ss_serpapi_api_key' },
         { id: 'imgbb', label: 'imgBB', storage: 'ss_imgbb_api_key' },
         { id: 'fmaGemini', label: 'fmaviewer AI Jena', storage: 'fma_ai_studio_api_key' }
     ]);
@@ -189,7 +190,7 @@
 
     function clearCredentialInputs() {
         if (!root.document) return;
-        ['ai-api-key', 'deepseek-api-key', 'openai-api-key', 'ai-imgbb-api-key'].forEach(function (id) {
+        ['ai-api-key', 'deepseek-api-key', 'openai-api-key', 'ai-imgbb-api-key', 'settings-serpapi-api-key'].forEach(function (id) {
             const input = root.document.getElementById(id);
             if (input) input.value = '';
         });
@@ -317,10 +318,10 @@
             outputLimit: Math.max(1, Number(config.maxTokens) || 8192),
             quickOutputLimit: Math.max(1, Number(config.quickMaxTokens) || 4096),
             reasoningOutputLimit: Math.max(1, Number(config.reasoningMaxTokens) || 8192),
-            fastOutputLimit: Math.max(1, Number(config.fastMaxTokens) || 4000),
-            fastTimeoutMs: Math.max(1000, Number(config.fastTimeoutMs) || 580000),
+            fastOutputLimit: Math.max(1, Number(config.fastMaxTokens) || 3000),
+            fastTimeoutMs: Math.max(1000, Number(config.fastTimeoutMs) || 60000),
             reasoningLevel: String(config.reasoningLevel || 'auto'),
-            timeoutMs: Math.max(1000, Number(config.timeoutMs) || 90000),
+            timeoutMs: Math.max(1000, Number(config.timeoutMs) || 580000),
             topP: config.topP == null || config.topP === '' ? null : Number(config.topP)
         };
     }
