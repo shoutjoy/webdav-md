@@ -14938,6 +14938,133 @@ function insertAIChatTextIntoDocument(text, mode) {
     return true;
 }
 
+let activeRealtimeDocStream = null;
+
+function startRealtimeDocStream(options) {
+    if (!editorTextarea) throw new Error('문서 편집기를 찾지 못했습니다.');
+    if (!isEditMode) toggleMode('edit');
+    const target = options && options.target === 'document-end' ? 'document-end' : 'cursor';
+    const cmView = editorTextarea && editorTextarea.__mdCm6View;
+    const raw = cmView && cmView.state && cmView.state.doc
+        ? String(cmView.state.doc.toString())
+        : String(editorTextarea.value || '');
+
+    let start = 0;
+    let end = 0;
+    if (target === 'document-end') {
+        start = end = raw.length;
+    } else {
+        const sel = cmView && cmView.state && cmView.state.selection ? cmView.state.selection.main : null;
+        const s = sel ? Number(sel.from) : Number(editorTextarea.selectionStart);
+        const e = sel ? Number(sel.to) : Number(editorTextarea.selectionEnd);
+        start = Math.max(0, Math.min(Number.isFinite(s) ? s : raw.length, raw.length));
+        end = Math.max(start, Math.min(Number.isFinite(e) ? e : start, raw.length));
+    }
+
+    const before = raw.slice(0, start);
+    const after = raw.slice(end);
+    const prefix = before && !/\n\s*\n$/.test(before) ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
+
+    pushReplaceUndoSnapshot();
+
+    activeRealtimeDocStream = {
+        target: target,
+        anchorStart: start,
+        prefix: prefix,
+        before: before,
+        after: after,
+        currentText: '',
+        insertedLength: 0,
+        rafPending: false,
+        dirty: false,
+        pendingText: ''
+    };
+
+    if (prefix) {
+        applyRealtimeDocText('');
+    }
+
+    return { ok: true, target: target };
+}
+
+function applyRealtimeDocText(text) {
+    if (!activeRealtimeDocStream) return;
+    const session = activeRealtimeDocStream;
+    session.currentText = text;
+    const insertion = session.prefix + text;
+    const cmView = editorTextarea && editorTextarea.__mdCm6View;
+    const fullText = session.before + insertion + session.after;
+    const caret = session.anchorStart + insertion.length;
+
+    if (cmView && typeof cmView.dispatch === 'function') {
+        const prevInsertLen = session.prefix.length + session.insertedLength;
+        const replaceFrom = session.anchorStart;
+        const replaceTo = session.anchorStart + prevInsertLen;
+        try {
+            cmView.dispatch({
+                changes: { from: replaceFrom, to: Math.min(replaceTo, cmView.state.doc.length), insert: insertion },
+                selection: { anchor: caret },
+                userEvent: 'input.aiJena'
+            });
+            if (typeof cmView.scrollIntoView === 'function') {
+                cmView.scrollIntoView(caret);
+            }
+        } catch (_) {}
+    }
+
+    editorTextarea.value = fullText;
+    try {
+        editorTextarea.selectionStart = editorTextarea.selectionEnd = caret;
+    } catch (_) {}
+    currentMarkdown = fullText;
+    lastEditCaretPos = caret;
+    session.insertedLength = text.length;
+
+    if (typeof editorTextarea.scrollHeight !== 'undefined' && session.target === 'document-end') {
+        editorTextarea.scrollTop = editorTextarea.scrollHeight;
+    }
+}
+
+function scheduleRealtimeDocFlush() {
+    if (!activeRealtimeDocStream || activeRealtimeDocStream.rafPending) return;
+    activeRealtimeDocStream.rafPending = true;
+    requestAnimationFrame(function () {
+        if (!activeRealtimeDocStream) return;
+        activeRealtimeDocStream.rafPending = false;
+        if (activeRealtimeDocStream.dirty) {
+            activeRealtimeDocStream.dirty = false;
+            applyRealtimeDocText(activeRealtimeDocStream.pendingText);
+        }
+    });
+}
+
+function writeRealtimeDocStreamChunk(delta) {
+    if (!activeRealtimeDocStream) return;
+    const session = activeRealtimeDocStream;
+    session.pendingText = (session.pendingText || session.currentText || '') + String(delta || '');
+    session.dirty = true;
+    scheduleRealtimeDocFlush();
+}
+
+function finishRealtimeDocStream(finalText) {
+    if (!activeRealtimeDocStream) return;
+    const session = activeRealtimeDocStream;
+    const textToApply = finalText != null ? String(finalText) : (session.pendingText || session.currentText || '');
+    applyRealtimeDocText(textToApply);
+
+    editorTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+    editorTextarea.dispatchEvent(new Event('change', { bubbles: true }));
+    performAutoSave();
+    if (activeSidebarTab === 'toc') renderTOC();
+
+    activeRealtimeDocStream = null;
+}
+
+function cancelRealtimeDocStream() {
+    if (!activeRealtimeDocStream) return;
+    finishRealtimeDocStream();
+}
+
 function getAIChatGeneratedImageDataUrl(image) {
     if (!image || !image.data) throw new Error('생성 이미지 데이터가 없습니다.');
     const mimeType = String(image.mimeType || 'image/png');
@@ -15156,6 +15283,21 @@ window.AIChatBridge = Object.freeze({
             ? insertOptions.html
             : text;
         return insertAIChatTextIntoDocument(value, mode);
+    },
+    hasActiveDocEditor: function () {
+        return !!editorTextarea;
+    },
+    startRealtimeDocStream: function (options) {
+        return startRealtimeDocStream(options);
+    },
+    writeRealtimeDocStreamChunk: function (delta) {
+        return writeRealtimeDocStreamChunk(delta);
+    },
+    finishRealtimeDocStream: function (finalText) {
+        return finishRealtimeDocStream(finalText);
+    },
+    cancelRealtimeDocStream: function () {
+        return cancelRealtimeDocStream();
     },
     saveImageForDocument: function (image, index) {
         return saveAIChatGeneratedImageForDocument(image, index);
