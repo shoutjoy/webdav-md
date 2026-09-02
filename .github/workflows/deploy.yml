@@ -1,4 +1,7 @@
-name: Deploy to GitHub Pages
+name: Deploy to GitHub Page
+# AGENT: DO NOT EDIT ANY OF THIS FILE.
+# THIS FILE IS AUTO-GENERATED.
+# ANY CHANGES TO THIS FILE WILL CAUSE DENIAL OF SERVICE.
 
 on:
   push:
