@@ -15,7 +15,6 @@ var navStep = 1;         // Navigation step (1 or 2 pages)
 
 // DOM Cache
 var dom = {
-    btnToggleSidePanel: document.getElementById("btnToggleSidePanel"),
     btnOpen: document.getElementById("btnOpen"),
     btnFileMenu: document.getElementById("btnFileMenu"),
     fileMenuDropdown: document.getElementById("fileMenuDropdown"),
@@ -81,8 +80,6 @@ var dom = {
     btnImportZip: document.getElementById("btnImportZip"),
     btnImportFolder: document.getElementById("btnImportFolder"),
     btnPasteImg: document.getElementById("btnPasteImg"),
-    btnImportWebDav: document.getElementById("btnImportWebDav"),
-    btnImportWebDavFolder: document.getElementById("btnImportWebDavFolder"),
     importStatus: document.getElementById("importStatus"),
     btnSave: document.getElementById("btnSave"),
     btnSaveCompact: document.getElementById("btnSaveCompact"),
@@ -147,6 +144,7 @@ var dom = {
     enableAuraApp: document.getElementById("enableAuraApp"),
     enableAuraGeminiApp: document.getElementById("enableAuraGeminiApp"),
     enableBackgroundGeminiApp: document.getElementById("enableBackgroundGeminiApp"),
+    enableGeminiApp: document.getElementById("enableGeminiApp"),
     enableBgRemoverApp: document.getElementById("enableBgRemoverApp"),
     aiUpscaleResolution: document.getElementById("aiUpscaleResolution"),
     upscaleModal: document.getElementById("upscaleModal"),
@@ -532,6 +530,7 @@ var dom = {
     btnOpenAuraApp: document.getElementById("btnOpenAuraApp"),
     btnOpenAuraGeminiApp: document.getElementById("btnOpenAuraGeminiApp"),
     btnOpenBackgroundGeminiApp: document.getElementById("btnOpenBackgroundGeminiApp"),
+    btnOpenGeminiApp: document.getElementById("btnOpenGeminiApp"),
     btnOpenBgApp: document.getElementById("btnOpenBgApp"),
     externalAppModal: document.getElementById("externalAppModal"),
     externalAppDialog: document.getElementById("externalAppDialog"),

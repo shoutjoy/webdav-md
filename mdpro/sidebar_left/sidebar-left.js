@@ -3,6 +3,27 @@
 
     let activeTab = 'files';
     let lastTocItems = [];
+    const DOCUMENT_ACTIONS_HIDDEN_KEY = 'mdpro_sidebar_document_actions_hidden';
+
+    function areDocumentActionsHidden() {
+        try { return localStorage.getItem(DOCUMENT_ACTIONS_HIDDEN_KEY) === '1'; }
+        catch (_) { return false; }
+    }
+
+    function applyDocumentActionsVisibility(hidden) {
+        const shouldHide = !!hidden;
+        const sidebar = document.getElementById('sidebar');
+        const checkbox = document.getElementById('hide-document-actions-toggle');
+        if (sidebar) sidebar.classList.toggle('sidebar-doc-actions-hidden', shouldHide);
+        if (checkbox) checkbox.checked = shouldHide;
+    }
+
+    function toggleDocumentActionsVisibility(checkbox) {
+        const shouldHide = !!(checkbox && checkbox.checked);
+        try { localStorage.setItem(DOCUMENT_ACTIONS_HIDDEN_KEY, shouldHide ? '1' : '0'); }
+        catch (_) {}
+        applyDocumentActionsVisibility(shouldHide);
+    }
 
     function esc(value) {
         return String(value || '')
@@ -160,10 +181,10 @@
     function getSidebarShellHtml() {
         return [
             '<div class="p-4 border-b border-slate-200 dark:border-slate-700 space-y-4">',
-            '  <div class="flex items-center gap-2 mb-2 sidebar-text">',
-            '    <button onclick="openBackupModal()" class="shrink-0 flex items-center justify-center p-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded text-slate-700 dark:text-slate-200 transition-colors" title="내문서 백업" aria-label="내문서 백업"><i data-lucide="archive" class="w-4 h-4"></i></button>',
-            '    <button onclick="openMergeModal()" class="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded text-xs font-medium text-slate-700 dark:text-slate-200 transition-colors" title="문서 묶기"><i data-lucide="layers" class="w-3.5 h-3.5"></i><span>merge</span></button>',
-            '    <button id="btn-highlight-popup" onclick="openHighlightPopup()" class="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded text-xs font-medium text-slate-700 dark:text-slate-200 transition-colors" title="하이라이트 열기"><i data-lucide="highlighter" class="w-3.5 h-3.5"></i><span>Highlight</span></button>',
+            '  <div class="sidebar-primary-actions items-center gap-2 mb-2 sidebar-text">',
+            '    <button type="button" onclick="openBackupModal()" class="w-9 h-9 flex items-center justify-center bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded text-slate-700 dark:text-slate-200 transition-colors" title="내문서 백업" aria-label="내문서 백업"><i data-lucide="archive" class="w-4 h-4"></i></button>',
+            '    <button type="button" onclick="openMergeModal()" class="min-w-0 w-full h-9 flex items-center justify-center gap-1 px-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded text-[11px] font-semibold text-slate-700 dark:text-slate-200 transition-colors" title="문서 묶기"><i data-lucide="layers" class="w-3.5 h-3.5 shrink-0"></i><span class="truncate">merge</span></button>',
+            '    <button type="button" id="btn-highlight-popup" onclick="openHighlightPopup()" class="min-w-0 w-full h-9 flex items-center justify-center gap-1 px-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded text-[11px] font-semibold text-slate-700 dark:text-slate-200 transition-colors" title="하이라이트 열기" aria-label="하이라이트 열기"><i data-lucide="highlighter" class="w-3.5 h-3.5 shrink-0"></i><span class="truncate">Highlight</span></button>',
             '  </div>',
             '  <div class="flex items-center justify-between sidebar-header-btns">',
             '    <div class="flex bg-slate-200 dark:bg-slate-800 rounded p-1 w-full mr-2 sidebar-text">',
@@ -171,29 +192,34 @@
             '      <button onclick="switchSidebarTab(\'toc\')" id="tab-toc" class="flex-1 text-xs font-bold py-1 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">목차</button>',
             '    </div>',
             '    <div class="flex gap-1 shrink-0">',
-            '      <button onclick="createNewFolder()" id="btn-new-folder" class="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 dark:text-slate-400" title="폴더 생성"><i data-lucide="folder-plus" class="w-4 h-4"></i></button>',
             '      <button onclick="toggleSidebarCollapse()" class="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 dark:text-slate-400" title="사이드바 축소/확장"><i id="collapse-icon" data-lucide="chevron-left" class="w-4 h-4"></i></button>',
             '    </div>',
             '  </div>',
             '  <div id="storage-source-tabs" class="hidden items-center gap-1">',
-            '    <button type="button" id="tab-storage-local" onclick="switchStorageSourceTab(\'local\')" class="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200" title="로컬 폴더를 탐색기처럼 열기"><i data-lucide="folder-open" class="w-3.5 h-3.5"></i><span>Local</span></button>',
-            '    <button type="button" id="tab-storage-indb" onclick="switchStorageSourceTab(\'indb\')" class="px-2 py-1 text-xs font-semibold border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">inDB</button>',
-            '    <button type="button" id="tab-storage-sqlite" onclick="switchStorageSourceTab(\'sqlite\')" class="px-2 py-1 text-xs font-semibold border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200" title="로컬 SQLite 저장소">SQLite</button>',
-            '    <button type="button" id="tab-storage-github" onclick="switchStorageSourceTab(\'github\')" class="px-2 py-1 text-xs font-semibold border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">github</button>',
+            '    <button type="button" id="tab-storage-local" onclick="switchStorageSourceTab(\'local\')" class="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200" title="Local · 로컬 폴더"><i data-lucide="folder-open" class="storage-tab-icon w-3.5 h-3.5"></i><span class="storage-tab-label">Local</span></button>',
+            '    <button type="button" id="tab-storage-indb" onclick="switchStorageSourceTab(\'indb\')" class="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200" title="inDB · 내부 저장소"><i data-lucide="database" class="storage-tab-icon w-3.5 h-3.5"></i><span class="storage-tab-label">inDB</span></button>',
+            '    <button type="button" id="tab-storage-sqlite" onclick="switchStorageSourceTab(\'sqlite\')" class="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200" title="SQLite · 로컬 SQLite 저장소"><i data-lucide="hard-drive" class="storage-tab-icon w-3.5 h-3.5"></i><span class="storage-tab-label">SQLite</span></button>',
+            '    <button type="button" id="tab-storage-github" onclick="switchStorageSourceTab(\'github\')" class="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200" title="Github · 원격 저장소"><i data-lucide="github" class="storage-tab-icon w-3.5 h-3.5"></i><span class="storage-tab-label">github</span></button>',
             '    <a id="tab-storage-github-link" href="#" target="_blank" rel="noopener noreferrer" onclick="return openGithubRepositoryLink(event)" class="hidden px-1.5 py-1 text-[10px] font-bold border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700" title="GitHub 로그인 후 저장소 열기">↗</a>',
             '  </div>',
             '  <div id="storage-sync-status" class="hidden text-[10px] px-2 py-1 rounded border" role="status" aria-live="polite"></div>',
-            '  <div class="relative search-container" id="search-container">',
-            '    <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 search-icon-only"></i>',
-            '    <input type="text" id="db-search" oninput="scheduleStorageSearch()" placeholder="문서 제목·본문 검색..." class="w-full pl-9 pr-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-md text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500">',
+            '  <div class="flex items-center gap-2 search-container" id="search-container">',
+            '    <div class="relative min-w-0 flex-1">',
+            '      <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 search-icon-only"></i>',
+            '      <input type="text" id="db-search" oninput="scheduleStorageSearch()" placeholder="문서 제목·본문 검색..." class="w-full pl-9 pr-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-md text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500">',
+            '    </div>',
+            '    <label class="document-actions-toggle shrink-0 inline-flex items-center cursor-pointer" title="문서 카드의 열기, 이동, github, 삭제 버튼 숨기기">',
+            '      <input type="checkbox" id="hide-document-actions-toggle" onchange="toggleDocumentActionsVisibility(this)" class="w-4 h-4 accent-indigo-600" aria-label="문서 메뉴 숨기기">',
+            '    </label>',
+            '    <button type="button" id="toggle-all-sidebar-folders" onclick="toggleAllSidebarFolders()" class="shrink-0 w-6 h-6 inline-flex items-center justify-center rounded text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700" title="모든 폴더 접기" aria-label="모든 폴더 접기" aria-pressed="false">▼</button>',
             '  </div>',
             '</div>',
-            '<div id="db-list" class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1"></div>',
-            '<div id="toc-list" class="hidden flex-1 overflow-y-auto custom-scrollbar p-2"></div>',
+            '<div id="db-list" class="min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar p-2 space-y-1"></div>',
+            '<div id="toc-list" class="hidden min-h-0 flex-1 overflow-y-auto overscroll-contain custom-scrollbar p-2"></div>',
             '<div class="p-2 border-t border-slate-200 dark:border-slate-700">',
             '  <div class="flex items-center gap-2">',
-            '    <button type="button" id="btn-github-sync" onclick="pullGithubRepo()" class="hidden flex-1 items-center justify-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-md text-xs font-semibold text-white transition-colors" title="GitHub 저장소에서 Pull 동기화"><i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i><span class="sidebar-text" id="github-sync-label">sync</span></button>',
-            '    <button type="button" onclick="clearUnusedCache()" class="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-md text-xs font-semibold text-slate-700 dark:text-slate-200 transition-colors" title="Clear temporary cache"><i data-lucide="refresh-ccw" class="w-3.5 h-3.5"></i><span class="sidebar-text">MDpro Viewer</span></button>',
+            '    <button type="button" id="btn-github-sync" onclick="pullGithubRepo()" class="hidden flex-1 items-center justify-center px-3 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-md text-xs font-semibold text-white transition-colors" title="GitHub 저장소에서 Pull 동기화"><span id="github-sync-label">SYNC</span></button>',
+            '    <button type="button" onclick="clearUnusedCache()" class="shrink-0 flex items-center justify-center p-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded-md text-slate-700 dark:text-slate-200 transition-colors" title="Clear temporary cache" aria-label="Clear temporary cache"><i data-lucide="refresh-ccw" class="w-3.5 h-3.5"></i></button>',
             '  </div>',
             '</div>'
         ].join('');
@@ -216,10 +242,13 @@
             else sidebar.insertAdjacentHTML('afterbegin', getSidebarShellHtml());
         }
         sidebar.dataset.sidebarLeftReady = '1';
+        applyDocumentActionsVisibility(areDocumentActionsHidden());
     }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installSidebarShell);
     else installSidebarShell();
+
+    window.toggleDocumentActionsVisibility = toggleDocumentActionsVisibility;
 
     function switchSidebarTab(tab, ctx) {
         activeTab = tab === 'toc' ? 'toc' : 'files';

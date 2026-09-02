@@ -4,6 +4,15 @@
 
   var INTEGRATED_BASE = 'http://127.0.0.1:8765/api';
 
+  function sameOriginSearchUrl(params) {
+    try {
+      if (root.location && /^https?:$/.test(root.location.protocol)) {
+        return new URL('/api/web-search/?' + params, root.location.href).href;
+      }
+    } catch (_) {}
+    return '';
+  }
+
   async function readJson(response) {
     var payload = await response.json().catch(function () { return {}; });
     if (!response.ok || payload.ok === false) {
@@ -17,30 +26,23 @@
     if (!value) throw new Error('인터넷 검색어를 입력하세요.');
     var limit = Math.max(1, Math.min(50, Math.round(Number(count) || 10)));
     var searchMode = mode === 'reasoning' ? 'reasoning' : 'quick';
-    var params = new URLSearchParams({ q: value, count: String(limit), mode: searchMode, engine: 'auto' });
-    var serpApiKey = '';
-    try { serpApiKey = String(localStorage.getItem('ss_serpapi_api_key') || '').trim(); } catch (_) {}
+    var params = new URLSearchParams({ q: value, count: String(limit), mode: searchMode });
     var request = { cache: 'no-store', signal: options && options.signal };
-    var sameOriginRequest = { cache: 'no-store', signal: options && options.signal, headers: {} };
-    if (serpApiKey) sameOriginRequest.headers['X-SerpApi-Key'] = serpApiKey;
-    var sameOriginError = null;
-    try {
-      var sameOriginPayload = await readJson(await fetch('/api/web-search/?' + params, sameOriginRequest));
-      sameOriginPayload.fallbackUsed = true;
-      if (!sameOriginPayload.fallbackMessage) sameOriginPayload.fallbackMessage = 'WebDAV 앱 검색 중계를 사용했습니다.';
-      return sameOriginPayload;
-    } catch (error) {
-      if (error && error.name === 'AbortError') throw error;
-      sameOriginError = error;
+    var primaryError = null;
+    var sameOriginUrl = sameOriginSearchUrl(params);
+    if (sameOriginUrl) {
+      try {
+        return await readJson(await fetch(sameOriginUrl, request));
+      } catch (error) {
+        if (error && error.name === 'AbortError') throw error;
+        primaryError = error;
+      }
     }
     try {
       return await readJson(await fetch(INTEGRATED_BASE + '/web-search/?' + params, request));
-    } catch (integratedError) {
-      if (integratedError && integratedError.name === 'AbortError') throw integratedError;
-      if (/Failed to fetch|fetch failed|NetworkError|Load failed/i.test(String(integratedError && integratedError.message || integratedError))) {
-        throw new Error('AI Jena 로컬 검색 서버(127.0.0.1:8765)가 실행되지 않았거나 이 페이지의 접근이 허용되지 않았습니다. AI Studio를 선택하면 내장 Google 검색을 사용할 수 있습니다.');
-      }
-      throw new Error((integratedError && integratedError.message) || (sameOriginError && sameOriginError.message) || '인터넷 검색 서비스를 사용할 수 없습니다.');
+    } catch (error) {
+      if (error && error.name === 'AbortError') throw error;
+      throw new Error((error && error.message) || (primaryError && primaryError.message) || '인터넷 검색 서비스를 사용할 수 없습니다.');
     }
   }
 

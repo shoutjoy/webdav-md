@@ -5,10 +5,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>FMA Viewer Ultra</title>
-    <script>if (new URLSearchParams(location.search).get('embedded') === '1') document.documentElement.classList.add('embedded-host');</script>
 
     <!-- Project Styles -->
-    <link rel="stylesheet" href="css/styles.css?v=20260829-embedded-header-actions-1">
+    <link rel="stylesheet" href="css/styles.css?v=20260806-sqlite-workfiles-1">
     <link rel="stylesheet" href="Auth/auth.css?v=20260804-6">
 
     <!-- JSZip CDN -->
@@ -26,14 +25,12 @@
     </script>
 </head>
 
-<body class="side-panel-collapsed">
+<body>
 
     <header>
-        <button id="btnToggleSidePanel" class="side-panel-toggle" type="button" title="FMA 사이드 메뉴 펼치기"
-            aria-label="FMA 사이드 메뉴 펼치기" aria-expanded="false">☷</button>
         <div class="header-dropdown file-menu">
             <button id="btnFileMenu" class="header-dropdown-toggle" type="button" aria-expanded="false"
-                aria-controls="fileMenuDropdown" title="파일 메뉴">File ▾</button>
+                aria-controls="fileMenuDropdown">File ▾</button>
             <div id="fileMenuDropdown" class="header-dropdown-menu" style="display:none;">
                 <button id="btnOpen" type="button"><span>⌑</span> Open FMA</button>
                 <button id="btnSave" type="button"><span>◇</span> Save FMA</button>
@@ -49,7 +46,7 @@
         </div>
         <div class="header-dropdown db-menu">
             <button id="btnSaveDbMenu" class="header-dropdown-toggle save-db-toggle" type="button"
-                aria-expanded="false" aria-controls="saveDbDropdown" title="SaveDB 메뉴">SaveDB ▾</button>
+                aria-expanded="false" aria-controls="saveDbDropdown">SaveDB ▾</button>
             <div id="saveDbDropdown" class="header-dropdown-menu" style="display:none;">
                 <button id="btnSaveDbSnapshot" type="button"><span>▣</span> 현재 상태 SaveDB</button>
                 <button id="btnSaveDbSqlite" type="button"><span>DB</span> SQLite SaveDB 저장</button>
@@ -81,7 +78,7 @@
             style="display:none; background: #2e354a; color: #00d1ff;">Restore Last</button>
 
         <!-- Sorting -->
-        <select id="sortSelect" title="정렬 방식" aria-label="정렬 방식"
+        <select id="sortSelect"
             style="background:#252a36; color:#fff; border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:7px; font-size:12px; cursor:pointer;">
             <option value="latest">정렬: 최신순(생성)</option>
             <option value="modified">정렬: 최신순(수정)</option>
@@ -96,10 +93,10 @@
             <option value="video">영상만</option>
         </select>
 
-        <button id="btnToggleFavs" title="즐겨찾기">★ Favorites</button>
+        <button id="btnToggleFavs">★ Favorites</button>
 
         <!-- Layout Controls -->
-        <div class="header-layout-controls"
+        <div
             style="display:flex; gap:5px; margin-left:10px; border-left:1px solid #333; padding-left:10px; align-items:center;">
             <button id="btnGridCycle" class="grid-cycle-button" data-cols="2" type="button"
                 title="클릭하여 1·2·3·4열 전환">Grid 2 ▦</button>
@@ -147,11 +144,13 @@
         <button id="btnOpenBgApp" class="external-app-button bg" type="button"
             style="display:none;" title="BG Remover App 열기"><span class="app-icon">✂</span><span class="app-label">BG App</span></button>
         <button id="btnOpenStoryApp" class="external-app-button story" type="button"
-            style="display:none;" title="공유 Gemini Story 앱을 새 탭에서 열기"><span class="app-icon">S</span><span class="app-label">Story Gemini ↗</span></button>
+            style="display:none;" title="공유 Gemini Story 앱을 새 창에서 열기"><span class="app-icon">S</span><span class="app-label">Story Gemini ↗</span></button>
         <button id="btnOpenAuraGeminiApp" class="external-app-button aura-gemini" type="button"
-            style="display:none;" title="공유 Gemini Aura 앱을 새 탭에서 열기"><span class="app-icon">G</span><span class="app-label">Aura Gemini ↗</span></button>
+            style="display:none;" title="공유 Gemini Aura 앱을 새 창에서 열기"><span class="app-icon">G</span><span class="app-label">Aura Gemini ↗</span></button>
         <button id="btnOpenBackgroundGeminiApp" class="external-app-button background-gemini" type="button"
-            style="display:none;" title="공유 Gemini 배경생성 앱을 새 탭에서 열기"><span class="app-icon">B</span><span class="app-label">배경생성 Gemini ↗</span></button>
+            style="display:none;" title="공유 Gemini 배경생성 앱을 새 창에서 열기"><span class="app-icon">B</span><span class="app-label">배경생성 Gemini ↗</span></button>
+        <button id="btnOpenGeminiApp" class="external-app-button gemini-app" type="button"
+            style="display:none;" title="Gemini 인포그래픽 만화를 새 창에서 열기"><span class="app-icon">G</span><span class="app-label">Gemini 인포그래픽 만화 ↗</span></button>
     </nav>
 
     <div class="layout">
@@ -159,44 +158,39 @@
         <div class="left" id="leftPanel">
             <section id="importSection" class="import-section">
                 <button id="btnToggleImportPanel" class="import-collapse-toggle" type="button"
-                    aria-expanded="true" aria-controls="importPanelContent" aria-label="파일 추가 영역 접기"
-                    title="파일 추가 영역 접기">
+                    aria-expanded="true" aria-controls="importPanelContent">
+                    <span class="import-collapse-label">
+                        <strong>파일 열기 · 이미지 추가</strong>
+                        <small>FMA, 이미지, ZIP, 클립보드</small>
+                    </span>
                     <span class="import-collapse-icon" aria-hidden="true">⌃</span>
                 </button>
                 <div id="importPanelContent" class="import-panel-content">
                     <div class="fma-import-row">
-                        <div class="dropzone" id="dropzone" role="button" tabindex="0"
-                            aria-label="FMA 파일을 끌어다 놓거나 선택하여 가져오기"
-                            title="FMA 파일을 끌어다 놓거나 선택하여 가져오기">
-                            <svg class="fma-dropzone-icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M12 16V4"></path><path d="m7 9 5-5 5 5"></path><path d="M5 14v5h14v-5"></path>
-                            </svg>
+                        <div class="dropzone" id="dropzone">
+                            .fam drag and drop &amp; import
                             <input type="file" id="fileInput" accept=".fma,application/json" style="display:none">
                         </div>
                         <button id="btnSaveFmaPanel" class="save-fma-square" type="button"
-                            title="현재 프로젝트를 FMA 파일로 내보내기" aria-label="현재 프로젝트를 FMA 파일로 내보내기">
+                            title="현재 프로젝트를 FMA 파일로 내보내기">
                             <span>◇</span>
+                            <strong>Save<br>FMA</strong>
+                            <small>내보내기</small>
                         </button>
                     </div>
                     <div class="image-import-panel" id="dropzoneImg">
                         <div class="import-actions">
-                            <button id="btnImportImages" class="import-button import-images" type="button" title="이미지·영상 선택" aria-label="이미지·영상 선택">
-                                <span aria-hidden="true">▧</span>
+                            <button id="btnImportImages" class="import-button import-images" type="button">
+                                <span>▧</span> 이미지·영상 선택
                             </button>
-                            <button id="btnImportZip" class="import-button import-zip" type="button" title="ZIP 추가" aria-label="ZIP 추가">
-                                <span aria-hidden="true">⬡</span>
+                            <button id="btnImportZip" class="import-button import-zip" type="button">
+                                <span>ZIP</span> ZIP 추가
                             </button>
-                            <button id="btnImportFolder" class="import-button import-folder" type="button" title="폴더 열기" aria-label="폴더 열기">
-                                <span aria-hidden="true">▤</span>
+                            <button id="btnImportFolder" class="import-button import-folder" type="button">
+                                <span>▤</span> 폴더 열기
                             </button>
-                            <button id="btnPasteImg" class="import-button import-paste" type="button" title="클립보드 이미지 붙여넣기" aria-label="클립보드 이미지 붙여넣기">
-                                <span aria-hidden="true">⌘</span>
-                            </button>
-                            <button id="btnImportWebDav" class="import-button import-webdav" type="button" title="WebDAV에서 이미지 추가" aria-label="WebDAV에서 이미지 추가">
-                                <span aria-hidden="true">☁</span>
-                            </button>
-                            <button id="btnImportWebDavFolder" class="import-button import-webdav" type="button" title="WebDAV에서 폴더 추가" aria-label="WebDAV에서 폴더 추가">
-                                <span aria-hidden="true">▦</span>
+                            <button id="btnPasteImg" class="import-button import-paste" type="button">
+                                <span>⌘</span> 붙여넣기
                             </button>
                         </div>
                         <div id="importStatus" class="import-status">영상은 MP4, WebM, MOV 형식을 지원합니다 · Ctrl+V 이미지 붙여넣기</div>
@@ -395,21 +389,28 @@
                     <input id="enableStoryApp" type="checkbox">
                     <span>
                         <strong>Story Gemini 앱 버튼 표시</strong>
-                        <small>공유 Gemini Story 앱을 새 탭에서 엽니다. FMA API 키를 사용하지 않습니다.</small>
+                        <small>공유 Gemini Story 앱을 독립된 새 창에서 엽니다. FMA API 키를 사용하지 않습니다.</small>
                     </span>
                 </label>
                 <label class="settings-check">
                     <input id="enableAuraGeminiApp" type="checkbox">
                     <span>
                         <strong>Aura Gemini 앱 버튼 표시</strong>
-                        <small>공유 Gemini Aura 앱을 새 탭에서 엽니다. FMA API 키를 사용하지 않습니다.</small>
+                        <small>공유 Gemini Aura 앱을 독립된 새 창에서 엽니다. FMA API 키를 사용하지 않습니다.</small>
                     </span>
                 </label>
                 <label class="settings-check">
                     <input id="enableBackgroundGeminiApp" type="checkbox">
                     <span>
                         <strong>배경생성 Gemini 앱 버튼 표시</strong>
-                        <small>공유 Gemini 배경생성 앱을 새 탭에서 엽니다. FMA API 키를 사용하지 않습니다.</small>
+                        <small>공유 Gemini 배경생성 앱을 독립된 새 창에서 엽니다. FMA API 키를 사용하지 않습니다.</small>
+                    </span>
+                </label>
+                <label class="settings-check">
+                    <input id="enableGeminiApp" type="checkbox">
+                    <span>
+                        <strong>Gemini 인포그래픽 만화</strong>
+                        <small>등록된 공유 Gemini 앱을 독립된 새 창에서 엽니다. FMA API 키를 사용하지 않습니다.</small>
                     </span>
                 </label>
 
@@ -2012,7 +2013,7 @@
     <script src="AuthData/auth-mode.js?v=20260805-1"></script>
     <script src="AuthData/auth-bootstrap.js?v=20260805-1"></script>
     <script src="js/core/navigationGuard.js?v=20260802-1"></script>
-    <script src="js/core/app.js?v=20260829-side-panel-default-collapsed-1"></script>
+    <script src="js/core/app.js?v=20260804-1"></script>
     <script src="js/storage/sqliteWorkfiles.js?v=20260806-wasm-fma-workfiles-1&amp;storageVisibility=20260806-1"></script>
     <script src="js/integrations/mdViewerBridge.js?v=20260806-import-choice-2"></script>
 </body>

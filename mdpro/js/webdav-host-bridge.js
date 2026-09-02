@@ -15,11 +15,14 @@
     }
 
     function saveToWebDav(saveAs) {
-        if (!window.__webdavHostDocument) return false;
+        var hostDocument = window.__webdavHostDocument || {};
+        var displayedName = document.getElementById('file-title-display');
+        var fallbackName = displayedName && displayedName.textContent ? displayedName.textContent.trim() : '새 문서';
+        if (!/\.md$/i.test(fallbackName)) fallbackName += '.md';
         window.parent.postMessage({
             type: saveAs ? 'webdav-save-document-as' : 'webdav-save-document',
-            path: window.__webdavHostDocument.path,
-            fileName: window.__webdavHostDocument.fileName,
+            path: hostDocument.path || '',
+            fileName: hostDocument.fileName || fallbackName,
             content: currentDocumentText()
         }, location.origin);
         return true;
@@ -188,6 +191,11 @@
             }, 0);
             if (typeof window.showToast === 'function') window.showToast('WebDAV 문서를 MDPRO로 열었습니다.');
         }
+    });
+    window.addEventListener('mdpro-new-document', function () {
+        window.__webdavHostDocument = null;
+        savedDocumentText = '';
+        lastReportedDocumentText = '';
     });
     window.addEventListener('DOMContentLoaded', installUi, { once: true });
     window.addEventListener('DOMContentLoaded', publishTheme, { once: true });

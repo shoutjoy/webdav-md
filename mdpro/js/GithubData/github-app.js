@@ -51,6 +51,23 @@
         };
     }
 
+    function syncGithubSettingsFields(settings) {
+        const cfg = getGithubConfigFromSettings(settings || {});
+        const enabledEl = document.getElementById('ai-github-enabled');
+        const tokenEl = document.getElementById('github-token-input');
+        const repoEl = document.getElementById('github-repo-input');
+        const branchEl = document.getElementById('github-branch-input');
+        const pullMaxEl = document.getElementById('github-pull-max-files-input');
+        const defaultPushPathEl = document.getElementById('github-default-push-path-input');
+        if (enabledEl) enabledEl.checked = cfg.enabled;
+        if (tokenEl) tokenEl.value = cfg.token;
+        if (repoEl) repoEl.value = cfg.repoInput;
+        if (branchEl) branchEl.value = cfg.branch;
+        if (pullMaxEl) pullMaxEl.value = String(cfg.pullMaxFiles);
+        if (defaultPushPathEl) defaultPushPathEl.value = cfg.defaultPushPath;
+        return cfg;
+    }
+
     function getGithubLinkPathFromConfig(cfg) {
         const rawInput = String(cfg && cfg.repoInput ? cfg.repoInput : '').trim();
         const normalized = rawInput
@@ -242,7 +259,7 @@
         const tabsWrap = document.getElementById('storage-source-tabs');
         if (tabsWrap) {
             const hasVisibleTab = Object.keys(saved).some(function (key) { return saved[key] !== false; });
-            const shouldShow = !isSidebarCollapsed && hasVisibleTab;
+            const shouldShow = hasVisibleTab;
             tabsWrap.classList.toggle('hidden', !shouldShow);
             tabsWrap.classList.toggle('flex', shouldShow);
         }
@@ -324,14 +341,14 @@
         const hasVisibleTab = Object.keys(sidebarVisibility).some(function (key) {
             return sidebarVisibility[key] !== false;
         });
-        const shouldShow = !isSidebarCollapsed && hasVisibleTab;
+        const shouldShow = hasVisibleTab;
         tabsWrap.classList.toggle('hidden', !shouldShow);
         tabsWrap.classList.toggle('flex', shouldShow);
     }
 
     async function applyGithubUiState(settingsInput) {
         const settings = settingsInput || await getAiSettings() || {};
-        const cfg = getGithubConfigFromSettings(settings);
+        const cfg = syncGithubSettingsFields(settings);
         const githubConfigured = !!(cfg.enabled && cfg.token);
         const repoLink = document.getElementById('tab-storage-github-link');
         const syncBtn = document.getElementById('btn-github-sync');
@@ -344,8 +361,7 @@
             syncBtn.classList.toggle('flex', showSync);
         }
         if (syncLabel) {
-            const labelTarget = cfg.repoWithPath || cfg.repo;
-            syncLabel.textContent = labelTarget ? ('sync ' + labelTarget) : 'sync';
+            syncLabel.textContent = 'SYNC';
         }
         if (repoLink) {
             const linkPath = getGithubLinkPathFromConfig(cfg);
@@ -381,8 +397,14 @@
         const requested = String(tab || '').toLowerCase();
         const next = requested === 'github' || requested === 'sqlite' || requested === 'local' ? requested : 'indb';
         const featureFlags = getStorageFeatureFlags();
-        const githubEnabled = !!(document.getElementById('ai-github-enabled') && document.getElementById('ai-github-enabled').checked);
-        const githubToken = String(document.getElementById('github-token-input') && document.getElementById('github-token-input').value ? document.getElementById('github-token-input').value : '').trim();
+        const savedSettings = next === 'github' ? (await getAiSettings() || {}) : null;
+        const savedGithubConfig = savedSettings ? getGithubConfigFromSettings(savedSettings) : null;
+        const githubEnabled = savedGithubConfig
+            ? savedGithubConfig.enabled
+            : !!(document.getElementById('ai-github-enabled') && document.getElementById('ai-github-enabled').checked);
+        const githubToken = savedGithubConfig
+            ? savedGithubConfig.token
+            : String(document.getElementById('github-token-input') && document.getElementById('github-token-input').value ? document.getElementById('github-token-input').value : '').trim();
         const githubConfigured = !!(githubEnabled && githubToken);
         if (next === 'github' && !githubConfigured) {
             currentStorageSourceTab = 'indb';
@@ -415,6 +437,9 @@
         } else if (next !== 'github') {
             if (!window.MDPStorage || typeof window.MDPStorage.requestMode !== 'function') return;
             try {
+                if (typeof window.ensureStorageServiceReady === 'function') {
+                    await window.ensureStorageServiceReady();
+                }
                 const state = await window.MDPStorage.requestMode(next);
                 currentStorageSourceTab = state.activeMode === 'sqlite' ? 'sqlite' : 'indb';
             } catch (error) {
@@ -438,7 +463,7 @@
     function githubApiHeaders(token) {
         return {
             'Accept': 'application/vnd.github+json',
-            'Authorization': 'token ' + String(token || '').trim(),
+            'Authorization': 'Bearer ' + String(token || '').trim(),
             'X-GitHub-Api-Version': '2022-11-28'
         };
     }
@@ -805,6 +830,34 @@
         return normalized;
     }
 
+    function sanitizeGithubPathSegment(value) {
+        return String(value || '').trim().replace(/[\\/:*?"<>|]+/g, '_');
+    }
+
+    function buildGithubFolderPath(folders, folderId) {
+        const items = Array.isArray(folders) ? folders : [];
+        const byId = new Map();
+        items.forEach(function (folder) {
+            const id = String(folder && folder.id || '').trim();
+            if (id) byId.set(id, folder);
+        });
+
+        const parts = [];
+        const visited = new Set();
+        let currentId = String(folderId || 'root').trim() || 'root';
+        while (currentId && currentId !== 'root' && !visited.has(currentId)) {
+            visited.add(currentId);
+            const folder = byId.get(currentId);
+            if (!folder) break;
+            const segment = sanitizeGithubPathSegment(folder.name);
+            if (segment) parts.unshift(segment);
+            const parentId = String(folder.parentId || 'root').trim() || 'root';
+            if (parentId === currentId) break;
+            currentId = parentId;
+        }
+        return normalizeGithubFolderPath(parts.join('/'));
+    }
+
     function openGithubDocumentCreateModal(defaultFolder) {
         return new Promise(function (resolve) {
             const overlay = document.createElement('div');
@@ -1099,27 +1152,34 @@
                     return String(item && item.id || '') === String(doc.folderId || 'root');
                 }) || null
                 : null;
-            return { doc: doc, folder: folder, storageMode: 'sqlite' };
+            return { doc: doc, folder: folder, folders: folders, storageMode: 'sqlite' };
         }
 
         const tx = db.transaction(['documents', 'folders'], 'readonly');
         const docsStore = tx.objectStore('documents');
         const foldersStore = tx.objectStore('folders');
-        const doc = await new Promise(function (resolve) {
+        const docPromise = new Promise(function (resolve) {
             const req = docsStore.get(id);
             req.onsuccess = function () { resolve(req.result || null); };
             req.onerror = function () { resolve(null); };
         });
+        const foldersPromise = new Promise(function (resolve) {
+            const req = foldersStore.getAll();
+            req.onsuccess = function () { resolve(Array.isArray(req.result) ? req.result : []); };
+            req.onerror = function () { resolve([]); };
+        });
+        const doc = await docPromise;
+        const folders = await foldersPromise;
         const folder = await new Promise(function (resolve) {
             if (!doc) {
                 resolve(null);
                 return;
             }
-            const req = foldersStore.get(String(doc.folderId || 'root'));
-            req.onsuccess = function () { resolve(req.result || null); };
-            req.onerror = function () { resolve(null); };
+            resolve(folders.find(function (item) {
+                return String(item && item.id || '') === String(doc.folderId || 'root');
+            }) || null);
         });
-        return { doc: doc, folder: folder, storageMode: 'indb' };
+        return { doc: doc, folder: folder, folders: folders, storageMode: 'indb' };
     }
 
     async function pushDocToGithub(docId, storageMode) {
@@ -1145,10 +1205,11 @@
             showToast('Document not found.');
             return false;
         }
-        const folderName = folder && String(folder.id || '') !== 'root'
-            ? String(folder.name || '').trim().replace(/[\\/:*?"<>|]+/g, '_')
-            : '';
-        const docName = String(doc.title || 'untitled').trim().replace(/[\\/:*?"<>|]+/g, '_') || 'untitled';
+        const folderPath = buildGithubFolderPath(source && source.folders, doc.folderId);
+        const folderName = folderPath || (folder && String(folder.id || '') !== 'root'
+            ? sanitizeGithubPathSegment(folder.name)
+            : '');
+        const docName = sanitizeGithubPathSegment(doc.title || 'untitled') || 'untitled';
         const pushFolder = await chooseGithubPushFolder(settings, folderName || cfg.defaultPushPath);
         if (pushFolder === null) {
             showToast('GitHub push canceled.');
@@ -1174,9 +1235,16 @@
                 if (!notFound) throw e;
             }
 
+            let pushContent = String(doc.content ?? '');
+            const activeDocId = typeof window.getCurrentDbDocumentId === 'function'
+                ? String(window.getCurrentDbDocumentId() || '')
+                : '';
+            if (activeDocId === id && typeof window.getCurrentMarkdownSnapshot === 'function') {
+                pushContent = window.getCurrentMarkdownSnapshot();
+            }
             const body = {
                 message: 'push: ' + docName + ' (' + new Date().toISOString() + ')',
-                content: encodeTextToGithubBase64(doc.content || ''),
+                content: encodeTextToGithubBase64(pushContent),
                 branch: cfg.branch
             };
             if (existingSha) body.sha = existingSha;
@@ -1195,7 +1263,7 @@
                 remotePath: remotePath,
                 title: getGithubDocTitleFromPath(path),
                 folderPath: path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : 'root',
-                content: String(doc.content || ''),
+                content: pushContent,
                 sha: String(pushed && pushed.content && pushed.content.sha ? pushed.content.sha : ''),
                 updatedAt: new Date().toISOString()
             };
@@ -1338,7 +1406,8 @@
             const isCollapsedFolder = !searchTerm && isFolderCollapsed(folderId);
 
             const folderDiv = document.createElement('div');
-            folderDiv.className = 'mb-2';
+            folderDiv.className = 'sidebar-folder-node mb-2';
+            folderDiv.dataset.folderId = folderId;
             const folderHeader = document.createElement('div');
             folderHeader.className = 'flex items-center gap-2 px-2 py-1 text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-tighter cursor-pointer select-none hover:bg-slate-100/70 dark:hover:bg-slate-800/70 rounded ' + (isSidebarCollapsed ? 'justify-center' : '');
             folderHeader.innerHTML = ''
@@ -1405,6 +1474,7 @@
     window.GithubApp = {
         parseGithubRepoInput: parseGithubRepoInput,
         getGithubConfigFromSettings: getGithubConfigFromSettings,
+        syncGithubSettingsFields: syncGithubSettingsFields,
         getGithubLinkPathFromConfig: getGithubLinkPathFromConfig,
         getGithubLoginUrlForRepoPath: getGithubLoginUrlForRepoPath,
         openGithubRepositoryLink: openGithubRepositoryLink,
@@ -1435,6 +1505,7 @@
         checkGithubConnectionFromModal: checkGithubConnectionFromModal,
         loadFromGithubCache: loadFromGithubCache,
         getGithubPushSource: getGithubPushSource,
+        buildGithubFolderPath: buildGithubFolderPath,
         createGithubDocumentInFolder: createGithubDocumentInFolder,
         readTextFile: readTextFile,
         upsertTextFile: upsertTextFile,
@@ -1448,6 +1519,7 @@
 
     window.parseGithubRepoInput = parseGithubRepoInput;
     window.getGithubConfigFromSettings = getGithubConfigFromSettings;
+    window.syncGithubSettingsFields = syncGithubSettingsFields;
     window.getGithubLinkPathFromConfig = getGithubLinkPathFromConfig;
     window.getGithubLoginUrlForRepoPath = getGithubLoginUrlForRepoPath;
     window.openGithubRepositoryLink = openGithubRepositoryLink;
