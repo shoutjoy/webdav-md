@@ -593,6 +593,25 @@ html.ai-chat-page-pushed .ai-chat-panel.layout-popup {
   color: #fff;
 }
 .ai-chat-reasoning-toggle:has(input:disabled) { opacity: .55; cursor: default; }
+.ai-chat-sentence-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 29px;
+  padding: 4px 7px;
+  border: 1px solid #536b91;
+  border-radius: 7px;
+  background: #263a55;
+  color: #d7e4f5;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ai-chat-sentence-toggle:hover { background: #2d4260; }
+.ai-chat-sentence-toggle input { margin: 0; accent-color: #14b8a6; }
+.ai-chat-sentence-toggle:has(input:checked) { border-color: #2dd4bf; background: #0f5e5a; color: #fff; }
 .ai-chat-fast-toggle {
   display: inline-flex;
   align-items: center;
@@ -1319,6 +1338,8 @@ body.theme-light .ai-chat-mode-row button { background: #f8fafc; border-color: #
 body.theme-light .ai-chat-mode-row button.active { background: #4f46c8; border-color: #4338ca; color: #fff; }
 body.theme-light .ai-chat-reasoning-toggle { border-color: #b7c2d4; background: #f8fafc; color: #475569; }
 body.theme-light .ai-chat-reasoning-toggle:has(input:checked) { border-color: #6366f1; background: #e0e7ff; color: #3730a3; }
+body.theme-light .ai-chat-sentence-toggle { border-color: #8fb8bd; background: #edfafa; color: #155e75; }
+body.theme-light .ai-chat-sentence-toggle:has(input:checked) { border-color: #0f766e; background: #0f766e; color: #fff; }
 body.theme-light .ai-chat-fast-toggle { border-color: #8fb8bd; background: #edfafa; color: #155e75; }
 body.theme-light .ai-chat-fast-toggle:has(input:checked) { border-color: #0f766e; background: #0f766e; color: #fff; }
 body.theme-light .ai-chat-mode-row .ai-chat-academic-toggle.active { border-color: #0f9f75; background: #0f8a68; color: #fff; }
@@ -1456,8 +1477,10 @@ body.theme-light .ai-chat-academic-count-wrap input {
 }
 body.theme-light .ai-chat-composer textarea:focus { border-color: #0a84ff; box-shadow: 0 0 0 3px rgba(10,132,255,.18); }
 body.theme-light .ai-chat-mode-row button,
-body.theme-light .ai-chat-reasoning-toggle { border-color: #48484a; background: #2c2c2e; color: #d1d1d6; }
+body.theme-light .ai-chat-reasoning-toggle,
+body.theme-light .ai-chat-sentence-toggle { border-color: #48484a; background: #2c2c2e; color: #d1d1d6; }
 body.theme-light .ai-chat-reasoning-toggle:has(input:checked) { border-color: #409cff; background: rgba(10,132,255,.22); color: #fff; }
+body.theme-light .ai-chat-sentence-toggle:has(input:checked) { border-color: #30d5c8; background: rgba(48,213,200,.2); color: #fff; }
 body.theme-light .ai-chat-insert-menu,
 body.theme-light .ai-chat-layout-menu { border-color: #48484a; background: #2c2c2e; box-shadow: 0 16px 40px rgba(0,0,0,.4); }
 body.theme-light .ai-chat-insert-menu button { color: #e5e5ea; }
