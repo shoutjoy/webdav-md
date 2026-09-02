@@ -25,6 +25,8 @@
   var RESPONSE_MODE_KEY = 'ss_ai_chat_response_mode';
   var FAST_MODE_KEY = 'ss_ai_chat_fast_mode';
   var SENTENCE_ONLY_KEY = 'ss_ai_chat_sentence_only';
+  var REALTIME_DOC_WRITE_KEY = 'ss_ai_chat_realtime_doc_write';
+  var REALTIME_DOC_TARGET_KEY = 'ss_ai_chat_realtime_doc_target';
   var BUILTIN_PROMPT_RULE_REVISION_KEY = 'ss_ai_chat_builtin_prompt_rules_revision';
   var SHOW_REASONING_KEY = 'ss_ai_chat_show_reasoning';
   var ACADEMIC_SEARCH_KEY = 'ss_ai_chat_academic_search_enabled';
@@ -44,7 +46,7 @@
   var MIGRATION_KEY = 'ss_ai_chat_idb_migrated_v1';
   var SQLITE_SYNC_KEYS = new Set([
     ENABLED_KEY, PROVIDER_KEY, GEMINI_MODEL_KEY, DEEPSEEK_MODEL_KEY, OPENAI_MODEL_KEY, OPENAI_COMPATIBLE_MODEL_KEY,
-    OLLAMA_MODEL_KEY, LITERTLM_MODEL_KEY, WRITING_STYLE_KEY, ANSWER_APPEARANCE_KEY, ANSWER_FONT_SIZE_KEY, RESPONSE_MODE_KEY, FAST_MODE_KEY, SENTENCE_ONLY_KEY, SHOW_REASONING_KEY,
+    OLLAMA_MODEL_KEY, LITERTLM_MODEL_KEY, WRITING_STYLE_KEY, ANSWER_APPEARANCE_KEY, ANSWER_FONT_SIZE_KEY, RESPONSE_MODE_KEY, FAST_MODE_KEY, SENTENCE_ONLY_KEY, REALTIME_DOC_WRITE_KEY, REALTIME_DOC_TARGET_KEY, SHOW_REASONING_KEY,
     ACADEMIC_SEARCH_KEY, ACADEMIC_COUNT_KEY, INTERNET_SEARCH_KEY, LAYOUT_KEY, START_LAYOUT_KEY
   ]);
   var CHAT_DB_NAME = 'md_viewer_ai_chat';
@@ -103,6 +105,8 @@
     responseMode: 'quick',
     fastMode: false,
     sentenceOnly: false,
+    realtimeDocWrite: false,
+    realtimeDocTarget: 'cursor',
     showReasoning: false,
     academicSearchEnabled: false,
     internetSearchEnabled: false,
@@ -132,6 +136,9 @@
     dbReady: false,
     storageInitializing: true
   };
+  var realtimeDocAccumulated = '';
+  var realtimeDocWritten = '';
+  var realtimeDocActive = false;
   var thinkingTimer = null;
   var thinkingStartedAt = 0;
   var thinkingProgress = 0;
@@ -639,6 +646,23 @@
       + '      <div class="ai-chat-compose-actions">'
       + '        <button type="button" id="ai-chat-attach" class="ai-chat-attach" title="문서 또는 이미지 첨부">📎 파일</button>'
       + '        <button type="button" id="ai-chat-import-selection" class="ai-chat-import-selection" aria-label="문서 선택 내용을 AI Jena 입력창으로 가져오기" data-tooltip="문서에서 내용을 선택한 뒤 Ctrl+Alt+L을 누르거나 이 버튼을 클릭하세요.">↙ 선택 가져오기</button>'
+      + '        <div class="ai-chat-realtime-toolbar" role="group" aria-label="문서 실시간 작성 설정">'
+      + '          <button type="button" id="ai-chat-realtime-doc-toggle" class="ai-chat-realtime-doc-toggle" title="문서로 실시간 작성 (켜면 AI 답변이 생성되는 즉시 문서에 직접 작성됩니다)" aria-pressed="false" aria-label="문서로 실시간 작성">'
+      + '            <span class="ai-chat-rt-check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5L6.5 11.5L12.5 4.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
+      + '            <span class="ai-chat-rt-doc-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><path d="M4 3a1.5 1.5 0 0 1 1.5-1.5h6L15.5 5.5v11A1.5 1.5 0 0 1 14 18H5.5A1.5 1.5 0 0 1 4 16.5V3z" fill="#cbd5e1"/><path d="M11 1.5v4.5h4.5" fill="#94a3b8"/><line x1="6.5" y1="7.5" x2="11.5" y2="7.5" stroke="#64748b" stroke-width="1.2" stroke-linecap="round"/><line x1="6.5" y1="10.5" x2="13.5" y2="10.5" stroke="#64748b" stroke-width="1.2" stroke-linecap="round"/><line x1="6.5" y1="13.5" x2="10.5" y2="13.5" stroke="#64748b" stroke-width="1.2" stroke-linecap="round"/><path d="M12.5 16.5l4-5.5 1.8 1.3-4 5.5-2.2.4.4-1.7z" fill="#f97316" stroke="#ea580c" stroke-width="0.8"/></svg></span>'
+      + '          </button>'
+      + '          <div class="ai-chat-realtime-target-group" role="group" aria-label="실시간 작성 위치">'
+      + '            <button type="button" id="ai-chat-realtime-target-cursor" class="ai-chat-rt-target-btn active" data-target="cursor" title="커서 위치에 실시간 작성 (←)" aria-label="커서 위치에 실시간 작성">'
+      + '              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8H3m4-4L3 8l4 4"/></svg>'
+      + '            </button>'
+      + '            <button type="button" id="ai-chat-realtime-target-bottom" class="ai-chat-rt-target-btn" data-target="document-end" title="문서 맨 아래에 실시간 작성 (맨아래)" aria-label="문서 맨 아래에 실시간 작성">'
+      + '              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 6l4.5 4.5 4.5-4.5"/></svg>'
+      + '            </button>'
+      + '          </div>'
+      + '          <button type="button" id="ai-chat-realtime-sentence-toggle" class="ai-chat-realtime-sentence-toggle" title="문장으로만 작성 (제목·목록 없이 서술형 문장으로만 작성)" aria-pressed="false" aria-label="문장으로만 작성">'
+      + '            <span class="ai-chat-rt-sentence-box" aria-hidden="true"></span>'
+      + '          </button>'
+      + '        </div>'
       + '        <button type="button" id="ai-chat-stop" class="ai-chat-stop" disabled>중지</button>'
       + '        <button type="button" id="ai-chat-send" class="ai-chat-send">전송</button>'
       + '      </div>'
@@ -682,6 +706,36 @@
     document.getElementById('ai-chat-data-center-open').addEventListener('click', openAIDataCenter);
     document.getElementById('ai-chat-send').addEventListener('click', sendMessage);
     document.getElementById('ai-chat-stop').addEventListener('click', stopMessage);
+    var rtDocToggle = document.getElementById('ai-chat-realtime-doc-toggle');
+    if (rtDocToggle) {
+      rtDocToggle.addEventListener('click', function () {
+        setRealtimeDocWrite(!state.realtimeDocWrite);
+        setStatus(state.realtimeDocWrite
+          ? '문서 실시간 작성을 켰습니다. (' + (state.realtimeDocTarget === 'cursor' ? '커서 위치' : '문서 맨 아래') + ')'
+          : '문서 실시간 작성을 껐습니다.', 'ok');
+      });
+    }
+    var rtTargetCursor = document.getElementById('ai-chat-realtime-target-cursor');
+    if (rtTargetCursor) {
+      rtTargetCursor.addEventListener('click', function () {
+        setRealtimeDocTarget('cursor');
+        setStatus('실시간 작성 위치: 커서 위치 (←)', 'ok');
+      });
+    }
+    var rtTargetBottom = document.getElementById('ai-chat-realtime-target-bottom');
+    if (rtTargetBottom) {
+      rtTargetBottom.addEventListener('click', function () {
+        setRealtimeDocTarget('document-end');
+        setStatus('실시간 작성 위치: 문서 맨 아래 (맨아래)', 'ok');
+      });
+    }
+    var rtSentenceToggle = document.getElementById('ai-chat-realtime-sentence-toggle');
+    if (rtSentenceToggle) {
+      rtSentenceToggle.addEventListener('click', function () {
+        setSentenceOnly(!state.sentenceOnly);
+        setStatus(state.sentenceOnly ? '문장으로만 작성을 켰습니다.' : '문장으로만 작성을 껐습니다.', 'ok');
+      });
+    }
     var importSelectionButton = document.getElementById('ai-chat-import-selection');
     importSelectionButton.addEventListener('mousedown', function (event) {
       documentSelectionBuffer = readDocumentSelectionText();
@@ -1714,6 +1768,9 @@
       liveStream.phase = 'generating';
       liveStream.stage = '최종 답변을 실시간 생성하는 중';
       liveStream.answer += String(event.content || '');
+      if (realtimeDocActive) {
+        streamDeltaToRealtimeDoc(event.content);
+      }
     } else if (type === 'message.end') {
       liveStream.stage = '답변 생성 완료 · 통계를 확인하는 중';
     } else if (type === 'chat.end') {
@@ -1730,6 +1787,13 @@
         : '응답 완료';
       liveStream.progress = 100;
       liveStream.phase = 'complete';
+      if (realtimeDocActive) {
+        try {
+          var cleanFinal = parseAssistantSections(liveStream.answer).answer;
+          getBridge().finishRealtimeDocStream(cleanFinal);
+          realtimeDocActive = false;
+        } catch (_) {}
+      }
     } else if (type === 'error') {
       liveStream.stage = providerLabel + ' 스트리밍 오류 확인 중';
     }
@@ -2244,6 +2308,59 @@
     if (persist !== false) storageSet(SENTENCE_ONLY_KEY, state.sentenceOnly ? '1' : '0');
     var checkbox = document.getElementById('ai-chat-sentence-only');
     if (checkbox) checkbox.checked = state.sentenceOnly;
+    var rtSentenceBtn = document.getElementById('ai-chat-realtime-sentence-toggle');
+    if (rtSentenceBtn) {
+      rtSentenceBtn.classList.toggle('active', state.sentenceOnly);
+      rtSentenceBtn.setAttribute('aria-pressed', state.sentenceOnly ? 'true' : 'false');
+      var box = rtSentenceBtn.querySelector('.ai-chat-rt-sentence-box');
+      if (box) {
+        box.innerHTML = state.sentenceOnly
+          ? '<svg viewBox="0 0 16 16"><path d="M3.5 8.5L6.5 11.5L12.5 4.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+          : '';
+      }
+    }
+  }
+
+  function setRealtimeDocWrite(enabled, persist) {
+    state.realtimeDocWrite = !!enabled;
+    if (persist !== false) storageSet(REALTIME_DOC_WRITE_KEY, state.realtimeDocWrite ? '1' : '0');
+    var btn = document.getElementById('ai-chat-realtime-doc-toggle');
+    if (btn) {
+      btn.classList.toggle('active', state.realtimeDocWrite);
+      btn.setAttribute('aria-pressed', state.realtimeDocWrite ? 'true' : 'false');
+      var check = btn.querySelector('.ai-chat-rt-check-box');
+      if (check) check.classList.toggle('checked', state.realtimeDocWrite);
+    }
+  }
+
+  function setRealtimeDocTarget(target, persist) {
+    state.realtimeDocTarget = target === 'document-end' ? 'document-end' : 'cursor';
+    if (persist !== false) storageSet(REALTIME_DOC_TARGET_KEY, state.realtimeDocTarget);
+    var cursorBtn = document.getElementById('ai-chat-realtime-target-cursor');
+    var bottomBtn = document.getElementById('ai-chat-realtime-target-bottom');
+    if (cursorBtn) cursorBtn.classList.toggle('active', state.realtimeDocTarget === 'cursor');
+    if (bottomBtn) bottomBtn.classList.toggle('active', state.realtimeDocTarget === 'document-end');
+  }
+
+  function streamDeltaToRealtimeDoc(chunk) {
+    if (!realtimeDocActive || !state.realtimeDocWrite) return;
+    try {
+      var bridge = getBridge();
+      if (!bridge || typeof bridge.writeRealtimeDocStreamChunk !== 'function') return;
+      realtimeDocAccumulated += String(chunk || '');
+      var cleanText = realtimeDocAccumulated;
+      if (cleanText.indexOf('[EXPLANATION]') >= 0) {
+        var explanationEnd = cleanText.indexOf('[/EXPLANATION]');
+        if (explanationEnd < 0) return;
+        cleanText = cleanText.slice(explanationEnd + '[/EXPLANATION]'.length).trimStart();
+      }
+      cleanText = cleanText.replace(/\[\/?(?:EXPLANATION|ANSWER)\]/gi, '');
+      if (cleanText.length > realtimeDocWritten.length) {
+        var delta = cleanText.slice(realtimeDocWritten.length);
+        realtimeDocWritten = cleanText;
+        bridge.writeRealtimeDocStreamChunk(delta);
+      }
+    } catch (_) {}
   }
 
   function setOpen(open) {
@@ -3476,7 +3593,7 @@
         splitAcademicResponse: splitAcademic,
         previousResponseId: null,
         messages: continuationMessages,
-        onStreamEvent: state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'litertlm' ? handleStreamEvent : undefined,
+        onStreamEvent: state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'litertlm' || state.provider === 'aistudio' ? handleStreamEvent : undefined,
         systemInstruction: academicSearch
           ? academicContinuationInstruction(evidence, splitAcademic ? requestedPart : 0, continuationEvidenceProfile)
           : [
@@ -5069,6 +5186,21 @@
     startThinkingProgress();
     renderMessages();
     renderMessages();
+    realtimeDocAccumulated = '';
+    realtimeDocWritten = '';
+    realtimeDocActive = false;
+    if (state.realtimeDocWrite) {
+      try {
+        var bridge = getBridge();
+        if (typeof bridge.startRealtimeDocStream === 'function') {
+          bridge.startRealtimeDocStream({ target: state.realtimeDocTarget });
+          realtimeDocActive = true;
+        }
+      } catch (err) {
+        console.warn('Realtime doc stream start failed:', err);
+        setStatus('실시간 문서 작성을 시작하지 못했습니다: ' + (err && err.message ? err.message : err), 'error');
+      }
+    }
     try {
       var academicSearchActive = !state.fastMode && state.academicSearchEnabled && !(state.provider === 'aistudio' && isGeminiImageModel(state.geminiModel));
       var internetSearchActive = !state.fastMode && state.internetSearchEnabled && !(state.provider === 'aistudio' && isGeminiImageModel(state.geminiModel));
@@ -5190,14 +5322,16 @@
         messages: academicSearchActive
           ? [{ role: 'user', content: academicModelInput(text, pendingUser.academicQuery, splitAcademicResponse ? 1 : 0, !!reusableAcademic, academicProfile) }]
           : contextMessages(),
-        onStreamEvent: state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'litertlm' ? handleStreamEvent : undefined,
+        onStreamEvent: state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'litertlm' || state.provider === 'aistudio' ? handleStreamEvent : undefined,
         systemInstruction: academicSearchActive
           ? academicSystemInstruction(academicEvidence, splitAcademicResponse ? 1 : 0, academicProfile)
           : internetSearchActive
             ? (nativeInternetSearch ? nativeInternetSystemInstruction() : internetSystemInstruction(internetEvidence))
-          : state.fastMode
+          : state.fastMode || state.realtimeDocWrite
             ? [
-              'FAST mode. Use only the latest user message and answer directly with no explanation, rationale, preface, checklist, or meta-commentary.',
+              state.realtimeDocWrite
+                ? '현재 활성 문서에 실시간으로 직접 작성하는 모드입니다. [EXPLANATION]이나 [ANSWER] 같은 태그, 목차, 서론 설명, 메타 발언을 일절 출력하지 말고, 문서에 바로 들어갈 최종 본문 내용만 첫 단어부터 작성하세요.'
+                : 'FAST mode. Use only the latest user message and answer directly with no explanation, rationale, preface, checklist, or meta-commentary.',
               'Keep the response concise and do not restate the request.',
               writingStyleInstruction({ academic: false }),
               sentenceOnlyInstruction(),
@@ -5258,6 +5392,15 @@
         }
       }
       assertGenerationActive(requestRevision);
+      if (realtimeDocActive) {
+        try {
+          var bridge = getBridge();
+          if (typeof bridge.finishRealtimeDocStream === 'function') {
+            bridge.finishRealtimeDocStream(sections.answer);
+          }
+          realtimeDocActive = false;
+        } catch (_) {}
+      }
 
 
       var assistantMessage = {
@@ -5323,6 +5466,12 @@
         setStatus(message, 'error');
       }
     } finally {
+      if (realtimeDocActive) {
+        try {
+          getBridge().cancelRealtimeDocStream();
+          realtimeDocActive = false;
+        } catch (_) {}
+      }
       academicAbortController = null;
       internetAbortController = null;
       stopThinkingProgress();
@@ -5341,6 +5490,12 @@
     if (academicAbortController) academicAbortController.abort();
     if (internetAbortController) internetAbortController.abort();
     try { getBridge().abort(); } catch (e) {}
+    if (realtimeDocActive) {
+      try {
+        getBridge().cancelRealtimeDocStream();
+        realtimeDocActive = false;
+      } catch (_) {}
+    }
   }
 
   async function init() {
@@ -5379,6 +5534,8 @@
     state.responseMode = storageGet(RESPONSE_MODE_KEY, 'quick') === 'reasoning' ? 'reasoning' : 'quick';
     state.fastMode = storageGet(FAST_MODE_KEY, '0') === '1';
     state.sentenceOnly = storageGet(SENTENCE_ONLY_KEY, '0') === '1';
+    state.realtimeDocWrite = storageGet(REALTIME_DOC_WRITE_KEY, '0') === '1';
+    state.realtimeDocTarget = storageGet(REALTIME_DOC_TARGET_KEY, 'cursor') === 'document-end' ? 'document-end' : 'cursor';
     if (state.fastMode) state.responseMode = 'quick';
     state.showReasoning = storageGet(SHOW_REASONING_KEY, '0') === '1';
     state.academicSearchEnabled = storageGet(ACADEMIC_SEARCH_KEY, '0') === '1';
@@ -5405,6 +5562,8 @@
     setResponseMode(state.responseMode);
     setFastMode(state.fastMode, false);
     setSentenceOnly(state.sentenceOnly, false);
+    setRealtimeDocWrite(state.realtimeDocWrite, false);
+    setRealtimeDocTarget(state.realtimeDocTarget, false);
     setShowReasoning(state.showReasoning);
     updateAcademicSearchUI();
     renderMessages();
