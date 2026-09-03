@@ -14939,6 +14939,45 @@ function insertAIChatTextIntoDocument(text, mode) {
 }
 
 let activeRealtimeDocStream = null;
+let lastCapturedEditorSelection = null;
+
+function rememberEditorSelection() {
+    if (!editorTextarea) return null;
+    const cmView = editorTextarea && editorTextarea.__mdCm6View;
+    const raw = cmView && cmView.state && cmView.state.doc
+        ? String(cmView.state.doc.toString())
+        : String(editorTextarea.value || '');
+    const sel = cmView && cmView.state && cmView.state.selection ? cmView.state.selection.main : null;
+    const s = sel ? Number(sel.from) : Number(editorTextarea.selectionStart);
+    const e = sel ? Number(sel.to) : Number(editorTextarea.selectionEnd);
+    const start = Math.max(0, Math.min(Number.isFinite(s) ? s : 0, raw.length));
+    const end = Math.max(start, Math.min(Number.isFinite(e) ? e : start, raw.length));
+    if (end > start) {
+        lastCapturedEditorSelection = {
+            start: start,
+            end: end,
+            text: raw.slice(start, end),
+            hasSelection: true,
+            capturedAt: Date.now()
+        };
+    } else {
+        lastCapturedEditorSelection = {
+            start: start,
+            end: end,
+            text: '',
+            hasSelection: false,
+            capturedAt: Date.now()
+        };
+    }
+    return lastCapturedEditorSelection;
+}
+
+document.addEventListener('selectionchange', function () {
+    const active = document.activeElement;
+    if (active === editorTextarea || (editorTextarea && editorTextarea.contains && editorTextarea.contains(active)) || (active && active.closest && active.closest('.cm-editor'))) {
+        rememberEditorSelection();
+    }
+});
 
 function startRealtimeDocStream(options) {
     if (!editorTextarea) throw new Error('문서 편집기를 찾지 못했습니다.');
@@ -14951,25 +14990,52 @@ function startRealtimeDocStream(options) {
 
     let start = 0;
     let end = 0;
+    let isReplacing = false;
+
     if (target === 'document-end') {
         start = end = raw.length;
     } else {
+        let selStart = -1;
+        let selEnd = -1;
         const sel = cmView && cmView.state && cmView.state.selection ? cmView.state.selection.main : null;
-        const s = sel ? Number(sel.from) : Number(editorTextarea.selectionStart);
-        const e = sel ? Number(sel.to) : Number(editorTextarea.selectionEnd);
-        start = Math.max(0, Math.min(Number.isFinite(s) ? s : raw.length, raw.length));
-        end = Math.max(start, Math.min(Number.isFinite(e) ? e : start, raw.length));
+        const liveStart = sel ? Number(sel.from) : Number(editorTextarea.selectionStart);
+        const liveEnd = sel ? Number(sel.to) : Number(editorTextarea.selectionEnd);
+
+        if (Number.isFinite(liveStart) && Number.isFinite(liveEnd) && liveEnd > liveStart) {
+            selStart = liveStart;
+            selEnd = liveEnd;
+        } else if (lastCapturedEditorSelection && lastCapturedEditorSelection.hasSelection) {
+            const cap = lastCapturedEditorSelection;
+            if (raw.slice(cap.start, cap.end) === cap.text) {
+                selStart = cap.start;
+                selEnd = cap.end;
+            }
+        }
+
+        if (selStart >= 0 && selEnd > selStart) {
+            start = Math.max(0, Math.min(selStart, raw.length));
+            end = Math.max(start, Math.min(selEnd, raw.length));
+            isReplacing = true;
+        } else {
+            const s = Number.isFinite(liveStart) ? liveStart : (lastCapturedEditorSelection ? lastCapturedEditorSelection.start : raw.length);
+            start = end = Math.max(0, Math.min(s, raw.length));
+        }
     }
 
     const before = raw.slice(0, start);
     const after = raw.slice(end);
-    const prefix = before && !/\n\s*\n$/.test(before) ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
+    let prefix = '';
+    if (!isReplacing) {
+        prefix = before && !/\n\s*\n$/.test(before) ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
+    }
 
     pushReplaceUndoSnapshot();
 
     activeRealtimeDocStream = {
         target: target,
         anchorStart: start,
+        isReplacing: isReplacing,
+        replacedLength: end - start,
         prefix: prefix,
         before: before,
         after: after,
@@ -14980,11 +15046,11 @@ function startRealtimeDocStream(options) {
         pendingText: ''
     };
 
-    if (prefix) {
+    if (prefix || isReplacing) {
         applyRealtimeDocText('');
     }
 
-    return { ok: true, target: target };
+    return { ok: true, target: target, isReplacing: isReplacing };
 }
 
 function applyRealtimeDocText(text) {
@@ -15057,6 +15123,7 @@ function finishRealtimeDocStream(finalText) {
     performAutoSave();
     if (activeSidebarTab === 'toc') renderTOC();
 
+    lastCapturedEditorSelection = null;
     activeRealtimeDocStream = null;
 }
 
@@ -15200,10 +15267,25 @@ function aiChatDataUrlToFile(dataUrl, name) {
 window.AIChatBridge = Object.freeze({
     getSelectedDocumentText: function () {
         if (!editorTextarea) return '';
-        const raw = String(editorTextarea.value || '');
-        const start = Math.max(0, Math.min(Number(editorTextarea.selectionStart) || 0, raw.length));
-        const end = Math.max(start, Math.min(Number(editorTextarea.selectionEnd) || start, raw.length));
-        return raw.slice(start, end);
+        const cmView = editorTextarea && editorTextarea.__mdCm6View;
+        const raw = cmView && cmView.state && cmView.state.doc
+            ? String(cmView.state.doc.toString())
+            : String(editorTextarea.value || '');
+        const sel = cmView && cmView.state && cmView.state.selection ? cmView.state.selection.main : null;
+        const s = sel ? Number(sel.from) : Number(editorTextarea.selectionStart);
+        const e = sel ? Number(sel.to) : Number(editorTextarea.selectionEnd);
+        if (Number.isFinite(s) && Number.isFinite(e) && e > s) {
+            return raw.slice(s, e);
+        }
+        if (lastCapturedEditorSelection && lastCapturedEditorSelection.hasSelection) {
+            if (raw.slice(lastCapturedEditorSelection.start, lastCapturedEditorSelection.end) === lastCapturedEditorSelection.text) {
+                return lastCapturedEditorSelection.text;
+            }
+        }
+        return '';
+    },
+    rememberEditorSelection: function () {
+        return rememberEditorSelection();
     },
     getCachedGeminiModels: function () {
         return localStorage.getItem(AI_CHAT_GEMINI_MODELS_KEY) === null
