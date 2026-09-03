@@ -638,9 +638,9 @@
       + '        <label class="ai-chat-fast-toggle" title="설명 없이 답만 빠르게 생성합니다. Mermaid 요청은 코드만 반환합니다."><input type="checkbox" id="ai-chat-fast-mode"><span>FAST</span></label>'
       + '        <button type="button" data-ai-chat-mode="reasoning">🧠 추론</button>'
       + '        <label class="ai-chat-reasoning-toggle" title="추론내용 표시"><input type="checkbox" id="ai-chat-show-reasoning" aria-label="추론내용 표시"></label>'
-      + '        <label class="ai-chat-sentence-toggle" title="제목이나 목록 없이 문장과 문단으로만 답변합니다." style="display:none;" hidden><input type="checkbox" id="ai-chat-sentence-only"><span>문장</span></label>'
+      + '        <input type="checkbox" id="ai-chat-sentence-only" style="display:none !important;" hidden>'
       + '        <button type="button" id="ai-chat-academic-toggle" class="ai-chat-academic-toggle" aria-pressed="false">🔎 학술검색</button>'
-      + '        <button type="button" id="ai-chat-internet-toggle" class="ai-chat-internet-toggle" aria-pressed="false" title="LM Studio에서는 DuckDuckGo 우선, Bing RSS 폴백으로 검색합니다.">🌐 DuckDuckGo</button>'
+      + '        <button type="button" id="ai-chat-internet-toggle" class="ai-chat-internet-toggle" aria-pressed="false" title="인터넷 검색 (LM Studio에서는 DuckDuckGo 우선, Bing RSS 폴백으로 검색합니다.)">🌐 검색</button>'
       + '        <label id="ai-chat-academic-count-wrap" class="ai-chat-academic-count-wrap" title="목록에서 선택하거나 더블클릭하여 1~50 사이 숫자를 직접 입력하세요.">결과 <select id="ai-chat-academic-count" aria-label="검색 결과 수"><option value="5">5개</option><option value="10">10개</option><option value="20">20개</option><option value="30">30개</option><option value="50">50개</option></select><input id="ai-chat-academic-count-input" type="number" min="1" max="50" step="1" inputmode="numeric" aria-label="검색 결과 수 직접 입력" hidden></label>'
       + '      </div>'
       + '      <div class="ai-chat-compose-actions">'
@@ -651,14 +651,9 @@
       + '            <span class="ai-chat-rt-check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5L6.5 11.5L12.5 4.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
       + '            <span class="ai-chat-rt-doc-icon" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none"><path d="M4 3a1.5 1.5 0 0 1 1.5-1.5h6L15.5 5.5v11A1.5 1.5 0 0 1 14 18H5.5A1.5 1.5 0 0 1 4 16.5V3z" fill="#cbd5e1"/><path d="M11 1.5v4.5h4.5" fill="#94a3b8"/><line x1="6.5" y1="7.5" x2="11.5" y2="7.5" stroke="#64748b" stroke-width="1.2" stroke-linecap="round"/><line x1="6.5" y1="10.5" x2="13.5" y2="10.5" stroke="#64748b" stroke-width="1.2" stroke-linecap="round"/><line x1="6.5" y1="13.5" x2="10.5" y2="13.5" stroke="#64748b" stroke-width="1.2" stroke-linecap="round"/><path d="M12.5 16.5l4-5.5 1.8 1.3-4 5.5-2.2.4.4-1.7z" fill="#f97316" stroke="#ea580c" stroke-width="0.8"/></svg></span>'
       + '          </button>'
-      + '          <div class="ai-chat-realtime-target-group" role="group" aria-label="실시간 작성 위치">'
-      + '            <button type="button" id="ai-chat-realtime-target-cursor" class="ai-chat-rt-target-btn active" data-target="cursor" title="커서 위치에 실시간 작성 (←)" aria-label="커서 위치에 실시간 작성">'
-      + '              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8H3m4-4L3 8l4 4"/></svg>'
-      + '            </button>'
-      + '            <button type="button" id="ai-chat-realtime-target-bottom" class="ai-chat-rt-target-btn" data-target="document-end" title="문서 맨 아래에 실시간 작성 (맨아래)" aria-label="문서 맨 아래에 실시간 작성">'
-      + '              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 6l4.5 4.5 4.5-4.5"/></svg>'
-      + '            </button>'
-      + '          </div>'
+      + '          <button type="button" id="ai-chat-realtime-target-toggle" class="ai-chat-realtime-target-toggle" data-target="cursor" title="작성 위치: 커서/선택영역 (←) · 클릭 시 맨아래로 전환" aria-label="실시간 작성 위치 전환">'
+      + '            <span class="ai-chat-rt-arrow-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8H3m4-4L3 8l4 4"/></svg></span>'
+      + '          </button>'
       + '          <button type="button" id="ai-chat-realtime-sentence-toggle" class="ai-chat-realtime-sentence-toggle" title="문장으로만 작성 (제목이나 목록 없이 문장과 문단으로만 답변합니다)" aria-pressed="false" aria-label="문장으로만 작성">'
       + '            <span class="ai-chat-rt-check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5L6.5 11.5L12.5 4.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
       + '            <span class="ai-chat-rt-sentence-text">문장</span>'
@@ -714,6 +709,16 @@
         setStatus(state.realtimeDocWrite
           ? '문서 실시간 작성을 켰습니다. (' + (state.realtimeDocTarget === 'cursor' ? '커서 위치' : '문서 맨 아래') + ')'
           : '문서 실시간 작성을 껐습니다.', 'ok');
+      });
+    }
+    var rtTargetToggle = document.getElementById('ai-chat-realtime-target-toggle');
+    if (rtTargetToggle) {
+      rtTargetToggle.addEventListener('click', function () {
+        var nextTarget = state.realtimeDocTarget === 'cursor' ? 'document-end' : 'cursor';
+        setRealtimeDocTarget(nextTarget);
+        setStatus(state.realtimeDocTarget === 'cursor'
+          ? '실시간 작성 위치: 커서 위치 / 선택 영역 대체 (←)'
+          : '실시간 작성 위치: 문서 맨 아래 (⌄)', 'ok');
       });
     }
     var rtTargetCursor = document.getElementById('ai-chat-realtime-target-cursor');
@@ -2333,6 +2338,21 @@
   function setRealtimeDocTarget(target, persist) {
     state.realtimeDocTarget = target === 'document-end' ? 'document-end' : 'cursor';
     if (persist !== false) storageSet(REALTIME_DOC_TARGET_KEY, state.realtimeDocTarget);
+    var targetToggle = document.getElementById('ai-chat-realtime-target-toggle');
+    if (targetToggle) {
+      var isCursor = state.realtimeDocTarget === 'cursor';
+      targetToggle.setAttribute('data-target', state.realtimeDocTarget);
+      targetToggle.classList.toggle('target-cursor', isCursor);
+      targetToggle.classList.toggle('target-bottom', !isCursor);
+      targetToggle.title = isCursor
+        ? '실시간 작성 위치: 커서 / 선택영역 (←) · 클릭 시 맨아래로 전환'
+        : '실시간 작성 위치: 문서 맨 아래 (⌄) · 클릭 시 커서위치로 전환';
+      targetToggle.setAttribute('aria-label', targetToggle.title);
+      var icon = targetToggle.querySelector('.ai-chat-rt-arrow-icon') || targetToggle;
+      icon.innerHTML = isCursor
+        ? '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8H3m4-4L3 8l4 4"/></svg>'
+        : '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 6l4.5 4.5 4.5-4.5"/></svg>';
+    }
     var cursorBtn = document.getElementById('ai-chat-realtime-target-cursor');
     var bottomBtn = document.getElementById('ai-chat-realtime-target-bottom');
     if (cursorBtn) cursorBtn.classList.toggle('active', state.realtimeDocTarget === 'cursor');
