@@ -8,13 +8,12 @@ const cssSource = fs.readFileSync(new URL('../mdpro/AI_App/aiChat/ai-chat.css', 
 
 test('realtime doc write controls are rendered in composer actions', () => {
   assert.match(aiChatSource, /id="ai-chat-realtime-doc-toggle"/);
-  assert.match(aiChatSource, /id="ai-chat-realtime-target-cursor"/);
-  assert.match(aiChatSource, /id="ai-chat-realtime-target-bottom"/);
+  assert.match(aiChatSource, /id="ai-chat-realtime-target-toggle"/);
   assert.match(aiChatSource, /id="ai-chat-realtime-sentence-toggle"/);
   assert.match(aiChatSource, /ai-chat-realtime-toolbar/);
   assert.match(aiChatSource, /ai-chat-rt-check-box/);
   assert.match(aiChatSource, /ai-chat-rt-doc-icon/);
-  assert.match(aiChatSource, /ai-chat-realtime-target-group/);
+  assert.match(aiChatSource, /ai-chat-rt-arrow-icon/);
 });
 
 test('realtime doc write state and storage keys are configured and synchronized', () => {
@@ -54,15 +53,14 @@ test('streamDeltaToRealtimeDoc filters out explanation/answer tags during stream
 test('realtime doc CSS styles exist for toolbar, buttons, and light theme', () => {
   assert.match(cssSource, /\.ai-chat-realtime-toolbar/);
   assert.match(cssSource, /\.ai-chat-realtime-doc-toggle/);
-  assert.match(cssSource, /\.ai-chat-realtime-target-group/);
-  assert.match(cssSource, /\.ai-chat-rt-target-btn/);
+  assert.match(cssSource, /\.ai-chat-realtime-target-toggle/);
   assert.match(cssSource, /\.ai-chat-realtime-sentence-toggle/);
   assert.match(cssSource, /\.ai-chat-rt-sentence-text/);
   assert.match(cssSource, /body\.theme-light \.ai-chat-compose-actions \.ai-chat-realtime-doc-toggle/);
 });
 
 test('sentence button has been moved to compose toolbar and top toggle is hidden', () => {
-  assert.match(aiChatSource, /class="ai-chat-sentence-toggle"[^>]*style="display:none;"/);
+  assert.match(cssSource, /\.ai-chat-sentence-toggle\s*\{\s*display:\s*none\s*!important;/);
   assert.match(aiChatSource, /id="ai-chat-realtime-sentence-toggle"[^>]*class="ai-chat-realtime-sentence-toggle"/);
   assert.match(aiChatSource, /class="ai-chat-rt-sentence-text">문장<\/span>/);
 });
