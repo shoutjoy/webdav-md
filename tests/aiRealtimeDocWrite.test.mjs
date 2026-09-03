@@ -57,5 +57,21 @@ test('realtime doc CSS styles exist for toolbar, buttons, and light theme', () =
   assert.match(cssSource, /\.ai-chat-realtime-target-group/);
   assert.match(cssSource, /\.ai-chat-rt-target-btn/);
   assert.match(cssSource, /\.ai-chat-realtime-sentence-toggle/);
+  assert.match(cssSource, /\.ai-chat-rt-sentence-text/);
   assert.match(cssSource, /body\.theme-light \.ai-chat-compose-actions \.ai-chat-realtime-doc-toggle/);
 });
+
+test('sentence button has been moved to compose toolbar and top toggle is hidden', () => {
+  assert.match(aiChatSource, /class="ai-chat-sentence-toggle"[^>]*style="display:none;"/);
+  assert.match(aiChatSource, /id="ai-chat-realtime-sentence-toggle"[^>]*class="ai-chat-realtime-sentence-toggle"/);
+  assert.match(aiChatSource, /class="ai-chat-rt-sentence-text">문장<\/span>/);
+});
+
+test('selection replacement in document stream is implemented', () => {
+  assert.match(appSource, /rememberEditorSelection/);
+  assert.match(appSource, /lastCapturedEditorSelection/);
+  assert.match(appSource, /isReplacing\s*=\s*true/);
+  assert.match(aiChatSource, /selectedDocText/);
+  assert.match(aiChatSource, /선택한 텍스트를 대체하여/);
+});
+

@@ -1834,39 +1834,40 @@ body.theme-light .ai-chat-message.user .ai-chat-message-content {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 31px !important;
-  width: 31px;
+  gap: 5px;
+  min-width: 0 !important;
   height: 31px;
-  padding: 0 !important;
+  padding: 4px 8px !important;
   border-radius: 8px;
-  border: 1px solid #4b5262;
-  background: #252830;
+  border: 1px solid #374151;
+  background: #1f242d;
+  color: #94a3b8;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
 }
 
 .ai-chat-compose-actions .ai-chat-realtime-sentence-toggle:hover {
-  border-color: #6b7280;
-  background: #2d313b;
+  border-color: #4b5563;
+  background: #282f3a;
+  color: #e2e8f0;
 }
 
 .ai-chat-compose-actions .ai-chat-realtime-sentence-toggle.active {
   border-color: #10b981;
-  background: rgba(16, 185, 129, 0.14);
+  background: rgba(16, 185, 129, 0.16);
+  color: #ffffff;
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.28);
 }
 
-.ai-chat-rt-sentence-box {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
+.ai-chat-realtime-sentence-toggle.active .ai-chat-rt-check-box {
+  background: #10b981;
+  color: #064e3b;
 }
 
-.ai-chat-rt-sentence-box svg {
-  width: 13px;
-  height: 13px;
-  stroke: #10b981;
+.ai-chat-rt-sentence-text {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 /* Light mode overrides */
@@ -1907,11 +1908,15 @@ body.theme-light .ai-chat-compose-actions .ai-chat-rt-target-btn.active {
 body.theme-light .ai-chat-compose-actions .ai-chat-realtime-sentence-toggle {
   border-color: #cbd5e1;
   background: #f1f5f9;
+  color: #64748b;
 }
 body.theme-light .ai-chat-compose-actions .ai-chat-realtime-sentence-toggle.active {
   border-color: #059669;
   background: #ecfdf5;
+  color: #065f46;
+  box-shadow: 0 0 0 1px rgba(5, 150, 105, 0.22);
 }
-body.theme-light .ai-chat-rt-sentence-box svg {
-  stroke: #059669;
+body.theme-light .ai-chat-realtime-sentence-toggle.active .ai-chat-rt-check-box {
+  background: #059669;
+  color: #ffffff;
 }

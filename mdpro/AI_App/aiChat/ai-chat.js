@@ -638,7 +638,7 @@
       + '        <label class="ai-chat-fast-toggle" title="설명 없이 답만 빠르게 생성합니다. Mermaid 요청은 코드만 반환합니다."><input type="checkbox" id="ai-chat-fast-mode"><span>FAST</span></label>'
       + '        <button type="button" data-ai-chat-mode="reasoning">🧠 추론</button>'
       + '        <label class="ai-chat-reasoning-toggle" title="추론내용 표시"><input type="checkbox" id="ai-chat-show-reasoning" aria-label="추론내용 표시"></label>'
-      + '        <label class="ai-chat-sentence-toggle" title="제목이나 목록 없이 문장과 문단으로만 답변합니다."><input type="checkbox" id="ai-chat-sentence-only"><span>문장</span></label>'
+      + '        <label class="ai-chat-sentence-toggle" title="제목이나 목록 없이 문장과 문단으로만 답변합니다." style="display:none;" hidden><input type="checkbox" id="ai-chat-sentence-only"><span>문장</span></label>'
       + '        <button type="button" id="ai-chat-academic-toggle" class="ai-chat-academic-toggle" aria-pressed="false">🔎 학술검색</button>'
       + '        <button type="button" id="ai-chat-internet-toggle" class="ai-chat-internet-toggle" aria-pressed="false" title="LM Studio에서는 DuckDuckGo 우선, Bing RSS 폴백으로 검색합니다.">🌐 DuckDuckGo</button>'
       + '        <label id="ai-chat-academic-count-wrap" class="ai-chat-academic-count-wrap" title="목록에서 선택하거나 더블클릭하여 1~50 사이 숫자를 직접 입력하세요.">결과 <select id="ai-chat-academic-count" aria-label="검색 결과 수"><option value="5">5개</option><option value="10">10개</option><option value="20">20개</option><option value="30">30개</option><option value="50">50개</option></select><input id="ai-chat-academic-count-input" type="number" min="1" max="50" step="1" inputmode="numeric" aria-label="검색 결과 수 직접 입력" hidden></label>'
@@ -659,8 +659,9 @@
       + '              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 6l4.5 4.5 4.5-4.5"/></svg>'
       + '            </button>'
       + '          </div>'
-      + '          <button type="button" id="ai-chat-realtime-sentence-toggle" class="ai-chat-realtime-sentence-toggle" title="문장으로만 작성 (제목·목록 없이 서술형 문장으로만 작성)" aria-pressed="false" aria-label="문장으로만 작성">'
-      + '            <span class="ai-chat-rt-sentence-box" aria-hidden="true"></span>'
+      + '          <button type="button" id="ai-chat-realtime-sentence-toggle" class="ai-chat-realtime-sentence-toggle" title="문장으로만 작성 (제목이나 목록 없이 문장과 문단으로만 답변합니다)" aria-pressed="false" aria-label="문장으로만 작성">'
+      + '            <span class="ai-chat-rt-check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5L6.5 11.5L12.5 4.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
+      + '            <span class="ai-chat-rt-sentence-text">문장</span>'
       + '          </button>'
       + '        </div>'
       + '        <button type="button" id="ai-chat-stop" class="ai-chat-stop" disabled>중지</button>'
@@ -2312,12 +2313,8 @@
     if (rtSentenceBtn) {
       rtSentenceBtn.classList.toggle('active', state.sentenceOnly);
       rtSentenceBtn.setAttribute('aria-pressed', state.sentenceOnly ? 'true' : 'false');
-      var box = rtSentenceBtn.querySelector('.ai-chat-rt-sentence-box');
-      if (box) {
-        box.innerHTML = state.sentenceOnly
-          ? '<svg viewBox="0 0 16 16"><path d="M3.5 8.5L6.5 11.5L12.5 4.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-          : '';
-      }
+      var check = rtSentenceBtn.querySelector('.ai-chat-rt-check-box');
+      if (check) check.classList.toggle('checked', state.sentenceOnly);
     }
   }
 
@@ -3787,6 +3784,10 @@
   }
 
   function snapshotEditorSelectionForInsert() {
+    try {
+      var bridge = getBridge();
+      if (typeof bridge.rememberEditorSelection === 'function') bridge.rememberEditorSelection();
+    } catch (_) {}
     var hooks = root.ScholarAIChatEditorHooks;
     if (hooks && typeof hooks.rememberCursor === 'function') hooks.rememberCursor();
   }
@@ -4911,6 +4912,9 @@
 
   function messageContentWithDocuments(message) {
     var content = String(message && message.content || '');
+    if (message && message.selectedDocText) {
+      content = '[선택한 문서 텍스트]\n' + String(message.selectedDocText) + '\n[/선택한 문서 텍스트]\n\n[요청 사항]\n' + content;
+    }
     var attachments = Array.isArray(message && message.attachments) ? message.attachments : [];
     attachments.forEach(function (attachment) {
       if (!attachment || attachment.kind !== 'document') return;
@@ -5173,8 +5177,22 @@
     var text = input ? String(input.value || '').trim() : '';
     if (!text && !pendingAttachments.length) return;
     if (!text) text = '첨부 파일의 내용을 분석해 주세요.';
+    var selectedDocText = '';
+    try {
+      var bridge = getBridge();
+      if (typeof bridge.getSelectedDocumentText === 'function') {
+        selectedDocText = String(bridge.getSelectedDocumentText() || '').trim();
+      }
+    } catch (_) {}
     var sendingAttachments = pendingAttachments.slice();
-    var pendingUser = { role: 'user', content: text, attachments: sendingAttachments, createdAt: Date.now(), failed: false };
+    var pendingUser = {
+      role: 'user',
+      content: text,
+      selectedDocText: selectedDocText && !text.includes(selectedDocText) ? selectedDocText : '',
+      attachments: sendingAttachments,
+      createdAt: Date.now(),
+      failed: false
+    };
     await saveAIUsageAttachments(sendingAttachments, pendingUser.createdAt);
     state.messages.push(pendingUser);
     state.messages = state.messages.slice(-MAX_STORED_MESSAGES);
@@ -5193,8 +5211,11 @@
       try {
         var bridge = getBridge();
         if (typeof bridge.startRealtimeDocStream === 'function') {
-          bridge.startRealtimeDocStream({ target: state.realtimeDocTarget });
+          var streamInit = bridge.startRealtimeDocStream({ target: state.realtimeDocTarget });
           realtimeDocActive = true;
+          if (streamInit && streamInit.isReplacing) {
+            setStatus('선택한 텍스트를 대체하여 실시간 작성 중...', 'loading');
+          }
         }
       } catch (err) {
         console.warn('Realtime doc stream start failed:', err);
@@ -5330,7 +5351,7 @@
           : state.fastMode || state.realtimeDocWrite
             ? [
               state.realtimeDocWrite
-                ? '현재 활성 문서에 실시간으로 직접 작성하는 모드입니다. [EXPLANATION]이나 [ANSWER] 같은 태그, 목차, 서론 설명, 메타 발언을 일절 출력하지 말고, 문서에 바로 들어갈 최종 본문 내용만 첫 단어부터 작성하세요.'
+                ? ('현재 활성 문서에 실시간으로 직접 작성하는 모드입니다. ' + (pendingUser && pendingUser.selectedDocText ? '문서에서 [선택한 문서 텍스트]를 대체하여 들어갈 완성된 최종 내용만 첫 단어부터 작성하세요.' : '문서에 바로 들어갈 최종 본문 내용만 첫 단어부터 작성하세요.') + ' [EXPLANATION]이나 [ANSWER] 같은 태그, 목차, 서론 설명, 인사말, 메타 발언을 일절 출력하지 말고 바로 본문만 작성하세요.')
                 : 'FAST mode. Use only the latest user message and answer directly with no explanation, rationale, preface, checklist, or meta-commentary.',
               'Keep the response concise and do not restate the request.',
               writingStyleInstruction({ academic: false }),
