@@ -103,6 +103,7 @@ function syncPreviewPopupTheme() {
         const dark = getPreviewPopupTheme() === 'dark';
         doc.documentElement.classList.toggle('dark', dark);
         doc.documentElement.classList.add('pv-print-preview');
+        if (window.A4Presentation) window.A4Presentation.theme(previewPopupWindow);
         const button = doc.getElementById('pv-theme-toggle');
         if (button) {
             button.textContent = dark ? '라이트' : '다크';
@@ -1585,6 +1586,10 @@ function previewPopupRenderPaginatedPages(sourceRoot) {
 
 function applyPreviewPopupViewport() {
     if (!isPreviewPopupAlive()) return;
+    if (previewPopupWindow.document.body.classList.contains('a4-pv') && !previewPopupEditMode && !previewPopupFileMode) {
+        if (window.A4Presentation) window.A4Presentation.refreshViewport(previewPopupWindow);
+        return;
+    }
     const doc = previewPopupWindow.document;
     const content = doc.getElementById('pv-content');
     const pages = doc.getElementById('pv-pages');
@@ -1657,6 +1662,10 @@ function previewPopupApplyHeaderScaleToElements(doc, fontSize, scale) {
 
 function previewPopupPrint() {
     if (!isPreviewPopupAlive()) return false;
+    if (previewPopupWindow.document.body.classList.contains('a4-pv')) {
+        previewPopupWindow.print();
+        return true;
+    }
     try {
         const doc = previewPopupWindow.document;
         if (doc && doc.body) {
@@ -2221,6 +2230,7 @@ function syncPreviewPopupEditorUi() {
     bindPreviewPopupViewControls();
     doc.body.classList.toggle('pv-editor-mode', !!previewPopupEditMode && !previewPopupFileMode);
     doc.body.classList.toggle('pv-file-mode', !!previewPopupFileMode);
+    if ((previewPopupEditMode || previewPopupFileMode) && window.A4Presentation) window.A4Presentation.leave(previewPopupWindow);
     const toggle = doc.getElementById('pv-mode-toggle');
     const status = doc.getElementById('pv-draft-status');
     const editor = getPreviewPopupEditorElement();
@@ -2837,6 +2847,12 @@ async function updatePreviewPopupContent() {
         previewPopupDraftBaseMarkdown = sourceMarkdown;
     }
     const raw = previewPopupDraftDirty ? previewPopupDraftMarkdown : sourceMarkdown;
+    if (!previewPopupDraftDirty && window.A4Pages && /^<!-- mdpro-a4: (portrait|landscape) -->\n/.test(raw)) {
+        await window.A4Pages.preview(previewPopupWindow, raw);
+        syncPreviewPopupEditorUi();
+        return;
+    }
+    if (window.A4Presentation) window.A4Presentation.leave(previewPopupWindow);
     const snapshot = prepareMarkdownRenderSnapshot(raw);
     const renderRaw = snapshot.renderSource;
     const htmlDocument = (typeof getRenderableHtmlDocument === 'function')
