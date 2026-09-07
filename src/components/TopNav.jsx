@@ -9,7 +9,7 @@ const clampDockPosition = (x, y, width, height) => ({
   y: Math.min(Math.max(VIEWPORT_MARGIN, y), Math.max(VIEWPORT_MARGIN, window.innerHeight - height - VIEWPORT_MARGIN)),
 });
 
-export default function TopNav({ currentPath, publicUrl, loading, error, copiedKey, fileInputRef, onGoBack, onUpload, onNewFile, onNewFolder, onRefresh, explorerOpen, mobileWdocRect, onToggleExplorer, onOpenFolderUrl, onCopyFolderUrl, onDisconnect }) {
+export default function TopNav({ currentPath, publicUrl, loading, error, copiedKey, fileInputRef, onGoBack, onUpload, onNewFile, onNewFolder, onRefresh, explorerOpen, mobileWdocRect, onToggleExplorer, onOpenFolderUrl, onCopyFolderUrl, onDisconnect, onRecentWork }) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState(() => {
     try {
@@ -139,6 +139,7 @@ export default function TopNav({ currentPath, publicUrl, loading, error, copiedK
           <button onClick={onNewFile} disabled={loading} className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100" title="ROOT부터 위치를 선택해 새 파일 생성" aria-label="새 파일 생성 위치 선택"><FilePlus size={16}/></button>
           <button onClick={onNewFolder} disabled={loading} className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100" title="ROOT부터 위치를 선택해 새 폴더 생성" aria-label="새 폴더 생성 위치 선택"><FolderPlus size={16}/></button>
           <button onClick={onOpenFolderUrl} disabled={loading} className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100" title="현재 WebDAV 폴더 열기" aria-label="현재 WebDAV 폴더 열기"><FolderOpen size={16}/></button>
+          <button onClick={onRecentWork} className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100" title="최근 작업 5개 열기">최근 작업</button>
           <button onClick={onRefresh} disabled={loading} className="rounded-md p-1.5 text-slate-600 hover:bg-slate-100" title="새로고침"><RefreshCw size={16} className={loading ? 'animate-spin' : ''}/></button>
           <button onClick={onDisconnect} className="rounded-md p-1.5 text-red-600 hover:bg-red-50" title="연결 종료"><LogOut size={16}/></button>
         </div>

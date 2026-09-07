@@ -260,3 +260,16 @@ button {
 .markdown-preview th { @apply bg-gray-50 font-semibold; }
 .markdown-preview img { @apply my-4 max-w-full; }
 .markdown-preview hr { @apply my-6 border-gray-200; }
+
+.recent-work-dialog { margin: auto; width: min(560px, calc(100vw - 32px)); max-height: 85vh; overflow: auto; padding: 24px; border: 1px solid #cbd5e1; border-radius: 16px; background: #fff; color: #1e293b; box-shadow: 0 24px 80px #0004; }
+.recent-work-dialog::backdrop { background: #0f172a88; }
+.recent-work-dialog h2 { font-size: 20px; font-weight: 700; margin-bottom: 10px; }
+.recent-work-dialog p { font-size: 14px; margin-bottom: 16px; }
+.recent-work-list { display: grid; gap: 8px; }
+.recent-work-list button { display: grid; gap: 4px; text-align: left; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; overflow-wrap: anywhere; }
+.recent-work-list button:hover { background: #eff6ff; }
+.recent-work-list span, .recent-work-list small { font-size: 12px; opacity: .8; }
+.recent-work-dismiss { display: block; margin: 18px 0 0 auto; padding: 8px 18px; border-radius: 8px; background: #e2e8f0; }
+.recent-work-dialog button:disabled { opacity: .5; cursor: wait; }
+.dark .recent-work-dialog { background: #1e293b; color: #f1f5f9; }
+.dark .recent-work-list button:hover, .dark .recent-work-dismiss { background: #334155; }

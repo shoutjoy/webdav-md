@@ -1362,6 +1362,9 @@ function applyDocumentThemeClasses(isLight) {
     if (vp) vp.classList.toggle('editor-light-mode', isLight);
     if (viewerContainer) viewerContainer.classList.toggle('document-light-mode', isLight);
     updateEditorLightButton();
+    if (window.A4Presentation && typeof isPreviewPopupAlive === 'function' && isPreviewPopupAlive()) {
+        window.A4Presentation.theme(previewPopupWindow);
+    }
 }
 
 function applyEditorLightPreference() {
@@ -2151,6 +2154,8 @@ window.onload = async () => {
             updateStorageRecoveryStatusUI(storageState);
             syncSqlitePendingRetryTimer(storageState);
         }
+        // Restore saved features before document loading or autosave recovery can delay startup.
+        await initAiVisibility();
         if (window.TidyScriptManager && typeof window.TidyScriptManager.configure === 'function') {
             await window.TidyScriptManager.configure({
                 getSettings: getAiSettings,
@@ -2220,8 +2225,6 @@ window.onload = async () => {
             }
             refreshLucideIcons(sidebar);
         }
-
-        initAiVisibility();
 
     window.addEventListener('electron-open-file', async function (ev) {
         const detail = ev && ev.detail ? ev.detail : null;
@@ -3541,6 +3544,7 @@ async function renderMarkdown(options) {
     }
     mainRenderDirty = false;
     const raw = String(currentMarkdown ?? '');
+    viewer.classList.toggle('a4-view', /^<!-- mdpro-a4: (portrait|landscape) -->\n/.test(raw));
     const snapshot = prepareMarkdownRenderSnapshot(raw);
     const renderRaw = snapshot.renderSource;
     const isCurrentRender = function () {
@@ -3619,6 +3623,7 @@ async function renderMarkdown(options) {
         } catch (e) {}
         try { scheduleUpdatePreviewPopupContent(120); } catch (e) {}
         try { scheduleMiniPreviewRender(120); } catch (e) {}
+        if (window.A4Pages) window.A4Pages.paginateView(viewer);
     }
     revokeObjectUrls(viewerInternalImageObjectUrls);
 
@@ -3630,10 +3635,21 @@ async function renderMarkdown(options) {
             runPostRenderHooks();
             return;
         }
-        const html = await renderMarkdownSnapshotToHtml(snapshot);
+        const paged = window.A4Pages && await window.A4Pages.renderView(
+            viewer, raw,
+            text => {
+                const renderSource = hideMarkdownCommentsForRender(text);
+                const preprocessed = preprocessMarkdownForView(renderSource, { commentsAlreadyHidden: true });
+                return renderMarkdownSnapshotToHtml({
+                    renderSource, preprocessed, features: detectRenderFeatures(preprocessed), baseHtmlPromise: null
+                });
+            },
+            isCurrentRender
+        );
+        const html = paged ? '' : await renderMarkdownSnapshotToHtml(snapshot);
         if (!isCurrentRender()) return;
         setHtmlDocumentMode(viewer, false);
-        viewer.innerHTML = String(html || '');
+        if (!paged) viewer.innerHTML = String(html || '');
         if (snapshot.features.hasMath
             && typeof MathRender !== 'undefined'
             && MathRender
@@ -4550,6 +4566,7 @@ const MPV_VERSION = (window.MdViewerFileFormat && typeof window.MdViewerFileForm
     : 1);
 
 function setCurrentDocumentInfo(fileName, filePath = null, metadata) {
+    if (window.A4Presentation) window.A4Presentation.resetDocument();
     currentFileName = fileName;
     currentFilePath = filePath || null;
     clearCurrentDocumentRef();
@@ -16549,6 +16566,66 @@ function injectSidebarAIHtml() {
         });
 }
 
+function restoreFeatureSettings(settings) {
+    settings = settings || {};
+    const imageCheck = document.getElementById('image-upload-enabled');
+    if (imageCheck) imageCheck.checked = settings.imageUploadEnabled === true;
+    const highlightCheck = document.getElementById('highlight-visible');
+    if (highlightCheck) highlightCheck.checked = settings.highlightVisible === true;
+    const sitesCheck = document.getElementById('sites-visible');
+    if (sitesCheck) sitesCheck.checked = settings.sitesVisible === true;
+    const macroCheck = document.getElementById('macro-visible');
+    if (macroCheck) macroCheck.checked = settings.macroVisible === true;
+    const templateCheck = document.getElementById('template-visible');
+    if (templateCheck) templateCheck.checked = settings.templateVisible === true;
+    const templateNewFileCheck = document.getElementById('template-new-file-visible');
+    if (templateNewFileCheck) templateNewFileCheck.checked = getTemplateNewFileVisibleFromSettings(settings);
+    const noteCoverInsertCheck = document.getElementById('note-cover-insert-visible');
+    if (noteCoverInsertCheck) noteCoverInsertCheck.checked = settings.noteCoverInsertVisible === true;
+    const pdfMergeCheck = document.getElementById('pdf-merge-visible');
+    if (pdfMergeCheck) pdfMergeCheck.checked = settings.pdfMergeVisible === true;
+    const chromeSplitTabCheck = document.getElementById('chrome-split-tab-visible');
+    if (chromeSplitTabCheck) chromeSplitTabCheck.checked = getChromeSplitTabVisibleFromSettings(settings);
+    const html2pptCheck = document.getElementById('html2ppt-visible');
+    if (html2pptCheck) html2pptCheck.checked = getHtml2pptVisibleFromSettings(settings);
+    const html2pptNameCheck = document.getElementById('html2ppt-name-visible');
+    if (html2pptNameCheck) html2pptNameCheck.checked = getHtml2pptNameVisibleFromSettings(settings);
+    const fmaViewerCheck = document.getElementById('fma-viewer-visible');
+    if (fmaViewerCheck) fmaViewerCheck.checked = getFmaViewerVisibleFromSettings(settings);
+    const fmaViewerNameCheck = document.getElementById('fma-viewer-name-visible');
+    if (fmaViewerNameCheck) fmaViewerNameCheck.checked = getFmaViewerNameVisibleFromSettings(settings);
+    const enterBrCheck = document.getElementById('enter-button-insert-br');
+    const enterBrEnabled = settings.enterButtonInsertBr === true || getEnterButtonInsertBrFromLocal();
+    if (enterBrCheck) enterBrCheck.checked = enterBrEnabled;
+    enterButtonInsertBr = enterBrEnabled;
+    const wrapCheck = document.getElementById('selection-wrap-enabled');
+    const wrapEnabled = typeof settings.selectionWrapEnabled === 'boolean'
+        ? settings.selectionWrapEnabled
+        : getSelectionWrapEnabledFromLocal();
+    if (wrapCheck) wrapCheck.checked = wrapEnabled;
+    selectionWrapEnabled = wrapEnabled;
+    setSelectionWrapEnabledToLocal(wrapEnabled);
+    const viewModeEditCheck = document.getElementById('view-mode-edit-enabled');
+    const viewModeEditValue = typeof settings.viewModeEditEnabled === 'boolean'
+        ? settings.viewModeEditEnabled
+        : getViewModeEditEnabledFromLocal();
+    if (viewModeEditCheck) viewModeEditCheck.checked = viewModeEditValue;
+    viewModeEditEnabled = viewModeEditValue;
+    setViewModeEditEnabledToLocal(viewModeEditValue);
+    const viewPaddingValue = typeof settings.viewPadding === 'number'
+        ? normalizeViewPadding(settings.viewPadding)
+        : getViewPaddingFromLocal();
+    applyViewPadding(viewPaddingValue);
+    localStorage.setItem(VIEW_PADDING_KEY, String(viewPaddingValue));
+    const calendarEnabled = typeof settings.googleCalendarEnabled === 'boolean'
+        ? settings.googleCalendarEnabled : getGoogleCalendarEnabledFromLocal();
+    setGoogleCalendarEnabledToLocal(calendarEnabled);
+    const calendarCheck = document.getElementById('google-calendar-enabled');
+    if (calendarCheck) calendarCheck.checked = calendarEnabled;
+    applyGoogleCalendarVisibility(calendarEnabled);
+    loadGoogleCalendarOptionsUI(settings);
+}
+
 async function loadAiSettingsToUI() {
     if (window.GithubDataSettings && typeof window.GithubDataSettings.ensureUiReady === 'function') {
         await window.GithubDataSettings.ensureUiReady();
@@ -16688,55 +16765,7 @@ async function loadAiSettingsToUI() {
     if (deepseekEffortInput) deepseekEffortInput.value = deepseekState.reasoningEffort;
     if (openaiInput) openaiInput.value = settings.openaiApiKey || getOpenAIApiState().key || '';
     if (settings.openaiApiKey) localStorage.setItem('ss_openai_api_key', settings.openaiApiKey);
-    const imageCheck = document.getElementById('image-upload-enabled');
-    if (imageCheck) imageCheck.checked = settings.imageUploadEnabled === true;
-    const highlightCheck = document.getElementById('highlight-visible');
-    if (highlightCheck) highlightCheck.checked = settings.highlightVisible === true;
-    const sitesCheck = document.getElementById('sites-visible');
-    if (sitesCheck) sitesCheck.checked = settings.sitesVisible === true;
-    const macroCheck = document.getElementById('macro-visible');
-    if (macroCheck) macroCheck.checked = settings.macroVisible === true;
-    const templateCheck = document.getElementById('template-visible');
-    if (templateCheck) templateCheck.checked = settings.templateVisible === true;
-    const templateNewFileCheck = document.getElementById('template-new-file-visible');
-    if (templateNewFileCheck) templateNewFileCheck.checked = getTemplateNewFileVisibleFromSettings(settings);
-    const noteCoverInsertCheck = document.getElementById('note-cover-insert-visible');
-    if (noteCoverInsertCheck) noteCoverInsertCheck.checked = settings.noteCoverInsertVisible === true;
-    const pdfMergeCheck = document.getElementById('pdf-merge-visible');
-    if (pdfMergeCheck) pdfMergeCheck.checked = settings.pdfMergeVisible === true;
-    const chromeSplitTabCheck = document.getElementById('chrome-split-tab-visible');
-    if (chromeSplitTabCheck) chromeSplitTabCheck.checked = getChromeSplitTabVisibleFromSettings(settings);
-    const html2pptCheck = document.getElementById('html2ppt-visible');
-    if (html2pptCheck) html2pptCheck.checked = getHtml2pptVisibleFromSettings(settings);
-    const html2pptNameCheck = document.getElementById('html2ppt-name-visible');
-    if (html2pptNameCheck) html2pptNameCheck.checked = getHtml2pptNameVisibleFromSettings(settings);
-    const fmaViewerCheck = document.getElementById('fma-viewer-visible');
-    if (fmaViewerCheck) fmaViewerCheck.checked = getFmaViewerVisibleFromSettings(settings);
-    const fmaViewerNameCheck = document.getElementById('fma-viewer-name-visible');
-    if (fmaViewerNameCheck) fmaViewerNameCheck.checked = getFmaViewerNameVisibleFromSettings(settings);
-    const enterBrCheck = document.getElementById('enter-button-insert-br');
-    const enterBrEnabled = settings.enterButtonInsertBr === true || getEnterButtonInsertBrFromLocal();
-    if (enterBrCheck) enterBrCheck.checked = enterBrEnabled;
-    enterButtonInsertBr = enterBrEnabled;
-    const wrapCheck = document.getElementById('selection-wrap-enabled');
-    const wrapEnabled = typeof settings.selectionWrapEnabled === 'boolean'
-        ? settings.selectionWrapEnabled
-        : getSelectionWrapEnabledFromLocal();
-    if (wrapCheck) wrapCheck.checked = wrapEnabled;
-    selectionWrapEnabled = wrapEnabled;
-    setSelectionWrapEnabledToLocal(wrapEnabled);
-    const viewModeEditCheck = document.getElementById('view-mode-edit-enabled');
-    const viewModeEditValue = typeof settings.viewModeEditEnabled === 'boolean'
-        ? settings.viewModeEditEnabled
-        : getViewModeEditEnabledFromLocal();
-    if (viewModeEditCheck) viewModeEditCheck.checked = viewModeEditValue;
-    viewModeEditEnabled = viewModeEditValue;
-    setViewModeEditEnabledToLocal(viewModeEditValue);
-    const viewPaddingValue = typeof settings.viewPadding === 'number'
-        ? normalizeViewPadding(settings.viewPadding)
-        : getViewPaddingFromLocal();
-    applyViewPadding(viewPaddingValue);
-    localStorage.setItem(VIEW_PADDING_KEY, String(viewPaddingValue));
+    restoreFeatureSettings(settings);
     const imageKeyInput = document.getElementById('ai-imgbb-api-key');
     const effectiveImgbbKey = settings.imgbbApiKey || getProtectedAiCredential('imgbb', 'ss_imgbb_api_key');
     if (imageKeyInput) imageKeyInput.value = effectiveImgbbKey;
@@ -16851,6 +16880,7 @@ async function initAiVisibility() {
         await window.GithubDataSettings.ensureUiReady();
     }
     const settings = await getAiSettings();
+    restoreFeatureSettings(settings);
     const useCheck = document.getElementById('ai-use-checkbox');
     const scholarEl = document.getElementById('ai-scholar-enabled');
     const sspimgEl = document.getElementById('ai-sspimg-enabled');
@@ -16872,20 +16902,6 @@ async function initAiVisibility() {
         if (githubEl) githubEl.checked = false;
         if (localStorageEl) localStorageEl.checked = true;
     }
-    enterButtonInsertBr = !!((settings && settings.enterButtonInsertBr === true) || getEnterButtonInsertBrFromLocal());
-    selectionWrapEnabled = settings && typeof settings.selectionWrapEnabled === 'boolean'
-        ? settings.selectionWrapEnabled
-        : getSelectionWrapEnabledFromLocal();
-    setSelectionWrapEnabledToLocal(selectionWrapEnabled);
-    viewModeEditEnabled = settings && typeof settings.viewModeEditEnabled === 'boolean'
-        ? settings.viewModeEditEnabled
-        : getViewModeEditEnabledFromLocal();
-    setViewModeEditEnabledToLocal(viewModeEditEnabled);
-    const viewPaddingValue = settings && typeof settings.viewPadding === 'number'
-        ? normalizeViewPadding(settings.viewPadding)
-        : getViewPaddingFromLocal();
-    applyViewPadding(viewPaddingValue);
-    localStorage.setItem(VIEW_PADDING_KEY, String(viewPaddingValue));
     if (window.ViewModeTextInput && typeof window.ViewModeTextInput.updateInteractionState === 'function') {
         window.ViewModeTextInput.updateInteractionState();
     }

@@ -1,3 +1,5 @@
+import RecentWorkDialog from './components/RecentWorkDialog.jsx';
+import { recentWorkKey, readRecentWork, recordRecentWork } from './recentWork.js';
 import { saveJenaRecord, readJenaRecords, visibleWebdavEntries, isJenaDataPath } from './jenaDataStorage.js';
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { create } from 'zustand';
@@ -253,6 +255,17 @@ const useDirectoryStore = create((set) => ({
 }));
 
 export default function App() {
+  const [recentItems, setRecentItems] = useState([]);
+  const [recentOpen, setRecentOpen] = useState(false);
+  const recentKeyRef = useRef('');
+  const lastOpenedRef = useRef(null);
+  const rememberWork = (file) => {
+    if (!file?.remotePath || !recentKeyRef.current) return;
+    lastOpenedRef.current = file;
+    try { setRecentItems(recordRecentWork(localStorage, recentKeyRef.current, file)); }
+    catch { setError('최근 작업 기록을 저장하지 못했습니다. 브라우저 저장 공간을 확인해 주세요.'); }
+  };
+
   const [url, setUrl] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -608,6 +621,11 @@ export default function App() {
           localStorage.removeItem(SAVED_LOGIN_KEY);
         }
         updateHistoryPath('/', true);
+        recentKeyRef.current = recentWorkKey(baseUrl, nextUsername);
+        lastOpenedRef.current = null;
+        const recent = readRecentWork(localStorage, recentKeyRef.current);
+        setRecentItems(recent);
+        setRecentOpen(recent.length > 0);
         setIsConnected(true);
       } else {
         clientRef.current = null;
@@ -762,7 +780,7 @@ export default function App() {
     if (isJenaDataPath(file?.remotePath)) { setError('JENA_DATA는 AI 데이터센터에서 열어 주세요.'); return; }
     const currentPath = normalizeRemotePath(selectedFileRef.current?.remotePath || '/');
     const nextPath = normalizeRemotePath(file?.remotePath || '/');
-    if (selectedFileRef.current && currentPath === nextPath && !file.isArchiveEntry) return;
+    if (selectedFileRef.current && currentPath === nextPath && !file.isArchiveEntry && lastOpenedRef.current?.remotePath === nextPath) return true;
     if (!(await saveBeforeOpeningFile(file))) return;
     if (file.isArchiveEntry) return handleOpenDmergeEntry(file);
     const fmaImage = isFmaImageFile(file.name);
@@ -823,7 +841,9 @@ export default function App() {
         setEditorDirty(false);
         editorContentRef.current = text;
       }
+      rememberWork(file);
       closeMobileWdocExplorer();
+      return true;
     } catch (err) {
       if (!returnToLoginIfUnauthorized(err)) {
         setError(`파일 열기 실패: ${err.message}`);
@@ -847,6 +867,7 @@ export default function App() {
       await saveFileVerified(client, file.remotePath, content, {
         headers: { 'Content-Type': 'text/plain; charset=utf-8' },
       });
+      rememberWork(file);
       setSavedContent(content);
       setEditorContent(content);
       setEditorDirty(false);
@@ -896,6 +917,7 @@ export default function App() {
       const nextFile = { ...(selectedFileRef.current || {}), name, remotePath: targetPath, viewMode: 'text' };
       setSelectedFile(nextFile);
       selectedFileRef.current = nextFile;
+      rememberWork(nextFile);
       lastTextFileRef.current = nextFile;
       setEditorContent(content);
       setSavedContent(content);
@@ -1007,7 +1029,9 @@ export default function App() {
       setEditorContent('');
       setSavedContent('');
       setEditorBinary(arrayBuffer);
+      rememberWork(file);
       closeMobileWdocExplorer();
+      return true;
     } catch (err) {
       setError(`묶음 문서 열기 실패: ${err.message}`);
     } finally {
@@ -1697,6 +1721,24 @@ export default function App() {
   }, [currentPath, directoryTree, isConnected, loadDirectory]);
 
   useEffect(() => {
+    if (!isConnected) return;
+    const persist = () => {
+      const file = lastOpenedRef.current;
+      if (!file) return;
+      try { recordRecentWork(localStorage, recentKeyRef.current, file); } catch { /* Existing history remains available. */ }
+    };
+    const onVisibility = () => { if (document.visibilityState === 'hidden') persist(); };
+    window.addEventListener('pagehide', persist);
+    window.addEventListener('beforeunload', persist);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('pagehide', persist);
+      window.removeEventListener('beforeunload', persist);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [isConnected]);
+
+  useEffect(() => {
     if (!hasEditorChanges) return;
 
     const handleBeforeUnload = (event) => {
@@ -1866,7 +1908,13 @@ export default function App() {
     <div className={`webdav-shell ${isDarkTheme ? 'dark bg-[#111827]' : 'bg-[#eef2f7]'} min-h-screen overflow-hidden p-4 text-slate-800 transition-colors dark:text-slate-100 sm:p-6`}>
       <div className="mx-auto max-w-[min(1800px,98vw)]">
         <MobileWdocButton open={isExplorerOpen} onToggle={toggleMobileWdoc} onPositionChange={setMobileWdocRect} />
+        {recentOpen && <RecentWorkDialog items={recentItems} busy={editorLoading || loading} error={error}
+          onClose={() => setRecentOpen(false)}
+          onOpen={async (file) => {
+            if (await handleOpenFile(file)) setRecentOpen(false);
+          }} />}
         <TopNav
+          onRecentWork={() => { setError(''); setRecentItems(readRecentWork(localStorage, recentKeyRef.current)); setRecentOpen(true); }}
           currentPath={currentPath}
           publicUrl={buildPublicUrl(url, currentPath)}
           loading={loading}
@@ -1885,6 +1933,9 @@ export default function App() {
 
           onCopyFolderUrl={() => handleCopyUrl(currentPath, 'folder')}
           onDisconnect={() => {
+            if (!confirmEditorClose()) return;
+            if (lastOpenedRef.current) rememberWork(lastOpenedRef.current);
+            lastOpenedRef.current = null;
             clearLoginSession(sessionStorage);
             clientRef.current = null;
             dmergeCacheRef.current.clear();

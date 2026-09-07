@@ -2,14 +2,63 @@
 #content-viewport.a4-active:not(.hidden) { display: block; }
 .a4-active #editor-doc-wrap { display: none !important; }
 #a4-pages { width: max-content; min-width: 100%; padding: 0 0 32px; }
-.a4-sheet { box-sizing: border-box; width: 210mm; height: 297mm; padding: 20mm; margin: 0 auto 24px; position: relative; background: #fff; color: #172033; box-shadow: 0 2px 12px #0005; }
-#a4-pages[data-orientation="landscape"] .a4-sheet { width: 297mm; height: 210mm; }
+.a4-sheet { box-sizing: border-box; width: 210mm; height: 297mm; padding: 20mm; margin: 0 auto 24px; position: relative; background: var(--a4-paper, #fff); color: var(--a4-ink, #172033); box-shadow: 0 2px 12px #0005; }
+.a4-sheet[data-orientation="landscape"] { width: 297mm; height: 210mm; }
 .a4-text, #a4-measure { box-sizing: border-box; padding: 0; border: 0; font: 16px/26px Arial, sans-serif; letter-spacing: normal; tab-size: 4; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; }
-.a4-text { display: block; width: 100%; height: 100%; resize: none; outline: none; overflow: hidden; background: transparent; color: #172033; }
+.a4-text { display: block; width: 100%; height: 100%; resize: none; outline: none; overflow: hidden; background: transparent; color: var(--a4-ink, #172033); }
 .a4-number { position: absolute; bottom: 7mm; left: 0; width: 100%; text-align: center; font: 12px/1.4 Arial, sans-serif; color: #64748b; pointer-events: none; }
 .a4-add { display: block; margin: 8px auto; padding: 10px 24px; border: 1px solid #94a3b8; border-radius: 8px; background: #fff; color: #172033; cursor: pointer; }
 #a4-measure { position: fixed; left: -100000px; top: 0; visibility: hidden; height: auto; pointer-events: none; }
+.a4-controls { display: flex; align-items: center; gap: 8px; color: #172033; font: 13px/1.5 Arial, sans-serif; }
+.a4-controls button { border: 1px solid #94a3b8; border-radius: 5px; padding: 4px 10px; background: #fff; color: #172033; cursor: pointer; }
+.a4-controls button[aria-pressed="true"] { background: #dbeafe; border-color: #2563eb; color: #1d4ed8; }
+.a4-document-controls { width: max-content; margin: 0 auto 16px; padding: 8px 12px; border-radius: 8px; background: #f1f5f9; }
+.a4-page-controls { position: absolute; right: 8mm; top: 5mm; }
+#viewer.a4-view { width: max-content !important; min-width: 100%; max-width: none !important; padding: 12px !important; background: transparent !important; }
+#viewer-container:has(> .a4-view):not(.hidden) { display: block; overflow: auto; background: #e2e8f0; }
+.a4-view-section { visibility: hidden; position: absolute; width: 170mm; }
+.a4-view-content { display: flow-root; box-sizing: border-box; width: 100%; height: 100%; overflow: hidden; color: var(--a4-ink, #172033); background: var(--a4-paper, #fff); overflow-wrap: anywhere; }
+.a4-view-content img, .a4-view-content svg, .a4-view-content video { max-width: 100%; max-height: 160mm; object-fit: contain; }
+.a4-view-content pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.dark #viewer.a4-view .a4-view-content :is(h1, h2, h3, h4, h5, h6, strong, b, .katex) { color: var(--a4-ink, #172033); }
+.a4-atomic-content { max-height: 100%; overflow: auto; }
+#drop-zone.document-dark-mode, body.a4-document-dark { --a4-paper: #111827; --a4-ink: #e2e8f0; --a4-desk: #020617; --a4-muted: #94a3b8; }
+#drop-zone.document-light-mode, body.a4-document-light { --a4-paper: #fff; --a4-ink: #172033; --a4-desk: #e2e8f0; --a4-muted: #64748b; }
+:is(#drop-zone, body.a4-pv) .a4-sheet, :is(#drop-zone, body.a4-pv) .a4-view-content { background: var(--a4-paper) !important; color: var(--a4-ink) !important; }
+:is(#drop-zone, body.a4-pv) .a4-sheet :is(h1,h2,h3,h4,h5,h6,strong,b,.katex) { color: var(--a4-ink) !important; }
+:is(#drop-zone, body.a4-pv) .a4-number { color: var(--a4-muted); }
+#drop-zone #viewer-container:has(> .a4-view) { background: var(--a4-desk); }
+#viewer-container.a4-measuring { display: block !important; visibility: hidden; position: fixed !important; left: -100000px !important; top: 0; width: 1400px !important; height: 1200px !important; }
+.a4-floating-settings { position: fixed; z-index: 90; left: 8px; top: 45%; display: flex; align-items: flex-start; gap: 8px; }
+.a4-settings-toggle { width: 42px; height: 42px; padding: 0; border: 1px solid #94a3b8; border-radius: 4px; background: var(--a4-paper, #fff); color: var(--a4-ink, #172033); box-shadow: 0 2px 8px #0004; cursor: grab; font: bold 13px Arial,sans-serif; touch-action: none; }
+.a4-floating-settings .a4-document-controls { margin: 0; box-shadow: 0 2px 8px #0004; }
+.a4-floating-settings [hidden] { display: none !important; }
+body.a4-pv #pv-pages { background: var(--a4-desk) !important; width: max-content; min-width: 100%; padding-bottom: 100px; }
+body.a4-pv #pv-view-controls { display: none !important; }
+body.a4-pv #pv-pages > .a4-sheet { flex: none; max-width: none !important; margin: 0 auto 24px !important; border: 0; border-radius: 0; }
+body.a4-pv #pv-pages .a4-view-content { padding: 0 !important; }
+#a4-presentation-tools { display: none; position: fixed; z-index: 10010; bottom: 12px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 24px); width: max-content; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; padding: 8px; border: 1px solid #64748b; border-radius: 8px; background: #0f172af5; color: #e2e8f0; font: 12px/1.5 Arial,sans-serif; box-shadow: 0 4px 18px #0006; }
+body.a4-pv:not(.pv-editor-mode):not(.pv-file-mode) #a4-presentation-tools { display: flex; }
+#a4-presentation-tools button { border: 1px solid #64748b; border-radius: 4px; padding: 5px 8px; background: #f8fafc; color: #172033; cursor: pointer; }
+#a4-presentation-tools button[aria-pressed="true"] { background: #bfdbfe; border-color: #3b82f6; }
+#a4-presentation-tools button:disabled { opacity: .4; cursor: default; }
+body.a4-slideshow #pv-viewport { position: fixed; top: 50px; left: 0; right: 0; bottom: 100px; padding: 0 !important; overflow: hidden; }
+body.a4-slideshow #pv-viewport > #viewer { display: none !important; }
+body.a4-slideshow #pv-pages { display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; min-height: 0; padding: 8px !important; }
+body.a4-slideshow #pv-pages > .a4-sheet { margin: 0 !important; }
+.a4-slide-hidden { display: none !important; }
+.a4-ink { position: absolute; inset: 0; width: 100% !important; height: 100% !important; max-width: none !important; max-height: none !important; z-index: 30; touch-action: none; cursor: crosshair; }
+[data-tool="navigate"] .a4-ink { pointer-events: none; }
+[data-tool="pointer"] .a4-ink { cursor: none; }
+.a4-laser { position: absolute; z-index: 31; width: 14px; height: 14px; transform: translate(-50%, -50%); border-radius: 50%; background: #ef4444; box-shadow: 0 0 8px 3px #ef444480; pointer-events: none; }
 @media print {
+  @page a4-portrait { size: A4 portrait; margin: 0; }
+  @page a4-landscape { size: A4 landscape; margin: 0; }
+  .a4-sheet[data-orientation="portrait"] { page: a4-portrait; }
+  .a4-sheet[data-orientation="landscape"] { page: a4-landscape; }
   .a4-sheet { margin: 0; box-shadow: none; break-after: page; }
-  .a4-add { display: none; }
+  .a4-add, .a4-controls, .a4-floating-settings, #a4-presentation-tools, .a4-laser { display: none !important; }
+  body.a4-slideshow #pv-viewport { position: static; overflow: visible; }
+  body.a4-pv #pv-pages { display: block !important; width: auto; height: auto; padding: 0 !important; }
+  body.a4-pv #pv-pages > .a4-sheet { display: block !important; zoom: 1 !important; }
 }
