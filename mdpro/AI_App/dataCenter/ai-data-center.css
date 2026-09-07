@@ -111,3 +111,5 @@
   .aic-app .aic-detail-head{gap:8px;padding-bottom:12px}
   .aic-app .aic-detail-head h2{font-size:18px}
 }
+
+.aic-storage-settings{padding:8px 14px;border-bottom:1px solid #64748b;font-size:12px;flex-shrink:0}.aic-storage-settings summary{cursor:pointer;font-weight:700}.aic-storage-settings label{display:inline-flex;align-items:center;gap:6px;margin:8px 10px 4px 0}.aic-storage-settings input{width:16px;height:16px}.aic-storage-settings button{padding:6px 10px;margin:4px}.aic-storage-settings button:disabled{opacity:.45;cursor:not-allowed}.aic-storage-settings p{margin:4px 0;overflow-wrap:anywhere}.aic-app button[hidden]{display:none}

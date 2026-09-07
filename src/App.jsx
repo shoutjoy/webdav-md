@@ -1,3 +1,4 @@
+import { saveJenaRecord, readJenaRecords, visibleWebdavEntries, isJenaDataPath } from './jenaDataStorage.js';
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { create } from 'zustand';
 import { createClient } from 'webdav';
@@ -170,7 +171,7 @@ const updateDirectoryNode = (node, targetPath, nextEntries) => {
   return changed ? { ...node, entries } : node;
 };
 
-const mapWebDavEntries = (items) => items
+const mapWebDavEntries = (items) => visibleWebdavEntries(items)
   .map((item) => ({
     name: item.basename,
     remotePath: normalizeRemotePath(item.filename),
@@ -289,6 +290,18 @@ export default function App() {
   const [createDestinationType, setCreateDestinationType] = useState('');
   const [moveProgress, setMoveProgress] = useState(null);
   const [mobileWdocRect, setMobileWdocRect] = useState(null);
+  const [isTocPopupOpen, setIsTocPopupOpen] = useState(false);
+  const [tocItems, setTocItems] = useState([]);
+  const [tocPopupFontSize, setTocPopupFontSize] = useState(() => {
+    const savedSize = Number.parseInt(localStorage.getItem('webdav-toc-popup-font-size'), 10);
+    return Number.isFinite(savedSize) ? Math.min(28, Math.max(12, savedSize)) : 16;
+  });
+  const [tocPopupRect, setTocPopupRect] = useState(() => ({
+    left: Math.max(16, Math.min(window.innerWidth - 396, 36)),
+    top: 78,
+    width: Math.min(560, Math.max(280, window.innerWidth - 32)),
+    height: Math.min(560, Math.max(220, window.innerHeight - 110)),
+  }));
 
   const fileInputRef = useRef(null);
   const clientRef = useRef(null);
@@ -355,6 +368,7 @@ export default function App() {
   };
 
   const moveRemoteItem = async (client, sourcePath, targetPath, isDirectory = false, overwrite = false, options = {}) => {
+    if (isJenaDataPath(sourcePath) || isJenaDataPath(targetPath)) throw new Error('AI 데이터 보호: JENA_DATA는 이동하거나 이름을 변경할 수 없습니다.');
     await moveRemoteItemVerified(client, sourcePath, targetPath, { ...options, isDirectory, overwrite });
     const lastText = lastTextFileRef.current;
     if (lastText?.remotePath && (lastText.remotePath === sourcePath || (isDirectory && lastText.remotePath.startsWith(`${sourcePath}/`)))) {
@@ -409,6 +423,135 @@ export default function App() {
     } else {
       setError('클립보드 복사에 실패했습니다.');
     }
+  };
+
+  const parseMarkdownToc = (markdownText) => {
+    const lines = String(markdownText || '').split('\n');
+    const items = [];
+    let inFence = false;
+    let fenceChar = '';
+    lines.forEach((line, index) => {
+      const fenceMatch = line.match(/^\s*(`{3,}|~{3,})/);
+      if (fenceMatch) {
+        const currentFenceChar = fenceMatch[1].charAt(0);
+        if (!inFence) {
+          inFence = true;
+          fenceChar = currentFenceChar;
+        } else if (fenceChar === currentFenceChar) {
+          inFence = false;
+          fenceChar = '';
+        }
+        return;
+      }
+      if (inFence) return;
+      const match = line.match(/^(#{1,6})\s+(.*)$/);
+      if (!match) return;
+      const level = match[1].length;
+      const rawText = String(match[2] || '').trim();
+      if (!rawText) return;
+      const text = rawText.replace(/\s+#+\s*$/, '').trim();
+      if (!text) return;
+      items.push({ level, text, lineIndex: index });
+    });
+    return items;
+  };
+
+  const sendMdproScrollLine = (lineIndex) => {
+    const iframe = document.querySelector('iframe[title="MDPRO 문서 편집기"]');
+    if (!iframe?.contentWindow) return;
+    iframe.contentWindow.postMessage({
+      type: 'webdav-scroll-to-line',
+      lineIndex: Number.isFinite(Number(lineIndex)) ? Number(lineIndex) : 0,
+    }, window.location.origin);
+  };
+
+  const openTocPopup = (currentContent) => {
+    const markdown = typeof currentContent === 'string' ? currentContent : editorContentRef.current;
+    const items = parseMarkdownToc(markdown);
+    const explorerPanel = document.getElementById('webdav-explorer-panel');
+    if (explorerPanel) {
+      const panelRect = explorerPanel.getBoundingClientRect();
+      const inset = 16;
+      const headerOffset = 62;
+      setTocPopupRect(clampTocPopupRect({
+        left: panelRect.left + inset,
+        top: panelRect.top + headerOffset,
+        width: Math.max(280, panelRect.width - (inset * 2)),
+        height: Math.max(160, panelRect.height - headerOffset - inset),
+      }));
+    }
+    setTocItems(items);
+    setIsTocPopupOpen(true);
+  };
+
+  const closeTocPopup = () => setIsTocPopupOpen(false);
+
+  const handleTocItemClick = (lineIndex) => {
+    sendMdproScrollLine(lineIndex);
+  };
+
+  const adjustTocPopupFontSize = (amount) => {
+    setTocPopupFontSize((currentSize) => {
+      const nextSize = Math.min(28, Math.max(12, currentSize + amount));
+      localStorage.setItem('webdav-toc-popup-font-size', String(nextSize));
+      return nextSize;
+    });
+  };
+
+  const clampTocPopupRect = (rect) => {
+    const minWidth = 280;
+    const minHeight = 160;
+    const maxWidth = Math.max(minWidth, window.innerWidth - 16);
+    const maxHeight = Math.max(minHeight, window.innerHeight - 16);
+    const width = Math.min(maxWidth, Math.max(minWidth, rect.width));
+    const height = Math.min(maxHeight, Math.max(minHeight, rect.height));
+    return {
+      left: Math.min(window.innerWidth - width - 8, Math.max(8, rect.left)),
+      top: Math.min(window.innerHeight - height - 8, Math.max(8, rect.top)),
+      width,
+      height,
+    };
+  };
+
+  const startTocPopupPointerAction = (event, direction = 'move') => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startRect = tocPopupRect;
+    const move = (moveEvent) => {
+      const dx = moveEvent.clientX - startX;
+      const dy = moveEvent.clientY - startY;
+      let next = { ...startRect };
+      if (direction === 'move') {
+        next.left += dx;
+        next.top += dy;
+      } else {
+        if (direction.includes('e')) next.width += dx;
+        if (direction.includes('s')) next.height += dy;
+        if (direction.includes('w')) {
+          next.left += dx;
+          next.width -= dx;
+        }
+        if (direction.includes('n')) {
+          next.top += dy;
+          next.height -= dy;
+        }
+      }
+      setTocPopupRect(clampTocPopupRect(next));
+    };
+    const up = () => {
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      document.body.classList.remove('is-toc-popup-dragging');
+    };
+    document.body.classList.add('is-toc-popup-dragging');
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+  };
+
+  const openFolderInNewWindow = () => {
+    window.open(buildPublicUrl(url, currentPath), '_blank', 'noopener,noreferrer');
   };
 
   /** 401이면 연결 정보(url·계정)는 유지한 채 로그인 화면으로 복귀 */
@@ -481,6 +624,7 @@ export default function App() {
 
   // 특정 디렉토리 읽기
   const loadDirectory = useCallback(async (path) => {
+    if (isJenaDataPath(path)) { setError('JENA_DATA는 AI 데이터센터에서 열어 주세요.'); return false; }
     const client = clientRef.current;
     if (!client) {
       setError('클라이언트가 초기화되지 않았습니다.');
@@ -615,6 +759,7 @@ export default function App() {
   };
 
   const handleOpenFile = async (file) => {
+    if (isJenaDataPath(file?.remotePath)) { setError('JENA_DATA는 AI 데이터센터에서 열어 주세요.'); return; }
     const currentPath = normalizeRemotePath(selectedFileRef.current?.remotePath || '/');
     const nextPath = normalizeRemotePath(file?.remotePath || '/');
     if (selectedFileRef.current && currentPath === nextPath && !file.isArchiveEntry) return;
@@ -1126,6 +1271,7 @@ export default function App() {
         ? joinRemotePath(currentPath, fileOrName)
         : fileOrName?.remotePath || joinRemotePath(currentPath, fileName),
     );
+    if (isJenaDataPath(remotePath)) { setError('AI 데이터 보호: 일반 탐색기에서는 삭제할 수 없습니다.'); return; }
     if (!fileName || remotePath === '/') {
       setError('삭제할 파일 경로를 확인할 수 없습니다.');
       return;
@@ -1585,6 +1731,9 @@ export default function App() {
 
   useEffect(() => {
     editorContentRef.current = editorContent;
+    if (isTocPopupOpen) {
+      setTocItems(parseMarkdownToc(editorContent));
+    }
   }, [editorContent]);
 
   useEffect(() => {
@@ -1732,6 +1881,7 @@ export default function App() {
           explorerOpen={isExplorerOpen}
           mobileWdocRect={mobileWdocRect}
           onToggleExplorer={toggleExplorer}
+          onOpenFolderUrl={openFolderInNewWindow}
 
           onCopyFolderUrl={() => handleCopyUrl(currentPath, 'folder')}
           onDisconnect={() => {
@@ -1753,39 +1903,78 @@ export default function App() {
           className="webdav-app-layout flex max-h-[calc(100vh-2rem)] min-h-[calc(100vh-2rem)] flex-col gap-1 overflow-hidden lg:flex-row"
           style={{ '--mobile-explorer-width': `${explorerWidth}%` }}
         >
-          {isExplorerOpen && <div id="webdav-explorer-panel" className="webdav-explorer-panel" style={{ flexBasis: `${explorerWidth}%` }}><FileExplorer
-            files={files}
-            directoryTree={directoryTree}
-            loading={loading}
-            moveProgress={moveProgress}
-            editorLoading={editorLoading}
-            copiedKey={copiedKey}
-            isDragging={isDragging}
-            editorOpen
-            explorerWidth={explorerWidth}
-            compact={isExplorerCompact}
-            folderSelectionMode={isSelectingFmaFolder}
-            formatBytes={formatBytes}
-            formatDate={formatDate}
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-            onOpenDirectory={openDirectory}
-            onOpenArchive={handleOpenDmerge}
-            onCopyUrl={handleCopyUrl}
-            onOpenFile={handleOpenFile}
-            onDownload={handleDownload}
-            onRename={handleOpenRenameModal}
-            onMove={handleMove}
-            onMoveSelected={handleMoveSelected}
-            onDelete={handleDelete}
-            onCreateFile={handleCreateFile}
-            onCreateFolder={handleCreateFolder}
-            onRequestCreateFile={() => setCreateDestinationType('file')}
-            onRequestCreateFolder={() => setCreateDestinationType('folder')}
-            onToggleCompact={toggleExplorerCompact}
-          /></div>}
+          {isExplorerOpen && <div id="webdav-explorer-panel" className="webdav-explorer-panel" style={{ flexBasis: `${explorerWidth}%` }}>
+            <FileExplorer
+              files={files}
+              directoryTree={directoryTree}
+              loading={loading}
+              moveProgress={moveProgress}
+              editorLoading={editorLoading}
+              copiedKey={copiedKey}
+              isDragging={isDragging}
+              editorOpen
+              explorerWidth={explorerWidth}
+              compact={isExplorerCompact}
+              folderSelectionMode={isSelectingFmaFolder}
+              formatBytes={formatBytes}
+              formatDate={formatDate}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+              onOpenDirectory={openDirectory}
+              onOpenArchive={handleOpenDmerge}
+              onCopyUrl={handleCopyUrl}
+              onOpenFile={handleOpenFile}
+              onDownload={handleDownload}
+              onRename={handleOpenRenameModal}
+              onMove={handleMove}
+              onMoveSelected={handleMoveSelected}
+              onDelete={handleDelete}
+              onCreateFile={handleCreateFile}
+              onCreateFolder={handleCreateFolder}
+              onRequestCreateFile={() => setCreateDestinationType('file')}
+              onRequestCreateFolder={() => setCreateDestinationType('folder')}
+              onToggleCompact={toggleExplorerCompact}
+            />
+            {isTocPopupOpen && <div className="webdav-toc-popup" style={{ ...tocPopupRect, '--toc-popup-font-size': `${tocPopupFontSize}px` }}>
+              <div className="webdav-toc-popup-header" onPointerDown={(event) => startTocPopupPointerAction(event)}>
+                <strong>문서 목차</strong>
+                <div className="webdav-toc-popup-controls" onPointerDown={(event) => event.stopPropagation()}>
+                  <button type="button" onClick={() => adjustTocPopupFontSize(-2)} disabled={tocPopupFontSize <= 12} title="목차 글자 작게" aria-label="목차 글자 작게">−</button>
+                  <output aria-live="polite" title="현재 목차 글자 크기">{tocPopupFontSize}</output>
+                  <button type="button" onClick={() => adjustTocPopupFontSize(2)} disabled={tocPopupFontSize >= 28} title="목차 글자 크게" aria-label="목차 글자 크게">+</button>
+                  <button type="button" onClick={closeTocPopup} title="닫기" aria-label="목차 팝업 닫기" className="webdav-toc-popup-close">×</button>
+                </div>
+              </div>
+              <div className="webdav-toc-popup-body">
+                {tocItems.length === 0 ? (
+                  <div className="text-xs text-slate-400">문서 내에 제목(Heading)이 없습니다.</div>
+                ) : (
+                  tocItems.map((item) => (
+                    <button
+                      key={`${item.lineIndex}-${item.text}`}
+                      type="button"
+                      className="webdav-toc-popup-item"
+                      style={{ paddingLeft: `${Math.max(0, item.level - 1) * 12}px` }}
+                      onClick={() => handleTocItemClick(item.lineIndex)}
+                    >
+                      {item.text}
+                    </button>
+                  ))
+                )}
+              </div>
+              {['n', 'e', 's', 'w', 'ne', 'se', 'sw', 'nw'].map((direction) => (
+                <div
+                  key={direction}
+                  className={`webdav-toc-popup-resizer is-${direction}`}
+                  onPointerDown={(event) => startTocPopupPointerAction(event, direction)}
+                  role="separator"
+                  aria-label={`목차 창 ${direction} 방향 크기 조절`}
+                />
+              ))}
+            </div>}
+          </div>}
 
           {isExplorerOpen && !isExplorerCompact && <div
             className="split-resizer shrink-0"
@@ -1803,6 +1992,8 @@ export default function App() {
             title="드래그 또는 방향키로 MDPRO 너비 조절 · 더블클릭으로 초기화"
           ><div className="split-resizer-grip" /></div>}
           <MdproEditor
+            onReadJenaRecords={() => readJenaRecords(clientRef.current)}
+            onSaveJenaRecord={(record) => saveJenaRecord(clientRef.current, record)}
             selectedFile={selectedFile}
             content={editorContent}
             binaryContent={editorBinary}
@@ -1818,6 +2009,7 @@ export default function App() {
             onToggleExplorer={toggleExplorer}
             onOpenExplorer={openExplorer}
             onOpenFolderExplorer={openFolderExplorer}
+            onOpenTocPopup={openTocPopup}
             onThemeChange={setIsDarkTheme}
           />
         </div>

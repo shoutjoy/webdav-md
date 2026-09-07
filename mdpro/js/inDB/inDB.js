@@ -1,8 +1,8 @@
 // MarkdownProDB(inDB) initialization, saving, feature synchronization, and storage UI.
 // Loaded after app.js so editor globals remain available while this concern stays isolated.
 const DB_NAME = "MarkdownProDB";
-const DB_VERSION = 8;
-const FEATURE_DATA_STORE_NAMES = ['fonts', 'ai_chat', 'scholar_ai', 'ssp_image_ai', 'highlights', 'genslides'];
+const DB_VERSION = 9;
+const FEATURE_DATA_STORE_NAMES = ['fonts', 'ai_chat', 'scholar_ai', 'ssp_image_ai', 'highlights', 'genslides', 'mermaid_refs'];
 const INDB_ENABLED_SETTING_KEY = 'md_viewer_indb_enabled';
 
 function isInDbStorageEnabled() {

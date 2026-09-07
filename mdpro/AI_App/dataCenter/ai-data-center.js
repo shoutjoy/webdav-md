@@ -2,11 +2,18 @@
   'use strict';
 
   var DB_NAME = 'AIDataCenterDB';
-  var DB_VERSION = 1;
+  var DB_VERSION = 2;
   var STORE_NAME = 'traces';
   var MIGRATION_KEY = 'mdpro_ai_data_center_migrated_v1';
   var dbPromise = null;
   var records = [];
+  var syncRunning = false;
+  var syncTimer = null;
+  var syncedRecords = new Map();
+  var syncStatus = 'WebDAV 연결 대기';
+  var remoteRecords = null;
+  var folderRequestVersion = 0;
+  var HIDDEN_FOLDER_KEY = 'mdpro_jena_hidden_folder_access';
   var selectedId = '';
   var activeType = 'all';
   var answersOnly = false;
@@ -136,14 +143,19 @@
       var request = indexedDB.open(DB_NAME, DB_VERSION);
       request.onupgradeneeded = function () {
         var database = request.result;
+        if (!database.objectStoreNames.contains('deleted')) database.createObjectStore('deleted', { keyPath: 'id' });
         if (!database.objectStoreNames.contains(STORE_NAME)) {
           var store = database.createObjectStore(STORE_NAME, { keyPath: 'id' });
           store.createIndex('recordType', 'recordType', { unique: false });
           store.createIndex('updatedAt', 'updatedAt', { unique: false });
         }
       };
-      request.onsuccess = function () { resolve(request.result); };
-      request.onerror = function () { reject(request.error || new Error('AI 데이터 센터 DB를 열지 못했습니다.')); };
+      request.onsuccess = function () {
+        request.result.onversionchange = function () { request.result.close(); dbPromise = null; };
+        resolve(request.result);
+      };
+      request.onblocked = function () { setSyncStatus('다른 AI JENA 탭을 닫거나 새로고침해 주세요.'); };
+      request.onerror = function () { dbPromise = null; reject(request.error || new Error('AI 데이터 센터 DB를 열지 못했습니다.')); };
     });
     return dbPromise;
   }
@@ -153,9 +165,10 @@
     var database = await openDb();
     var value = Object.assign({}, record, { updatedAt: Number(record.updatedAt || Date.now()) });
     return new Promise(function (resolve, reject) {
-      var tx = database.transaction(STORE_NAME, 'readwrite');
+      var tx = database.transaction([STORE_NAME, 'deleted'], 'readwrite');
       tx.objectStore(STORE_NAME).put(value);
-      tx.oncomplete = function () { resolve(true); };
+      tx.objectStore('deleted').delete(value.id);
+      tx.oncomplete = function () { scheduleSync(); resolve(true); };
       tx.onerror = function () { reject(tx.error || new Error('AI 사용 기록 저장 실패')); };
     });
   }
@@ -172,11 +185,73 @@
   async function remove(id) {
     var database = await openDb();
     return new Promise(function (resolve) {
-      var tx = database.transaction(STORE_NAME, 'readwrite');
+      var tx = database.transaction([STORE_NAME, 'deleted'], 'readwrite');
       tx.objectStore(STORE_NAME).delete(id);
-      tx.oncomplete = function () { resolve(true); };
+      tx.objectStore('deleted').put({ id: id, deleted: true, updatedAt: Date.now() });
+      tx.oncomplete = function () { scheduleSync(); resolve(true); };
       tx.onerror = function () { resolve(false); };
     });
+  }
+
+  function setSyncStatus(text) {
+    syncStatus = text;
+    var node = document.getElementById('aic-sync-status');
+    if (node) node.textContent = text;
+  }
+
+  function sendRecord(record) {
+    return new Promise(function (resolve, reject) {
+      var requestId = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+      var timer = setTimeout(function () { finish(new Error('WebDAV 응답 지연 · 자동 재시도 예정')); }, 60000);
+      function finish(error) {
+        clearTimeout(timer);
+        root.removeEventListener('message', receive);
+        if (error) reject(error); else resolve();
+      }
+      function receive(event) {
+        if (event.source !== root.parent || event.origin !== root.location.origin) return;
+        var data = event.data;
+        if (!data || data.type !== 'jena-save-result' || data.requestId !== requestId) return;
+        finish(data.ok ? null : new Error(data.error || 'WebDAV 저장 실패'));
+      }
+      root.addEventListener('message', receive);
+      root.parent.postMessage({ type: 'jena-save-record', requestId: requestId, record: record }, root.location.origin);
+    });
+  }
+
+  function scheduleSync() {
+    if (root.parent === root || new URLSearchParams(root.location.search).get('webdav') !== '1') return;
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(syncWebDAV, 1500);
+  }
+
+  async function syncWebDAV() {
+    if (syncRunning || root.parent === root) return;
+    syncRunning = true;
+    try {
+      setSyncStatus('JENA_DATA 저장 중…');
+      await migrateLegacyOnce();
+      var all = await readAll();
+      var database = await openDb();
+      var deleted = await new Promise(function (resolve, reject) {
+        var request = database.transaction('deleted', 'readonly').objectStore('deleted').getAll();
+        request.onsuccess = function () { resolve(request.result || []); };
+        request.onerror = function () { reject(request.error); };
+      });
+      for (var record of all.concat(deleted)) {
+        var serialized = JSON.stringify(record);
+        if (syncedRecords.get(record.id) === serialized) continue;
+        await sendRecord(record);
+        syncedRecords.set(record.id, serialized);
+      }
+      setSyncStatus('WebDAV /JENA_DATA 자동 저장 완료');
+    } catch (error) {
+      setSyncStatus('로컬 보관 · 재시도 예정: ' + error.message);
+    } finally {
+      syncRunning = false;
+      clearTimeout(syncTimer);
+      syncTimer = setTimeout(syncWebDAV, 30000);
+    }
   }
 
   function sanitizeLegacyRecord(record) {
@@ -246,12 +321,15 @@
   function ensureUi() {
     if (document.getElementById('ai-data-center-app')) return;
     document.body.insertAdjacentHTML('beforeend', '<div id="ai-data-center-app" class="aic-app" hidden>'
-      + '<header><div class="aic-brand"><span>D</span><div><h2>AI 데이터 센터</h2><p>AI JENA의 질문·답변·학술검색·이미지 사용 흔적을 확인합니다.</p></div></div>'
+      + '<header><div class="aic-brand"><span>D</span><div><h2>AI 데이터 센터</h2><p>AI JENA의 질문·답변·학술검색·이미지 사용 흔적을 확인합니다.</p><p id="aic-sync-status" role="status"></p></div></div>'
       + '<input id="aic-search" type="search" placeholder="질문·답변·검색어·논문 제목 검색">'
       + '<button id="aic-theme" class="aic-theme-button" type="button" title="다크/라이트 전환" aria-label="다크/라이트 전환">☀</button><button id="aic-answer-filter" type="button" title="답변만 보기">답변만</button><button id="aic-fullscreen" type="button">전체화면</button><button id="aic-close" type="button">닫기</button></header>'
+      + '<details class="aic-storage-settings"><summary>저장 폴더 설정</summary><label><input id="aic-hidden-folder" type="checkbox"> 숨겨진 JENA_DATA 폴더 열기 허용</label><button id="aic-open-folder" type="button" disabled>JENA_DATA 열기</button><button id="aic-local-records" type="button">로컬 기록 보기</button><p id="aic-folder-status" role="status">일반 탐색기에서는 숨김 · 폴더 기록은 읽기 전용으로 열립니다.</p></details>'
       + '<div class="aic-layout"><aside><nav id="aic-tabs"></nav><div id="aic-list"></div></aside><main id="aic-detail"></main></div></div>');
     var app = document.getElementById('ai-data-center-app');
     document.getElementById('aic-close').onclick = close;
+    setSyncStatus(syncStatus);
+    setupStorageSettings();
     var themeButton = document.getElementById('aic-theme');
     var lightTheme = false;
     try { lightTheme = localStorage.getItem(THEME_KEY) === 'light'; } catch (_) {}
@@ -273,6 +351,66 @@
     restoreWindowRect(app);
     setupWindowControls(app);
     applyResponsiveScale();
+  }
+
+  function setupStorageSettings() {
+    var checkbox = document.getElementById('aic-hidden-folder');
+    var openButton = document.getElementById('aic-open-folder');
+    var status = document.getElementById('aic-folder-status');
+    try { checkbox.checked = localStorage.getItem(HIDDEN_FOLDER_KEY) === 'true'; } catch (_) {}
+    openButton.disabled = !checkbox.checked;
+    checkbox.onchange = function () {
+      folderRequestVersion++;
+      try { localStorage.setItem(HIDDEN_FOLDER_KEY, String(checkbox.checked)); } catch (_) {}
+      openButton.disabled = !checkbox.checked;
+      if (!checkbox.checked) {
+        remoteRecords = null; selectedId = ''; refresh();
+        status.textContent = '숨김 폴더 열기 해제 · 로컬 기록을 표시합니다.';
+      }
+    };
+    document.getElementById('aic-local-records').onclick = function () {
+      folderRequestVersion++; remoteRecords = null; selectedId = ''; refresh();
+      openButton.disabled = !checkbox.checked;
+      status.textContent = '로컬 기록을 표시합니다.';
+    };
+    openButton.onclick = async function () {
+      if (!checkbox.checked) return;
+      var version = ++folderRequestVersion;
+      openButton.disabled = true;
+      status.textContent = '숨겨진 JENA_DATA 폴더를 불러오는 중…';
+      try {
+        var result = await readRemoteFolder();
+        if (!checkbox.checked || version !== folderRequestVersion) return;
+        remoteRecords = result; selectedId = ''; activeType = 'all';
+        document.getElementById('aic-search').value = '';
+        await refresh();
+        status.textContent = 'WebDAV /JENA_DATA · ' + result.length + '개 기록 · 읽기 전용';
+      } catch (error) {
+        if (version === folderRequestVersion) status.textContent = '폴더 열기 실패: ' + error.message;
+      } finally {
+        if (version === folderRequestVersion) openButton.disabled = !checkbox.checked;
+      }
+    };
+  }
+
+  function readRemoteFolder() {
+    return new Promise(function (resolve, reject) {
+      if (root.parent === root) { reject(new Error('WebDAV 앱에서 AI 데이터센터를 열어 주세요.')); return; }
+      var requestId = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+      var timer = setTimeout(function () { finish(new Error('WebDAV 응답 시간이 초과되었습니다.')); }, 60000);
+      function finish(error, records) {
+        clearTimeout(timer); root.removeEventListener('message', receive);
+        if (error) reject(error); else resolve(records);
+      }
+      function receive(event) {
+        if (event.source !== root.parent || event.origin !== root.location.origin) return;
+        var data = event.data;
+        if (!data || data.type !== 'jena-read-result' || data.requestId !== requestId) return;
+        finish(data.ok ? null : new Error(data.error || '기록 읽기 실패'), data.records || []);
+      }
+      root.addEventListener('message', receive);
+      root.parent.postMessage({ type: 'jena-read-records', requestId: requestId }, root.location.origin);
+    });
   }
 
   function renderTabs() {
@@ -324,7 +462,9 @@
     else if (record.recordType === 'image' && record.dataUrl) content = '<img class="aic-image" src="' + escapeHtml(record.dataUrl) + '" alt="' + escapeHtml(record.name || 'AI 이미지') + '">';
     else content = '<div class="aic-query"><b>AI 입력에 사용된 첨부 기록</b><p>원문은 저장하지 않습니다. ' + escapeHtml(record.name || '') + ' · ' + escapeHtml(record.mimeType || '') + '</p></div>';
     host.innerHTML = '<header class="aic-detail-head"><div><small>' + typeLabel(record.recordType) + '</small><h2>' + escapeHtml(titleOf(record)) + '</h2><p>' + escapeHtml([record.provider, record.model, record.conversationTitle].filter(Boolean).join(' · ')) + '</p></div><button id="aic-delete" type="button">기록 삭제</button></header>' + content;
-    document.getElementById('aic-delete').onclick = async function () { if (!confirm('이 AI 사용 기록을 삭제할까요?')) return; await remove(record.id); await refresh(); };
+    document.getElementById('aic-delete').hidden = remoteRecords !== null;
+    host.querySelectorAll('[data-action=delete]').forEach(function (button) { button.hidden = remoteRecords !== null; });
+    document.getElementById('aic-delete').onclick = async function () { if (remoteRecords !== null) return; if (!confirm('이 AI 사용 기록을 삭제할까요?')) return; await remove(record.id); await refresh(); };
     host.querySelectorAll('.aic-answer-actions button').forEach(function (button) {
       button.onclick = async function () {
         var card = button.closest('[data-message-index]'); var index = Number(card.dataset.messageIndex); var key = card.dataset.messageKey;
@@ -334,12 +474,12 @@
         else if (action === 'md' || action === 'pv') { messageView[key] = action; renderDetail(); }
         else if (action === 'raw-copy') await copyText(message.content || '');
         else if (action === 'render-copy') await copyRendered(message.content || '');
-        else if (action === 'delete' && confirm('이 AI 답변만 삭제할까요?')) { record.messages.splice(index, 1); record.updatedAt = Date.now(); await save(record); await refresh(); }
+        else if (remoteRecords === null && action === 'delete' && confirm('이 AI 답변만 삭제할까요?')) { record.messages.splice(index, 1); record.updatedAt = Date.now(); await save(record); await refresh(); }
       };
     });
   }
 
-  async function refresh() { records = (await readAll()).sort(function (a, b) { return Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0); }); render(); }
+  async function refresh() { records = (remoteRecords !== null ? remoteRecords.slice() : await readAll()).sort(function (a, b) { return Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0); }); render(); }
   async function open() {
     ensureUi();
     if (root.AIChat && typeof root.AIChat.close === 'function') root.AIChat.close();
@@ -351,6 +491,9 @@
     await refresh();
   }
   function close() { var app = document.getElementById('ai-data-center-app'); if (app) app.hidden = true; }
+
+  root.addEventListener('online', scheduleSync);
+  scheduleSync();
 
   root.AIDataCenter = { save: save, readAll: readAll, open: open, close: close, refresh: refresh, databaseName: DB_NAME };
 })(window);

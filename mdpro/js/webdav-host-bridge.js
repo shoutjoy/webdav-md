@@ -25,6 +25,32 @@
         return true;
     }
 
+    function openTocPopup() {
+        window.parent.postMessage({
+            type: 'mdpro-open-toc-popup',
+            content: currentDocumentText()
+        }, location.origin);
+    }
+
+    function scrollToLine(lineIndex) {
+        if (typeof window.scrollToLine === 'function') {
+            window.scrollToLine(lineIndex);
+            return;
+        }
+        const editor = document.getElementById('viewer-edit-ta');
+        if (!editor || !editor.value) return;
+        const lines = editor.value.split('\n');
+        const safeLine = Math.max(0, Math.min(Number(lineIndex) || 0, Math.max(lines.length - 1, 0)));
+        const target = lines.slice(0, safeLine).join('\n');
+        const position = target.length + (safeLine > 0 ? 1 : 0);
+        editor.focus();
+        editor.selectionStart = editor.selectionEnd = position;
+        const rect = editor.getBoundingClientRect();
+        const lineHeight = parseFloat(getComputedStyle(editor).lineHeight) || 20;
+        const offsetLine = safeLine > 0 ? Math.min(safeLine, lines.length - 1) : 0;
+        editor.scrollTop = (offsetLine * lineHeight) - rect.height / 4;
+    }
+
     function reportDocumentChange(force) {
         if (!window.__webdavHostDocument) return;
         const content = currentDocumentText();
@@ -108,6 +134,18 @@
             button.addEventListener('click', requestExplorer);
             sidebar.prepend(button);
         }
+
+        const explorerBar = document.querySelector('#sidebar .webdav-explorer-bar, .webdav-explorer-bar');
+        if (explorerBar && !document.getElementById('mdpro-toc-popup-button')) {
+            const button = document.createElement('button');
+            button.id = 'mdpro-toc-popup-button';
+            button.type = 'button';
+            button.className = 'px-2 py-1 rounded-md text-xs font-bold border border-transparent hover:bg-white/15 transition-colors bg-white/8 text-white';
+            button.textContent = '목차';
+            button.title = '문서 목차 열기';
+            button.addEventListener('click', openTocPopup);
+            explorerBar.appendChild(button);
+        }
     }
 
     function applyEmbeddedDefaultLayout() {
@@ -155,6 +193,10 @@
             openImageInsertFromFma(data.image).catch(function (error) {
                 if (typeof window.showToast === 'function') window.showToast(error.message || String(error), 'error');
             });
+            return;
+        }
+        if (data?.type === 'webdav-scroll-to-line') {
+            scrollToLine(data.lineIndex);
             return;
         }
         if (data?.type === 'webdav-document-saved') {

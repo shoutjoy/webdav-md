@@ -35,14 +35,14 @@
     <script src="./js/md_notebooklm_equals_hr.js" charset="utf-8"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="stylesheet" href="./css/style.css?v=20260902-toolbar-quick-menus-1&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;docxTableContrast=20260817-1&amp;tidyUi=20260811-1&amp;inline2refCss=20260822-2&amp;indbUi=20260812-3&amp;mermaidDisplay=20260810-1&amp;mermaidResize=20260810-1&amp;comment=20260810-3&amp;textStyle=20260815-supsub-1&amp;sidebarControls=20260812-4&amp;miniToc=20260815-responsive-1&amp;crossrefResults=20260812-1&amp;mainHeaderBackground=20260815-1&amp;lightChrome=20260823-6&amp;verticalEditToolbar=20260823-5&amp;aiHeaderButtons=20260823-1&amp;featureKeyStyle=20260823-1&amp;documentTheme=20260825-1&amp;formatGutter=20260828-1" charset="utf-8">
+    <link rel="stylesheet" href="./css/style.css?coverFold=20260908-input-fields-2&amp;v=20260908-image-insert-1&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;docxTableContrast=20260817-1&amp;tidyUi=20260811-1&amp;inline2refCss=20260822-2&amp;indbUi=20260812-3&amp;mermaidDisplay=20260810-1&amp;mermaidResize=20260810-1&amp;comment=20260810-3&amp;textStyle=20260815-supsub-1&amp;sidebarControls=20260812-4&amp;miniToc=20260815-responsive-1&amp;crossrefResults=20260812-1&amp;mainHeaderBackground=20260815-1&amp;lightChrome=20260823-6&amp;verticalEditToolbar=20260823-5&amp;aiHeaderButtons=20260823-1&amp;featureKeyStyle=20260823-1&amp;documentTheme=20260825-1&amp;formatGutter=20260828-1&amp;miniPvResize=20260908-eight-way-1" charset="utf-8">
     <link rel="stylesheet" href="./MobileUI/mobile-ui.css?v=20260817-5" charset="utf-8">
     <link rel="stylesheet" href="./js/inDB/inDB.css?v=20260823-ai-audit-3" charset="utf-8">
     <link rel="stylesheet" href="./sidebar_left/sidebar-resize.css?v=20260812-1" charset="utf-8">
     <link rel="stylesheet" href="./sidebar_left/storage-tree.css?v=20260812-1" charset="utf-8">
     <link rel="stylesheet" href="./sidebarAI/sidebar-ai.css?v=20260817-scholar-upgrades-1" charset="utf-8">
     <link rel="stylesheet" href="./AI_App/aiChat/ai-chat.css?v=20260903-color-buttons-2" charset="utf-8">
-    <link rel="stylesheet" href="./AI_App/dataCenter/ai-data-center.css?v=20260830-mobile-layout-8" charset="utf-8">
+    <link rel="stylesheet" href="./AI_App/dataCenter/ai-data-center.css?v=20260908-hidden-jena-data-2" charset="utf-8">
     <link rel="stylesheet" href="./js/Scholarref/styles/scholarref.css?v=20260812-scholar-modules-1" charset="utf-8">
     <link rel="stylesheet" href="./ShareSites/Share/share.css?v=20260408-2" charset="utf-8">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">
@@ -392,7 +392,7 @@
                     <span class="header-file-action-label text-sm font-medium">새파일</span>
                 </button>
                 <button type="button" id="new-file-menu-toggle" onclick="toggleNewFileMenu(event)"
-                    class="hidden px-1 sm:px-1.5 hover:bg-white/15 text-white rounded-r-md transition-colors items-center"
+                    class="flex px-1 sm:px-1.5 hover:bg-white/15 text-white rounded-r-md transition-colors items-center"
                     title="새파일 만들기 방식" aria-haspopup="menu" aria-expanded="false">
                     <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
                 </button>
@@ -403,6 +403,8 @@
                         class="w-full px-3 py-2 rounded-md flex items-center gap-2 whitespace-nowrap text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
                         <i data-lucide="file-plus" class="w-4 h-4 shrink-0"></i><span class="whitespace-nowrap">빈 새파일</span>
                     </button>
+                    <button type="button" role="menuitem" onclick="createA4File('portrait', event)" class="w-full px-3 py-2 rounded-md text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">▯ 빈 새파일 · A4 세로</button>
+                    <button type="button" role="menuitem" onclick="createA4File('landscape', event)" class="w-full px-3 py-2 rounded-md text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">▭ 빈 새파일 · A4 가로</button>
                     <button type="button" role="menuitem" id="new-template-menu-item" onclick="openTemplateForNewFile(event)"
                         class="hidden w-full px-3 py-2 rounded-md items-center gap-2 whitespace-nowrap text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-indigo-50 hover:text-indigo-700 dark:hover:bg-indigo-950/40 dark:hover:text-indigo-300">
                         <i data-lucide="notebook-tabs" class="w-4 h-4 shrink-0"></i><span class="whitespace-nowrap">양식으로 새파일</span>
@@ -984,9 +986,19 @@
                             </div>
                         </div>
                     </div>
+                    <button id="btn-image-upload-toolbar" type="button" onclick="openImagePanelFromQuickMenu(event)" title="이미지 업로드 삽입"
+                        class="hidden px-2 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-xs font-bold text-slate-700 dark:text-slate-200">IMG</button>
+                    <div id="note-cover-toolbar" class="hidden relative flex items-center gap-1" hidden style="display: none !important">
                     <button id="btn-note-cover-insert" type="button" onclick="insertDefaultNoteCover()"
                         class="hidden px-2 py-1 bg-white dark:bg-slate-800 border border-violet-300 dark:border-violet-700 rounded text-[10px] font-bold text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-900/20 shadow-sm"
                         title="문서 최상단에 note-cover 표지 삽입">[표지]</button>
+                    <button type="button" onclick="toggleNoteCoverMenu(event)" aria-label="표지 메뉴" aria-expanded="false" id="btn-note-cover-menu" class="px-1 py-1 rounded border border-slate-600">▾</button>
+                    <div id="note-cover-menu" hidden style="display:none" class="rounded border border-slate-600 bg-white dark:bg-slate-800 shadow-xl p-1">
+                    <button id="btn-note-cover-remove" type="button" onclick="removeNoteCover()"
+                        class="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-[10px] font-bold text-slate-700 dark:text-slate-300"
+                        title="삽입한 표지 지우기">표지 지우기</button>
+                    </div>
+                    </div>
                     <div id="macro-toolbar-wrap" class="relative inline-flex items-center gap-1 hidden">
                         <button type="button" id="btn-macro-run" onclick="runCheckedMacroActions()"
                             class="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded text-[10px] font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm uppercase"
@@ -1199,15 +1211,17 @@
                     </div>
                     <div id="mini-preview-host"></div>
                     <div id="editor-shift-float" class="no-print absolute left-2 bottom-2 z-30 flex items-center gap-1 px-2 py-1 rounded-md border border-slate-300 dark:border-slate-600 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow">
+                        <button type="button" class="editor-shift-drag" aria-label="문서 위치 메뉴 이동" title="드래그하여 메뉴 이동">⠿</button>
                         <button type="button" onclick="adjustEditorHorizontalShift(-20)"
                             class="px-2 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
                             title="편집창을 왼쪽으로 이동">L</button>
                         <button type="button" onclick="resetEditorHorizontalShift()"
                             class="px-2 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
-                            title="이동 초기화">0</button>
+                            title="가운데로 이동">C</button>
                         <button type="button" onclick="adjustEditorHorizontalShift(20)"
                             class="px-2 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
                             title="편집창을 오른쪽으로 이동">R</button>
+                        <button type="button" class="editor-shift-orientation" aria-label="가로 메뉴로 전환" title="가로 메뉴로 전환">↔</button>
                     </div>
                 </div>
                 <button type="button" id="btn-copy-view-rich"
@@ -1395,7 +1409,7 @@
             class="pointer-events-auto absolute top-16 left-1/2 -translate-x-1/2 bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-[min(1200px,96vw)] h-[min(860px,92vh)] flex flex-col border border-slate-200 dark:border-slate-700 overflow-hidden"
             style="resize: both; min-width: 760px; min-height: 520px; max-width: 98vw; max-height: 95vh;">
             <div id="mermaid-editor-modal-header" class="px-4 py-2.5 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex items-center justify-between cursor-move select-none">
-                <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">Mermaid Editor</h3>
+                <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">이미지 → Mermaid Ref</h3>
                 <div class="flex items-center gap-2">
                     <button type="button" id="mermaid-editor-dock-right-btn" onclick="toggleMermaidEditorDockRight()"
                         class="px-2.5 py-1.5 border border-slate-300 dark:border-slate-600 rounded-md text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700" title="우측으로 보내기">>></button>
@@ -1405,7 +1419,7 @@
                         class="px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-md text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">닫기</button>
                 </div>
             </div>
-            <iframe id="mermaid-editor-frame" data-src="./js/mermaid/mermaid-editor/index.html?v=20260729-label-2"
+            <iframe id="mermaid-editor-frame" data-src="./js/mermaid/mermaid-editor/index.html?v=20260908-mermaid-1"
                 class="w-full h-full border-0 bg-white dark:bg-slate-900" title="Mermaid Editor"></iframe>
         </div>
     </div>
@@ -2420,7 +2434,7 @@
                             <div id="ai-data-center-settings">
                                 <button type="button" onclick="window.AIDataCenter && window.AIDataCenter.open()"
                                     class="mt-3 w-full px-4 py-2 border-2 border-teal-600 rounded-md text-sm font-semibold text-teal-800 dark:text-teal-300 bg-white dark:bg-slate-800 hover:bg-teal-50 dark:hover:bg-teal-950/30">AI 데이터 센터 열기</button>
-                                <p class="mt-1 text-[10px] text-slate-500 dark:text-slate-400">AIDataCenterDB에 저장된 AI 질문·답변·학술검색·이미지 사용 이력을 별도 앱에서 탐색합니다.</p>
+                                <p class="mt-1 text-[10px] text-slate-500 dark:text-slate-400">AI 질문·답변·학술검색·이미지 사용 이력을 탐색하고, WebDAV 연결 시 JENA_DATA 폴더에 자동 저장합니다.</p>
                             </div>
                         </div>
                         <div id="sqlite-settings-tool" class="pt-1">
@@ -2581,6 +2595,9 @@
                                     <span class="text-sm font-medium text-slate-700 dark:text-slate-300">이미지 업로드 사용</span>
                                 </label>
                                 <div id="image-upload-settings" class="pl-6 space-y-2">
+                                    <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
+                                        <input type="checkbox" id="image-upload-toolbar-enabled" onchange="setImageUploadToolbarVisible(this.checked)">Link 옆 이미지 업로드 버튼 표시
+                                    </label>
                                     <label for="ai-imgbb-api-key" class="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">imgBB API Key</label>
                                     <div class="flex items-center gap-2 flex-wrap">
                                         <div class="settings-credential-field flex-1 min-w-[160px]">
@@ -2958,9 +2975,10 @@
                 <div class="text-sm font-semibold text-slate-500 dark:text-slate-300 mb-2">Image URL -> Insert (Markdown / HTML)</div>
                 <input type="url" id="img-insert-url" placeholder="https://i.ibb.co/... (imgBB dir)"
                     class="w-full px-3 py-2 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 mb-2">
-                <div class="flex items-center gap-8 px-1">
-                    <button type="button" onclick="insertImageFromModal('markdown')" class="text-sm font-semibold text-slate-700 dark:text-slate-200">Markdown</button>
-                    <button type="button" onclick="insertImageFromModal('html')" class="text-sm font-semibold text-slate-700 dark:text-slate-200">HTML</button>
+                <div class="image-insert-output flex items-center gap-8 px-1 flex-wrap">
+                    <button type="button" onclick="insertImageFromModal('markdown')" title="Markdown 이미지 삽입" class="text-sm font-semibold text-slate-700 dark:text-slate-200">Markdown 삽입</button>
+                    <button type="button" onclick="insertImageFromModal('html')" title="HTML 이미지 삽입" class="text-sm font-semibold text-slate-700 dark:text-slate-200">HTML 삽입</button>
+                    <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200 cursor-pointer"><input type="checkbox" id="img-insert-close-after">삽입 후 닫기</label>
                 </div>
             </div>
 
@@ -3005,6 +3023,7 @@
                         class="px-4 py-2 rounded border border-slate-300 dark:border-slate-600 text-sm text-slate-600 dark:text-slate-300">취소</button>
                     <button type="button" onclick="confirmCaptionInsert('figure')"
                         class="px-4 py-2 rounded bg-indigo-600 text-sm font-semibold text-white hover:bg-indigo-700">삽입</button>
+                    <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200 cursor-pointer"><input type="checkbox" id="figure-caption-close-after" checked>삽입 후 닫기</label>
                 </div>
             </div>
         </div>
@@ -3170,7 +3189,7 @@
 
 <!-- 이미지 편집기 삽입 -->
 <script
-    src="./imageDB/image_insert.js?v=20260812-pv-editor-1"
+    src="./imageDB/image_insert.js?v=20260908-close-after-1"
     charset="utf-8"
     defer>
 </script>
@@ -3289,7 +3308,7 @@
 
 <!-- 공유 사이트 표시 -->
 <script
-    src="./ShareSites/sitesshow/sitesshow.js?v=20260807-settings-add-1"
+    src="./ShareSites/sitesshow/sitesshow.js?v=20260908-image-app-links-1"
     charset="utf-8"
     defer>
 </script>
@@ -3347,7 +3366,7 @@
 
 <!-- 왼쪽 사이드바 -->
 <script
-    src="./sidebar_left/sidebar-left.js?v=20260812-folder-tree-1&amp;storageVisibility=20260806-1&amp;fileControls=20260812-4&amp;shellRace=20260812-1"
+    src="./sidebar_left/sidebar-left.js?v=20260908-toc-popup-controls-3"
     charset="utf-8"
     defer>
 </script>
@@ -3405,14 +3424,14 @@
     defer>
 </script>
 <script
-    src="./js/editor-format-gutter.js?v=20260828-1"
+    src="./js/editor-format-gutter.js?v=20260908-note-cover-hide-end-3"
     charset="utf-8"
     defer>
 </script>
 
 <!-- Markdown 내장 A4 표지(note-cover) 렌더링 -->
 <script
-    src="./js/note-cover/note-cover.js?v=20260811-editor-14"
+    src="./js/note-cover/note-cover.js?v=20260908-input-fields-2"
     charset="utf-8"
     defer>
 </script>
@@ -3422,7 +3441,7 @@
     defer>
 </script>
 <script
-    src="./js/UI_PV/minipv.js?v=20260810-sync-directions-1&amp;comment=20260810-1&amp;perf=20260810-2&amp;imageSizeHint=20260811-1&amp;toc=20260815-responsive-1"
+    src="./js/UI_PV/minipv.js?v=20260908-eight-way-resize-1"
     charset="utf-8"
     defer>
 </script>
@@ -3468,7 +3487,7 @@
     defer>
 </script>
 <script
-    src="./js/app.js?v=20260901-direct-generation-1&amp;aiJenaReasoning=20260829-low-high-1&amp;storageSafety=20260815-1&amp;localWriteback=20260815-1&amp;localFileRefresh=20260817-1&amp;docxImport=20260817-dark-table-contrast-1&amp;viewModeTextInput=20260815-2&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;indbImages=20260812-3&amp;indbToggle=20260816-1&amp;tidyCustomJs=20260811-1&amp;html2md=20260817-1&amp;inline2ref=20260822-4&amp;saveDropdown=20260822-1&amp;aiJenaAttachments=20260822-2&amp;aiDataCenter=20260823-1&amp;settingsDrag=20260811-1&amp;copyFab=20260810-ai-jena-bottom-1&amp;mobileAiJena=20260817-1&amp;feature=templates-new-file-menu-2&amp;storageVisibility=20260810-1&amp;settingsResetConfirm=1&amp;toolbarNames=20260807-1&amp;templateFullscreen=20260807-1&amp;settingsFold=20260807-1&amp;mermaidDisplay=20260810-3&amp;comment=20260812-html-comment-1&amp;perf=20260810-10&amp;pdfExport=20260812-edit-merge-1&amp;pvExport=20260813-modal-2&amp;pdfMergeTool=20260815-pdfm-project-15&amp;imageSizeHint=20260811-1&amp;textStyle=20260815-supsub-1&amp;localDefault=20260812-1&amp;folderTree=20260812-1&amp;documentMeta=20260812-1&amp;documentDrop=20260812-1&amp;sliderMaker=20260812-1&amp;scholarUpgrades=20260817-2&amp;pvHeaderSettings=20260815-1&amp;mainHeaderBackground=20260815-1&amp;mainHeaderScale=20260815-1&amp;headerFileActions=20260823-1&amp;listQuickMenu=20260823-1&amp;footnoteAnchorMenu=20260823-1&amp;imageInsertMenu=20260825-link-1&amp;verticalEditToolbar=20260823-2&amp;headerHeadingDisplay=20260825-1&amp;documentTheme=20260825-1&amp;fastSafetyTimeout=20260825-1&amp;fastCompleteStreaming=20260825-1&amp;fastLimitsUi=20260825-2&amp;aiDetailsToggle=20260825-1&amp;splitTab=20260825-1"
+    src="./js/app.js?mermaid=20260908-1&amp;v=20260908-note-cover-fold-menu-4&amp;aiJenaReasoning=20260829-low-high-1&amp;storageSafety=20260815-1&amp;localWriteback=20260815-1&amp;localFileRefresh=20260817-1&amp;docxImport=20260817-dark-table-contrast-1&amp;viewModeTextInput=20260815-2&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;indbImages=20260812-3&amp;indbToggle=20260816-1&amp;tidyCustomJs=20260811-1&amp;html2md=20260817-1&amp;inline2ref=20260822-4&amp;saveDropdown=20260822-1&amp;aiJenaAttachments=20260822-2&amp;aiDataCenter=20260823-1&amp;settingsDrag=20260811-1&amp;copyFab=20260810-ai-jena-bottom-1&amp;mobileAiJena=20260817-1&amp;feature=templates-new-file-menu-2&amp;storageVisibility=20260810-1&amp;settingsResetConfirm=1&amp;toolbarNames=20260807-1&amp;templateFullscreen=20260807-1&amp;settingsFold=20260807-1&amp;mermaidDisplay=20260810-3&amp;comment=20260812-html-comment-1&amp;perf=20260810-10&amp;pdfExport=20260812-edit-merge-1&amp;pvExport=20260813-modal-2&amp;pdfMergeTool=20260815-pdfm-project-15&amp;imageSizeHint=20260811-1&amp;textStyle=20260815-supsub-1&amp;localDefault=20260812-1&amp;folderTree=20260812-1&amp;documentMeta=20260812-1&amp;documentDrop=20260812-1&amp;sliderMaker=20260812-1&amp;scholarUpgrades=20260817-2&amp;pvHeaderSettings=20260815-1&amp;mainHeaderBackground=20260815-1&amp;mainHeaderScale=20260815-1&amp;headerFileActions=20260823-1&amp;listQuickMenu=20260823-1&amp;footnoteAnchorMenu=20260823-1&amp;imageInsertMenu=20260825-link-1&amp;verticalEditToolbar=20260823-2&amp;headerHeadingDisplay=20260825-1&amp;documentTheme=20260825-1&amp;fastSafetyTimeout=20260825-1&amp;fastCompleteStreaming=20260825-1&amp;fastLimitsUi=20260825-2&amp;aiDetailsToggle=20260825-1&amp;splitTab=20260825-1"
     charset="utf-8"
     defer>
 </script>
@@ -3487,7 +3506,7 @@
 </script>
 <!-- inDB 초기화·저장·설정 탐색 UI -->
 <script
-    src="./js/inDB/inDB.js?v=20260823-ai-audit-3"
+    src="./js/inDB/inDB.js?mermaid=20260908-1&amp;v=20260823-ai-audit-3"
     charset="utf-8"
     defer>
 </script>
@@ -3515,7 +3534,7 @@
 </script>
 
 <!-- AI Jena 모듈은 기능을 켜거나 패널을 처음 열 때 app.js가 지연 로드한다. -->
-<script src="./AI_App/dataCenter/ai-data-center.js?v=20260830-close-jena-5" charset="utf-8" defer></script>
+<script src="./AI_App/dataCenter/ai-data-center.js?v=20260908-hidden-jena-data-2" charset="utf-8" defer></script>
 
 <!-- GitHub 실제 기능 -->
 <script
@@ -3564,6 +3583,8 @@
     defer
     onload="onGoogleGisLoaded()">
 </script>
+<link rel="stylesheet" href="./css/a4-pages.css?v=1">
+<script src="./js/a4-pages.js?v=1" defer></script>
 </body>
 
 </html>

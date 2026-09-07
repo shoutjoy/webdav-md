@@ -8,7 +8,7 @@
     <script>if (new URLSearchParams(location.search).get('embedded') === '1') document.documentElement.classList.add('embedded-host');</script>
 
     <!-- Project Styles -->
-    <link rel="stylesheet" href="css/styles.css?v=20260829-embedded-header-actions-1">
+    <link rel="stylesheet" href="css/styles.css?v=20260908-restore-settings-theme-1">
     <link rel="stylesheet" href="Auth/auth.css?v=20260804-6">
 
     <!-- JSZip CDN -->
@@ -147,11 +147,15 @@
         <button id="btnOpenBgApp" class="external-app-button bg" type="button"
             style="display:none;" title="BG Remover App 열기"><span class="app-icon">✂</span><span class="app-label">BG App</span></button>
         <button id="btnOpenStoryApp" class="external-app-button story" type="button"
-            style="display:none;" title="공유 Gemini Story 앱을 새 탭에서 열기"><span class="app-icon">S</span><span class="app-label">Story Gemini ↗</span></button>
+            style="display:none;" title="공유 Gemini Story 앱을 새 창에서 열기"><span class="app-icon">S</span><span class="app-label">Story Gemini ↗</span></button>
         <button id="btnOpenAuraGeminiApp" class="external-app-button aura-gemini" type="button"
-            style="display:none;" title="공유 Gemini Aura 앱을 새 탭에서 열기"><span class="app-icon">G</span><span class="app-label">Aura Gemini ↗</span></button>
+            style="display:none;" title="공유 Gemini Aura 앱을 새 창에서 열기"><span class="app-icon">G</span><span class="app-label">Aura Gemini ↗</span></button>
         <button id="btnOpenBackgroundGeminiApp" class="external-app-button background-gemini" type="button"
-            style="display:none;" title="공유 Gemini 배경생성 앱을 새 탭에서 열기"><span class="app-icon">B</span><span class="app-label">배경생성 Gemini ↗</span></button>
+            style="display:none;" title="공유 Gemini 배경생성 앱을 새 창에서 열기"><span class="app-icon">B</span><span class="app-label">배경생성 Gemini ↗</span></button>
+        <button id="btnOpenImageExtendGeminiApp" class="external-app-button background-gemini" type="button"
+            style="display:none;" title="공유 Gemini 이미지확장앱을 새 창에서 열기"><span class="app-icon">E</span><span class="app-label">이미지확장앱 ↗</span></button>
+        <button id="btnOpenInfographicGeminiApp" class="external-app-button background-gemini" type="button"
+            style="display:none;" title="공유 Gemini 인포그래픽앱을 새 창에서 열기"><span class="app-icon">I</span><span class="app-label">인포그래픽앱 ↗</span></button>
     </nav>
 
     <div class="layout">
@@ -323,6 +327,8 @@
                         <input id="aiStudioApiKey" type="password" autocomplete="off"
                             placeholder="AI Studio에서 발급한 API 키 입력">
                         <button id="btnToggleApiKey" type="button">표시</button>
+                        <button id="btnImportMdproApiKey" type="button"
+                            title="MDPro 설정에 저장된 Google AI Studio API 키 가져오기">MDPro에서 가져오기</button>
                         <a class="ai-key-link" href="https://aistudio.google.com/apikey"
                             target="_blank" rel="noopener noreferrer"
                             title="Google AI Studio API 키 발급 페이지 열기">키 발급 ↗</a>
@@ -395,21 +401,35 @@
                     <input id="enableStoryApp" type="checkbox">
                     <span>
                         <strong>Story Gemini 앱 버튼 표시</strong>
-                        <small>공유 Gemini Story 앱을 새 탭에서 엽니다. FMA API 키를 사용하지 않습니다.</small>
+                        <small>공유 Gemini Story 앱을 새 창에서 엽니다. FMA API 키를 사용하지 않습니다.</small>
                     </span>
                 </label>
                 <label class="settings-check">
                     <input id="enableAuraGeminiApp" type="checkbox">
                     <span>
                         <strong>Aura Gemini 앱 버튼 표시</strong>
-                        <small>공유 Gemini Aura 앱을 새 탭에서 엽니다. FMA API 키를 사용하지 않습니다.</small>
+                        <small>공유 Gemini Aura 앱을 새 창에서 엽니다. FMA API 키를 사용하지 않습니다.</small>
                     </span>
                 </label>
                 <label class="settings-check">
                     <input id="enableBackgroundGeminiApp" type="checkbox">
                     <span>
                         <strong>배경생성 Gemini 앱 버튼 표시</strong>
-                        <small>공유 Gemini 배경생성 앱을 새 탭에서 엽니다. FMA API 키를 사용하지 않습니다.</small>
+                        <small>공유 Gemini 배경생성 앱을 새 창에서 엽니다. FMA API 키를 사용하지 않습니다.</small>
+                    </span>
+                </label>
+                <label class="settings-check">
+                    <input id="enableImageExtendGeminiApp" type="checkbox">
+                    <span>
+                        <strong>이미지확장앱 버튼 표시</strong>
+                        <small>공유 Gemini 이미지확장앱을 새 창에서 엽니다. FMA API 키를 사용하지 않습니다.</small>
+                    </span>
+                </label>
+                <label class="settings-check">
+                    <input id="enableInfographicGeminiApp" type="checkbox">
+                    <span>
+                        <strong>인포그래픽앱 버튼 표시</strong>
+                        <small>공유 Gemini 인포그래픽앱을 새 창에서 엽니다. FMA API 키를 사용하지 않습니다.</small>
                     </span>
                 </label>
 
@@ -1993,20 +2013,20 @@
     </div>
 
     <!-- Project Scripts (Modularized) -->
-    <script src="js/core/globals.js?v=20260804-1"></script>
+    <script src="js/core/globals.js?v=20260908-image-app-links-4"></script>
     <script src="js/storage/database.js?v=20260804-2"></script>
     <script src="js/gallery/gallery.js?v=20260804-1"></script>
     <script src="js/image/imageMetadata.js?v=20260802-1"></script>
     <script src="js/gallery/preview.js?v=20260806-document-insert-1"></script>
     <script src="js/video/videoEditor.js?v=20260802-1"></script>
     <script src="js/image/crop.js?v=20260802-1"></script>
-    <script src="js/image/imageUpscale.js?v=20260806-ai-settings-1"></script>
+    <script src="js/image/imageUpscale.js?v=20260908-image-app-links-4"></script>
     <script src="js/ai/aiJena.js?v=20260806-ai-settings-1"></script>
     <script src="js/image/imageEditor.js?v=20260802-1"></script>
     <script src="js/image/backgroundMaskEditor.js?v=20260802-1"></script>
     <script src="js/image/backgroundRemove.js?v=20260806-sqlite-onnx-1"></script>
     <script src="js/files/fileHandlers.js?v=20260806-sqlite-workfiles-1"></script>
-    <script src="js/integrations/externalApps.js?v=20260804-1"></script>
+    <script src="js/integrations/externalApps.js?v=20260908-gemini-window-5"></script>
     <script src="js/core/interaction.js?v=20260802-1"></script>
     <script src="AuthData/deployment-mode.js?v=20260805-1"></script>
     <script src="AuthData/auth-mode.js?v=20260805-1"></script>

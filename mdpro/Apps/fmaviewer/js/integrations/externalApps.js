@@ -36,6 +36,18 @@ const EXTERNAL_IMAGE_APPS = {
         path: "https://gemini.google.com/share/f54d1096b1e0",
         external: true
     },
+    imageExtendGemini: {
+        title: "이미지확장앱",
+        description: "공유 Gemini 이미지확장앱을 별도 창에서 실행합니다.",
+        path: "https://gemini.google.com/share/d1591e765dfd?skid=c20dbc64-20bb-4bcc-a772-24cf6a3ac2ea",
+        external: true
+    },
+    infographicGemini: {
+        title: "인포그래픽앱",
+        description: "공유 Gemini 인포그래픽앱을 별도 창에서 실행합니다.",
+        path: "https://gemini.google.com/share/cf9601ca8bb0?skid=c485f35a-a1b3-421d-a5bd-7841cb209643",
+        external: true
+    },
     bg: {
         title: "BG Remover App",
         description: "현재 누끼 결과 또는 보관소에 저장된 전체 결과를 가져옵니다.",
@@ -66,6 +78,8 @@ function initExternalAppsFeature() {
     dom.btnOpenAuraApp.onclick = () => openExternalImageApp("aura");
     dom.btnOpenAuraGeminiApp.onclick = () => openExternalImageApp("auraGemini");
     dom.btnOpenBackgroundGeminiApp.onclick = () => openExternalImageApp("backgroundGemini");
+    dom.btnOpenImageExtendGeminiApp.onclick = () => openExternalImageApp("imageExtendGemini");
+    dom.btnOpenInfographicGeminiApp.onclick = () => openExternalImageApp("infographicGemini");
     dom.btnOpenBgApp.onclick = () => openExternalImageApp("bg");
     dom.btnCloseExternalApp.onclick = closeExternalImageApp;
     dom.btnReloadExternalApp.onclick = reloadExternalImageApp;
@@ -316,6 +330,8 @@ function refreshExternalAppButtons() {
         aura: typeof isAuraAppEnabled === "function" && isAuraAppEnabled(),
         auraGemini: typeof isAuraGeminiAppEnabled === "function" && isAuraGeminiAppEnabled(),
         backgroundGemini: typeof isBackgroundGeminiAppEnabled === "function" && isBackgroundGeminiAppEnabled(),
+        imageExtendGemini: typeof isImageExtendGeminiAppEnabled === "function" && isImageExtendGeminiAppEnabled(),
+        infographicGemini: typeof isInfographicGeminiAppEnabled === "function" && isInfographicGeminiAppEnabled(),
         bg: typeof isBgRemoverAppEnabled === "function" && isBgRemoverAppEnabled()
     };
     dom.btnOpenStoryApp.style.display = visibility.story ? "inline-flex" : "none";
@@ -323,6 +339,8 @@ function refreshExternalAppButtons() {
     dom.btnOpenAuraApp.style.display = visibility.aura ? "inline-flex" : "none";
     dom.btnOpenAuraGeminiApp.style.display = visibility.auraGemini ? "inline-flex" : "none";
     dom.btnOpenBackgroundGeminiApp.style.display = visibility.backgroundGemini ? "inline-flex" : "none";
+    dom.btnOpenImageExtendGeminiApp.style.display = visibility.imageExtendGemini ? "inline-flex" : "none";
+    dom.btnOpenInfographicGeminiApp.style.display = visibility.infographicGemini ? "inline-flex" : "none";
     dom.btnOpenBgApp.style.display = visibility.bg ? "inline-flex" : "none";
     dom.externalAppButtons.style.display =
         Object.values(visibility).some(Boolean) ? "flex" : "none";
@@ -332,10 +350,10 @@ function openExternalImageApp(key) {
     const app = EXTERNAL_IMAGE_APPS[key];
     if (!app) return;
     if (app.external) {
-        // 일부 브라우저는 정상적으로 연 외부 탭을 사용자가 닫은 뒤에도
+        // 일부 브라우저는 정상적으로 연 외부 창을 사용자가 닫은 뒤에도
         // window.open() 반환값을 null로 보고한다. 이 경우 불필요한 경고창을 띄우지 않는다.
         try {
-            window.open(app.path, "_blank", "noopener,noreferrer");
+            window.open(app.path, "_blank", "popup=yes,width=1200,height=900,resizable=yes,scrollbars=yes,noopener,noreferrer");
         } catch (_) {}
         return;
     }
