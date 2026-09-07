@@ -1710,11 +1710,6 @@ html[data-theme="light"] .media-filter-select option {
     transform: rotate(-12deg);
 }
 
-html.embedded-host .settings-header-button,
-html.embedded-host .theme-header-button {
-    display: none !important;
-}
-
 html[data-theme="light"] {
     color-scheme: light;
 }
@@ -7233,7 +7228,7 @@ body.side-panel-collapsed .layout > .resizer { display:none !important; }
 body.side-panel-collapsed .right { width:100%; }
 
 @media (max-width: 1050px) {
-    header { gap:5px; padding:0 6px; }
+    header { gap:5px; padding:0 104px 0 6px; }
     header > button,
     header > .header-dropdown > .header-dropdown-toggle,
     .header-layout-controls > button,
@@ -7248,8 +7243,6 @@ body.side-panel-collapsed .right { width:100%; }
     #btnToggleSidePanel::before { content:"☷"; }
     body:not(.side-panel-collapsed) #btnToggleSidePanel::before { content:"◧"; }
     #btnSaveDbMenu::before { content:"▣"; }
-    #btnThemeToggle::before { content:"☀"; }
-    html[data-theme="light"] #btnThemeToggle::before { content:"☾"; }
     #btnToggleFavs::before { content:"★"; }
     #btnGridCycle::before { content:"▦"; }
     #btnViewModeCycle::before { content:"◫"; }

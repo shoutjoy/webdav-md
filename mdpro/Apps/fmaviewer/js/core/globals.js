@@ -136,6 +136,7 @@ var dom = {
     btnSettingsSave: document.getElementById("btnSettingsSave"),
     btnClearApiKey: document.getElementById("btnClearApiKey"),
     btnToggleApiKey: document.getElementById("btnToggleApiKey"),
+    btnImportMdproApiKey: document.getElementById("btnImportMdproApiKey"),
     aiStudioApiKey: document.getElementById("aiStudioApiKey"),
     btnApplySharedApiKey: document.getElementById("btnApplySharedApiKey"),
     btnToggleAiKeyUsage: document.getElementById("btnToggleAiKeyUsage"),
@@ -147,6 +148,8 @@ var dom = {
     enableAuraApp: document.getElementById("enableAuraApp"),
     enableAuraGeminiApp: document.getElementById("enableAuraGeminiApp"),
     enableBackgroundGeminiApp: document.getElementById("enableBackgroundGeminiApp"),
+    enableImageExtendGeminiApp: document.getElementById("enableImageExtendGeminiApp"),
+    enableInfographicGeminiApp: document.getElementById("enableInfographicGeminiApp"),
     enableBgRemoverApp: document.getElementById("enableBgRemoverApp"),
     aiUpscaleResolution: document.getElementById("aiUpscaleResolution"),
     upscaleModal: document.getElementById("upscaleModal"),
@@ -532,6 +535,8 @@ var dom = {
     btnOpenAuraApp: document.getElementById("btnOpenAuraApp"),
     btnOpenAuraGeminiApp: document.getElementById("btnOpenAuraGeminiApp"),
     btnOpenBackgroundGeminiApp: document.getElementById("btnOpenBackgroundGeminiApp"),
+    btnOpenImageExtendGeminiApp: document.getElementById("btnOpenImageExtendGeminiApp"),
+    btnOpenInfographicGeminiApp: document.getElementById("btnOpenInfographicGeminiApp"),
     btnOpenBgApp: document.getElementById("btnOpenBgApp"),
     externalAppModal: document.getElementById("externalAppModal"),
     externalAppDialog: document.getElementById("externalAppDialog"),
@@ -612,4 +617,3 @@ function finishBackgroundImportProgress(title, options = {}) {
         dom.backgroundImportProgress.hidden = true;
     }, isError ? 4200 : 1800);
 }
-

@@ -166,17 +166,17 @@
                 },
                 {
                     id: 'subtitle', type: 'text', x: 15, y: 47, w: 70, h: 7,
-                    text: '문서 부제', fontSize: 24, fontFamily: 'Arial', color: '#475569',
+                    text: input.subtitle == null ? '문서 부제' : String(input.subtitle), fontSize: 24, fontFamily: 'Arial', color: '#475569',
                     fontWeight: 400, textAlign: 'center'
                 },
                 {
                     id: 'author', type: 'text', x: 20, y: 72, w: 60, h: 6,
-                    text: '작성자', fontSize: 18, fontFamily: 'Arial', color: '#334155',
+                    text: input.author == null ? '작성자' : String(input.author), fontSize: 18, fontFamily: 'Arial', color: '#334155',
                     fontWeight: 400, textAlign: 'center'
                 },
                 {
                     id: 'date', type: 'text', x: 20, y: 80, w: 60, h: 5,
-                    text: '작성일', fontSize: 16, fontFamily: 'Arial', color: '#64748b',
+                    text: input.date == null ? '작성일' : String(input.date), fontSize: 16, fontFamily: 'Arial', color: '#64748b',
                     fontWeight: 400, textAlign: 'center'
                 }
             ]
@@ -225,6 +225,22 @@
             config: config,
             selectionStart: titleStart,
             selectionEnd: titleStart + escapedTitle.length
+        };
+    }
+
+    function removeCover(markdown) {
+        var source = String(markdown == null ? '' : markdown);
+        var existing = findFirstCoverBlock(source);
+        if (!existing) return { markdown: source, changed: false };
+        var end = existing.end;
+        // Remove only the separator added during insertion; preserve the body.
+        if (source.slice(end, end + 2) === '\r\n') end += 2;
+        else if (source.charAt(end) === '\n') end += 1;
+        return {
+            markdown: source.slice(0, existing.start) + source.slice(end),
+            changed: true,
+            selectionStart: existing.start,
+            selectionEnd: existing.start
         };
     }
 
@@ -287,6 +303,7 @@
     }
 
     function renderTextElement(element, layerIndex, screenWidth) {
+        var fieldLabel = ({ title: '제목', subtitle: '부제', author: '작성자', date: '작성일' })[element.id] || '텍스트';
         var fontSize = finiteNumber(element.fontSize, 16, 4, 600);
         var fontCqw = fontSize / screenWidth * 100;
         var family = safeFontFamily(element.fontFamily);
@@ -305,7 +322,8 @@
             + ' data-note-cover-font-weight="' + escapeHtml(safeFontWeight(element.fontWeight)) + '"'
             + ' data-note-cover-font-style="' + escapeHtml(safeFontStyle(element.fontStyle)) + '"'
             + ' data-note-cover-text-editable="1" contenteditable="plaintext-only" '
-            + 'role="textbox" tabindex="0" spellcheck="true" title="클릭하여 표지 텍스트 편집" '
+            + 'role="textbox" tabindex="0" spellcheck="true" aria-label="' + escapeHtml(fieldLabel) + '" '
+            + 'data-note-cover-field-label="' + escapeHtml(fieldLabel) + ' · 클릭하여 입력" title="클릭하여 표지 텍스트 편집" '
             + 'style="' + escapeHtml(style) + '">'
             + escapeHtml(element.text || '') + '</div>';
     }
@@ -1438,6 +1456,7 @@
         serializeConfig: serializeConfig,
         findFirstCoverBlock: findFirstCoverBlock,
         insertDefaultCover: insertDefaultCover,
+        removeCover: removeCover,
         collectLayerElements: collectLayerElements,
         renderHtml: renderHtml,
         replaceInMarkdown: replaceInMarkdown,

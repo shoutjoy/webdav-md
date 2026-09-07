@@ -16,15 +16,20 @@ const MINI_PREVIEW_HTML = ''
     + '<button type="button" id="btn-mini-preview-close" data-compact-label="×" onclick="toggleMiniPreview()" class="text-[11px] px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">닫기</button>'
     + '</div></div>'
     + '<div id="mini-preview-content" class="markdown-body mini-preview-content h-[calc(100%-34px)] overflow-auto p-3 text-[13px] leading-6 bg-white dark:bg-slate-900"></div>'
-    + '<div id="mini-preview-resize-handle-left" title="왼쪽에서 너비 조절" class="absolute left-0 top-1/2 -translate-y-1/2 w-2 h-12 cursor-ew-resize bg-indigo-500/70 rounded-r z-10 touch-none"></div>'
-    + '<div id="mini-preview-resize-handle" class="absolute right-0 bottom-0 w-3 h-3 cursor-se-resize bg-indigo-500/70 rounded-tl"></div>'
+    + '<div class="mini-preview-resize-handle mini-preview-resize-n" data-resize-direction="n" title="위쪽에서 높이 조절"></div>'
+    + '<div class="mini-preview-resize-handle mini-preview-resize-e" data-resize-direction="e" title="오른쪽에서 너비 조절"></div>'
+    + '<div class="mini-preview-resize-handle mini-preview-resize-s" data-resize-direction="s" title="아래쪽에서 높이 조절"></div>'
+    + '<div class="mini-preview-resize-handle mini-preview-resize-w" data-resize-direction="w" title="왼쪽에서 너비 조절"></div>'
+    + '<div class="mini-preview-resize-handle mini-preview-resize-ne" data-resize-direction="ne" title="오른쪽 위에서 크기 조절"></div>'
+    + '<div class="mini-preview-resize-handle mini-preview-resize-se" data-resize-direction="se" title="오른쪽 아래에서 크기 조절"></div>'
+    + '<div class="mini-preview-resize-handle mini-preview-resize-sw" data-resize-direction="sw" title="왼쪽 아래에서 크기 조절"></div>'
+    + '<div class="mini-preview-resize-handle mini-preview-resize-nw" data-resize-direction="nw" title="왼쪽 위에서 크기 조절"></div>'
     + '</div>';
 
 let miniPreviewPanel = null;
 let miniPreviewContent = null;
 let miniPreviewHeader = null;
-let miniPreviewResizeHandle = null;
-let miniPreviewResizeHandleLeft = null;
+let miniPreviewResizeHandles = [];
 let miniPreviewEnabled = false;
 let miniPreviewDragBound = false;
 let miniPreviewDragging = false;
@@ -41,10 +46,14 @@ let miniPreviewStartY = 0;
 let miniPreviewStartW = 0;
 let miniPreviewStartH = 0;
 let miniPreviewStartLeft = 0;
+let miniPreviewStartTop = 0;
 let miniPreviewResizeMode = '';
 let miniPreviewLayoutBeforeFullscreen = null;
 let miniPreviewRenderToken = 0;
 let miniPreviewActivePointerId = null;
+let miniPreviewPendingLineSync = null;
+let miniPreviewLineSyncToken = 0;
+let miniPreviewLineSyncUntil = 0;
 
 window.MiniPreviewUI = window.MiniPreviewUI || {};
 window.MiniPreviewUI.ready = loadMiniPreviewHtml();
@@ -53,8 +62,7 @@ function bindMiniPreviewElements() {
     miniPreviewPanel = document.getElementById('mini-preview-panel');
     miniPreviewContent = document.getElementById('mini-preview-content');
     miniPreviewHeader = document.getElementById('mini-preview-header');
-    miniPreviewResizeHandle = document.getElementById('mini-preview-resize-handle');
-    miniPreviewResizeHandleLeft = document.getElementById('mini-preview-resize-handle-left');
+    miniPreviewResizeHandles = Array.from(document.querySelectorAll('#mini-preview-panel .mini-preview-resize-handle'));
     if (miniPreviewHeader) {
         miniPreviewHeader.style.touchAction = 'none';
         miniPreviewHeader.style.userSelect = 'none';
@@ -78,7 +86,7 @@ function ensureMiniPreviewHtml() {
 }
 
 function loadMiniPreviewHtml() {
-    return fetch('./js/UI_PV/minipv.html?v=20260815-responsive-1', { cache: 'no-cache' })
+    return fetch('./js/UI_PV/minipv.html?v=20260908-eight-way-resize-1', { cache: 'no-cache' })
         .then(function (res) {
             if (!res.ok) throw new Error('Failed to load miniPV HTML.');
             return res.text();
@@ -229,6 +237,29 @@ function applyMiniPreviewZoom() {
     scheduleMiniPreviewScrollSync(0);
 }
 
+function getMiniPreviewSyncContext() {
+    if (typeof currentMarkdown !== 'undefined') {
+        return {
+            markdown: String(isEditMode && editorTextarea ? editorTextarea.value : currentMarkdown ?? ''),
+            editor: editorTextarea,
+            viewer: null,
+            isEditMode: !!isEditMode
+        };
+    }
+    return null;
+}
+
+function applyMiniPreviewLineSync() {
+    const activeTocLine = getActiveTocSyncLine();
+    if (activeTocLine !== null) miniPreviewPendingLineSync = activeTocLine;
+    if (!Number.isFinite(miniPreviewPendingLineSync) && miniPreviewPendingLineSync !== 0) return;
+    if (activeTocLine === null && Date.now() > miniPreviewLineSyncUntil) {
+        miniPreviewPendingLineSync = null;
+        return;
+    }
+    syncMiniPreviewToLine(miniPreviewPendingLineSync, getMiniPreviewSyncContext(), { keepPending: true });
+}
+
 function miniPreviewAdjustZoom(delta) {
     miniPreviewZoom = (Number(miniPreviewZoom) || 1) + Number(delta || 0);
     applyMiniPreviewZoom();
@@ -277,14 +308,140 @@ function updateMiniPreviewSyncUi() {
     btn.classList.toggle('dark:text-slate-300', !on);
 }
 
+function clamp01(value) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return 0;
+    return Math.max(0, Math.min(1, num));
+}
+
+function getMiniPreviewLineCount(markdownText) {
+    return String(markdownText || '').split('\n').length;
+}
+
+function getMiniPreviewScrollRoot() {
+    if (!miniPreviewContent) return null;
+    const frame = miniPreviewContent.querySelector('iframe');
+    if (frame && frame.contentDocument) {
+        const doc = frame.contentDocument;
+        return doc.scrollingElement || doc.documentElement || doc.body;
+    }
+    return miniPreviewContent;
+}
+
+function getMiniPreviewHeaderNodes() {
+    if (!miniPreviewContent) return [];
+    const frame = miniPreviewContent.querySelector('iframe');
+    if (frame && frame.contentDocument && typeof frame.contentDocument.querySelectorAll === 'function') {
+        try {
+            return Array.from(frame.contentDocument.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+        } catch (_) { return []; }
+    }
+    return Array.from(miniPreviewContent.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+}
+
+function findMiniPreviewHeaderNode(targetIdx, tocItems, headers) {
+    const targetItem = targetIdx >= 0 && targetIdx < tocItems.length ? tocItems[targetIdx] : null;
+    if (!targetItem) return null;
+
+    const targetText = String(targetItem.text || '').trim();
+    const sameNameIndex = tocItems.slice(0, targetIdx + 1).filter(function (item) {
+        return item.level === targetItem.level && String(item.text || '').trim() === targetText;
+    }).length - 1;
+    const matched = headers.filter(function (header) {
+        const level = Number(String(header.tagName || '').replace(/^H/i, ''));
+        return level === targetItem.level && String(header.textContent || '').trim() === targetText;
+    });
+    return matched[sameNameIndex] || headers[targetIdx] || null;
+}
+
+function setMiniPreviewScrollRootTop(scrollTop, behavior) {
+    const root = getMiniPreviewScrollRoot();
+    if (!root) return;
+    const top = Math.max(0, Math.round(Number(scrollTop) || 0));
+    if (typeof root.scrollTo === 'function') {
+        root.scrollTo({ top: top, behavior: behavior === 'smooth' ? 'smooth' : 'auto' });
+    } else {
+        root.scrollTop = top;
+    }
+}
+
+function getActiveTocSyncLine() {
+    const syncApi = window.MDProTocSync;
+    if (!syncApi || typeof syncApi.getActiveLine !== 'function') return null;
+    const lineIndex = syncApi.getActiveLine();
+    return Number.isFinite(lineIndex) ? Math.max(0, Math.floor(lineIndex)) : null;
+}
+
+function scrollMiniPreviewHeaderToReadingOffset(header, behavior) {
+    const root = getMiniPreviewScrollRoot();
+    if (!root || !header || typeof header.getBoundingClientRect !== 'function') return false;
+    const headerRect = header.getBoundingClientRect();
+    const isMainContentRoot = root === miniPreviewContent;
+    const rootTop = isMainContentRoot && typeof root.getBoundingClientRect === 'function'
+        ? root.getBoundingClientRect().top
+        : 0;
+    const headerTop = root.scrollTop + headerRect.top - rootTop;
+    const styleSource = isMainContentRoot ? miniPreviewContent : (header.ownerDocument && header.ownerDocument.body);
+    const styleWindow = styleSource && styleSource.ownerDocument ? styleSource.ownerDocument.defaultView : window;
+    const lineHeight = styleSource && styleWindow ? parseFloat(styleWindow.getComputedStyle(styleSource).lineHeight) : 0;
+    const readingOffset = (Number.isFinite(lineHeight) && lineHeight > 0 ? lineHeight : 24) * 6.5;
+    setMiniPreviewScrollRootTop(headerTop - readingOffset, behavior);
+    return true;
+}
+
+function syncMiniPreviewToLine(lineIndex, ctx, options) {
+    const opts = options || {};
+    if (miniPreviewViewMode !== 'preview') return;
+    if (!miniPreviewEnabled || !isEditMode) return;
+    if (!miniPreviewContent || !miniPreviewPanel || miniPreviewPanel.classList.contains('hidden')) return;
+
+    const requestToken = ++miniPreviewLineSyncToken;
+    const markdownText = ctx && typeof ctx.markdown === 'string' ? ctx.markdown : String(currentMarkdown ?? '');
+    const safeLineIndex = Math.max(0, Math.min(Number(lineIndex) || 0, Math.max(0, getMiniPreviewLineCount(markdownText) - 1)));
+    if (!opts.keepPending) {
+        miniPreviewPendingLineSync = safeLineIndex;
+        miniPreviewLineSyncUntil = Date.now() + 1200;
+    }
+    const headers = getMiniPreviewHeaderNodes();
+    const tocItems = window.SidebarLeft && typeof window.SidebarLeft.parseTocItemsFromMarkdown === 'function'
+        ? window.SidebarLeft.parseTocItemsFromMarkdown(markdownText)
+        : [];
+    const targetIdx = tocItems.findIndex(function (item) { return Number(item.lineIndex) === safeLineIndex; });
+    const matchedHeader = findMiniPreviewHeaderNode(targetIdx, tocItems, headers);
+    const scrollBehavior = ctx && ctx.behavior === 'smooth' ? 'smooth' : 'auto';
+    if (matchedHeader && scrollMiniPreviewHeaderToReadingOffset(matchedHeader, scrollBehavior)) {
+        if (requestToken !== miniPreviewLineSyncToken) return;
+        return;
+    }
+
+    const lineCount = Math.max(1, getMiniPreviewLineCount(markdownText) - 1);
+    const ratio = clamp01(safeLineIndex / lineCount);
+    const root = getMiniPreviewScrollRoot();
+    if (!root) return;
+    if (requestToken !== miniPreviewLineSyncToken) return;
+    const maxScroll = Math.max(0, root.scrollHeight - root.clientHeight);
+    setMiniPreviewScrollRootTop(maxScroll * ratio);
+}
+
 function syncMiniPreviewScrollToEditor() {
     if (miniPreviewViewMode !== 'preview') return;
     if (!miniPreviewEditorSyncEnabled || !miniPreviewEnabled || !isEditMode) return;
-    if (!editorTextarea || !miniPreviewContent || !miniPreviewPanel || miniPreviewPanel.classList.contains('hidden')) return;
+    const activeTocLine = getActiveTocSyncLine();
+    if (activeTocLine !== null) {
+        miniPreviewPendingLineSync = activeTocLine;
+        applyMiniPreviewLineSync();
+        return;
+    }
+    if (!editorTextarea) return;
+    if (!miniPreviewContent || !miniPreviewPanel || miniPreviewPanel.classList.contains('hidden')) return;
+
+    const miniRoot = getMiniPreviewScrollRoot();
+    if (!miniRoot) return;
+
     const editorMax = Math.max(0, editorTextarea.scrollHeight - editorTextarea.clientHeight);
-    const miniMax = Math.max(0, miniPreviewContent.scrollHeight - miniPreviewContent.clientHeight);
+    const miniMax = Math.max(0, miniRoot.scrollHeight - miniRoot.clientHeight);
     const ratio = editorMax > 0 ? editorTextarea.scrollTop / editorMax : 0;
-    miniPreviewContent.scrollTop = Math.round(miniMax * Math.max(0, Math.min(1, ratio)));
+    setMiniPreviewScrollRootTop(miniMax * clamp01(ratio));
 }
 
 function scheduleMiniPreviewScrollSync(delayMs) {
@@ -315,10 +472,15 @@ function toggleMiniPreviewEditorSync(force) {
 function syncEditorScrollToMiniPreview() {
     if (miniPreviewViewMode !== 'preview') return;
     if (!miniPreviewEnabled || !isEditMode) return;
-    if (!editorTextarea || !miniPreviewContent || !miniPreviewPanel || miniPreviewPanel.classList.contains('hidden')) return;
-    const miniMax = Math.max(0, miniPreviewContent.scrollHeight - miniPreviewContent.clientHeight);
+    if (!editorTextarea) return;
+    if (!miniPreviewContent || !miniPreviewPanel || miniPreviewPanel.classList.contains('hidden')) return;
+
+    const miniRoot = getMiniPreviewScrollRoot();
+    if (!miniRoot) return;
+
+    const miniMax = Math.max(0, miniRoot.scrollHeight - miniRoot.clientHeight);
     const editorMax = Math.max(0, editorTextarea.scrollHeight - editorTextarea.clientHeight);
-    const ratio = miniMax > 0 ? miniPreviewContent.scrollTop / miniMax : 0;
+    const ratio = miniMax > 0 ? miniRoot.scrollTop / miniMax : 0;
     editorTextarea.scrollTop = Math.round(editorMax * Math.max(0, Math.min(1, ratio)));
 }
 
@@ -328,8 +490,9 @@ function updateMiniPreviewFullscreenUi() {
     const closeBtn = document.getElementById('btn-mini-preview-close');
     if (btn) btn.textContent = miniPreviewFullscreen ? '축소' : '전체';
     if (closeBtn) closeBtn.textContent = '닫기';
-    if (miniPreviewResizeHandle) miniPreviewResizeHandle.style.display = miniPreviewFullscreen ? 'none' : '';
-    if (miniPreviewResizeHandleLeft) miniPreviewResizeHandleLeft.style.display = miniPreviewFullscreen ? 'none' : '';
+    miniPreviewResizeHandles.forEach(function (handle) {
+        handle.style.display = miniPreviewFullscreen ? 'none' : '';
+    });
     if (miniPreviewHeader) miniPreviewHeader.classList.toggle('cursor-move', !miniPreviewFullscreen);
 }
 
@@ -487,11 +650,15 @@ function renderMiniPreviewContent() {
         try {
             if (snapshot.features.hasMermaid && window.MermaidTRT && typeof window.MermaidTRT.renderIn === 'function') {
                 window.MermaidTRT.renderIn(miniPreviewContent)
-                    .then(function () { scheduleMiniPreviewScrollSync(0); })
+                    .then(function () {
+                        scheduleMiniPreviewScrollSync(0);
+                        applyMiniPreviewLineSync();
+                    })
                     .catch(function () {});
             }
         } catch (_) {}
         scheduleMiniPreviewScrollSync(0);
+        applyMiniPreviewLineSync();
         return true;
     }
 
@@ -507,6 +674,7 @@ function renderMiniPreviewContent() {
                     delay: 80
                 });
                 scheduleMiniPreviewScrollSync(0);
+                applyMiniPreviewLineSync();
             }
         } catch (_) {}
     }).catch(function () {
@@ -514,6 +682,7 @@ function renderMiniPreviewContent() {
         if (typeof setHtmlDocumentMode === 'function') setHtmlDocumentMode(miniPreviewContent, false);
         miniPreviewContent.innerHTML = '<p>' + renderRaw.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>') + '</p>';
         scheduleMiniPreviewScrollSync(0);
+        applyMiniPreviewLineSync();
     });
 }
 
@@ -538,8 +707,8 @@ function bindMiniPreviewInteractions() {
         });
     }
 
-    if (miniPreviewResizeHandle) {
-        miniPreviewResizeHandle.addEventListener('pointerdown', function (e) {
+    miniPreviewResizeHandles.forEach(function (handle) {
+        handle.addEventListener('pointerdown', function (e) {
             if (miniPreviewFullscreen) return;
             const layout = clampMiniPreviewLayout(getMiniPreviewLayoutFromLocal() || {});
             miniPreviewActivePointerId = e.pointerId;
@@ -549,29 +718,13 @@ function bindMiniPreviewInteractions() {
             miniPreviewStartW = layout.width;
             miniPreviewStartH = layout.height;
             miniPreviewStartLeft = layout.left;
-            miniPreviewResizeMode = 'corner';
-            try { miniPreviewResizeHandle.setPointerCapture(e.pointerId); } catch (_) {}
+            miniPreviewStartTop = layout.top;
+            miniPreviewResizeMode = String(handle.dataset.resizeDirection || 'se');
+            try { handle.setPointerCapture(e.pointerId); } catch (_) {}
             e.preventDefault();
             e.stopPropagation();
         });
-    }
-
-    if (miniPreviewResizeHandleLeft) {
-        miniPreviewResizeHandleLeft.addEventListener('pointerdown', function (e) {
-            if (miniPreviewFullscreen) return;
-            const layout = clampMiniPreviewLayout(getMiniPreviewLayoutFromLocal() || {});
-            miniPreviewActivePointerId = e.pointerId;
-            miniPreviewResizing = true;
-            miniPreviewStartX = e.clientX;
-            miniPreviewStartW = layout.width;
-            miniPreviewStartH = layout.height;
-            miniPreviewStartLeft = layout.left;
-            miniPreviewResizeMode = 'left';
-            try { miniPreviewResizeHandleLeft.setPointerCapture(e.pointerId); } catch (_) {}
-            e.preventDefault();
-            e.stopPropagation();
-        });
-    }
+    });
 
     if (editorTextarea) {
         editorTextarea.addEventListener('scroll', function () {
@@ -597,26 +750,38 @@ function bindMiniPreviewInteractions() {
         const hostRect = getMiniPreviewContainerRect();
         if (!hostRect) return;
         if (miniPreviewResizing) {
-            const cur = clampMiniPreviewLayout(getMiniPreviewLayoutFromLocal() || {});
-            if (miniPreviewResizeMode === 'left') {
-                const rightEdge = miniPreviewStartLeft + miniPreviewStartW;
-                const maxWidth = Math.max(240, rightEdge - 8);
-                const width = Math.max(240, Math.min(miniPreviewStartW - (e.clientX - miniPreviewStartX), maxWidth));
-                const next = clampMiniPreviewLayout({
-                    left: rightEdge - width,
-                    top: cur.top,
-                    width: width,
-                    height: cur.height
-                });
-                applyMiniPreviewLayout(next);
-                e.preventDefault();
-                return;
+            const dx = e.clientX - miniPreviewStartX;
+            const dy = e.clientY - miniPreviewStartY;
+            const mode = miniPreviewResizeMode;
+            const rightEdge = miniPreviewStartLeft + miniPreviewStartW;
+            const bottomEdge = miniPreviewStartTop + miniPreviewStartH;
+            let left = miniPreviewStartLeft;
+            let top = miniPreviewStartTop;
+            let width = miniPreviewStartW;
+            let height = miniPreviewStartH;
+            if (mode.includes('e')) width = miniPreviewStartW + dx;
+            if (mode.includes('s')) height = miniPreviewStartH + dy;
+            if (mode.includes('w')) {
+                left = miniPreviewStartLeft + dx;
+                width = miniPreviewStartW - dx;
+                if (width < 240) {
+                    width = 240;
+                    left = rightEdge - width;
+                }
+            }
+            if (mode.includes('n')) {
+                top = miniPreviewStartTop + dy;
+                height = miniPreviewStartH - dy;
+                if (height < 180) {
+                    height = 180;
+                    top = bottomEdge - height;
+                }
             }
             const next = clampMiniPreviewLayout({
-                left: cur.left,
-                top: cur.top,
-                width: miniPreviewStartW + (e.clientX - miniPreviewStartX),
-                height: miniPreviewStartH + (e.clientY - miniPreviewStartY)
+                left: left,
+                top: top,
+                width: width,
+                height: height
             });
             applyMiniPreviewLayout(next);
             e.preventDefault();
@@ -628,12 +793,9 @@ function bindMiniPreviewInteractions() {
         if (miniPreviewHeader && e && miniPreviewDragging) {
             try { miniPreviewHeader.releasePointerCapture(e.pointerId); } catch (_) {}
         }
-        if (miniPreviewResizeHandle && e && miniPreviewResizing) {
-            try { miniPreviewResizeHandle.releasePointerCapture(e.pointerId); } catch (_) {}
-        }
-        if (miniPreviewResizeHandleLeft && e && miniPreviewResizing) {
-            try { miniPreviewResizeHandleLeft.releasePointerCapture(e.pointerId); } catch (_) {}
-        }
+        if (e && miniPreviewResizing) miniPreviewResizeHandles.forEach(function (handle) {
+            try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
+        });
         miniPreviewDragging = false;
         miniPreviewResizing = false;
         miniPreviewResizeMode = '';
@@ -680,14 +842,15 @@ function applyMiniPreviewVisibility() {
     }
     const show = !!(miniPreviewEnabled && isEditMode);
     miniPreviewPanel.classList.toggle('hidden', !show);
-    if (show) {
-        bindMiniPreviewInteractions();
-        applyMiniPreviewLayout(miniPreviewLayoutBeforeFullscreen || getMiniPreviewLayoutFromLocal() || {});
-        updateMiniPreviewFullscreenUi();
-        updateMiniPreviewSyncUi();
-        applyMiniPreviewZoom();
-        renderMiniPreviewContent();
-    } else {
+        if (show) {
+            bindMiniPreviewInteractions();
+            applyMiniPreviewLayout(miniPreviewLayoutBeforeFullscreen || getMiniPreviewLayoutFromLocal() || {});
+            updateMiniPreviewFullscreenUi();
+            updateMiniPreviewSyncUi();
+            applyMiniPreviewZoom();
+            renderMiniPreviewContent();
+            applyMiniPreviewLineSync();
+        } else {
         updateMiniPreviewFullscreenUi();
         updateMiniPreviewSyncUi();
         applyMiniPreviewZoom();
@@ -703,6 +866,7 @@ function toggleMiniPreview() {
     if (miniPreviewEnabled) {
         mainRenderDirty = true;
         renderMiniPreviewContent();
+        applyMiniPreviewLineSync();
     }
 }
 
@@ -713,3 +877,4 @@ window.toggleMiniPreviewViewMode = toggleMiniPreviewViewMode;
 window.toggleMiniPreviewEditorSync = toggleMiniPreviewEditorSync;
 window.syncEditorScrollToMiniPreview = syncEditorScrollToMiniPreview;
 window.MiniPreviewUI.ensure = ensureMiniPreviewHtml;
+window.MiniPreviewUI.scrollToLine = syncMiniPreviewToLine;

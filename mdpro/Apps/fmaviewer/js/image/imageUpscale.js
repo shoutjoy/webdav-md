@@ -16,6 +16,8 @@ const STORY_HTML_APP_ENABLED_STORAGE = "fma_story_html_app_enabled";
 const AURA_APP_ENABLED_STORAGE = "fma_aura_app_enabled";
 const AURA_GEMINI_APP_ENABLED_STORAGE = "fma_aura_gemini_app_enabled";
 const BACKGROUND_GEMINI_APP_ENABLED_STORAGE = "fma_background_gemini_app_enabled";
+const IMAGE_EXTEND_GEMINI_APP_ENABLED_STORAGE = "fma_image_extend_gemini_app_enabled";
+const INFOGRAPHIC_GEMINI_APP_ENABLED_STORAGE = "fma_infographic_gemini_app_enabled";
 const BG_REMOVER_APP_ENABLED_STORAGE = "fma_bg_remover_app_enabled";
 const DEFAULT_AI_UPSCALE_PROMPT =
     "Upscale this exact image to a higher resolution. Preserve the original composition, identity, " +
@@ -105,6 +107,29 @@ function applySharpen(canvas, amount = 1.0) {
     return canvas;
 }
 
+function initExternalAppVisibilitySettings() {
+    const settings = [
+        [dom.enableStoryApp, STORY_APP_ENABLED_STORAGE],
+        [dom.enableStoryHtmlApp, STORY_HTML_APP_ENABLED_STORAGE],
+        [dom.enableAuraApp, AURA_APP_ENABLED_STORAGE],
+        [dom.enableAuraGeminiApp, AURA_GEMINI_APP_ENABLED_STORAGE],
+        [dom.enableBackgroundGeminiApp, BACKGROUND_GEMINI_APP_ENABLED_STORAGE],
+        [dom.enableImageExtendGeminiApp, IMAGE_EXTEND_GEMINI_APP_ENABLED_STORAGE],
+        [dom.enableInfographicGeminiApp, INFOGRAPHIC_GEMINI_APP_ENABLED_STORAGE],
+        [dom.enableBgRemoverApp, BG_REMOVER_APP_ENABLED_STORAGE]
+    ];
+    settings.forEach(([checkbox, storageKey]) => {
+        if (!checkbox) return;
+        checkbox.onchange = () => {
+            writeUpscaleSetting(storageKey, String(checkbox.checked));
+            if (typeof refreshExternalAppButtons === "function") refreshExternalAppButtons();
+            if (typeof keepExternalAppDockInViewport === "function") {
+                requestAnimationFrame(keepExternalAppDockInViewport);
+            }
+        };
+    });
+}
+
 function initUpscaleFeature() {
     if (!dom.upscaleModal || !dom.settingsModal) return;
 
@@ -112,8 +137,10 @@ function initUpscaleFeature() {
     dom.btnSettingsClose.onclick = closeUpscaleSettings;
     dom.btnSettingsCancel.onclick = closeUpscaleSettings;
     dom.btnSettingsSave.onclick = saveUpscaleSettings;
+    initExternalAppVisibilitySettings();
     dom.btnClearApiKey.onclick = clearUpscaleApiKey;
     dom.btnToggleApiKey.onclick = toggleApiKeyVisibility;
+    dom.btnImportMdproApiKey.onclick = importMdproAiStudioApiKey;
     dom.btnApplySharedApiKey.onclick = applySharedAiApiKey;
     dom.btnToggleAiKeyUsage.onclick = toggleAiKeyUsage;
     dom.btnResetAiUpscalePrompt.onclick = resetAiUpscalePrompt;
@@ -258,6 +285,12 @@ function isAuraGeminiAppEnabled() {
 function isBackgroundGeminiAppEnabled() {
     return readUpscaleSetting(BACKGROUND_GEMINI_APP_ENABLED_STORAGE, "false") === "true";
 }
+function isImageExtendGeminiAppEnabled() {
+    return readUpscaleSetting(IMAGE_EXTEND_GEMINI_APP_ENABLED_STORAGE, "false") === "true";
+}
+function isInfographicGeminiAppEnabled() {
+    return readUpscaleSetting(INFOGRAPHIC_GEMINI_APP_ENABLED_STORAGE, "false") === "true";
+}
 
 function isBgRemoverAppEnabled() {
     return readUpscaleSetting(BG_REMOVER_APP_ENABLED_STORAGE, "true") === "true";
@@ -287,6 +320,8 @@ function openUpscaleSettings() {
     dom.enableAuraApp.checked = isAuraAppEnabled();
     dom.enableAuraGeminiApp.checked = isAuraGeminiAppEnabled();
     dom.enableBackgroundGeminiApp.checked = isBackgroundGeminiAppEnabled();
+    dom.enableImageExtendGeminiApp.checked = isImageExtendGeminiAppEnabled();
+    dom.enableInfographicGeminiApp.checked = isInfographicGeminiAppEnabled();
     dom.enableBgRemoverApp.checked = isBgRemoverAppEnabled();
     dom.aiUpscaleResolution.value = getAiUpscaleResolution();
     dom.aiStudioApiKey.type = "password";
@@ -341,6 +376,58 @@ function setSharedApiKeyStatus(message, type = "") {
     dom.sharedApiKeyStatus.classList.toggle("error", type === "error");
 }
 
+function getMdproSettingsHost() {
+    const candidates = [window];
+    try { if (window.parent !== window) candidates.push(window.parent); } catch {}
+    try { if (window.opener) candidates.push(window.opener); } catch {}
+    for (const candidate of candidates) {
+        try {
+            // The WebDAV shell hosts MDPro and FMA in sibling frames.
+            const editor = candidate.document.querySelector('iframe.mdpro-frame');
+            if (editor && editor.contentWindow
+                && typeof editor.contentWindow.getProtectedAiCredential === "function") {
+                return editor.contentWindow;
+            }
+            if (candidate.MDPCredentialVault
+                || typeof candidate.getProtectedAiCredential === "function") return candidate;
+        } catch {
+            // A cross-origin opener cannot provide settings; try the next host.
+        }
+    }
+    return window;
+}
+
+function importMdproAiStudioApiKey() {
+    try {
+        const host = getMdproSettingsHost();
+        const vault = host.MDPCredentialVault;
+        let key = "";
+        if (vault && typeof vault.getSecret === "function") {
+            key = String(vault.getSecret("gemini") || "").trim();
+            const status = vault.getStatus();
+            if (!key && status && status.locked && Array.isArray(status.entries)
+                && status.entries.some(item => item.id === "gemini" && item.configured)) {
+                setSharedApiKeyStatus("MDPro 설정에서 암호화 보관함의 잠금을 해제한 뒤 다시 가져오세요.", "error");
+                return;
+            }
+        }
+        if (!key && typeof host.getProtectedAiCredential === "function") {
+            key = String(host.getProtectedAiCredential("gemini", "ss_gemini_api_key") || "").trim();
+        }
+        if (!key) key = String(host.localStorage.getItem("ss_gemini_api_key") || "").trim();
+        if (!key) {
+            setSharedApiKeyStatus("MDPro 설정에 저장된 AI Studio API 키가 없습니다. 먼저 MDPro에서 키를 저장하세요.", "error");
+            return;
+        }
+        dom.aiStudioApiKey.type = "password";
+        dom.btnToggleApiKey.innerText = "표시";
+        dom.aiStudioApiKey.value = key;
+        setSharedApiKeyStatus("MDPro의 AI Studio 키를 가져왔습니다. ‘AI API Key 적용’ 또는 ‘저장’을 눌러 반영하세요.", "success");
+    } catch {
+        setSharedApiKeyStatus("MDPro 설정에 접근할 수 없습니다. 같은 브라우저의 MDPro에서 FMA를 열어 다시 시도하세요.", "error");
+    }
+}
+
 function applySharedAiApiKey() {
     const key = dom.aiStudioApiKey.value.trim();
     if (!key) {
@@ -377,6 +464,8 @@ function saveUpscaleSettings() {
     writeUpscaleSetting(AURA_APP_ENABLED_STORAGE, String(dom.enableAuraApp.checked));
     writeUpscaleSetting(AURA_GEMINI_APP_ENABLED_STORAGE, String(dom.enableAuraGeminiApp.checked));
     writeUpscaleSetting(BACKGROUND_GEMINI_APP_ENABLED_STORAGE, String(dom.enableBackgroundGeminiApp.checked));
+    writeUpscaleSetting(IMAGE_EXTEND_GEMINI_APP_ENABLED_STORAGE, String(dom.enableImageExtendGeminiApp.checked));
+    writeUpscaleSetting(INFOGRAPHIC_GEMINI_APP_ENABLED_STORAGE, String(dom.enableInfographicGeminiApp.checked));
     writeUpscaleSetting(BG_REMOVER_APP_ENABLED_STORAGE, String(dom.enableBgRemoverApp.checked));
     writeUpscaleSetting(AI_RESOLUTION_STORAGE, dom.aiUpscaleResolution.value === "4K" ? "4K" : "2K");
     closeUpscaleSettings();

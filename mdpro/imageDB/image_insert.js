@@ -549,6 +549,7 @@ function openImageInsertModal() {
     }
     applyImageInsertPanelLayout();
     bindImageInsertModalDrag();
+    bindImageInsertResize();
     if (!imageInsertCropBound) {
         imageInsertCropBound = true;
         window.addEventListener('message', function (ev) {
@@ -596,6 +597,10 @@ function closeImageInsertModal() {
         panel.style.left = '';
         panel.style.top = '';
         panel.style.margin = '';
+        panel.style.position = '';
+        panel.style.width = '';
+        panel.style.height = '';
+        panel.style.maxWidth = '';
     }
 
     const galleryPanel = document.getElementById('img-insert-gallery-panel');
@@ -909,12 +914,81 @@ function insertImageFromModal(type) {
         showToast('Use this in edit mode.');
         return;
     }
+    const closeAfterInsert = !!document.getElementById('img-insert-close-after')?.checked;
     if (type === 'html') insertHtmlImageAtCursor(source, alt);
     else insertMarkdownImageAtCursor(source, alt);
-    closeImageInsertModal();
+    if (closeAfterInsert) closeImageInsertModal();
 }
 
 // Global exports for inline handlers in index.html toolbar/modal.
+let imageUploadToolbarVisible = false;
+try { imageUploadToolbarVisible = localStorage.getItem('mdpro.imageUploadToolbarVisible') === 'true'; } catch (_) {}
+window.syncImageUploadToolbarVisibility = function (enabled) {
+    const option = document.getElementById('image-upload-toolbar-enabled');
+    const button = document.getElementById('btn-image-upload-toolbar');
+    if (option) option.checked = imageUploadToolbarVisible;
+    if (button) button.classList.toggle('hidden', !(enabled && imageUploadToolbarVisible));
+};
+window.setImageUploadToolbarVisible = function (visible) {
+    imageUploadToolbarVisible = !!visible;
+    try { localStorage.setItem('mdpro.imageUploadToolbarVisible', String(imageUploadToolbarVisible)); } catch (_) {}
+    window.syncImageUploadToolbarVisibility(!!document.getElementById('image-upload-enabled')?.checked);
+};
+function initializeImageUploadToolbar() {
+    window.syncImageUploadToolbarVisibility(!!document.getElementById('image-upload-enabled')?.checked);
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initializeImageUploadToolbar);
+else initializeImageUploadToolbar();
+
+function bindImageInsertResize() {
+    const panel = document.getElementById('image-insert-panel');
+    if (!panel || panel.dataset.resizeBound) return;
+    panel.dataset.resizeBound = 'true';
+    const content = document.createElement('div');
+    content.className = 'image-insert-scroll-content';
+    while (panel.firstChild) content.appendChild(panel.firstChild);
+    panel.appendChild(content);
+    const labels = { n: '위', s: '아래', w: '왼쪽', e: '오른쪽', se: '오른쪽 아래' };
+    for (const direction of Object.keys(labels)) {
+        const handle = document.createElement('div');
+        handle.className = 'image-insert-resize-handle resize-' + direction;
+        handle.title = labels[direction] + ' 크기 조절';
+        handle.addEventListener('pointerdown', function (event) {
+            if (event.button !== 0) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const rect = panel.getBoundingClientRect();
+            const startX = event.clientX;
+            const startY = event.clientY;
+            Object.assign(panel.style, { position: 'fixed', margin: '0', left: rect.left + 'px', top: rect.top + 'px', width: rect.width + 'px', height: rect.height + 'px', maxWidth: 'calc(100vw - 16px)' });
+            handle.setPointerCapture(event.pointerId);
+            const move = function (next) {
+                const dx = next.clientX - startX;
+                const dy = next.clientY - startY;
+                const minW = Math.min(300, window.innerWidth - 16);
+                const minH = Math.min(220, window.innerHeight - 16);
+                let left = rect.left, right = rect.right, top = rect.top, bottom = rect.bottom;
+                if (direction.includes('w')) left = Math.max(8, Math.min(right - minW, rect.left + dx));
+                if (direction.includes('e')) right = Math.min(window.innerWidth - 8, Math.max(left + minW, rect.right + dx));
+                if (direction.includes('n')) top = Math.max(8, Math.min(bottom - minH, rect.top + dy));
+                if (direction.includes('s')) bottom = Math.min(window.innerHeight - 8, Math.max(top + minH, rect.bottom + dy));
+                Object.assign(panel.style, { left: left + 'px', top: top + 'px', width: (right - left) + 'px', height: (bottom - top) + 'px' });
+            };
+            const stop = function () {
+                handle.removeEventListener('pointermove', move);
+                handle.removeEventListener('pointerup', stop);
+                handle.removeEventListener('pointercancel', stop);
+                handle.removeEventListener('lostpointercapture', stop);
+            };
+            handle.addEventListener('pointermove', move);
+            handle.addEventListener('pointerup', stop);
+            handle.addEventListener('pointercancel', stop);
+            handle.addEventListener('lostpointercapture', stop);
+        });
+        panel.appendChild(handle);
+    }
+}
+
 window.insertMarkdownImageAtCursor = insertMarkdownImageAtCursor;
 window.insertHtmlImageAtCursor = insertHtmlImageAtCursor;
 window.openImageInsertModal = openImageInsertModal;

@@ -2627,6 +2627,7 @@ function updateContent(md) {
     notebookLmEqualsHrPreprocess = false;
     currentMarkdown = md;
     if (editorTextarea) editorTextarea.value = md;
+    if (window.A4Pages) window.A4Pages.sync(md);
     updateCurrentDocumentMetadataDisplay();
     mainRenderDirty = true;
     renderMarkdown({ force: !isEditMode });
@@ -3915,6 +3916,74 @@ function initViewCopyFab() {
     }
 }
 
+let lastClickedTocPosition = null;
+
+function getTocDocumentKey() {
+    return String(currentFilePath || currentDocumentVirtualPath ||
+        (currentDocumentRef && currentDocumentRef.id) || currentFileName || '');
+}
+
+function getCurrentTocMarkdown() {
+    return String(isEditMode && editorTextarea ? editorTextarea.value : currentMarkdown || '');
+}
+
+function rememberClickedTocPosition(lineIndex) {
+    const safeLineIndex = Math.max(0, Math.floor(Number(lineIndex) || 0));
+    const tocItems = parseTocItemsFromMarkdown(getCurrentTocMarkdown());
+    const itemIndex = tocItems.findIndex(function (item) {
+        return Number(item.lineIndex) === safeLineIndex;
+    });
+    const item = itemIndex >= 0 ? tocItems[itemIndex] : null;
+    const text = item ? String(item.text || '').trim() : '';
+    const occurrence = item ? tocItems.slice(0, itemIndex + 1).filter(function (candidate) {
+        return Number(candidate.level) === Number(item.level) && String(candidate.text || '').trim() === text;
+    }).length - 1 : 0;
+
+    lastClickedTocPosition = {
+        documentKey: getTocDocumentKey(),
+        lineIndex: safeLineIndex,
+        level: item ? Number(item.level) : null,
+        text: text,
+        occurrence: occurrence
+    };
+}
+
+function resolveLastClickedTocLine() {
+    if (!lastClickedTocPosition || lastClickedTocPosition.documentKey !== getTocDocumentKey()) return null;
+    if (!lastClickedTocPosition.text || !Number.isFinite(lastClickedTocPosition.level)) {
+        return lastClickedTocPosition.lineIndex;
+    }
+
+    const matches = parseTocItemsFromMarkdown(getCurrentTocMarkdown()).filter(function (item) {
+        return Number(item.level) === lastClickedTocPosition.level &&
+            String(item.text || '').trim() === lastClickedTocPosition.text;
+    });
+    const matched = matches[lastClickedTocPosition.occurrence] || null;
+    return matched ? Number(matched.lineIndex) : lastClickedTocPosition.lineIndex;
+}
+
+window.MDProTocSync = window.MDProTocSync || {};
+window.MDProTocSync.getActiveLine = resolveLastClickedTocLine;
+
+function moveToTocLine(lineIndex, behavior) {
+    if (!(window.SidebarLeft && typeof window.SidebarLeft.scrollToLine === 'function')) return;
+    window.SidebarLeft.scrollToLine(lineIndex, {
+        getEditor: function () { return editorTextarea; },
+        getViewer: function () { return viewer; },
+        getMarkdown: getCurrentTocMarkdown,
+        isEditMode: function () { return isEditMode; },
+        behavior: behavior || 'smooth'
+    });
+}
+
+function restoreLastClickedTocPosition() {
+    const lineIndex = resolveLastClickedTocLine();
+    if (lineIndex === null) return false;
+    lastClickedTocPosition.lineIndex = lineIndex;
+    moveToTocLine(lineIndex, 'auto');
+    return true;
+}
+
 function toggleMode(mode) {
     const vc = document.getElementById('viewer-container');
     const ec = document.getElementById('content-viewport');
@@ -3959,6 +4028,9 @@ function toggleMode(mode) {
         }
         viewClickMappedCaretPos = null;
         applyMiniPreviewVisibility();
+        requestAnimationFrame(function () {
+            if (isEditMode) restoreLastClickedTocPosition();
+        });
     } else {
         if (editorTextarea) {
             lastEditCaretPos = Math.max(0, editorTextarea.selectionStart || 0);
@@ -3992,22 +4064,24 @@ function toggleMode(mode) {
         if (btnView) btnView.classList.add(...activeClasses);
         if (btnEdit) btnEdit.classList.remove(...activeClasses);
         vc.classList.remove('hidden');
-        renderMarkdown({ force: true });
-        requestAnimationFrame(function () {
+        const modeRender = renderMarkdown({ force: true });
+        requestAnimationFrame(async function () {
+            await modeRender;
             if (isEditMode) return;
             if (editorTextarea) {
                 const v = String(editorTextarea.value ?? '');
                 if (v !== currentMarkdown) {
                     currentMarkdown = v;
-                    renderMarkdown({ force: true });
+                    await renderMarkdown({ force: true });
                 }
             }
             if (currentMarkdown.trim() && viewer && !viewer.textContent.trim()) {
-                renderMarkdown({ force: true });
+                await renderMarkdown({ force: true });
             }
             const ratioFromCaret = getMarkdownRatioFromCharPos(lastEditCaretPos);
             requestAnimationFrame(function () {
                 if (isEditMode) return;
+                if (restoreLastClickedTocPosition()) return;
                 setScrollRatio(vc, ratioFromCaret);
             });
         });
@@ -5752,14 +5826,8 @@ function renderTOC() {
 }
 
 function scrollToLine(lineIndex) {
-    if (window.SidebarLeft && typeof window.SidebarLeft.scrollToLine === 'function') {
-        window.SidebarLeft.scrollToLine(lineIndex, {
-            getEditor: function () { return editorTextarea; },
-            getViewer: function () { return viewer; },
-            getMarkdown: function () { return currentMarkdown; },
-            isEditMode: function () { return isEditMode; }
-        });
-    }
+    rememberClickedTocPosition(lineIndex);
+    moveToTocLine(lastClickedTocPosition.lineIndex, 'smooth');
 }
 
 // --- IndexedDB Actions ---
@@ -7585,6 +7653,7 @@ function insertCaptionHtmlAtCursor(html) {
 
 function confirmCaptionInsert(mode) {
     const ui = getCaptionUi(mode || captionInsertState.mode);
+    const closeAfterInsert = ui.mode === 'figure' && !!document.getElementById('figure-caption-close-after')?.checked;
     const numberInput = ui.numberInput;
     const textInput = ui.textInput;
     const format = captionInsertState[ui.mode + 'Format'] || (ui.mode === 'figure' ? 'bracket' : 'angle');
@@ -7596,6 +7665,7 @@ function confirmCaptionInsert(mode) {
     );
     if (insertCaptionHtmlAtCursor(html)) {
         if (ui.mode === 'table') toggleCaptionInsertPanel('table', false);
+        if (closeAfterInsert) closeImageInsertModal();
         showToast(ui.mode === 'figure' ? '그림 캡션을 삽입했습니다.' : '표 캡션을 삽입했습니다.');
     }
 }
@@ -8055,7 +8125,46 @@ function closeTextStyleModal() {
     return window.TextStyleTool.close({ textarea: editorTextarea });
 }
 
+let lastMermaidDocumentSelection = '';
+
+function getSelectedDocumentTextForMermaidEditor() {
+    const editorIsVisible = !!(editorTextarea && editorTextarea.offsetParent !== null);
+    if ((isEditMode || editorIsVisible) && editorTextarea) {
+        const start = Math.max(0, Number(editorTextarea.selectionStart) || 0);
+        const end = Math.max(start, Number(editorTextarea.selectionEnd) || start);
+        const selected = String(editorTextarea.value || '').slice(start, end).trim();
+        if (selected) {
+            lastMermaidDocumentSelection = selected;
+            return selected;
+        }
+    }
+
+    const selection = typeof window.getSelection === 'function' ? window.getSelection() : null;
+    if (selection && selection.rangeCount > 0 && String(selection.toString() || '').trim()) {
+        const range = selection.getRangeAt(0);
+        const commonNode = range.commonAncestorContainer;
+        const commonElement = commonNode && commonNode.nodeType === Node.ELEMENT_NODE ? commonNode : commonNode && commonNode.parentElement;
+        if (viewer && commonElement && viewer.contains(commonElement)) {
+            lastMermaidDocumentSelection = String(selection.toString() || '').trim();
+            return lastMermaidDocumentSelection;
+        }
+    }
+    return lastMermaidDocumentSelection;
+}
+
+function rememberSelectedDocumentTextForMermaidEditor() {
+    getSelectedDocumentTextForMermaidEditor();
+}
+
+if (editorTextarea) {
+    editorTextarea.addEventListener('select', rememberSelectedDocumentTextForMermaidEditor);
+    editorTextarea.addEventListener('mouseup', rememberSelectedDocumentTextForMermaidEditor);
+    editorTextarea.addEventListener('keyup', rememberSelectedDocumentTextForMermaidEditor);
+}
+if (viewer) viewer.addEventListener('mouseup', rememberSelectedDocumentTextForMermaidEditor);
+
 function openMermaidEditorModal() {
+    rememberSelectedDocumentTextForMermaidEditor();
     const modal = document.getElementById('mermaid-editor-modal');
     if (!modal) return;
     ensureLazyFrameLoaded('mermaid-editor-frame');
@@ -8216,9 +8325,162 @@ function insertMermaidBlockFromExternal(codeText) {
 
 window.addEventListener('message', function (event) {
     const data = event && event.data ? event.data : null;
-    if (!data || data.type !== 'mdv-insert-mermaid') return;
-    insertMermaidBlockFromExternal(data.code || '');
+    if (!data) return;
+    const mermaidFrame = document.getElementById('mermaid-editor-frame');
+    const fromMermaidEditor = !!(mermaidFrame && mermaidFrame.contentWindow === event.source);
+    if (data.type === 'mdv-request-document-selection') {
+        if (!fromMermaidEditor) return;
+        const selectedText = getSelectedDocumentTextForMermaidEditor();
+        if (!selectedText) {
+            event.source.postMessage({ type: 'mdv-document-selection-unavailable' }, '*');
+            return;
+        }
+        event.source.postMessage({ type: 'mdv-load-document-selection', code: selectedText }, '*');
+        return;
+    }
+    if (data.type === 'mdv-insert-mermaid') {
+        if (!fromMermaidEditor) return;
+        insertMermaidBlockFromExternal(data.code || '');
+        if (data.closeEditor === true) closeMermaidEditorModal();
+        return;
+    }
+    if (data.type === 'mdv-open-mermaid-svg-in-image-insert') {
+        if (!fromMermaidEditor) return;
+        if (typeof window.openImageInsertModal !== 'function' || typeof window.applyImageInsertDataUrl !== 'function') {
+            showToast('이미지 넣기 모듈을 불러오지 못했습니다.');
+            return;
+        }
+        closeMermaidEditorModal();
+        window.openImageInsertModal();
+        window.applyImageInsertDataUrl(data.dataUrl || '', data.fileName || 'mermaid-diagram.svg');
+        showToast('SVG를 이미지 넣기로 옮겼습니다. 문서 저장 또는 imgBB를 선택하세요.');
+        return;
+    }
+    if (data.type === 'mdv-open-mermaid-png-in-image-insert') {
+        if (!fromMermaidEditor) return;
+        if (typeof window.openImageInsertModal !== 'function' || typeof window.applyImageInsertDataUrl !== 'function') {
+            showToast('이미지 넣기 모듈을 불러오지 못했습니다.');
+            return;
+        }
+        closeMermaidEditorModal();
+        window.openImageInsertModal();
+        window.applyImageInsertDataUrl(data.dataUrl || '', data.fileName || 'mermaid-diagram.png');
+        showToast('PNG를 이미지 넣기로 옮겼습니다. 문서 저장 또는 imgBB를 선택하세요.');
+        return;
+    }
+    if (data.type === 'mdv-mermaid-history-save' && fromMermaidEditor) {
+        saveMermaidHistoryToInDb(data.record, event.source);
+        return;
+    }
+    if (data.type === 'mdv-mermaid-history-list' && fromMermaidEditor) {
+        sendMermaidHistoryFromInDb(event.source);
+        return;
+    }
+    if (data.type === 'mdv-mermaid-history-delete' && fromMermaidEditor) {
+        deleteMermaidHistoryFromInDb(data.id, event.source);
+        return;
+    }
+    if (data.type === 'mdv-analyze-image-to-mermaid' && fromMermaidEditor) analyzeImageToMermaidForEditor(data, event.source);
 });
+
+function postMermaidHistoryRecords(targetWindow, records, error) {
+    if (!targetWindow || targetWindow.closed) return;
+    targetWindow.postMessage({ type: 'mdv-mermaid-history-records', records: records || [], error: error || '' }, '*');
+}
+
+async function saveMermaidHistoryToInDb(record, targetWindow) {
+    try {
+        if (typeof window.isInDbStorageEnabled === 'function' && !window.isInDbStorageEnabled()) throw new Error('설정에서 inDB 사용을 먼저 켜세요.');
+        if (typeof window.saveFeatureRecordToInDb !== 'function') throw new Error('inDB 저장 모듈이 준비되지 않았습니다.');
+        const saved = await window.saveFeatureRecordToInDb('mermaid_refs', Object.assign({}, record, { recordType: 'mermaid_ref', updatedAt: Date.now() }));
+        if (!saved) throw new Error('inDB가 아직 준비되지 않았거나 사용이 꺼져 있습니다.');
+        if (targetWindow && !targetWindow.closed) targetWindow.postMessage({ type: 'mdv-mermaid-history-saved', id: record && record.id }, '*');
+    } catch (error) {
+        if (targetWindow && !targetWindow.closed) targetWindow.postMessage({ type: 'mdv-mermaid-history-saved', ok: false, error: error && error.message ? error.message : String(error) }, '*');
+    }
+}
+
+async function sendMermaidHistoryFromInDb(targetWindow) {
+    try {
+        const database = window.InDbStorage && window.InDbStorage.getDatabase ? window.InDbStorage.getDatabase() : null;
+        if (!database || !database.objectStoreNames.contains('mermaid_refs')) return postMermaidHistoryRecords(targetWindow, []);
+        const records = await new Promise(function (resolve, reject) {
+            const request = database.transaction('mermaid_refs', 'readonly').objectStore('mermaid_refs').getAll();
+            request.onsuccess = function () { resolve(Array.isArray(request.result) ? request.result : []); };
+            request.onerror = function () { reject(request.error || new Error('Mermaid 기록을 읽지 못했습니다.')); };
+        });
+        postMermaidHistoryRecords(targetWindow, records.map(function (item) {
+            return { id: item.id, code: item.code, prompt: item.prompt, imageName: item.imageName, createdAt: item.createdAt, updatedAt: item.updatedAt };
+        }));
+    } catch (error) {
+        postMermaidHistoryRecords(targetWindow, [], error && error.message ? error.message : String(error));
+    }
+}
+
+async function deleteMermaidHistoryFromInDb(id, targetWindow) {
+    try {
+        if (typeof window.deleteFeatureRecordFromInDb !== 'function') throw new Error('inDB 삭제 모듈이 준비되지 않았습니다.');
+        await window.deleteFeatureRecordFromInDb('mermaid_refs', id);
+        await sendMermaidHistoryFromInDb(targetWindow);
+        showToast('Mermaid 생성 기록을 삭제했습니다.');
+    } catch (error) {
+        postMermaidHistoryRecords(targetWindow, [], error && error.message ? error.message : String(error));
+    }
+}
+
+function getMermaidVisionProviderSelection() {
+    let provider = String(localStorage.getItem('ss_ai_chat_provider') || 'lmstudio');
+    const modelKeys = {
+        aistudio: 'ss_ai_chat_gemini_model', openai: 'ss_ai_chat_openai_model', deepseek: 'ss_ai_chat_deepseek_model',
+        'openai-compatible': 'ss_ai_chat_openai_compatible_model', ollama: 'ss_ai_chat_ollama_model',
+        litertlm: 'ss_ai_chat_litertlm_model', lmstudio: 'ss_ai_chat_lmstudio_model'
+    };
+    let model = String(localStorage.getItem(modelKeys[provider] || '') || '');
+    if (provider !== 'openai' && provider !== 'aistudio') {
+        const openAIState = typeof getOpenAIApiState === 'function' ? getOpenAIApiState() : null;
+        const hasOpenAI = !!String(openAIState && openAIState.key || '').trim();
+        const hasGemini = typeof getProtectedAiCredential === 'function'
+            ? !!String(getProtectedAiCredential('gemini', 'ss_gemini_api_key') || '').trim()
+            : !!String(localStorage.getItem('ss_gemini_api_key') || '').trim();
+        if (hasOpenAI) { provider = 'openai'; model = String(localStorage.getItem(modelKeys.openai) || 'gpt-5.6-sol'); }
+        else if (hasGemini) { provider = 'aistudio'; model = String(localStorage.getItem(modelKeys.aistudio) || 'gemini-2.5-flash'); }
+        else throw new Error('이미지 분석이 가능한 OpenAI 또는 AI Studio API 키가 필요합니다. AI Jena 설정에서 연결해 주세요.');
+    }
+    if (provider === 'aistudio' && /(?:image|tts|audio|veo|lyria)/i.test(model)) model = 'gemini-2.5-flash';
+    return { provider: provider, model: model };
+}
+
+async function analyzeImageToMermaidForEditor(data, targetWindow) {
+    const reply = function (payload) {
+        if (targetWindow && !targetWindow.closed) targetWindow.postMessage(Object.assign({ type: 'mdv-image-to-mermaid-result', requestId: data.requestId }, payload), '*');
+    };
+    try {
+        if (!window.AIChatBridge || typeof window.AIChatBridge.complete !== 'function') throw new Error('AI Jena 연결 모듈이 준비되지 않았습니다.');
+        const image = data.image || {};
+        if (!/^data:image\//i.test(String(image.dataUrl || ''))) throw new Error('분석할 이미지 데이터가 없습니다.');
+        const selected = getMermaidVisionProviderSelection();
+        const streamReply = function (streamEvent) {
+            if (!streamEvent || streamEvent.type !== 'message.delta' || !streamEvent.content || !targetWindow || targetWindow.closed) return;
+            targetWindow.postMessage({ type: 'mdv-image-to-mermaid-stream', requestId: data.requestId, delta: String(streamEvent.content) }, '*');
+        };
+        const result = await window.AIChatBridge.complete({
+            provider: selected.provider,
+            model: selected.model,
+            mode: 'quick',
+            onStreamEvent: streamReply,
+            messages: [{ role: 'user', content: String(data.prompt || '').trim() || '이 이미지를 Mermaid 다이어그램으로 변환해 주세요.', attachments: [{ kind: 'image', name: image.name || 'diagram.png', type: image.type || 'image/png', size: image.size || 0, dataUrl: image.dataUrl }] }],
+            systemInstruction: [
+                'You convert reference diagram images into valid Mermaid source code.',
+                'Read every visible label and preserve structure, direction, grouping, relationships, and meaning as closely as Mermaid supports.',
+                'Choose the best Mermaid diagram type. Use quoted labels when punctuation could break syntax.',
+                'Return only one fenced mermaid code block. Do not explain, apologize, or add prose.'
+            ].join(' ')
+        });
+        reply({ ok: true, code: String(result && result.text || '') });
+    } catch (error) {
+        reply({ ok: false, error: error && error.message ? error.message : String(error) });
+    }
+}
 
 function applyTextStyleToSelection() {
     if (!isEditMode || !editorTextarea) {
@@ -8373,6 +8635,55 @@ function applyEditorHorizontalShift() {
 }
 
 let editorShiftFloatPositionTrackingInstalled = false;
+const EDITOR_SHIFT_FLOAT_KEY = 'md-editor-shift-float-v1';
+let editorShiftFloatPreferences = {};
+try { editorShiftFloatPreferences = JSON.parse(localStorage.getItem(EDITOR_SHIFT_FLOAT_KEY)) || {}; } catch (_) {}
+if (typeof editorShiftFloatPreferences !== 'object' || Array.isArray(editorShiftFloatPreferences)) editorShiftFloatPreferences = {};
+
+function saveEditorShiftFloatPreferences() {
+    try { localStorage.setItem(EDITOR_SHIFT_FLOAT_KEY, JSON.stringify(editorShiftFloatPreferences)); } catch (_) {}
+}
+
+function initEditorShiftFloat(control) {
+    const toggle = control.querySelector('.editor-shift-orientation');
+    const handle = control.querySelector('.editor-shift-drag');
+    const applyOrientation = () => {
+        const horizontal = editorShiftFloatPreferences.horizontal === true;
+        control.classList.toggle('is-horizontal', horizontal);
+        toggle.textContent = horizontal ? '↕' : '↔';
+        toggle.title = horizontal ? '세로 메뉴로 전환' : '가로 메뉴로 전환';
+        toggle.setAttribute('aria-label', toggle.title);
+    };
+    applyOrientation();
+    toggle.addEventListener('click', () => {
+        editorShiftFloatPreferences.horizontal = !editorShiftFloatPreferences.horizontal;
+        applyOrientation();
+        syncEditorShiftFloatPosition();
+        saveEditorShiftFloatPreferences();
+    });
+    handle.addEventListener('pointerdown', event => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        const rect = control.getBoundingClientRect();
+        const startX = event.clientX;
+        const startY = event.clientY;
+        handle.setPointerCapture(event.pointerId);
+        const move = e => {
+            editorShiftFloatPreferences.x = rect.left + e.clientX - startX;
+            editorShiftFloatPreferences.y = rect.top + e.clientY - startY;
+            syncEditorShiftFloatPosition();
+        };
+        const end = () => {
+            handle.removeEventListener('pointermove', move);
+            handle.removeEventListener('pointerup', end);
+            handle.removeEventListener('pointercancel', end);
+            saveEditorShiftFloatPreferences();
+        };
+        handle.addEventListener('pointermove', move);
+        handle.addEventListener('pointerup', end);
+        handle.addEventListener('pointercancel', end);
+    });
+}
 
 function syncEditorShiftFloatPosition() {
     const control = document.getElementById('editor-shift-float');
@@ -8385,8 +8696,12 @@ function syncEditorShiftFloatPosition() {
     const sidebarRect = sidebarVisible ? sidebarEl.getBoundingClientRect() : null;
     const outsideSidebarLeft = sidebarRect && sidebarRect.width > 0 ? sidebarRect.right + 8 : viewportRect.left + 8;
 
-    control.style.left = `${Math.max(viewportRect.left + 8, outsideSidebarLeft)}px`;
-    control.style.bottom = `${Math.max(8, window.innerHeight - viewportRect.bottom + 8)}px`;
+    if (!editorShiftFloatPositionTrackingInstalled) initEditorShiftFloat(control);
+    const preferredX = Number.isFinite(editorShiftFloatPreferences.x) ? editorShiftFloatPreferences.x : Math.max(viewportRect.left + 8, outsideSidebarLeft);
+    const preferredY = Number.isFinite(editorShiftFloatPreferences.y) ? editorShiftFloatPreferences.y : viewportRect.bottom - control.offsetHeight - 8;
+    control.style.left = `${Math.max(8, Math.min(window.innerWidth - control.offsetWidth - 8, preferredX))}px`;
+    control.style.top = `${Math.max(8, Math.min(window.innerHeight - control.offsetHeight - 8, preferredY))}px`;
+    control.style.bottom = 'auto';
 
     if (editorShiftFloatPositionTrackingInstalled) return;
     editorShiftFloatPositionTrackingInstalled = true;
@@ -10542,8 +10857,15 @@ async function togglePdfMergeVisibilitySection() {
 
 function applyNoteCoverInsertVisibility(settings) {
     const enabled = getNoteCoverInsertVisibleFromSettings(settings || {});
-    const button = document.getElementById('btn-note-cover-insert');
-    if (button) button.classList.toggle('hidden', !enabled);
+    if (!enabled) closeNoteCoverMenu();
+    for (const id of ['note-cover-toolbar', 'btn-note-cover-insert', 'btn-note-cover-remove']) {
+        const button = document.getElementById(id);
+        if (!button) continue;
+        button.classList.toggle('hidden', !enabled);
+        button.hidden = !enabled;
+        if (enabled) button.style.removeProperty('display');
+        else button.style.setProperty('display', 'none', 'important');
+    }
 }
 
 async function toggleNoteCoverInsertSection() {
@@ -10553,7 +10875,7 @@ async function toggleNoteCoverInsertSection() {
     try { await setAiSettings({ noteCoverInsertVisible: enabled }); } catch (e) { console.error(e); }
 }
 
-function insertDefaultNoteCover() {
+function insertDefaultNoteCover(fields) {
     if (!isEditMode) toggleMode('edit');
     if (!editorTextarea || !window.NoteCoverRenderer ||
         typeof window.NoteCoverRenderer.insertDefaultCover !== 'function') {
@@ -10562,7 +10884,11 @@ function insertDefaultNoteCover() {
     }
     const fileTitle = String(currentFileName || '').replace(/\.md$/i, '').trim();
     const title = !fileTitle || /^untitled$/i.test(fileTitle) ? '문서 제목' : fileTitle;
-    const updated = window.NoteCoverRenderer.insertDefaultCover(getNoteCoverMarkdownSource(), { title: title });
+    if (!fields && !window.NoteCoverRenderer.findFirstCoverBlock(getNoteCoverMarkdownSource())) {
+        openNoteCoverInsertDialog(title);
+        return false;
+    }
+    const updated = window.NoteCoverRenderer.insertDefaultCover(getNoteCoverMarkdownSource(), fields || { title: title });
     if (!updated.changed) {
         editorTextarea.focus();
         editorTextarea.setSelectionRange(updated.selectionStart || 0, updated.selectionEnd || 0);
@@ -10584,6 +10910,90 @@ function insertDefaultNoteCover() {
     showToast('문서 최상단에 표지를 삽입했습니다. 보기에서 텍스트를 직접 수정할 수 있습니다.');
     return true;
 }
+
+function openNoteCoverInsertDialog(title) {
+    let dialog = document.getElementById('note-cover-insert-dialog');
+    if (!dialog) {
+        dialog = document.createElement('dialog');
+        dialog.id = 'note-cover-insert-dialog';
+        dialog.className = 'rounded-xl p-6 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 shadow-xl';
+        dialog.style.cssText = 'width:min(440px, calc(100vw - 32px));margin:auto;';
+        dialog.setAttribute('aria-labelledby', 'note-cover-dialog-title');
+        dialog.innerHTML = `<form>
+            <h2 id="note-cover-dialog-title" class="text-lg font-bold mb-4">표지 삽입</h2>
+            <div class="flex flex-col gap-3">
+                <label>제목<input name="title" required class="w-full p-2 rounded border bg-transparent" /></label>
+                <label>부제<input name="subtitle" class="w-full p-2 rounded border bg-transparent" /></label>
+                <label>작성자<input name="author" class="w-full p-2 rounded border bg-transparent" /></label>
+                <label>작성일<input name="date" type="date" class="w-full p-2 rounded border bg-transparent" /></label>
+            </div>
+            <div class="flex justify-end gap-2 mt-5">
+                <button type="button" data-cancel class="px-4 py-2 rounded border">취소</button>
+                <button type="submit" class="px-4 py-2 rounded bg-indigo-600 text-white">삽입</button>
+            </div>
+        </form>`;
+        document.body.appendChild(dialog);
+        dialog.querySelector('[data-cancel]').addEventListener('click', () => dialog.close());
+        dialog.querySelector('form').addEventListener('submit', (event) => {
+            event.preventDefault();
+            const fields = Object.fromEntries(new FormData(event.currentTarget));
+            if (!fields.title.trim()) {
+                event.currentTarget.elements.title.focus();
+                return;
+            }
+            dialog.close();
+            insertDefaultNoteCover(fields);
+        });
+    }
+    const form = dialog.querySelector('form');
+    form.reset();
+    form.elements.title.value = title;
+    const today = new Date();
+    form.elements.date.value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    if (!dialog.open) dialog.showModal();
+    form.elements.title.focus();
+    form.elements.title.select();
+}
+
+function removeNoteCover() {
+    closeNoteCoverMenu();
+    if (!window.NoteCoverRenderer || typeof window.NoteCoverRenderer.removeCover !== 'function') {
+        showToast('표지 지우기 기능을 불러오지 못했습니다.');
+        return false;
+    }
+    const updated = window.NoteCoverRenderer.removeCover(getNoteCoverMarkdownSource());
+    if (!updated.changed) {
+        showToast('지울 표지가 없습니다.');
+        return false;
+    }
+    if (!window.confirm('표지를 지울까요?')) return false;
+    if (!isEditMode) toggleMode('edit');
+    const applied = applyNoteCoverMarkdownUpdate(updated, 'input.noteCoverRemove', {
+        historyKey: 'remove-cover', coverIndex: 0, clearSelection: true, renderAfter: true
+    });
+    if (applied) showToast('표지를 지웠습니다.');
+    return applied;
+}
+
+function closeNoteCoverMenu() {
+    const menu = document.getElementById('note-cover-menu');
+    if (menu) { menu.hidden = true; menu.style.display = 'none'; }
+    document.getElementById('btn-note-cover-menu')?.setAttribute('aria-expanded', 'false');
+}
+
+function toggleNoteCoverMenu(event) {
+    event.stopPropagation();
+    const menu = document.getElementById('note-cover-menu');
+    if (!menu.hidden) return closeNoteCoverMenu();
+    const rect = document.getElementById('btn-note-cover-insert').getBoundingClientRect();
+    menu.hidden = false;
+    menu.style.cssText = `display:block;position:fixed;z-index:100;top:${rect.bottom + 4}px;left:${Math.min(rect.left, window.innerWidth - 130)}px;min-width:120px`;
+    document.getElementById('btn-note-cover-menu').setAttribute('aria-expanded', 'true');
+}
+document.addEventListener('click', (event) => {
+    if (!event.target.closest('#note-cover-toolbar')) closeNoteCoverMenu();
+});
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeNoteCoverMenu(); });
 
 function getHtml2pptVisibleFromSettings(settings) {
     if (!settings || typeof settings.html2pptVisible !== 'boolean') return false;
@@ -11253,12 +11663,12 @@ function applyTemplateVisibility(settings) {
         menuItem.classList.toggle('flex', newFileEnabled);
     }
     if (menuToggle) {
-        menuToggle.classList.toggle('hidden', !newFileEnabled);
-        menuToggle.classList.toggle('flex', newFileEnabled);
+        menuToggle.classList.remove('hidden');
+        menuToggle.classList.add('flex');
     }
     if (newFileButton) {
-        newFileButton.classList.toggle('rounded-md', !newFileEnabled);
-        newFileButton.classList.toggle('rounded-l-md', newFileEnabled);
+        newFileButton.classList.remove('rounded-md');
+        newFileButton.classList.add('rounded-l-md');
     }
     if (headerButton) headerButton.classList.toggle('hidden', !headerEnabled);
     syncHeaderFeatureToolsVisibility();
@@ -11953,6 +12363,7 @@ function applyImageUploadFeatureVisibility(settings) {
     if (imgBtn) imgBtn.style.display = 'inline-flex';
     const imageUploadBtn = document.getElementById('btn-image-upload-quick');
     if (imageUploadBtn) imageUploadBtn.classList.toggle('hidden', !enabled);
+    if (typeof window.syncImageUploadToolbarVisibility === 'function') window.syncImageUploadToolbarVisibility(enabled);
     const section = document.getElementById('image-upload-settings');
     const check = document.getElementById('image-upload-enabled');
     if (section && check) section.classList.toggle('hidden', !check.checked);
@@ -17278,6 +17689,8 @@ window.insertSelectedTemplateAsNewFile = insertSelectedTemplateAsNewFile;
 window.toggleTemplateSection = toggleTemplateSection;
 window.toggleNoteCoverInsertSection = toggleNoteCoverInsertSection;
 window.insertDefaultNoteCover = insertDefaultNoteCover;
+window.removeNoteCover = removeNoteCover;
+window.toggleNoteCoverMenu = toggleNoteCoverMenu;
 window.toggleHtml2pptPanel = toggleHtml2pptPanel;
 window.openHtml2pptPanel = openHtml2pptPanel;
 window.closeHtml2pptPanel = closeHtml2pptPanel;

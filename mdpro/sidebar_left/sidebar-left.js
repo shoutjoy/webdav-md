@@ -171,7 +171,7 @@
             '      <button onclick="switchSidebarTab(\'toc\')" id="tab-toc" class="flex-1 text-xs font-bold py-1 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">목차</button>',
             '    </div>',
             '    <div class="flex gap-1 shrink-0">',
-            '      <button onclick="createNewFolder()" id="btn-new-folder" class="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 dark:text-slate-400" title="폴더 생성"><i data-lucide="folder-plus" class="w-4 h-4"></i></button>',
+            '      <button type="button" onclick="window.parent.postMessage({ type: \'mdpro-open-toc-popup\', content: document.getElementById(\'viewer-edit-ta\')?.value || \'\' }, location.origin)" id="mdpro-toc-popup-button" class="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 dark:text-slate-400" title="목차 팝업 열기" aria-label="목차 팝업 열기"><i data-lucide="list-tree" class="w-4 h-4"></i></button>',
             '      <button onclick="toggleSidebarCollapse()" class="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 dark:text-slate-400" title="사이드바 축소/확장"><i id="collapse-icon" data-lucide="chevron-left" class="w-4 h-4"></i></button>',
             '    </div>',
             '  </div>',
@@ -228,7 +228,6 @@
         const dbList = document.getElementById('db-list');
         const tocList = document.getElementById('toc-list');
         const searchContainer = document.getElementById('search-container');
-        const btnNewFolder = document.getElementById('btn-new-folder');
 
         if (!btnFiles || !btnToc || !dbList || !tocList || !searchContainer) return activeTab;
 
@@ -238,7 +237,6 @@
             dbList.classList.remove('hidden');
             tocList.classList.add('hidden');
             searchContainer.classList.remove('hidden');
-            if (btnNewFolder) btnNewFolder.classList.remove('hidden');
             if (ctx && typeof ctx.renderDBList === 'function') ctx.renderDBList();
         } else {
             btnToc.className = 'flex-1 text-xs font-bold py-1 bg-white dark:bg-slate-700 rounded shadow-sm text-slate-800 dark:text-white transition-colors';
@@ -246,7 +244,6 @@
             dbList.classList.add('hidden');
             tocList.classList.remove('hidden');
             searchContainer.classList.add('hidden');
-            if (btnNewFolder) btnNewFolder.classList.add('hidden');
             if (ctx && typeof ctx.renderTOC === 'function') ctx.renderTOC();
         }
         return activeTab;
@@ -370,19 +367,30 @@
         const viewer = ctx && typeof ctx.getViewer === 'function' ? ctx.getViewer() : null;
         const markdown = ctx && typeof ctx.getMarkdown === 'function' ? ctx.getMarkdown() : '';
         const isEditMode = !!(ctx && typeof ctx.isEditMode === 'function' && ctx.isEditMode());
+        const behavior = ctx && ctx.behavior === 'auto' ? 'auto' : 'smooth';
+        const safeLineIndex = Math.max(0, Math.min(Number(lineIndex) || 0, (String(markdown || '').split('\n').length - 1)));
+
+        if (typeof window.MiniPreviewUI?.scrollToLine === 'function') {
+            window.MiniPreviewUI.scrollToLine(safeLineIndex, {
+                markdown: markdown,
+                editor: editorTextarea,
+                viewer: viewer,
+                isEditMode: isEditMode,
+                behavior: behavior
+            });
+        }
 
         if (isEditMode) {
             if (!editorTextarea) return;
             const text = String(editorTextarea.value || '');
             const lines = text.split('\n');
-            const safeLineIndex = Math.max(0, Math.min(Number(lineIndex) || 0, Math.max(0, lines.length - 1)));
             let charPos = 0;
             for (let i = 0; i < safeLineIndex; i++) charPos += lines[i].length + 1;
             editorTextarea.focus();
             editorTextarea.setSelectionRange(charPos, charPos);
             const top = getTextareaCaretTopOffset(editorTextarea, charPos);
             const lineHeight = parseFloat(getComputedStyle(editorTextarea).lineHeight) || 24;
-            editorTextarea.scrollTo({ top: Math.max(0, top - (lineHeight * 3)), behavior: 'smooth' });
+            editorTextarea.scrollTo({ top: Math.max(0, top - (lineHeight * 6)), behavior: behavior });
             return;
         }
 
@@ -403,13 +411,13 @@
                 return level === targetItem.level && String(h.textContent || '').trim() === normalizedTargetText;
             });
             if (matchingHeaders[sameKeyBefore]) {
-                matchingHeaders[sameKeyBefore].scrollIntoView({ behavior: 'smooth', block: 'start' });
+                matchingHeaders[sameKeyBefore].scrollIntoView({ behavior: behavior, block: 'start' });
                 return;
             }
         }
 
         const fallbackIndex = Math.max(0, Math.min(Number(targetIdx >= 0 ? targetIdx : 0), headers.length - 1));
-        headers[fallbackIndex].scrollIntoView({ behavior: 'smooth', block: 'start' });
+        headers[fallbackIndex].scrollIntoView({ behavior: behavior, block: 'start' });
     }
 
     async function renderStorageList(ctx) {

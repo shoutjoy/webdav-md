@@ -13,6 +13,9 @@
         .shell { min-height: 100vh; display: grid; grid-template-rows: auto 1fr auto; }
         header { padding: 18px 22px; border-bottom: 1px solid #1e293b; background: #0f172a; }
         h1 { margin: 0 0 5px; font-size: 19px; }
+        header { position: relative; padding-right: 90px; }
+        #header-close { position:absolute; right:18px; top:18px; }
+        main { grid-template-columns: 240px minmax(0, 1fr); }
         header p, .help { margin: 0; color: #94a3b8; font-size: 12px; line-height: 1.55; }
         main { display: grid; grid-template-columns: minmax(230px, 0.32fr) minmax(460px, 1fr); min-height: 0; }
         aside { border-right: 1px solid #1e293b; padding: 16px; overflow: auto; }
@@ -48,6 +51,7 @@
 <div class="shell">
     <header>
         <h1>TIDY 사용자 JS 추가·관리</h1>
+        <button class="btn" id="header-close" type="button">닫기 ✕</button>
         <p>직접 입력하거나 .js 파일을 업로드하세요. 저장한 기능은 메인 창의 TIDY 메뉴에 버튼으로 추가됩니다.</p>
     </header>
     <main>
@@ -58,12 +62,14 @@
                 <button class="btn" id="github-import-btn" type="button">GitHub 가져오기</button>
             </div>
             <div id="script-list" class="script-list"></div>
+            <section id="jena-history-sidebar" style="margin-top:24px"></section>
         </aside>
         <section class="editor">
             <label class="field"><span>기능 이름</span><input id="name" type="text" maxlength="60" placeholder="예: 인용문 정리"></label>
             <div class="tabs">
                 <button class="btn tab active" data-mode="direct" type="button">직접 입력</button>
                 <button class="btn tab" data-mode="upload" type="button">JS 업로드</button>
+                <button class="btn tab" data-mode="jena" type="button">JS JENA</button>
             </div>
             <div id="upload-panel" class="upload">
                 <input id="file" type="file" accept=".js,text/javascript,application/javascript">
@@ -91,7 +97,8 @@
 <script>
 (function () {
     'use strict';
-    var bridge = window.opener && window.opener.TidyScriptManagerBridge;
+    var host = window.parent !== window ? window.parent : window.opener;
+    var bridge = host && host.TidyScriptManagerBridge;
     var records = [];
     var selectedId = '';
     var template = 'function transform(source, context) {\n  // source: 선택 영역 또는 문서 전체 Markdown\n  // context.scope: "selection" 또는 "document"\n  return source;\n}';
@@ -112,6 +119,7 @@
         $('save-github').checked = !!(item.mirrors && item.mirrors.github);
         $('delete-btn').disabled = !selectedId;
         renderList();
+        window.dispatchEvent(new CustomEvent('tidy-form-reset', { detail: { id: selectedId } }));
     }
     function renderList() {
         var list = $('script-list');
@@ -141,6 +149,7 @@
         setForm(next || null);
     }
     async function save() {
+        if (!$('name').value.trim()) { status('기능 이름을 입력하세요.', 'error'); $('name').focus(); return null; }
         status('저장 중...');
         try {
             var result = await bridge.save({
@@ -151,10 +160,15 @@
                 sourceName: $('file').files[0] ? $('file').files[0].name : (current() && current().sourceName || ''),
                 storage: { sqlite: $('save-sqlite').checked, github: $('save-github').checked }
             });
-            await reload(result.record.id);
+            selectedId = result.record.id;
+            records = await bridge.list();
+            renderList();
+            $('delete-btn').disabled = false;
+            window.dispatchEvent(new CustomEvent('tidy-saved', { detail: { id: selectedId } }));
             var message = '저장 완료: ' + result.savedTo.join(', ');
             if (result.warnings.length) message += ' / 일부 동기화 실패: ' + result.warnings.join(' | ');
             status(message, result.warnings.length ? 'error' : 'ok');
+            return result;
         } catch (error) { status(error && error.message ? error.message : String(error), 'error'); }
     }
     async function remove() {
@@ -179,6 +193,7 @@
         button.onclick = function () {
             document.querySelectorAll('.tab').forEach(function (item) { item.classList.toggle('active', item === button); });
             $('upload-panel').classList.toggle('visible', button.dataset.mode === 'upload');
+            document.dispatchEvent(new CustomEvent('tidy-mode', { detail: button.dataset.mode }));
         };
     });
     $('file').onchange = async function () {
@@ -189,6 +204,7 @@
             var parsed = bridge.parseUpload(await file.text(), file.name);
             $('name').value = parsed.name || file.name.replace(/\.js$/i, '');
             $('code').value = parsed.code || '';
+            window.dispatchEvent(new Event('tidy-form-reset'));
             $('enabled').checked = parsed.enabled !== false;
             status(file.name + '을 불러왔습니다. 코드를 확인한 뒤 저장하세요.', 'ok');
         } catch (error) { status('파일 읽기 실패: ' + (error.message || error), 'error'); }
@@ -196,9 +212,23 @@
     $('new-btn').onclick = function () { setForm(null); $('name').focus(); };
     $('save-btn').onclick = save;
     $('delete-btn').onclick = remove;
-    $('close-btn').onclick = function () { window.close(); };
+    function closeManager() {
+        if (host && host.TidyScriptManager && host.TidyScriptManager.closeManager && window.parent !== window) host.TidyScriptManager.closeManager();
+        else window.close();
+    }
+    $('close-btn').onclick = closeManager;
+    $('header-close').onclick = closeManager;
+    document.addEventListener('keydown', function (event) { if(event.key === 'Escape') closeManager(); });
     $('sqlite-import-btn').onclick = function () { importFrom('SQLite'); };
     $('github-import-btn').onclick = function () { importFrom('GitHub'); };
+    window.TidyManagerUI = {
+        getId: function () { return selectedId; },
+        addToTidy: async function () { $('enabled').checked = true; return save(); },
+        restoreDraft: function (draft) {
+            var existing = records.find(function (item) { return item.id === draft.scriptId; });
+            setForm(Object.assign({}, existing || {}, { name: draft.name, code: draft.code }));
+        }
+    };
 
     if (!bridge) { status('메인 MD Viewer 창과 연결할 수 없습니다. TIDY 메뉴에서 다시 여세요.', 'error'); return; }
     Promise.all([reload(''), bridge.getStorageStatus()]).then(function (values) {
@@ -213,5 +243,6 @@
     }).catch(function (error) { status(error && error.message ? error.message : String(error), 'error'); });
 })();
 </script>
+<script src="./tidy-jena.js"></script>
 </body>
 </html>

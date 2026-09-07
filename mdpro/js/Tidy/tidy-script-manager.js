@@ -303,7 +303,7 @@
 
     function runInWorker(code, source, context) {
         if (typeof Worker !== 'function' || typeof Blob !== 'function' || !global.URL || typeof global.URL.createObjectURL !== 'function') {
-            return Promise.resolve().then(function () { return compileTransformer(code)(source, context); });
+            return Promise.reject(new Error('안전한 실행을 위한 Web Worker를 사용할 수 없습니다.'));
         }
         return new Promise(function (resolve, reject) {
             var workerSource = ''
@@ -383,10 +383,21 @@
 
     function openManager() {
         if (global.TidyActions && typeof global.TidyActions.closeMenu === 'function') global.TidyActions.closeMenu();
-        var popup = global.open(managerUrl, 'mdviewer-tidy-script-manager', 'width=1100,height=760,resizable=yes,scrollbars=yes');
-        if (!popup && typeof deps.showToast === 'function') deps.showToast('팝업이 차단되었습니다. 이 사이트의 팝업을 허용하세요.');
-        if (popup) popup.focus();
-        return !!popup;
+        var dialog = document.getElementById('tidy-manager-dialog');
+        if (!dialog) {
+            dialog = document.createElement('dialog');
+            dialog.id = 'tidy-manager-dialog';
+            dialog.setAttribute('aria-label', 'TIDY 기능 개발');
+            dialog.style.cssText = 'position:fixed;inset:0;width:96vw;max-width:1800px;height:94vh;max-height:94vh;padding:0;border:1px solid #475569;border-radius:12px;background:#020617;overflow:hidden;';
+            var frame = document.createElement('iframe');
+            frame.src = managerUrl;
+            frame.title = 'TIDY 기능 및 JS JENA 관리';
+            frame.style.cssText = 'width:100%;height:100%;border:0;display:block;';
+            dialog.appendChild(frame);
+            document.body.appendChild(dialog);
+        }
+        if (!dialog.open) dialog.showModal();
+        return true;
     }
 
     function configure(options) {
@@ -399,12 +410,21 @@
         configure: configure,
         refresh: refresh,
         openManager: openManager,
+        closeManager: function () { var dialog = document.getElementById('tidy-manager-dialog'); if (dialog) dialog.close(); },
         applyScript: applyScript,
         compileTransformer: compileTransformer,
         serializeGithubFile: serializeGithubFile,
         parseGithubFile: parseGithubFile
     };
     global.TidyScriptManagerBridge = {
+        validate: compileTransformer,
+        test: async function (code, source) {
+            compileTransformer(code);
+            var result = await runInWorker(code, source, { scope: 'document', hasSelection: false });
+            var value = typeof result === 'string' ? result : result && result.value;
+            if (typeof value !== 'string') throw new Error('변환 함수는 문자열 또는 { value: 문자열 }을 반환해야 합니다.');
+            return value;
+        },
         list: function () { return refresh(); },
         save: save,
         remove: remove,
