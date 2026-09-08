@@ -2938,6 +2938,11 @@ async function updatePreviewPopupContent() {
     }
     applyPreviewPopupViewport();
     previewPopupRenderPaginatedPages(target);
+    try {
+        if (typeof hydrateEmbeddedHtmlPreviews === 'function') {
+            hydrateEmbeddedHtmlPreviews(target);
+        }
+    } catch (_) {}
     previewPopupApplyPageMarginState(getPreviewPopupPageMargins());
     applyPreviewPopupViewport();
     previewPopupRefreshMarginControls();
