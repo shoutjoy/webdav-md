@@ -57,6 +57,56 @@
             border: 0;
             background: #fff;
         }
+        .html-code-playground {
+            margin: 1rem 0;
+            overflow: hidden;
+            border: 1px solid #cbd5e1;
+            border-radius: 0.75rem;
+            background: #0f172a;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+        }
+        .html-code-playground-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 0.25rem;
+            min-height: 42px;
+            padding: 0.35rem 0.5rem;
+            border-bottom: 1px solid #334155;
+            background: #172033;
+        }
+        .html-code-mode-button {
+            appearance: none;
+            border: 1px solid transparent;
+            border-radius: 0.45rem;
+            padding: 0.35rem 0.65rem;
+            color: #cbd5e1;
+            background: transparent;
+            font: 600 0.75rem/1.2 Inter, sans-serif;
+            cursor: pointer;
+        }
+        .html-code-mode-button:hover { background: #263449; color: #fff; }
+        .html-code-mode-button.is-active {
+            border-color: #6366f1;
+            color: #fff;
+            background: #4f46e5;
+        }
+        .html-code-playground-stage > pre {
+            margin: 0 !important;
+            border-radius: 0 !important;
+        }
+        .html-code-preview-frame {
+            display: block;
+            width: 100%;
+            height: min(68vh, 720px);
+            min-height: 360px;
+            border: 0;
+            background: #fff;
+        }
+        .dark .html-code-playground { border-color: #475569; }
+        @media (max-width: 640px) {
+            .html-code-preview-frame { height: 62vh; min-height: 300px; }
+        }
         #mini-preview-content.html-document-preview .html-document-frame {
             min-height: 100%;
         }
@@ -2803,6 +2853,24 @@ html:not(.dark) #list-quick-panel [role="menuitem"]:hover,
 html:not(.dark) #code-quote-quick-panel [role="menuitem"]:hover {
     background: #dbeafe !important;
     color: #1e3a8a !important;
+}
+
+/* Link and footnote/anchor menus need a solid hover color so their white
+   hover labels stay readable over the light toolbar chrome. */
+#image-insert-quick-panel [role="menuitem"]:hover,
+#image-insert-quick-panel [role="menuitem"]:focus-visible,
+#footnote-quick-panel button:hover,
+#footnote-quick-panel button:focus-visible {
+    background: #6d28d9 !important;
+    color: #fff !important;
+}
+
+.dark #image-insert-quick-panel [role="menuitem"]:hover,
+.dark #image-insert-quick-panel [role="menuitem"]:focus-visible,
+.dark #footnote-quick-panel button:hover,
+.dark #footnote-quick-panel button:focus-visible {
+    background: #7c3aed !important;
+    color: #fff !important;
 }
 
 /* Align visible toolbar controls without overriding feature visibility. */

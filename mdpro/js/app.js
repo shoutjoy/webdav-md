@@ -3528,9 +3528,92 @@ function renderHtmlDocumentFrame(container, html, options) {
     return frame;
 }
 
+function getEmbeddedHtmlDocumentCode(codeElement) {
+    if (!codeElement) return null;
+    const source = String(codeElement.textContent || '').replace(/^\uFEFF/, '').trim();
+    if (!source || !/^(?:<!doctype\s+html\b|<html\b)/i.test(source)) return null;
+    if (!/<\/html\s*>\s*$/i.test(source)) return null;
+    return source;
+}
+
+function hydrateEmbeddedHtmlPreviews(container) {
+    if (!container || typeof container.querySelectorAll !== 'function') return 0;
+    let hydrated = 0;
+    Array.from(container.querySelectorAll('pre > code')).forEach(function (code) {
+        const source = getEmbeddedHtmlDocumentCode(code);
+        const pre = code.parentElement;
+        if (!source || !pre || pre.closest('.html-code-playground')) return;
+
+        const doc = pre.ownerDocument || document;
+        const playground = doc.createElement('section');
+        playground.className = 'html-code-playground';
+        playground.setAttribute('data-mode', 'code');
+
+        const toolbar = doc.createElement('div');
+        toolbar.className = 'html-code-playground-toolbar';
+        toolbar.setAttribute('role', 'group');
+        toolbar.setAttribute('aria-label', 'HTML 코드 보기 전환');
+
+        const codeButton = doc.createElement('button');
+        codeButton.type = 'button';
+        codeButton.className = 'html-code-mode-button is-active';
+        codeButton.textContent = 'Code';
+        codeButton.setAttribute('aria-pressed', 'true');
+
+        const playButton = doc.createElement('button');
+        playButton.type = 'button';
+        playButton.className = 'html-code-mode-button';
+        playButton.textContent = '\u25b6 Play';
+        playButton.setAttribute('aria-pressed', 'false');
+
+        const stage = doc.createElement('div');
+        stage.className = 'html-code-playground-stage';
+        pre.parentNode.insertBefore(playground, pre);
+        stage.appendChild(pre);
+        toolbar.appendChild(codeButton);
+        toolbar.appendChild(playButton);
+        playground.appendChild(toolbar);
+        playground.appendChild(stage);
+
+        function setMode(mode) {
+            const play = mode === 'play';
+            playground.setAttribute('data-mode', play ? 'play' : 'code');
+            codeButton.classList.toggle('is-active', !play);
+            playButton.classList.toggle('is-active', play);
+            codeButton.setAttribute('aria-pressed', String(!play));
+            playButton.setAttribute('aria-pressed', String(play));
+            if (!play) {
+                const oldFrame = stage.querySelector('iframe.html-code-preview-frame');
+                if (oldFrame) oldFrame.remove();
+                pre.hidden = false;
+                return;
+            }
+            pre.hidden = true;
+            let frame = stage.querySelector('iframe.html-code-preview-frame');
+            if (!frame) {
+                frame = doc.createElement('iframe');
+                frame.className = 'html-code-preview-frame';
+                frame.title = 'HTML 코드 실행 결과';
+                frame.setAttribute('sandbox', 'allow-scripts allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads');
+                frame.setAttribute('allow', 'clipboard-read; clipboard-write; fullscreen');
+                frame.referrerPolicy = 'no-referrer-when-downgrade';
+                stage.appendChild(frame);
+            }
+            frame.srcdoc = source;
+        }
+
+        codeButton.addEventListener('click', function () { setMode('code'); });
+        playButton.addEventListener('click', function () { setMode('play'); });
+        hydrated += 1;
+    });
+    return hydrated;
+}
+
 window.getRenderableHtmlDocument = getRenderableHtmlDocument;
 window.renderHtmlDocumentFrame = renderHtmlDocumentFrame;
 window.setHtmlDocumentMode = setHtmlDocumentMode;
+window.getEmbeddedHtmlDocumentCode = getEmbeddedHtmlDocumentCode;
+window.hydrateEmbeddedHtmlPreviews = hydrateEmbeddedHtmlPreviews;
 
 async function renderMarkdown(options) {
     if (!viewer) return;
@@ -3624,6 +3707,7 @@ async function renderMarkdown(options) {
         try { scheduleUpdatePreviewPopupContent(120); } catch (e) {}
         try { scheduleMiniPreviewRender(120); } catch (e) {}
         if (window.A4Pages) window.A4Pages.paginateView(viewer);
+        try { hydrateEmbeddedHtmlPreviews(viewer); } catch (e) {}
     }
     revokeObjectUrls(viewerInternalImageObjectUrls);
 

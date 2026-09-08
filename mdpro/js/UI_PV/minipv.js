@@ -629,6 +629,11 @@ function renderMiniPreviewContent() {
         miniPreviewContent.innerHTML = String(html || '');
         prepareMiniPreviewResponsiveTables(miniPreviewContent);
         try {
+            if (typeof hydrateEmbeddedHtmlPreviews === 'function') {
+                hydrateEmbeddedHtmlPreviews(miniPreviewContent);
+            }
+        } catch (_) {}
+        try {
             if (typeof applyMarkdownImageSizeHints === 'function') {
                 applyMarkdownImageSizeHints(miniPreviewContent);
             }
