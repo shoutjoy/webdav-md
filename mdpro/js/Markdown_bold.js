@@ -37,18 +37,19 @@ const MarkdownBold = (() => {
         return output;
     }
 
-    /** 인라인 코드(`...`)는 그대로 두고 나머지 텍스트만 변환한다. */
+    /** 인라인 코드를 임시 토큰으로 보호해 코드 안의 **는 무시하되, 코드 앞뒤를 감싼 **는 처리한다. */
     function preprocessInlineCodeAware(line) {
-        let output = '';
-        let cursor = 0;
+        const codeTokens = [];
         const codeRe = /(`+)([\s\S]*?)\1/g;
-        let match;
-        while ((match = codeRe.exec(line)) !== null) {
-            output += preprocessBoldText(line.slice(cursor, match.index));
-            output += match[0];
-            cursor = match.index + match[0].length;
-        }
-        output += preprocessBoldText(line.slice(cursor));
+        const protectedLine = line.replace(codeRe, function (match) {
+            const token = '\uE000MDPRO_INLINE_CODE_' + codeTokens.length + '\uE001';
+            codeTokens.push(match);
+            return token;
+        });
+        let output = preprocessBoldText(protectedLine);
+        codeTokens.forEach(function (code, index) {
+            output = output.split('\uE000MDPRO_INLINE_CODE_' + index + '\uE001').join(code);
+        });
         return output;
     }
 
