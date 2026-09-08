@@ -194,7 +194,7 @@
             const link = doc.createElement('link');
             link.id = 'a4-presentation-style';
             link.rel = 'stylesheet';
-            link.href = new URL('./css/a4-pages.css?v=3', document.baseURI).href;
+            link.href = new URL('./css/a4-pages.css?v=4', document.baseURI).href;
             link.addEventListener('load', () => { const active = sessions.get(win); if (active) refresh(active); });
             doc.head.append(link);
         }
