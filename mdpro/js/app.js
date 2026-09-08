@@ -17792,7 +17792,7 @@ window.toggleSettingsModalCompact = toggleSettingsModalCompact;
 function getAppFullscreenHost() {
     try {
         if (window.frameElement && window.parent && window.parent.document) {
-            return { doc: window.parent.document, target: window.frameElement };
+            return { doc: window.parent.document, target: window.frameElement.closest('.mdpro-stage') || window.frameElement };
         }
     } catch (error) {
         // 다른 출처에 포함된 경우에는 MDPRO 문서 자체를 전체화면으로 사용한다.
@@ -17802,8 +17802,7 @@ function getAppFullscreenHost() {
 
 function isAppFullscreenActive() {
     var host = getAppFullscreenHost();
-    var fullscreenElement = host.doc.fullscreenElement || host.doc.webkitFullscreenElement || host.doc.msFullscreenElement;
-    return Boolean(fullscreenElement || (host.target && host.target.classList.contains('mdpro-frame-mobile-fullscreen')));
+    return Boolean(host.target && host.target.classList.contains('is-app-fullscreen'));
 }
 
 function syncAppFullscreenButton() {
@@ -17821,33 +17820,14 @@ function syncAppFullscreenButton() {
 
 function setAppFullscreenFallback(active) {
     var host = getAppFullscreenHost();
-    if (!host.target || host.target === document.documentElement) return;
-    host.target.classList.toggle('mdpro-frame-mobile-fullscreen', active);
+    if (!host.target) return;
+    host.target.classList.toggle('is-app-fullscreen', active);
     host.doc.body.classList.toggle('mdpro-mobile-fullscreen-active', active);
     syncAppFullscreenButton();
 }
 
 function toggleAppFullscreen() {
-    var host = getAppFullscreenHost();
-    var fullscreenElement = host.doc.fullscreenElement || host.doc.webkitFullscreenElement || host.doc.msFullscreenElement;
-    var fallbackActive = host.target && host.target.classList.contains('mdpro-frame-mobile-fullscreen');
-    if (fallbackActive) {
-        setAppFullscreenFallback(false);
-        return;
-    }
-    if (fullscreenElement) {
-        var exit = host.doc.exitFullscreen || host.doc.webkitExitFullscreen || host.doc.msExitFullscreen;
-        if (exit) Promise.resolve(exit.call(host.doc)).catch(function () {});
-        return;
-    }
-    var request = host.target.requestFullscreen || host.target.webkitRequestFullscreen || host.target.msRequestFullscreen;
-    if (!request) {
-        setAppFullscreenFallback(true);
-        return;
-    }
-    Promise.resolve(request.call(host.target)).then(syncAppFullscreenButton).catch(function () {
-        setAppFullscreenFallback(true);
-    });
+    setAppFullscreenFallback(!isAppFullscreenActive());
 }
 
 document.addEventListener('fullscreenchange', syncAppFullscreenButton);
@@ -17855,7 +17835,7 @@ document.addEventListener('webkitfullscreenchange', syncAppFullscreenButton);
 document.addEventListener('keydown', function (event) {
     if (event.key === 'Escape') {
         var host = getAppFullscreenHost();
-        if (host.target && host.target.classList.contains('mdpro-frame-mobile-fullscreen')) {
+        if (host.target && host.target.classList.contains('is-app-fullscreen')) {
             setAppFullscreenFallback(false);
         }
     }
