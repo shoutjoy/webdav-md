@@ -2049,6 +2049,21 @@ export default function App() {
           <MdproEditor
             onReadJenaRecords={() => readJenaRecords(clientRef.current)}
             onSaveJenaRecord={(record) => saveJenaRecord(clientRef.current, record)}
+            onSaveSettingsMset={async (settingsText) => {
+              const client = clientRef.current;
+              if (!client) throw new Error('WebDAV에 연결한 후 다시 시도하세요.');
+              const folderPath = '/.mdpro_mset';
+              const filePath = folderPath + '/mdpro_settings.mset';
+              if (!await client.exists(folderPath)) await createDirectoryVerified(client, folderPath);
+              await saveFileVerified(client, filePath, settingsText, { overwrite: true });
+            }}
+            onLoadSettingsMset={async () => {
+              const client = clientRef.current;
+              if (!client) throw new Error('WebDAV에 연결한 후 다시 시도하세요.');
+              const filePath = '/.mdpro_mset/mdpro_settings.mset';
+              if (!await client.exists(filePath)) throw new Error('WebDAV에 저장된 설정 파일이 없습니다.');
+              return client.getFileContents(filePath, { format: 'text' });
+            }}
             selectedFile={selectedFile}
             content={editorContent}
             binaryContent={editorBinary}

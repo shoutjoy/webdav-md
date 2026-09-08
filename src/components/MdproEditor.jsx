@@ -3,16 +3,18 @@ import PanelResizeHandles from './PanelResizeHandles.jsx';
 
 const FMA_WIDTH_KEY = 'webdav-fma-panel-width';
 const APP_BASE_URL = import.meta.env.BASE_URL;
-const MDPRO_URL = `${APP_BASE_URL}mdpro/index.html?webdav=1&ui=20260908-app-panel-windows-1`;
+const MDPRO_URL = `${APP_BASE_URL}mdpro/index.html?webdav=1&ui=20260908-mset-webdav-1`;
 const FMA_URL = `${APP_BASE_URL}mdpro/Apps/fmaviewer/index.html?embedded=1`;
 
-export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, selectedFile, content, binaryContent, fmaImportBatch, loading, saving, explorerWidth, onSave, onSaveAs, onDocumentChange, onSaveImageToFolder, onClose, onToggleExplorer, onOpenExplorer, onOpenFolderExplorer, onOpenTocPopup, onThemeChange }) {
+export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, onSaveSettingsMset, onLoadSettingsMset, selectedFile, content, binaryContent, fmaImportBatch, loading, saving, explorerWidth, onSave, onSaveAs, onDocumentChange, onSaveImageToFolder, onClose, onToggleExplorer, onOpenExplorer, onOpenFolderExplorer, onOpenTocPopup, onThemeChange }) {
   const mdproFrameRef = useRef(null);
   const fmaFrameRef = useRef(null);
   const jenaReadRef = useRef(onReadJenaRecords);
   useEffect(() => { jenaReadRef.current = onReadJenaRecords; }, [onReadJenaRecords]);
   const jenaSaveRef = useRef(onSaveJenaRecord);
   useEffect(() => { jenaSaveRef.current = onSaveJenaRecord; }, [onSaveJenaRecord]);
+  const settingsMsetRef = useRef({ save: onSaveSettingsMset, load: onLoadSettingsMset });
+  useEffect(() => { settingsMsetRef.current = { save: onSaveSettingsMset, load: onLoadSettingsMset }; }, [onSaveSettingsMset, onLoadSettingsMset]);
   const documentRef = useRef({ selectedFile, content, binaryContent, fmaImportBatch });
   const callbacksRef = useRef({ onSave, onSaveAs, onDocumentChange, onSaveImageToFolder, onToggleExplorer, onOpenExplorer, onOpenFolderExplorer, onOpenTocPopup, onThemeChange });
   const [fmaWidth, setFmaWidth] = useState(() => {
@@ -82,6 +84,18 @@ export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, selec
           Promise.resolve().then(() => jenaSaveRef.current(event.data.record)).then(
             result => source.postMessage({ type: 'jena-save-result', requestId, ok: true, ...result }, window.location.origin),
             error => source.postMessage({ type: 'jena-save-result', requestId, ok: false, error: error.message }, window.location.origin),
+          );
+        }
+        if (event.origin === window.location.origin && /^mdpro-settings-mset-(save|load)$/.test(event.data.type || '') && typeof event.data.requestId === 'string') {
+          const source = event.source;
+          const requestId = event.data.requestId;
+          const isSave = event.data.type === 'mdpro-settings-mset-save';
+          const operation = isSave
+            ? () => settingsMsetRef.current.save(String(event.data.content ?? ''))
+            : () => settingsMsetRef.current.load();
+          Promise.resolve().then(operation).then(
+            result => source.postMessage({ type: 'mdpro-settings-mset-result', requestId, ok: true, ...(isSave ? {} : { content: String(result ?? '') }) }, window.location.origin),
+            error => source.postMessage({ type: 'mdpro-settings-mset-result', requestId, ok: false, error: error.message }, window.location.origin),
           );
         }
 

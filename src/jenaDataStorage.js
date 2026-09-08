@@ -23,8 +23,16 @@ export function isJenaDataPath(path) {
   return normalized === '/JENA_DATA' || normalized.startsWith('/JENA_DATA/');
 }
 
+export function isMdproMsetPath(path) {
+  const normalized = normalizeRemotePath(path).toLowerCase();
+  return normalized === '/.mdpro_mset' || normalized.startsWith('/.mdpro_mset/');
+}
+
 export function visibleWebdavEntries(entries) {
-  return entries.filter(entry => !isJenaDataPath(entry.remotePath || entry.filename));
+  return entries.filter((entry) => {
+    const path = entry.remotePath || entry.filename;
+    return !isJenaDataPath(path) && !isMdproMsetPath(path);
+  });
 }
 
 export async function readJenaRecords(client) {

@@ -12870,6 +12870,123 @@ function downloadTextFile(filename, text, mimeType) {
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
 }
 
+const SETTINGS_MSET_LONG_PRESS_MS = 2000;
+const SETTINGS_MSET_WEBDAV_TIMEOUT_MS = 30000;
+let settingsMsetWebDavRequestSequence = 0;
+const settingsMsetWebDavRequests = new Map();
+
+function requestSettingsMsetWebDav(action, content) {
+    if (window.parent === window || new URLSearchParams(window.location.search).get('webdav') !== '1') {
+        return Promise.reject(new Error('WebDAV 앱 안에서 MDPRO를 열어 주세요.'));
+    }
+    const requestId = 'mset-' + Date.now() + '-' + (++settingsMsetWebDavRequestSequence);
+    return new Promise(function (resolve, reject) {
+        const timer = setTimeout(function () {
+            settingsMsetWebDavRequests.delete(requestId);
+            reject(new Error('WebDAV 응답 시간이 초과되었습니다.'));
+        }, SETTINGS_MSET_WEBDAV_TIMEOUT_MS);
+        settingsMsetWebDavRequests.set(requestId, { resolve, reject, timer });
+        window.parent.postMessage({
+            type: 'mdpro-settings-mset-' + action,
+            requestId,
+            content: content == null ? undefined : String(content)
+        }, window.location.origin);
+    });
+}
+
+window.addEventListener('message', function (event) {
+    const data = event.data;
+    if (event.source !== window.parent || event.origin !== window.location.origin) return;
+    if (!data || data.type !== 'mdpro-settings-mset-result' || typeof data.requestId !== 'string') return;
+    const pending = settingsMsetWebDavRequests.get(data.requestId);
+    if (!pending) return;
+    settingsMsetWebDavRequests.delete(data.requestId);
+    clearTimeout(pending.timer);
+    if (data.ok) pending.resolve(data);
+    else pending.reject(new Error(data.error || 'WebDAV 설정 파일 처리에 실패했습니다.'));
+});
+
+async function exportSettingsMsetToWebDav() {
+    try {
+        await persistAiSettingsFromModal();
+        const aiSettings = await getAiSettings();
+        const text = JSON.stringify(buildSettingsExportPayload(aiSettings), null, 2);
+        await requestSettingsMsetWebDav('save', text);
+        showToast('WebDAV 숨김 폴더에 설정을 저장했습니다.');
+    } catch (e) {
+        console.error('Failed to export settings to WebDAV:', e);
+        showToast('WebDAV 설정 저장 실패: ' + (e.message || e));
+    }
+}
+
+async function importSettingsMsetFromWebDav() {
+    try {
+        const result = await requestSettingsMsetWebDav('load');
+        const payload = JSON.parse(String(result.content || ''));
+        await applyImportedSettingsPayload(payload);
+        showToast('WebDAV 숨김 폴더에서 설정을 불러왔습니다.');
+    } catch (e) {
+        console.error('Failed to import settings from WebDAV:', e);
+        showToast('WebDAV 설정 불러오기 실패: ' + (e.message || e));
+    }
+}
+
+function handleSettingsExportMsetClick(event) {
+    const button = event && event.currentTarget;
+    if (button && button.dataset.msetLongPressTriggered === '1') {
+        button.dataset.msetLongPressTriggered = '0';
+        return;
+    }
+    exportSettingsMset();
+}
+
+function handleSettingsImportMsetClick(event) {
+    const button = event && event.currentTarget;
+    if (button && button.dataset.msetLongPressTriggered === '1') {
+        button.dataset.msetLongPressTriggered = '0';
+        return;
+    }
+    triggerImportSettingsMset();
+}
+
+function installSettingsMsetLongPress() {
+    [
+        ['settings-export-mset-button', exportSettingsMsetToWebDav],
+        ['settings-import-mset-button', importSettingsMsetFromWebDav]
+    ].forEach(function (entry) {
+        const button = document.getElementById(entry[0]);
+        if (!button || button.dataset.msetLongPressInstalled === '1') return;
+        button.dataset.msetLongPressInstalled = '1';
+        let timer = null;
+        const cancel = function () {
+            if (timer != null) clearTimeout(timer);
+            timer = null;
+        };
+        button.addEventListener('pointerdown', function (event) {
+            if (event.button != null && event.button !== 0) return;
+            cancel();
+            button.dataset.msetLongPressTriggered = '0';
+            timer = setTimeout(function () {
+                timer = null;
+                button.dataset.msetLongPressTriggered = '1';
+                entry[1]();
+            }, SETTINGS_MSET_LONG_PRESS_MS);
+        });
+        button.addEventListener('pointerup', cancel);
+        button.addEventListener('pointercancel', cancel);
+        button.addEventListener('pointerleave', cancel);
+        button.addEventListener('contextmenu', function (event) {
+            if (timer != null || button.dataset.msetLongPressTriggered === '1') event.preventDefault();
+        });
+    });
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', installSettingsMsetLongPress, { once: true });
+} else {
+    installSettingsMsetLongPress();
+}
+
 async function exportSettingsMset() {
     try {
         await persistAiSettingsFromModal();
