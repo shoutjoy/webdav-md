@@ -5,6 +5,8 @@ import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { create } from 'zustand';
 import { createClient } from 'webdav';
 import MdproEditor from './components/MdproEditor.jsx';
+import PanelResizeHandles from './components/PanelResizeHandles.jsx';
+import usePanelWindows from './usePanelWindows.js';
 import FileExplorer from './components/FileExplorer.jsx';
 import LoginPage from './components/LoginPage.jsx';
 import TopNav from './components/TopNav.jsx';
@@ -255,6 +257,7 @@ const useDirectoryStore = create((set) => ({
 }));
 
 export default function App() {
+  usePanelWindows();
   const [recentItems, setRecentItems] = useState([]);
   const [recentOpen, setRecentOpen] = useState(false);
   const recentKeyRef = useRef('');
@@ -1955,6 +1958,7 @@ export default function App() {
           style={{ '--mobile-explorer-width': `${explorerWidth}%` }}
         >
           {isExplorerOpen && <div id="webdav-explorer-panel" className="webdav-explorer-panel" style={{ flexBasis: `${explorerWidth}%` }}>
+            <PanelResizeHandles />
             <FileExplorer
               files={files}
               directoryTree={directoryTree}
