@@ -35,6 +35,7 @@
 .a4-floating-settings [hidden] { display: none !important; }
 body.a4-pv #pv-pages { background: var(--a4-desk) !important; width: max-content; min-width: 100%; padding-bottom: 100px; }
 body.a4-pv #pv-view-controls { display: none !important; }
+body.a4-pv:not(.pv-editor-mode):not(.pv-file-mode) #pv-viewport > #viewer { display: none !important; }
 body.a4-pv #pv-pages > .a4-sheet { flex: none; max-width: none !important; margin: 0 auto 24px !important; border: 0; border-radius: 0; }
 body.a4-pv #pv-pages .a4-view-content { padding: 0 !important; }
 #a4-presentation-tools { display: none; position: fixed; z-index: 10010; bottom: 12px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 24px); width: max-content; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; padding: 8px; border: 1px solid #64748b; border-radius: 8px; background: #0f172af5; color: #e2e8f0; font: 12px/1.5 Arial,sans-serif; box-shadow: 0 4px 18px #0006; }
@@ -42,7 +43,7 @@ body.a4-pv:not(.pv-editor-mode):not(.pv-file-mode) #a4-presentation-tools { disp
 #a4-presentation-tools button { border: 1px solid #64748b; border-radius: 4px; padding: 5px 8px; background: #f8fafc; color: #172033; cursor: pointer; }
 #a4-presentation-tools button[aria-pressed="true"] { background: #bfdbfe; border-color: #3b82f6; }
 #a4-presentation-tools button:disabled { opacity: .4; cursor: default; }
-body.a4-slideshow #pv-viewport { position: fixed; top: 50px; left: 0; right: 0; bottom: 100px; padding: 0 !important; overflow: hidden; }
+body.a4-slideshow #pv-viewport { position: fixed; top: 50px; left: 0; right: 0; bottom: 100px; height: auto; padding: 0 !important; overflow: hidden; }
 body.a4-slideshow #pv-viewport > #viewer { display: none !important; }
 body.a4-slideshow #pv-pages { display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; min-height: 0; padding: 8px !important; }
 body.a4-slideshow #pv-pages > .a4-sheet { margin: 0 !important; }
