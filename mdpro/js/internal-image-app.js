@@ -44,10 +44,10 @@
         if (state.shell && state.shell.isConnected) return state.shell;
         const shell = document.createElement('div');
         shell.id = 'internal-image-app-shell';
-        shell.style.cssText = 'position:fixed;inset:0;z-index:14000;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(2,6,23,.58);backdrop-filter:blur(2px);';
+        shell.style.cssText = 'position:fixed;inset:0;z-index:14000;display:none;align-items:center;justify-content:center;padding:16px;pointer-events:none;';
         shell.innerHTML = [
-            '<section id="internal-image-app-panel" role="dialog" aria-modal="true" aria-label="이미지 앱"',
-            ' style="position:relative;width:min(1380px,96vw);height:min(900px,92vh);min-width:520px;min-height:360px;resize:both;overflow:hidden;border:1px solid #475569;border-radius:12px;background:#0f172a;box-shadow:0 28px 80px rgba(0,0,0,.58);display:flex;flex-direction:column;">',
+            '<section id="internal-image-app-panel" role="dialog" aria-modal="false" aria-label="이미지 앱"',
+            ' style="position:relative;width:min(760px,calc(100vw - 32px));height:min(820px,calc(100vh - 32px));min-width:520px;min-height:360px;pointer-events:auto;resize:both;overflow:hidden;border:1px solid #475569;border-radius:12px;background:#0f172a;box-shadow:0 20px 56px rgba(0,0,0,.48);display:flex;flex-direction:column;">',
             '<header id="internal-image-app-header" style="height:42px;flex:0 0 42px;display:flex;align-items:center;gap:8px;padding:0 10px;background:#111827;border-bottom:1px solid #334155;color:#e5e7eb;cursor:move;user-select:none;">',
             '<span style="color:#f472b6;font-size:16px">▣</span>',
             '<strong id="internal-image-app-title" style="min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;">이미지 보기</strong>',
@@ -155,23 +155,28 @@
         ensureShell();
         const opts = options || {};
         if (opts.layout === 'settings-left') {
-            if (state.layout !== 'settings-left') state.preDockStyle = state.panel.getAttribute('style') || '';
-            state.layout = 'settings-left';
+            // Keep the FMA viewer as a movable, modeless utility window. The old
+            // settings-left layout expanded it across the remaining viewport and
+            // made the host screen effectively unusable.
+            if (state.layout === 'settings-left' && state.preDockStyle) {
+                state.panel.setAttribute('style', state.preDockStyle);
+            }
+            state.layout = '';
+            state.preDockStyle = '';
             state.maximized = false;
-            const leftOffset = Math.max(0, Number(opts.leftOffset) || 0);
-            state.panel.style.position = 'fixed';
+            state.panel.style.position = 'relative';
             state.panel.style.inset = 'auto';
-            state.panel.style.left = leftOffset + 'px';
-            state.panel.style.top = '10px';
-            state.panel.style.right = '10px';
+            state.panel.style.left = 'auto';
+            state.panel.style.top = 'auto';
+            state.panel.style.right = 'auto';
             state.panel.style.margin = '0';
-            state.panel.style.width = 'calc(100vw - ' + (leftOffset + 10) + 'px)';
-            state.panel.style.height = 'calc(100vh - 20px)';
-            state.panel.style.maxWidth = 'none';
-            state.panel.style.maxHeight = 'none';
-            state.panel.style.minWidth = '0';
+            state.panel.style.width = 'min(760px, calc(100vw - 32px))';
+            state.panel.style.height = 'min(820px, calc(100vh - 32px))';
+            state.panel.style.maxWidth = '';
+            state.panel.style.maxHeight = '';
+            state.panel.style.minWidth = 'min(520px, calc(100vw - 32px))';
             state.panel.style.minHeight = '360px';
-            state.panel.style.resize = 'horizontal';
+            state.panel.style.resize = 'both';
             return;
         }
         if (state.layout === 'settings-left') {

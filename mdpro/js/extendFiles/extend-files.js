@@ -235,15 +235,16 @@
     };
   }
 
-  function showCloseActionDialog() {
+  function showCloseActionDialog(options) {
+    var isNewFile = options && options.reason === 'new-file';
     return showChoiceDialog(
-      'Unsaved Changes',
-      'How do you want to proceed before closing current document?',
+      isNewFile ? '새 문서 만들기' : 'Unsaved Changes',
+      isNewFile ? '현재 문서를 먼저 저장하시겠습니까?' : 'How do you want to proceed before closing current document?',
       [
-        { key: 'indb', label: 'Save (inDB)' },
-        { key: 'export', label: 'Export' },
-        { key: 'pass', label: 'Pass' },
-        { key: 'cancel', label: 'Cancel' }
+        { key: 'indb', label: isNewFile ? 'inDB에 저장' : 'Save (inDB)' },
+        { key: 'export', label: isNewFile ? '파일로 저장' : 'Export' },
+        { key: 'pass', label: isNewFile ? '저장하지 않음' : 'Pass' },
+        { key: 'cancel', label: isNewFile ? '새 문서 취소' : 'Cancel' }
       ],
       'cancel'
     );

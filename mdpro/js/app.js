@@ -10,6 +10,8 @@ const SELECTION_WRAP_KEY = 'md_viewer_selection_wrap_enabled';
 const VIEW_MODE_EDIT_KEY = 'md_viewer_view_mode_edit_enabled';
 const VIEW_PADDING_KEY = 'md_viewer_view_padding_v1';
 const DEFAULT_VIEW_PADDING = 24;
+const EDITOR_SHIFT_CONTROL_SIZE_KEY = 'md_editor_shift_control_size_v1';
+const DEFAULT_EDITOR_SHIFT_CONTROL_SIZE = 'normal';
 const SETTINGS_SHORTCUTS_FOLD_KEY = 'md_viewer_settings_shortcuts_folded';
 const SETTINGS_CONTAINER_FOLD_STATE_KEY = 'md_viewer_settings_container_fold_state_v1';
 const FILE_DOWNLOAD_PREFIX_KEY = 'mdpro_file_download_prefix_v1';
@@ -138,7 +140,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260829-pages-local-search-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?v=20260903-search-label-3',
+    aiChat: './AI_App/aiChat/ai-chat.js?v=20260909-webdav-shell-popup-1',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260810-3'
@@ -757,6 +759,14 @@ let math99PopupStartX = 0;
 let math99PopupStartY = 0;
 let math99PopupStartW = 0;
 let math99PopupStartH = 0;
+let img2MathImage = null;
+let img2MathBound = false;
+let img2MathSelection = { start: 0, end: 0 };
+const IMG2MATH_MODEL_SELECTION_KEY = 'mdv_img2math_model_selection_v1';
+let img2MathAiSelection = null;
+let img2MathFloatingBound = false;
+let img2MathFloatingPositioned = false;
+let img2MathLastDocumentSelection = '';
 
 function loadFolderCollapseState() {
     try {
@@ -2661,9 +2671,24 @@ async function confirmSaveBeforeOpeningAnotherFile() {
     if (!isDocumentDirty()) return true;
     let action = 'cancel';
     if (window.ExtendFiles && typeof window.ExtendFiles.showCloseActionDialog === 'function') {
-        action = await window.ExtendFiles.showCloseActionDialog();
+        action = await window.ExtendFiles.showCloseActionDialog({ reason: 'new-file' });
     } else {
         const shouldSave = window.confirm('A document is currently open. Press OK to export before opening another file, or Cancel to stop.');
+        action = shouldSave ? 'export' : 'cancel';
+    }
+    if (action === 'cancel') return false;
+    if (action === 'pass') return true;
+    if (action === 'indb') return await saveCurrentToInDbAuto();
+    if (action === 'export') return await saveCurrentFile();
+    return false;
+}
+
+async function confirmSaveBeforeCreatingNewFile() {
+    let action = 'cancel';
+    if (window.ExtendFiles && typeof window.ExtendFiles.showCloseActionDialog === 'function') {
+        action = await window.ExtendFiles.showCloseActionDialog();
+    } else {
+        const shouldSave = window.confirm('새 문서를 만들기 전에 현재 문서를 저장하시겠습니까?\n확인을 누르면 저장하고, 취소를 누르면 새 문서 만들기를 중단합니다.');
         action = shouldSave ? 'export' : 'cancel';
     }
     if (action === 'cancel') return false;
@@ -4434,10 +4459,36 @@ function toggleNewFileMenu(event) {
     setNewFileMenuVisible(menu.classList.contains('hidden'));
 }
 
-function createBlankFileFromNewMenu(event) {
+async function createBlankFileFromNewMenu(event) {
     if (event) event.stopPropagation();
     setNewFileMenuVisible(false);
-    createNewFile();
+    await createNewFile();
+}
+
+function createWebDavFileFromNewMenu(event) {
+    if (event) event.stopPropagation();
+    setNewFileMenuVisible(false);
+    const embeddedInWebDav = new URLSearchParams(window.location.search).get('webdav') === '1'
+        && window.parent
+        && window.parent !== window;
+    if (!embeddedInWebDav) {
+        showToast('WD 새파일 생성은 WebDAV에서 열었을 때 사용할 수 있습니다.');
+        return;
+    }
+
+    // 같은 출처의 WebDAV 호스트에서는 기존 생성 버튼을 직접 사용한다.
+    // 이 경로는 호스트 React 번들이 캐시되어 메시지 핸들러가 아직 없을 때도 동작한다.
+    try {
+        const hostCreateButton = window.parent.document.querySelector(
+            'button[aria-label="새 Markdown 파일 생성 위치 선택"]'
+        );
+        if (hostCreateButton && !hostCreateButton.disabled) {
+            hostCreateButton.click();
+            return;
+        }
+    } catch (_error) { }
+
+    window.parent.postMessage({ type: 'webdav-create-new-file' }, window.location.origin);
 }
 
 function openTemplateForNewFile(event) {
@@ -4455,6 +4506,16 @@ function openFilePickerFromMenu(event) {
     setOpenSourceMenuVisible(false);
     const input = document.getElementById('file-input');
     if (input) input.click();
+}
+
+function openRecentWorkFromMenu(event) {
+    if (event) event.stopPropagation();
+    setOpenSourceMenuVisible(false);
+    if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'webdav-open-recent-work' }, window.location.origin);
+        return;
+    }
+    showToast('최근 작업은 WebDAV에서 열었을 때 사용할 수 있습니다.');
 }
 
 function openImageFolderPickerFromMenu(event) {
@@ -4632,7 +4693,12 @@ async function refreshCurrentLocalFileFromDisk() {
 
 window.refreshCurrentLocalFileFromDisk = refreshCurrentLocalFileFromDisk;
 
-function createNewFile() {
+async function createNewFile() {
+    const canProceed = await confirmSaveBeforeCreatingNewFile();
+    if (!canProceed) {
+        showToast('새 문서 만들기를 취소했습니다.');
+        return false;
+    }
     currentMarkdown = "";
     setCurrentDocumentInfo("untitled.md", null, { createdAt: new Date(), dateLabel: '생성일' });
     updateContent("");
@@ -4640,6 +4706,7 @@ function createNewFile() {
     performAutoSave();
     showToast("New document created.");
     if (isEditMode) editorTextarea.focus();
+    return true;
 }
 
 const MPV_FORMAT = (window.MdViewerFileFormat && typeof window.MdViewerFileFormat.getFormatId === 'function'
@@ -5554,6 +5621,47 @@ function syncPrintRootFromViewer() {
     return hasRenderedNodes;
 }
 
+function convertPrintMermaidSvgsToImages(printRoot) {
+    if (!printRoot || !printRoot.querySelectorAll) return [];
+    const pendingImages = [];
+    const wrappers = Array.from(printRoot.querySelectorAll('.trt-mermaid-wrapper'));
+    wrappers.forEach(function (wrapper) {
+        const svg = wrapper.querySelector('svg');
+        if (!svg) return;
+
+        const printableSvg = svg.cloneNode(true);
+        printableSvg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+        if (!printableSvg.getAttribute('viewBox')) {
+            const width = parseFloat(printableSvg.getAttribute('width')) || svg.getBoundingClientRect().width;
+            const height = parseFloat(printableSvg.getAttribute('height')) || svg.getBoundingClientRect().height;
+            if (width > 0 && height > 0) printableSvg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+        }
+        printableSvg.removeAttribute('width');
+        printableSvg.removeAttribute('height');
+        printableSvg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+        const image = document.createElement('img');
+        image.className = 'print-mermaid-image';
+        image.alt = 'Mermaid diagram';
+        image.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+            new XMLSerializer().serializeToString(printableSvg)
+        );
+        wrapper.replaceWith(image);
+        pendingImages.push(image);
+    });
+    return pendingImages;
+}
+
+function waitForPrintImages(images) {
+    return Promise.all((images || []).map(function (image) {
+        if (image.complete) return Promise.resolve();
+        return new Promise(function (resolve) {
+            image.addEventListener('load', resolve, { once: true });
+            image.addEventListener('error', resolve, { once: true });
+        });
+    }));
+}
+
 function clearPrintRoot() {
     const printRoot = ensurePrintRootElement();
     if (!printRoot) return;
@@ -5562,11 +5670,21 @@ function clearPrintRoot() {
 
 function printPage() {
     if (isEditMode) toggleMode('view');
-    setTimeout(() => {
+    setTimeout(async () => {
+        const viewerEl = document.getElementById('viewer') || viewer;
+        if (viewerEl && window.MermaidTRT && typeof window.MermaidTRT.renderIn === 'function') {
+            try {
+                await window.MermaidTRT.renderIn(viewerEl);
+            } catch (error) {
+                console.warn('Mermaid render before print failed:', error);
+            }
+        }
         if (!syncPrintRootFromViewer()) {
             showToast('Nothing to print. Rendered content is empty.');
             return;
         }
+        const printRoot = ensurePrintRootElement();
+        await waitForPrintImages(convertPrintMermaidSvgsToImages(printRoot));
         document.body.classList.add('printing-active');
         const cleanup = function () {
             document.body.classList.remove('printing-active');
@@ -6790,6 +6908,12 @@ function loadFromExternalContent(content, title, opts) {
     if (content !== undefined && content !== null) {
         currentMarkdown = String(content);
         if (editorTextarea) editorTextarea.value = currentMarkdown;
+        // WebDAV loads bypass the textarea input event. Reset the paged editor
+        // explicitly so the previous document's A4 DOM cannot survive under a
+        // newly selected file path.
+        if (window.A4Pages && typeof window.A4Pages.sync === 'function') {
+            window.A4Pages.sync(currentMarkdown);
+        }
         renderMarkdown();
         renderTOC();
     }
@@ -6803,6 +6927,7 @@ function loadFromExternalContent(content, title, opts) {
         tx.objectStore('autosave').delete('last_work');
     }
     markPersistedState();
+    return String(currentMarkdown ?? '');
 }
 
 function tryLoadFromUrl() {
@@ -7889,6 +8014,11 @@ function bindWheelZoomShortcuts() {
     function handleWheelZoomShortcut(event) {
         if (!event) return;
         if (event.ctrlKey || event.metaKey) return;
+        const target = event.target && event.target.nodeType === 1
+            ? event.target
+            : (event.target && event.target.parentElement);
+        const isInsideDocument = !!(target && target.closest && target.closest('#viewer-container, #content-viewport'));
+        if (!isInsideDocument) return;
         const dy = Number(event.deltaY || 0);
         if (dy === 0) return;
 
@@ -8690,12 +8820,26 @@ function adjustPageScale(delta) {
 
 function applyDocumentWidthScale() {
     const baseMaxWidthRem = 56; // Tailwind max-w-4xl
-    const widthRem = Math.max(28, baseMaxWidthRem * pageScale);
+    const widthRem = Math.max(5.6, baseMaxWidthRem * pageScale);
     const widthValue = widthRem + 'rem';
-    if (viewer) viewer.style.maxWidth = widthValue;
+    if (viewer) {
+        viewer.style.width = widthValue;
+        viewer.style.maxWidth = 'none';
+        viewer.style.flex = '0 0 auto';
+    }
     const editorDocWrap = document.getElementById('editor-doc-wrap');
-    if (editorDocWrap) editorDocWrap.style.maxWidth = widthValue;
-    if (editorTextarea) editorTextarea.style.maxWidth = widthValue;
+    if (editorDocWrap) {
+        editorDocWrap.style.width = widthValue;
+        editorDocWrap.style.maxWidth = 'none';
+        editorDocWrap.style.flex = '0 0 auto';
+    }
+    if (editorTextarea) {
+        editorTextarea.style.width = '100%';
+        editorTextarea.style.maxWidth = 'none';
+    }
+    if (viewerContainer) viewerContainer.style.overflowX = 'auto';
+    const contentViewport = document.getElementById('content-viewport');
+    if (contentViewport) contentViewport.style.overflowX = 'auto';
     applyEditorHorizontalShift();
 }
 
@@ -8716,6 +8860,7 @@ function adjustHeaderScale(delta) {
 
 function applyEditorHorizontalShift() {
     const editorDocWrap = document.getElementById('editor-doc-wrap');
+    const a4Pages = document.getElementById('a4-pages');
     const display = document.getElementById('editor-shift-display');
     const viewport = document.getElementById('content-viewport');
     if (!editorDocWrap || !viewport) {
@@ -8723,14 +8868,23 @@ function applyEditorHorizontalShift() {
         return;
     }
 
+    const isA4 = viewport.classList.contains('a4-active') && a4Pages && !a4Pages.hidden;
+    const shiftTarget = isA4 ? a4Pages : editorDocWrap;
+    const inactiveTarget = isA4 ? editorDocWrap : a4Pages;
     const viewportWidth = Number(viewport.clientWidth) || 0;
-    const wrapWidth = Number(editorDocWrap.offsetWidth) || 0;
-    const maxShift = Math.max(0, Math.floor((viewportWidth - wrapWidth) / 2) - 8);
+    const targetWidth = Number(shiftTarget.offsetWidth) || 0;
+    const maxShift = isA4
+        ? Math.max(80, Math.floor(Math.abs(viewportWidth - targetWidth) / 2 + viewportWidth * 0.25))
+        : Math.max(0, Math.floor((viewportWidth - targetWidth) / 2) - 8);
     const clamped = Math.max(-maxShift, Math.min(maxShift, Number(editorHorizontalShiftPx) || 0));
     editorHorizontalShiftPx = clamped;
 
-    editorDocWrap.style.transform = `translateX(${editorHorizontalShiftPx}px)`;
-    editorDocWrap.style.transition = 'transform 120ms ease';
+    if (inactiveTarget) {
+        inactiveTarget.style.transform = '';
+        inactiveTarget.style.transition = '';
+    }
+    shiftTarget.style.transform = `translateX(${editorHorizontalShiftPx}px)`;
+    shiftTarget.style.transition = 'transform 120ms ease';
     if (display) display.textContent = `${editorHorizontalShiftPx}px`;
     syncEditorShiftFloatPosition();
 }
@@ -8747,42 +8901,46 @@ function saveEditorShiftFloatPreferences() {
 
 function initEditorShiftFloat(control) {
     const toggle = control.querySelector('.editor-shift-orientation');
-    const handle = control.querySelector('.editor-shift-drag');
+    const dragHandle = control.querySelector('.editor-shift-drag');
+    const handle = dragHandle || control;
     const applyOrientation = () => {
-        const horizontal = editorShiftFloatPreferences.horizontal === true;
+        const horizontal = editorShiftFloatPreferences.vertical !== true;
+        control.dataset.orientation = horizontal ? 'horizontal' : 'vertical';
         control.classList.toggle('is-horizontal', horizontal);
+        control.classList.toggle('is-vertical', !horizontal);
+        if (!toggle) return;
         toggle.textContent = horizontal ? '↕' : '↔';
         toggle.title = horizontal ? '세로 메뉴로 전환' : '가로 메뉴로 전환';
         toggle.setAttribute('aria-label', toggle.title);
+        toggle.setAttribute('aria-pressed', String(!horizontal));
     };
     applyOrientation();
-    toggle.addEventListener('click', () => {
-        editorShiftFloatPreferences.horizontal = !editorShiftFloatPreferences.horizontal;
+    toggle?.addEventListener('click', () => {
+        editorShiftFloatPreferences.vertical = editorShiftFloatPreferences.vertical !== true;
         applyOrientation();
         syncEditorShiftFloatPosition();
         saveEditorShiftFloatPreferences();
     });
     handle.addEventListener('pointerdown', event => {
-        if (event.button !== 0) return;
+        if (event.button !== 0 || (!dragHandle && event.target.closest('button'))) return;
         event.preventDefault();
         const rect = control.getBoundingClientRect();
         const startX = event.clientX;
         const startY = event.clientY;
-        handle.setPointerCapture(event.pointerId);
         const move = e => {
             editorShiftFloatPreferences.x = rect.left + e.clientX - startX;
             editorShiftFloatPreferences.y = rect.top + e.clientY - startY;
             syncEditorShiftFloatPosition();
         };
         const end = () => {
-            handle.removeEventListener('pointermove', move);
-            handle.removeEventListener('pointerup', end);
-            handle.removeEventListener('pointercancel', end);
+            window.removeEventListener('pointermove', move);
+            window.removeEventListener('pointerup', end);
+            window.removeEventListener('pointercancel', end);
             saveEditorShiftFloatPreferences();
         };
-        handle.addEventListener('pointermove', move);
-        handle.addEventListener('pointerup', end);
-        handle.addEventListener('pointercancel', end);
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', end);
+        window.addEventListener('pointercancel', end);
     });
 }
 
@@ -8874,7 +9032,11 @@ function showToast(msg, options) {
 }
 
 function getActiveScrollTarget() {
-    if (isEditMode && editorTextarea) return editorTextarea;
+    if (isEditMode) {
+        const viewport = document.getElementById('content-viewport');
+        if (viewport && (viewport.classList.contains('a4-active') || viewport.classList.contains('long-document-active'))) return viewport;
+        if (editorTextarea) return editorTextarea;
+    }
     if (viewerContainer) return viewerContainer;
     return null;
 }
@@ -10062,6 +10224,32 @@ async function setViewPaddingSetting(value) {
     try { await setAiSettings({ viewPadding: size }); } catch (e) {}
 }
 
+function normalizeEditorShiftControlSize(value) {
+    return ['small', 'normal', 'large', 'xlarge'].includes(value) ? value : DEFAULT_EDITOR_SHIFT_CONTROL_SIZE;
+}
+
+function getEditorShiftControlSizeFromLocal() {
+    return normalizeEditorShiftControlSize(localStorage.getItem(EDITOR_SHIFT_CONTROL_SIZE_KEY));
+}
+
+function applyEditorShiftControlSize(value) {
+    const size = normalizeEditorShiftControlSize(value);
+    const control = document.getElementById('editor-shift-float');
+    if (control) control.dataset.controlSize = size;
+    const select = document.getElementById('editor-shift-control-size');
+    if (select) select.value = size;
+    requestAnimationFrame(function () {
+        if (typeof syncEditorShiftFloatPosition === 'function') syncEditorShiftFloatPosition();
+    });
+    return size;
+}
+
+async function setEditorShiftControlSizeSetting(value) {
+    const size = applyEditorShiftControlSize(value);
+    localStorage.setItem(EDITOR_SHIFT_CONTROL_SIZE_KEY, size);
+    try { await setAiSettings({ editorShiftControlSize: size }); } catch (e) {}
+}
+
 function getSettingsContainerFoldState() {
     try {
         const parsed = JSON.parse(localStorage.getItem(SETTINGS_CONTAINER_FOLD_STATE_KEY) || '{}');
@@ -10668,6 +10856,420 @@ function closeMath99Popup() {
     if (!wrap) return;
     wrap.classList.add('hidden');
 }
+
+function cleanImg2MathLatex(value) {
+    let text = String(value || '').trim().replace(/^```(?:latex|tex|math)?\s*/i, '').replace(/\s*```$/i, '').trim();
+    try {
+        const parsed = JSON.parse(text);
+        text = String(parsed.latex || parsed.formula || parsed.tex || '').trim();
+    } catch (_error) { }
+    const wrapped = text.match(/^\$\$([\s\S]*)\$\$$|^\\\[([\s\S]*)\\\]$|^\\\(([\s\S]*)\\\)$|^\$([^$]+)\$$/);
+    if (wrapped) text = wrapped.slice(1).find(Boolean) || text;
+    return text.replace(/^\s*(?:latex|tex)\s*:\s*/i, '').trim();
+}
+
+function setImg2MathImage(file) {
+    if (!file || !String(file.type || '').startsWith('image/')) {
+        showToast('이미지 파일을 선택해 주세요.');
+        return;
+    }
+    const reader = new FileReader();
+    reader.onload = function () {
+        img2MathImage = { name: file.name || 'formula.png', type: file.type || 'image/png', size: file.size || 0, dataUrl: String(reader.result || '') };
+        const preview = document.getElementById('img2math-image-preview');
+        const label = document.getElementById('img2math-drop-label');
+        const clearButton = document.getElementById('img2math-clear');
+        const result = document.getElementById('img2math-result');
+        if (preview) { preview.src = img2MathImage.dataUrl; preview.classList.remove('hidden'); }
+        if (label) label.textContent = img2MathImage.name;
+        if (clearButton) clearButton.classList.remove('hidden');
+        if (result) result.value = '';
+        renderImg2MathPreview();
+        const status = document.getElementById('img2math-status');
+        if (status) status.textContent = '이미지를 불러왔습니다.';
+    };
+    reader.onerror = function () { showToast('이미지를 읽지 못했습니다.'); };
+    reader.readAsDataURL(file);
+}
+
+function clearImg2MathImage() {
+    img2MathImage = null;
+    const preview = document.getElementById('img2math-image-preview');
+    const label = document.getElementById('img2math-drop-label');
+    const file = document.getElementById('img2math-file');
+    const clearButton = document.getElementById('img2math-clear');
+    const result = document.getElementById('img2math-result');
+    const status = document.getElementById('img2math-status');
+    if (preview) {
+        preview.removeAttribute('src');
+        preview.classList.add('hidden');
+    }
+    if (label) label.textContent = '이미지를 끌어 놓거나 붙여넣으세요';
+    if (file) file.value = '';
+    if (clearButton) clearButton.classList.add('hidden');
+    if (result) result.value = '';
+    renderImg2MathPreview();
+    if (status) status.textContent = '기존 이미지를 지웠습니다. 새 이미지를 추가해 주세요.';
+    document.getElementById('img2math-drop')?.focus();
+}
+
+async function pasteImg2MathImage() {
+    const status = document.getElementById('img2math-status');
+    try {
+        if (!navigator.clipboard || typeof navigator.clipboard.read !== 'function') throw new Error('이 환경에서는 Ctrl+V를 사용해 주세요.');
+        const items = await navigator.clipboard.read();
+        for (const item of items) {
+            const type = item.types.find(function (candidate) { return candidate.startsWith('image/'); });
+            if (type) { setImg2MathImage(new File([await item.getType(type)], '붙여넣은 수식 이미지', { type: type })); return; }
+        }
+        throw new Error('클립보드에 이미지가 없습니다.');
+    } catch (error) {
+        if (status) status.textContent = error.message;
+    }
+}
+
+async function renderImg2MathPreview() {
+    const target = document.getElementById('img2math-render');
+    const result = document.getElementById('img2math-result');
+    if (!target || !result) return;
+    const latex = cleanImg2MathLatex(result.value);
+    target.textContent = latex ? '\\[' + latex + '\\]' : '인식된 수식이 여기에 렌더링됩니다.';
+    if (!latex) return;
+    try {
+        await ensureMdMathEngineLoaded();
+        if (window.MathJax.typesetClear) window.MathJax.typesetClear([target]);
+        await window.MathJax.typesetPromise([target]);
+    } catch (error) {
+        target.textContent = '수식 렌더링 오류: ' + error.message;
+    }
+}
+
+async function generateImg2Math() {
+    const status = document.getElementById('img2math-status');
+    const button = document.getElementById('img2math-generate');
+    const prompt = document.getElementById('img2math-prompt');
+    const output = document.getElementById('img2math-result');
+    if (!img2MathImage) { if (status) status.textContent = '먼저 수식 이미지를 추가해 주세요.'; return; }
+    try {
+        button.disabled = true;
+        button.textContent = 'AI Jena가 수식을 인식하고 있습니다…';
+        if (status) status.textContent = 'AI Jena 연결과 이미지 인식 모델을 확인하고 있습니다.';
+        if (!window.AIChatBridge || typeof window.AIChatBridge.complete !== 'function') throw new Error('AI Jena 연결 모듈이 준비되지 않았습니다.');
+        const selected = getImg2MathProviderSelection();
+        updateImg2MathAiModelStatus(selected);
+        if (status) status.textContent = formatImg2MathAiModel(selected) + ' 모델이 이미지의 기호와 수식 구조를 분석하고 있습니다.';
+        const response = await window.AIChatBridge.complete({
+            provider: selected.provider,
+            model: selected.model,
+            mode: 'quick',
+            messages: [{ role: 'user', content: String(prompt.value || '').trim(), attachments: [{ kind: 'image', name: img2MathImage.name, type: img2MathImage.type, size: img2MathImage.size, dataUrl: img2MathImage.dataUrl }] }],
+            systemInstruction: 'You are a mathematical OCR engine. Read every visible formula precisely. Return only the raw LaTeX body, without dollar signs, code fences, JSON, prose, or explanation. Preserve fractions, roots, matrices, cases, accents, Greek letters, superscripts, subscripts, and delimiters.'
+        });
+        const latex = cleanImg2MathLatex(response && response.text);
+        if (!latex) throw new Error('AI 응답에서 수식을 찾지 못했습니다.');
+        output.value = latex;
+        await renderImg2MathPreview();
+        if (status) status.textContent = formatImg2MathAiModel(response || selected) + ' 인식이 완료되었습니다. 결과를 수정하거나 문서에 삽입할 수 있습니다.';
+    } catch (error) {
+        if (status) status.textContent = '수식 인식 실패: ' + (error && error.message ? error.message : String(error));
+    } finally {
+        button.disabled = false;
+        button.textContent = '✦ AI Jena로 수식 인식 실행';
+    }
+}
+
+function formatImg2MathAiModel(selection) {
+    const providerNames = {
+        aistudio: 'Google AI Studio',
+        openai: 'OpenAI',
+        lmstudio: 'LM Studio',
+        ollama: 'Ollama',
+        deepseek: 'DeepSeek',
+        litertlm: 'LiteRTLM',
+        'openai-compatible': 'OpenAI 호환 API'
+    };
+    const provider = String(selection && selection.provider || '').trim();
+    const model = String(selection && selection.model || '').trim();
+    return [providerNames[provider] || provider || 'AI Jena', model].filter(Boolean).join(' · ');
+}
+
+function getImg2MathProviderSelection() {
+    const configured = getMermaidVisionProviderSelection();
+    if (!img2MathAiSelection) {
+        try {
+            const saved = JSON.parse(localStorage.getItem(IMG2MATH_MODEL_SELECTION_KEY) || 'null');
+            if (saved && typeof saved === 'object') {
+                img2MathAiSelection = { provider: String(saved.provider || ''), model: String(saved.model || '') };
+            }
+        } catch (_error) { }
+    }
+    if (img2MathAiSelection && img2MathAiSelection.provider === configured.provider && img2MathAiSelection.model) {
+        return { provider: configured.provider, model: img2MathAiSelection.model };
+    }
+    img2MathAiSelection = { provider: configured.provider, model: configured.model };
+    return img2MathAiSelection;
+}
+
+function updateImg2MathAiModelStatus(selection) {
+    const target = document.getElementById('img2math-ai-provider');
+    if (!target) return;
+    try {
+        const current = selection || getImg2MathProviderSelection();
+        const parts = formatImg2MathAiModel(current).split(' · ');
+        target.textContent = 'AI Jena · ' + (parts[0] || '이미지 인식');
+        target.classList.remove('is-error');
+    } catch (error) {
+        target.textContent = 'AI Jena 이미지 모델 설정 필요';
+        target.classList.add('is-error');
+    }
+}
+
+async function populateImg2MathModelSelect() {
+    const select = document.getElementById('img2math-model-select');
+    if (!select) return;
+    select.disabled = true;
+    select.innerHTML = '<option>모델 불러오는 중…</option>';
+    try {
+        const selected = getImg2MathProviderSelection();
+        let models = [selected.model].filter(Boolean);
+        const cachedModelMethods = {
+            aistudio: 'getCachedGeminiModels',
+            openai: 'getCachedOpenAIModels'
+        };
+        const method = cachedModelMethods[selected.provider];
+        if (method && window.AIChatBridge && typeof window.AIChatBridge[method] === 'function') {
+            const result = await Promise.resolve(window.AIChatBridge[method]());
+            models = models.concat(Array.isArray(result) ? result : (Array.isArray(result && result.models) ? result.models : []));
+        }
+        models = Array.from(new Set(models.map(function (model) { return String(model || '').trim(); }).filter(Boolean)));
+        if (!models.length) throw new Error('선택 가능한 이미지 인식 모델이 없습니다.');
+        select.replaceChildren();
+        models.forEach(function (model) {
+            const option = document.createElement('option');
+            option.value = model;
+            option.textContent = model;
+            select.appendChild(option);
+        });
+        select.value = models.includes(selected.model) ? selected.model : models[0];
+        img2MathAiSelection = { provider: selected.provider, model: select.value };
+        select.disabled = false;
+        updateImg2MathAiModelStatus(img2MathAiSelection);
+    } catch (error) {
+        select.innerHTML = '<option>모델 설정 필요</option>';
+        select.disabled = true;
+        updateImg2MathAiModelStatus();
+    }
+}
+
+function getImg2MathSelectedDocumentText() {
+    const selection = typeof window.getSelection === 'function' ? window.getSelection() : null;
+    if (selection && selection.rangeCount > 0 && String(selection.toString() || '').trim()) {
+        const range = selection.getRangeAt(0);
+        const commonNode = range.commonAncestorContainer;
+        const commonElement = commonNode && commonNode.nodeType === Node.ELEMENT_NODE ? commonNode : commonNode && commonNode.parentElement;
+        if (viewer && commonElement && viewer.contains(commonElement)) return String(selection.toString() || '').trim();
+    }
+    if (editorTextarea) {
+        const start = Math.max(0, Number(editorTextarea.selectionStart) || 0);
+        const end = Math.max(start, Number(editorTextarea.selectionEnd) || start);
+        const selected = String(editorTextarea.value || '').slice(start, end).trim();
+        if (selected) return selected;
+    }
+    return img2MathLastDocumentSelection;
+}
+
+function captureImg2MathDocumentSelection() {
+    const popup = document.getElementById('img2math-popup');
+    if (!popup || popup.classList.contains('hidden')) return;
+    const selected = getImg2MathSelectedDocumentText();
+    if (selected) img2MathLastDocumentSelection = selected;
+}
+
+function importSelectedTextIntoImg2Math() {
+    const result = document.getElementById('img2math-result');
+    const status = document.getElementById('img2math-status');
+    const selected = getImg2MathSelectedDocumentText();
+    if (!selected) {
+        if (status) status.textContent = '배경 문서에서 가져올 텍스트를 먼저 선택해 주세요.';
+        return;
+    }
+    img2MathLastDocumentSelection = selected;
+    if (result) result.value = selected;
+    renderImg2MathPreview();
+    if (status) status.textContent = '선택한 텍스트를 인식된 LaTeX 입력창으로 가져왔습니다.';
+}
+
+function insertImg2MathResult() {
+    if (!isEditMode || !editorTextarea) { showToast('편집 모드에서 사용해 주세요.'); return; }
+    const output = document.getElementById('img2math-result');
+    const latex = cleanImg2MathLatex(output && output.value);
+    if (!latex) { showToast('삽입할 수식이 없습니다.'); return; }
+    const raw = String(editorTextarea.value || '');
+    const start = Math.max(0, Math.min(img2MathSelection.start, raw.length));
+    const end = Math.max(start, Math.min(img2MathSelection.end, raw.length));
+    const block = '$$\n' + latex + '\n$$';
+    editorTextarea.value = raw.slice(0, start) + block + raw.slice(end);
+    currentMarkdown = editorTextarea.value;
+    closeImg2MathPopup();
+    editorTextarea.focus();
+    editorTextarea.setSelectionRange(start + block.length, start + block.length);
+    renderMarkdown();
+    performAutoSave();
+    showToast('인식한 수식을 문서에 삽입했습니다.');
+}
+
+function constrainImg2MathFloatingWindow(initialize) {
+    const dialog = document.querySelector('#img2math-popup .img2math-dialog');
+    if (!dialog || dialog.offsetParent === null) return;
+    const viewportWidth = Math.max(320, window.innerWidth || document.documentElement.clientWidth || 1280);
+    const viewportHeight = Math.max(360, window.innerHeight || document.documentElement.clientHeight || 720);
+    const gap = viewportWidth <= 520 ? 6 : 12;
+    const minWidth = Math.min(560, viewportWidth - gap * 2);
+    const minHeight = Math.min(420, viewportHeight - gap * 2);
+    const maxWidth = Math.max(minWidth, viewportWidth - gap * 2);
+    const maxHeight = Math.max(minHeight, viewportHeight - gap * 2);
+    let rect = dialog.getBoundingClientRect();
+    let width = Math.min(maxWidth, Math.max(minWidth, rect.width || Math.min(940, maxWidth)));
+    let height = Math.min(maxHeight, Math.max(minHeight, rect.height || Math.min(640, maxHeight)));
+    let left = rect.left;
+    let top = rect.top;
+    if (initialize || !img2MathFloatingPositioned || !Number.isFinite(left) || !Number.isFinite(top)) {
+        width = Math.min(940, maxWidth);
+        height = Math.min(640, maxHeight);
+        left = Math.round((viewportWidth - width) / 2);
+        top = Math.round((viewportHeight - height) / 2);
+        img2MathFloatingPositioned = true;
+    }
+    left = Math.min(viewportWidth - gap - width, Math.max(gap, left));
+    top = Math.min(viewportHeight - gap - height, Math.max(gap, top));
+    dialog.style.left = left + 'px';
+    dialog.style.top = top + 'px';
+    dialog.style.width = width + 'px';
+    dialog.style.height = height + 'px';
+}
+
+function bindImg2MathFloatingWindow() {
+    if (img2MathFloatingBound) return;
+    const dialog = document.querySelector('#img2math-popup .img2math-dialog');
+    const header = dialog && dialog.querySelector('.img2math-header');
+    if (!dialog || !header) return;
+    img2MathFloatingBound = true;
+    let action = null;
+
+    const finish = function () {
+        if (!action) return;
+        action = null;
+        document.body.classList.remove('img2math-window-moving');
+    };
+    const move = function (event) {
+        if (!action) return;
+        const viewportWidth = Math.max(320, window.innerWidth || document.documentElement.clientWidth || 1280);
+        const viewportHeight = Math.max(360, window.innerHeight || document.documentElement.clientHeight || 720);
+        const gap = viewportWidth <= 520 ? 6 : 12;
+        const dx = event.clientX - action.startX;
+        const dy = event.clientY - action.startY;
+        if (action.type === 'move') {
+            const left = Math.min(viewportWidth - gap - action.width, Math.max(gap, action.left + dx));
+            const top = Math.min(viewportHeight - gap - action.height, Math.max(gap, action.top + dy));
+            dialog.style.left = left + 'px';
+            dialog.style.top = top + 'px';
+            return;
+        }
+        const direction = action.direction;
+        const minWidth = Math.min(560, viewportWidth - gap * 2);
+        const minHeight = Math.min(420, viewportHeight - gap * 2);
+        let left = action.left;
+        let top = action.top;
+        let right = action.left + action.width;
+        let bottom = action.top + action.height;
+        if (direction.includes('e')) right = Math.min(viewportWidth - gap, Math.max(left + minWidth, right + dx));
+        if (direction.includes('s')) bottom = Math.min(viewportHeight - gap, Math.max(top + minHeight, bottom + dy));
+        if (direction.includes('w')) left = Math.max(gap, Math.min(right - minWidth, left + dx));
+        if (direction.includes('n')) top = Math.max(gap, Math.min(bottom - minHeight, top + dy));
+        dialog.style.left = left + 'px';
+        dialog.style.top = top + 'px';
+        dialog.style.width = (right - left) + 'px';
+        dialog.style.height = (bottom - top) + 'px';
+    };
+
+    header.addEventListener('pointerdown', function (event) {
+        if (event.button !== 0 || event.target.closest('button, select, input, textarea, a')) return;
+        const rect = dialog.getBoundingClientRect();
+        action = { type: 'move', startX: event.clientX, startY: event.clientY, left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+        document.body.classList.add('img2math-window-moving');
+        event.preventDefault();
+    });
+    dialog.querySelectorAll('[data-img2math-resize]').forEach(function (handle) {
+        handle.addEventListener('pointerdown', function (event) {
+            if (event.button !== 0) return;
+            const rect = dialog.getBoundingClientRect();
+            action = { type: 'resize', direction: handle.dataset.img2mathResize || 'se', startX: event.clientX, startY: event.clientY, left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+            document.body.classList.add('img2math-window-moving');
+            event.preventDefault();
+            event.stopPropagation();
+        });
+    });
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', finish);
+    document.addEventListener('pointercancel', finish);
+    window.addEventListener('resize', function () { constrainImg2MathFloatingWindow(false); });
+}
+
+function bindImg2MathPopup() {
+    if (img2MathBound) return;
+    const wrap = document.getElementById('img2math-popup');
+    const drop = document.getElementById('img2math-drop');
+    const file = document.getElementById('img2math-file');
+    const result = document.getElementById('img2math-result');
+    if (!wrap || !drop || !file || !result) return;
+    img2MathBound = true;
+    bindImg2MathFloatingWindow();
+    document.getElementById('img2math-select').onclick = function (event) { event.stopPropagation(); file.click(); };
+    document.getElementById('img2math-paste').onclick = function (event) { event.stopPropagation(); pasteImg2MathImage(); };
+    document.getElementById('img2math-clear').onclick = function (event) { event.stopPropagation(); clearImg2MathImage(); };
+    document.getElementById('img2math-generate').onclick = generateImg2Math;
+    document.getElementById('img2math-insert').onclick = insertImg2MathResult;
+    document.getElementById('img2math-import-selection').onclick = importSelectedTextIntoImg2Math;
+    document.getElementById('img2math-model-select').onchange = function (event) {
+        const configured = getMermaidVisionProviderSelection();
+        img2MathAiSelection = { provider: configured.provider, model: String(event.target.value || '').trim() };
+        localStorage.setItem(IMG2MATH_MODEL_SELECTION_KEY, JSON.stringify(img2MathAiSelection));
+        updateImg2MathAiModelStatus(img2MathAiSelection);
+    };
+    file.onchange = function () { setImg2MathImage(file.files && file.files[0]); file.value = ''; };
+    drop.onclick = function (event) { if (!event.target.closest('button')) file.click(); };
+    ['dragenter', 'dragover'].forEach(function (name) { drop.addEventListener(name, function (event) { event.preventDefault(); drop.classList.add('border-teal-400'); }); });
+    ['dragleave', 'drop'].forEach(function (name) { drop.addEventListener(name, function (event) { event.preventDefault(); drop.classList.remove('border-teal-400'); }); });
+    drop.addEventListener('drop', function (event) { setImg2MathImage(event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0]); });
+    wrap.addEventListener('paste', function (event) { const image = Array.from(event.clipboardData && event.clipboardData.files || []).find(function (item) { return item.type.startsWith('image/'); }); if (image) { event.preventDefault(); setImg2MathImage(image); } });
+    wrap.addEventListener('mousedown', function (event) { if (event.target === wrap) closeImg2MathPopup(); });
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && !wrap.classList.contains('hidden')) closeImg2MathPopup();
+    });
+    document.addEventListener('selectionchange', captureImg2MathDocumentSelection);
+    document.addEventListener('mouseup', function () { window.setTimeout(captureImg2MathDocumentSelection, 0); });
+    document.addEventListener('keyup', function () { window.setTimeout(captureImg2MathDocumentSelection, 0); });
+    result.addEventListener('input', renderImg2MathPreview);
+}
+
+function openImg2MathPopup() {
+    if (!isEditMode || !editorTextarea) { showToast('편집 모드에서 사용해 주세요.'); return; }
+    img2MathSelection = { start: editorTextarea.selectionStart || 0, end: editorTextarea.selectionEnd || editorTextarea.selectionStart || 0 };
+    bindImg2MathPopup();
+    const initialSelection = String(editorTextarea.value || '').slice(img2MathSelection.start, img2MathSelection.end).trim();
+    if (initialSelection) img2MathLastDocumentSelection = initialSelection;
+    document.getElementById('math-quick-panel')?.classList.add('hidden');
+    document.getElementById('img2math-popup')?.classList.remove('hidden');
+    constrainImg2MathFloatingWindow(!img2MathFloatingPositioned);
+    updateImg2MathAiModelStatus();
+    populateImg2MathModelSelect();
+    document.getElementById('img2math-drop')?.focus();
+}
+
+function closeImg2MathPopup() {
+    document.getElementById('img2math-popup')?.classList.add('hidden');
+}
+
 
 function ensureTableInsertPickerBuilt() {
     if (tableInsertPickerBuilt) return;
@@ -11845,13 +12447,14 @@ function insertSelectedTemplateToDocument() {
     if (ok) showToast('?묒떇??臾몄꽌???쎌엯?덉뒿?덈떎.');
 }
 
-function insertSelectedTemplateAsNewFile() {
+async function insertSelectedTemplateAsNewFile() {
     const item = getSelectedTemplateItem();
     if (!item) {
         showToast('?ъ슜 媛?ν븳 ?묒떇???놁뒿?덈떎.');
         return;
     }
-    createNewFile();
+    const created = await createNewFile();
+    if (!created) return;
     updateContent(item.content);
     currentMarkdown = editorTextarea ? editorTextarea.value : item.content;
     performAutoSave();
@@ -12717,6 +13320,8 @@ async function persistAiSettingsFromModal() {
     setViewModeEditEnabledToLocal(viewModeEditEnabledValue);
     const viewPaddingValue = applyViewPadding(document.getElementById('view-padding-size')?.value);
     localStorage.setItem(VIEW_PADDING_KEY, String(viewPaddingValue));
+    const editorShiftControlSize = applyEditorShiftControlSize(document.getElementById('editor-shift-control-size')?.value);
+    localStorage.setItem(EDITOR_SHIFT_CONTROL_SIZE_KEY, editorShiftControlSize);
     applyEditToolsVisibilityByMode();
     saveScholarAIProviderSettingsFromUI(false);
     if (!db) return;
@@ -12795,6 +13400,7 @@ async function persistAiSettingsFromModal() {
         selectionWrapEnabled: selectionWrapEnabledValue,
         viewModeEditEnabled: viewModeEditEnabledValue,
         viewPadding: viewPaddingValue,
+        editorShiftControlSize: editorShiftControlSize,
         googleCalendarEnabled: googleCalendarEnabled,
         imgbbApiKey: imgbbKey,
         sqliteEnabled: sqliteEnabled
@@ -12828,6 +13434,7 @@ const SETTINGS_EXPORT_LOCAL_KEYS = [
     SELECTION_WRAP_KEY,
     VIEW_MODE_EDIT_KEY,
     VIEW_PADDING_KEY,
+    EDITOR_SHIFT_CONTROL_SIZE_KEY,
     SETTINGS_SHORTCUTS_FOLD_KEY,
     SETTINGS_CONTAINER_FOLD_STATE_KEY,
     FILE_DOWNLOAD_PREFIX_KEY,
@@ -16023,6 +16630,10 @@ window.AIChatBridge = Object.freeze({
         if (!window.AIDataCenter || typeof window.AIDataCenter.save !== 'function') return Promise.resolve(false);
         return window.AIDataCenter.save(record);
     },
+    deleteAIDataRecord: function (id) {
+        if (!window.AIDataCenter || typeof window.AIDataCenter.remove !== 'function') return Promise.resolve(false);
+        return window.AIDataCenter.remove(id);
+    },
     openAIDataCenter: function () {
         if (!window.AIDataCenter || typeof window.AIDataCenter.open !== 'function') throw new Error('AI 데이터 센터 앱이 준비되지 않았습니다.');
         return window.AIDataCenter.open();
@@ -16818,6 +17429,11 @@ function restoreFeatureSettings(settings) {
         : getViewPaddingFromLocal();
     applyViewPadding(viewPaddingValue);
     localStorage.setItem(VIEW_PADDING_KEY, String(viewPaddingValue));
+    const editorShiftControlSize = settings && typeof settings.editorShiftControlSize === 'string'
+        ? normalizeEditorShiftControlSize(settings.editorShiftControlSize)
+        : getEditorShiftControlSizeFromLocal();
+    applyEditorShiftControlSize(editorShiftControlSize);
+    localStorage.setItem(EDITOR_SHIFT_CONTROL_SIZE_KEY, editorShiftControlSize);
     const calendarEnabled = typeof settings.googleCalendarEnabled === 'boolean'
         ? settings.googleCalendarEnabled : getGoogleCalendarEnabledFromLocal();
     setGoogleCalendarEnabledToLocal(calendarEnabled);
@@ -16884,6 +17500,7 @@ async function loadAiSettingsToUI() {
         if (viewModeEditCheckEmpty) viewModeEditCheckEmpty.checked = localViewModeEditEnabled;
         viewModeEditEnabled = localViewModeEditEnabled;
         applyViewPadding(getViewPaddingFromLocal());
+        applyEditorShiftControlSize(getEditorShiftControlSizeFromLocal());
         const imageInputEmpty = document.getElementById('ai-imgbb-api-key');
         if (imageInputEmpty) imageInputEmpty.value = '';
         const openaiInputEmpty = document.getElementById('openai-api-key');
@@ -17668,6 +18285,13 @@ async function saveToDB() {
     return saveToSelectedStorage(targetSource);
 }
 
+async function saveBeforeA4LayoutChange() {
+    if (!isDocumentDirty()) return true;
+    showToast('A4 세로·가로로 전환하려면 먼저 저장하세요.');
+    const saved = await saveToDB();
+    return saved === true && !isDocumentDirty();
+}
+
 async function openDatabaseSaveModal(storageModeInput, options) {
     const storageMode = storageModeInput === 'sqlite' ? 'sqlite' : 'indb';
     const saveAs = !!(options && options.saveAs);
@@ -17787,6 +18411,7 @@ window.handleFileSelect = handleFileSelect;
 window.handleImageFolderSelect = handleImageFolderSelect;
 window.toggleOpenSourceMenu = toggleOpenSourceMenu;
 window.openFilePickerFromMenu = openFilePickerFromMenu;
+window.openRecentWorkFromMenu = openRecentWorkFromMenu;
 window.openImageFolderPickerFromMenu = openImageFolderPickerFromMenu;
 window.openFmaViewerFromMenu = openFmaViewerFromMenu;
 window.openFmaViewer = openFmaViewer;
@@ -17812,6 +18437,7 @@ window.createDocumentInFolder = createDocumentInFolder;
 window.deleteFolderFromDB = deleteFolderFromDB;
 window.renameStoredDocument = renameStoredDocument;
 window.saveToDB = saveToDB;
+window.saveBeforeA4LayoutChange = saveBeforeA4LayoutChange;
 window.renderDBList = renderDBList;
 window.scheduleStorageSearch = scheduleStorageSearch;
 window.loadFromDB = loadFromDB;
@@ -17851,6 +18477,7 @@ window.toggleMermaidQuickMenu = toggleMermaidQuickMenu;
 window.closeMermaidQuickMenu = closeMermaidQuickMenu;
 window.toggleEnterButtonInsertBrSetting = toggleEnterButtonInsertBrSetting;
 window.toggleViewModeEditSetting = toggleViewModeEditSetting;
+window.setEditorShiftControlSizeSetting = setEditorShiftControlSizeSetting;
 if (typeof insertMarkdownImageAtCursor === 'function') window.insertMarkdownImageAtCursor = insertMarkdownImageAtCursor;
 if (typeof insertHtmlImageAtCursor === 'function') window.insertHtmlImageAtCursor = insertHtmlImageAtCursor;
 if (typeof openImageInsertModal === 'function') window.openImageInsertModal = openImageInsertModal;
@@ -17980,6 +18607,8 @@ window.insertDisplayMathTemplate = insertDisplayMathTemplate;
 window.insertMathRefTemplate = insertMathRefTemplate;
 window.openMath99Popup = openMath99Popup;
 window.closeMath99Popup = closeMath99Popup;
+window.openImg2MathPopup = openImg2MathPopup;
+window.closeImg2MathPopup = closeImg2MathPopup;
 window.validateApiKeyInputUI = validateApiKeyInputUI;
 window.saveAiPassword = saveAiPassword;
 window.applyAiFeatureVisibility = applyAiFeatureVisibility;

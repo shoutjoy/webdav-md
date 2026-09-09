@@ -2,6 +2,72 @@
 (function (root) {
   'use strict';
 
+  // In the WebDAV shell MDpro runs in an iframe. Popup mode is adopted into
+  // the parent document so it can float over both the explorer and editor.
+  // Keep DOM lookups working after adoption while Dock/fullscreen stay local.
+  var frameDocument = root.document;
+  var shellDocument = null;
+  try {
+    if (root.parent && root.parent !== root && root.parent.location.origin === root.location.origin) {
+      shellDocument = root.parent.document;
+    }
+  } catch (_) {}
+  var document = new Proxy(frameDocument, {
+    get: function (target, property) {
+      if (property === 'getElementById') return function (id) {
+        return (shellDocument && shellDocument.getElementById(id)) || target.getElementById(id);
+      };
+      if (property === 'querySelector') return function (selector) {
+        return (shellDocument && shellDocument.querySelector(selector)) || target.querySelector(selector);
+      };
+      if (property === 'querySelectorAll') return function (selector) {
+        var shellMatches = shellDocument && shellDocument.querySelectorAll(selector);
+        return shellMatches && shellMatches.length ? shellMatches : target.querySelectorAll(selector);
+      };
+      if (property === 'addEventListener') return function (type, listener, options) {
+        target.addEventListener(type, listener, options);
+        // Keyboard events from an adopted popup bubble in the shell document,
+        // not the iframe document where AI Jena was initialized.
+        if (shellDocument && type === 'keydown') shellDocument.addEventListener(type, listener, options);
+      };
+      if (property === 'activeElement') {
+        var active = shellDocument && shellDocument.activeElement;
+        return active && active !== shellDocument.body ? active : target.activeElement;
+      }
+      var value = target[property];
+      return typeof value === 'function' ? value.bind(target) : value;
+    }
+  });
+
+  function popupWindow() {
+    return shellDocument ? root.parent : root;
+  }
+
+  function ensurePopupStylesInShell() {
+    if (!shellDocument || shellDocument.getElementById('ai-chat-shell-styles')) return;
+    var source = Array.from(frameDocument.styleSheets || []).find(function (sheet) {
+      return sheet.href && /AI_App\/aiChat\/ai-chat\.css(?:\?|$)/.test(sheet.href);
+    });
+    if (!source) return;
+    var link = shellDocument.createElement('link');
+    link.id = 'ai-chat-shell-styles';
+    link.rel = 'stylesheet';
+    link.href = source.href;
+    shellDocument.head.appendChild(link);
+  }
+
+  function popupHost() {
+    if (!shellDocument) return frameDocument.body;
+    ensurePopupStylesInShell();
+    var host = shellDocument.getElementById('ai-chat-shell-popup-root');
+    if (!host) {
+      host = shellDocument.createElement('div');
+      host.id = 'ai-chat-shell-popup-root';
+      shellDocument.body.appendChild(host);
+    }
+    return host;
+  }
+
   var ENABLED_KEY = 'ss_ai_chat_enabled';
   var PROVIDER_KEY = 'ss_ai_chat_provider';
   var GEMINI_MODEL_KEY = 'ss_ai_chat_gemini_model';
@@ -379,6 +445,76 @@
     });
   }
 
+  function conversationFromAIDataRecord(record) {
+    if (!record || record.recordType !== 'conversation' || !record.conversationId) return null;
+    return {
+      id: record.conversationId,
+      title: record.title || '제목 없는 대화',
+      titleCustomized: !!record.titleCustomized,
+      pinned: !!record.pinned,
+      pinnedAt: Number(record.pinnedAt || 0),
+      createdAt: Number(record.createdAt || Date.now()),
+      updatedAt: Number(record.updatedAt || record.createdAt || Date.now()),
+      provider: record.provider || state.provider,
+      responseMode: record.responseMode || 'quick',
+      showReasoning: !!record.showReasoning,
+      academicSearchEnabled: !!record.academicSearchEnabled,
+      academicSearchCount: Number(record.academicSearchCount || state.academicSearchCount),
+      geminiModel: record.geminiModel || state.geminiModel,
+      ollamaModel: record.ollamaModel || state.ollamaModel,
+      deepseekModel: record.deepseekModel || state.deepseekModel,
+      openaiModel: record.openaiModel || state.openaiModel,
+      openaiCompatibleModel: record.openaiCompatibleModel || state.openaiCompatibleModel,
+      messages: Array.isArray(record.messages) ? record.messages.slice(-MAX_STORED_MESSAGES) : []
+    };
+  }
+
+  async function syncAllConversationStores(skipRemotePull) {
+    if (!state.dbReady || !state.db) return;
+    var bridge = getBridge();
+    if (!skipRemotePull && root.AIDataCenter && typeof root.AIDataCenter.syncNow === 'function') {
+      try { await root.AIDataCenter.syncNow(); } catch (_) {}
+    }
+    var aiRecords = typeof bridge.readAIDataRecords === 'function' ? await bridge.readAIDataRecords() : [];
+    var aiConversationById = new Map();
+    var merged = new Map(state.conversations.map(function (record) { return [record.id, record]; }));
+    aiRecords.forEach(function (record) {
+      var conversation = conversationFromAIDataRecord(record);
+      if (!conversation) return;
+      aiConversationById.set(conversation.id, record);
+      var local = merged.get(conversation.id);
+      if (!local || Number(conversation.updatedAt || 0) > Number(local.updatedAt || 0)) merged.set(conversation.id, conversation);
+    });
+    state.conversations = Array.from(merged.values());
+    for (var conversation of state.conversations) {
+      await requestPromise(conversationStore('readwrite').put(conversation));
+      if (typeof root.saveFeatureRecordToInDb === 'function') await root.saveFeatureRecordToInDb('ai_chat', conversation);
+      var mirrored = aiConversationById.get(conversation.id);
+      if (!mirrored || Number(conversation.updatedAt || 0) > Number(mirrored.updatedAt || mirrored.createdAt || 0)) await bridge.saveAIDataRecord({
+        id: 'conversation:' + conversation.id,
+        recordType: 'conversation',
+        conversationId: conversation.id,
+        title: conversation.title || '제목 없는 대화',
+        titleCustomized: !!conversation.titleCustomized,
+        pinned: !!conversation.pinned,
+        pinnedAt: Number(conversation.pinnedAt || 0),
+        messages: messagesForAIDataCenter(conversation.messages || []),
+        provider: conversation.provider || '',
+        responseMode: conversation.responseMode || 'quick',
+        showReasoning: !!conversation.showReasoning,
+        academicSearchEnabled: !!conversation.academicSearchEnabled,
+        academicSearchCount: Number(conversation.academicSearchCount || 0),
+        geminiModel: conversation.geminiModel || '',
+        ollamaModel: conversation.ollamaModel || '',
+        deepseekModel: conversation.deepseekModel || '',
+        openaiModel: conversation.openaiModel || '',
+        openaiCompatibleModel: conversation.openaiCompatibleModel || '',
+        createdAt: conversation.createdAt || 0,
+        updatedAt: conversation.updatedAt || 0
+      });
+    }
+  }
+
   async function saveConversationNow() {
     if (!state.dbReady || !state.db || !state.conversationId || !state.conversationDirty) return;
     var record = currentConversationRecord();
@@ -528,6 +664,19 @@
         await requestPromise(conversationStore('readwrite').put(current));
       }
       applyConversation(current);
+      try {
+        await syncAllConversationStores(true);
+        var syncedCurrent = state.conversations.find(function (item) { return item.id === state.conversationId; })
+          || sortConversationRecords(state.conversations)[0];
+        if (syncedCurrent) applyConversation(syncedCurrent);
+        if (root.AIDataCenter && typeof root.AIDataCenter.syncNow === 'function') {
+          root.AIDataCenter.syncNow().then(function () { return syncAllConversationStores(true); }).then(function () {
+            renderConversationHistory();
+          }).catch(function () {});
+        }
+      } catch (syncError) {
+        setStatus('대화는 inDB에 저장됨 · WebDAV 동기화 재시도 예정', 'error');
+      }
     } catch (error) {
       state.dbReady = false;
       state.messages = loadLegacyHistory();
@@ -665,7 +814,15 @@
       + '    </div>'
       + '  </div>'
       + '  <div id="ai-chat-mobile-size-handle" class="ai-chat-mobile-size-handle" role="separator" aria-label="AI Jena 창 너비 조절" aria-orientation="vertical" tabindex="0"><span aria-hidden="true"></span></div>'
-      + '</div>';
+      + '</div>'
+      + '<div class="ai-chat-popup-resizer is-n" data-ai-chat-resize="n" aria-hidden="true"></div>'
+      + '<div class="ai-chat-popup-resizer is-e" data-ai-chat-resize="e" aria-hidden="true"></div>'
+      + '<div class="ai-chat-popup-resizer is-s" data-ai-chat-resize="s" aria-hidden="true"></div>'
+      + '<div class="ai-chat-popup-resizer is-w" data-ai-chat-resize="w" aria-hidden="true"></div>'
+      + '<div class="ai-chat-popup-resizer is-ne" data-ai-chat-resize="ne" aria-hidden="true"></div>'
+      + '<div class="ai-chat-popup-resizer is-se" data-ai-chat-resize="se" aria-hidden="true"></div>'
+      + '<div class="ai-chat-popup-resizer is-sw" data-ai-chat-resize="sw" aria-hidden="true"></div>'
+      + '<div class="ai-chat-popup-resizer is-nw" data-ai-chat-resize="nw" aria-hidden="true"></div>';
 
     var dockSlot = document.createElement('div');
     dockSlot.id = 'ai-chat-dock-slot';
@@ -923,6 +1080,7 @@
       addAttachmentFiles(event.dataTransfer && event.dataTransfer.files);
     });
     setupPopupDrag(panel);
+    setupPopupResize(panel);
     setupMobilePopupResize(panel);
     setupDockResize(dockSlot);
     if (root.ResizeObserver) {
@@ -938,6 +1096,7 @@
       clampLauncherToViewport();
       updateDockHistoryVisibility();
     });
+    if (shellDocument) root.parent.addEventListener('resize', clampPopupToViewport);
     root.addEventListener('md-edit-toolbar-orientation-change', function () {
       requestAnimationFrame(clampLauncherToViewport);
       setTimeout(clampLauncherToViewport, 80);
@@ -1096,8 +1255,9 @@
   }
 
   function getPopupMinWidth() {
-    var preferred = root.matchMedia('(max-width: 560px)').matches ? 250 : MIN_CHAT_WIDTH;
-    return Math.min(preferred, root.innerWidth - 12);
+    var viewport = popupWindow();
+    var preferred = viewport.matchMedia('(max-width: 560px)').matches ? 250 : MIN_CHAT_WIDTH;
+    return Math.min(preferred, viewport.innerWidth - 12);
   }
 
   function applyPopupRect() {
@@ -1114,11 +1274,12 @@
       return;
     }
     var minWidth = getPopupMinWidth();
-    var minHeight = Math.min(360, root.innerHeight - 12);
-    var width = Math.max(minWidth, Math.min(saved.width || DEFAULT_CHAT_WIDTH, root.innerWidth - 12));
-    var height = Math.max(minHeight, Math.min(saved.height || 650, root.innerHeight - 12));
-    var left = Math.max(6, Math.min(saved.left, root.innerWidth - width - 6));
-    var top = Math.max(6, Math.min(saved.top, root.innerHeight - height - 6));
+    var viewport = popupWindow();
+    var minHeight = Math.min(360, viewport.innerHeight - 12);
+    var width = Math.max(minWidth, Math.min(saved.width || DEFAULT_CHAT_WIDTH, viewport.innerWidth - 12));
+    var height = Math.max(minHeight, Math.min(saved.height || 650, viewport.innerHeight - 12));
+    var left = Math.max(6, Math.min(saved.left, viewport.innerWidth - width - 6));
+    var top = Math.max(6, Math.min(saved.top, viewport.innerHeight - height - 6));
     panel.style.left = left + 'px';
     panel.style.top = top + 'px';
     panel.style.right = 'auto';
@@ -1132,12 +1293,13 @@
     var panel = document.getElementById('ai-chat-panel');
     if (!panel || !state.open) return;
     var rect = panel.getBoundingClientRect();
-    var width = Math.min(rect.width, root.innerWidth - 12);
-    var height = Math.min(rect.height, root.innerHeight - 12);
+    var viewport = popupWindow();
+    var width = Math.min(rect.width, viewport.innerWidth - 12);
+    var height = Math.min(rect.height, viewport.innerHeight - 12);
     panel.style.width = Math.max(getPopupMinWidth(), width) + 'px';
-    panel.style.height = Math.max(Math.min(360, root.innerHeight - 12), height) + 'px';
-    panel.style.left = Math.max(6, Math.min(rect.left, root.innerWidth - width - 6)) + 'px';
-    panel.style.top = Math.max(6, Math.min(rect.top, root.innerHeight - height - 6)) + 'px';
+    panel.style.height = Math.max(Math.min(360, viewport.innerHeight - 12), height) + 'px';
+    panel.style.left = Math.max(6, Math.min(rect.left, viewport.innerWidth - width - 6)) + 'px';
+    panel.style.top = Math.max(6, Math.min(rect.top, viewport.innerHeight - height - 6)) + 'px';
     panel.style.right = 'auto';
     panel.style.bottom = 'auto';
     savePopupRect();
@@ -1407,7 +1569,7 @@
       slot.appendChild(panel);
       panel.removeAttribute('style');
     } else {
-      document.body.appendChild(panel);
+      (layout === 'popup' ? popupHost() : frameDocument.body).appendChild(panel);
       panel.removeAttribute('style');
       if (layout === 'popup') applyPopupRect();
     }
@@ -1440,11 +1602,12 @@
     var panel = document.getElementById('ai-chat-panel');
     if (!panel || !state.open || state.layout !== 'popup') return;
     var rect = panel.getBoundingClientRect();
-    var width = Math.min(rect.width || DEFAULT_CHAT_WIDTH, root.innerWidth - 12);
-    panel.style.left = Math.max(6, root.innerWidth - width - 20) + 'px';
+    var viewport = popupWindow();
+    var width = Math.min(rect.width || DEFAULT_CHAT_WIDTH, viewport.innerWidth - 12);
+    panel.style.left = Math.max(6, viewport.innerWidth - width - 20) + 'px';
     panel.style.right = 'auto';
     panel.style.bottom = 'auto';
-    panel.style.top = Math.max(6, Math.min(rect.top || 20, root.innerHeight - rect.height - 6)) + 'px';
+    panel.style.top = Math.max(6, Math.min(rect.top || 20, viewport.innerHeight - rect.height - 6)) + 'px';
     savePopupRect();
   }
 
@@ -1463,8 +1626,9 @@
       panel.classList.add('dragging');
       header.setPointerCapture(event.pointerId);
       function move(moveEvent) {
-        var left = Math.max(4, Math.min(moveEvent.clientX - offsetX, root.innerWidth - panel.offsetWidth - 4));
-        var top = Math.max(4, Math.min(moveEvent.clientY - offsetY, root.innerHeight - panel.offsetHeight - 4));
+        var viewport = popupWindow();
+        var left = Math.max(4, Math.min(moveEvent.clientX - offsetX, viewport.innerWidth - panel.offsetWidth - 4));
+        var top = Math.max(4, Math.min(moveEvent.clientY - offsetY, viewport.innerHeight - panel.offsetHeight - 4));
         panel.style.left = left + 'px';
         panel.style.top = top + 'px';
       }
@@ -1485,6 +1649,62 @@
     });
   }
 
+  function setupPopupResize(panel) {
+    var handles = panel.querySelectorAll('[data-ai-chat-resize]');
+    for (var i = 0; i < handles.length; i++) {
+      handles[i].addEventListener('pointerdown', function (event) {
+        if (state.layout !== 'popup' || (event.pointerType === 'mouse' && event.button !== 0)) return;
+        var handle = event.currentTarget;
+        var direction = handle.getAttribute('data-ai-chat-resize') || '';
+        var startRect = panel.getBoundingClientRect();
+        var startX = event.clientX;
+        var startY = event.clientY;
+        handle.setPointerCapture(event.pointerId);
+        panel.classList.add('resizing');
+
+        function move(moveEvent) {
+          if (!handle.hasPointerCapture(moveEvent.pointerId)) return;
+          var viewport = popupWindow();
+          var dx = moveEvent.clientX - startX;
+          var dy = moveEvent.clientY - startY;
+          var minWidth = getPopupMinWidth();
+          var minHeight = Math.min(360, viewport.innerHeight - 12);
+          var left = startRect.left;
+          var top = startRect.top;
+          var right = startRect.right;
+          var bottom = startRect.bottom;
+
+          if (direction.indexOf('w') !== -1) left = Math.max(4, Math.min(startRect.left + dx, right - minWidth));
+          if (direction.indexOf('e') !== -1) right = Math.min(viewport.innerWidth - 4, Math.max(startRect.right + dx, left + minWidth));
+          if (direction.indexOf('n') !== -1) top = Math.max(4, Math.min(startRect.top + dy, bottom - minHeight));
+          if (direction.indexOf('s') !== -1) bottom = Math.min(viewport.innerHeight - 4, Math.max(startRect.bottom + dy, top + minHeight));
+
+          panel.style.left = Math.round(left) + 'px';
+          panel.style.top = Math.round(top) + 'px';
+          panel.style.width = Math.round(right - left) + 'px';
+          panel.style.height = Math.round(bottom - top) + 'px';
+          panel.style.right = 'auto';
+          panel.style.bottom = 'auto';
+        }
+
+        function finish(finishEvent) {
+          if (handle.hasPointerCapture(finishEvent.pointerId)) handle.releasePointerCapture(finishEvent.pointerId);
+          handle.removeEventListener('pointermove', move);
+          handle.removeEventListener('pointerup', finish);
+          handle.removeEventListener('pointercancel', finish);
+          panel.classList.remove('resizing');
+          savePopupRect();
+        }
+
+        handle.addEventListener('pointermove', move);
+        handle.addEventListener('pointerup', finish);
+        handle.addEventListener('pointercancel', finish);
+        event.preventDefault();
+        event.stopPropagation();
+      });
+    }
+  }
+
   function setupMobilePopupResize(panel) {
     var handle = document.getElementById('ai-chat-mobile-size-handle');
     if (!handle || !panel) return;
@@ -1493,12 +1713,13 @@
     var startLeft = 0;
 
     function isMobilePopup() {
-      return state.layout === 'popup' && root.matchMedia('(max-width: 560px)').matches;
+      return state.layout === 'popup' && popupWindow().matchMedia('(max-width: 560px)').matches;
     }
 
     function resizeTo(width) {
-      var minimum = Math.min(250, root.innerWidth - 12);
-      var maximum = Math.max(minimum, root.innerWidth - startLeft - 6);
+      var viewport = popupWindow();
+      var minimum = Math.min(250, viewport.innerWidth - 12);
+      var maximum = Math.max(minimum, viewport.innerWidth - startLeft - 6);
       panel.style.width = Math.round(Math.max(minimum, Math.min(width, maximum))) + 'px';
     }
 
@@ -2770,6 +2991,15 @@
     if (typeof root.saveFeatureRecordToInDb === 'function') {
       root.saveFeatureRecordToInDb('ai_chat', updated).catch(function () {});
     }
+    try {
+      await getBridge().saveAIDataRecord({
+        id: 'conversation:' + updated.id, recordType: 'conversation', conversationId: updated.id,
+        title: updated.title, titleCustomized: !!updated.titleCustomized,
+        pinned: !!updated.pinned, pinnedAt: Number(updated.pinnedAt || 0),
+        messages: messagesForAIDataCenter(updated.messages || []), provider: updated.provider || '',
+        createdAt: updated.createdAt || 0, updatedAt: updated.updatedAt || Date.now()
+      });
+    } catch (_) {}
     renderConversationHistory();
     return updated;
   }
@@ -2916,7 +3146,10 @@
       var ids = state.conversations.map(function (item) { return item.id; });
       await requestPromise(conversationStore('readwrite').clear());
       if (typeof root.deleteFeatureRecordFromInDb === 'function') {
-        ids.forEach(function (id) { root.deleteFeatureRecordFromInDb('ai_chat', id).catch(function () {}); });
+        await Promise.all(ids.map(function (id) { return root.deleteFeatureRecordFromInDb('ai_chat', id).catch(function () {}); }));
+      }
+      if (typeof getBridge().deleteAIDataRecord === 'function') {
+        await Promise.all(ids.map(function (id) { return getBridge().deleteAIDataRecord('conversation:' + id); }));
       }
       state.conversations = [];
       await createNewConversation(false);
@@ -2934,8 +3167,9 @@
     try {
       await requestPromise(conversationStore('readwrite').delete(id));
       if (typeof root.deleteFeatureRecordFromInDb === 'function') {
-        root.deleteFeatureRecordFromInDb('ai_chat', id).catch(function () {});
+        await root.deleteFeatureRecordFromInDb('ai_chat', id).catch(function () {});
       }
+      if (typeof getBridge().deleteAIDataRecord === 'function') await getBridge().deleteAIDataRecord('conversation:' + id);
       state.conversations = state.conversations.filter(function (item) { return item.id !== id; });
       if (state.conversationId === id) {
         if (state.conversations.length) applyConversation(state.conversations[0]);
@@ -5544,6 +5778,9 @@
       var initialBridge = root.AIChatBridge;
       if (initialBridge && initialBridge.readySettings) await initialBridge.readySettings;
     } catch (_) {}
+    root.addEventListener('ai-data-center-synced', function () {
+      syncAllConversationStores(true).then(renderConversationHistory).catch(function () {});
+    });
     createUI();
     bindPreserveEditorSelectionOnPanel();
     var savedProvider = storageGet(PROVIDER_KEY, 'lmstudio');
