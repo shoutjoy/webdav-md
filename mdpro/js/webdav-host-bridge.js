@@ -222,11 +222,20 @@
             return;
         }
         if (typeof window.loadFromExternalContent === 'function') {
-            window.loadFromExternalContent(String(data.content ?? ''), window.__webdavHostDocument.fileName, { notebookLmSeparators: false });
+            const requestedContent = String(data.content ?? '');
+            const requestedPath = window.__webdavHostDocument.path;
+            const appliedContent = window.loadFromExternalContent(requestedContent, window.__webdavHostDocument.fileName, { notebookLmSeparators: false });
             setTimeout(function () {
+                if (!window.__webdavHostDocument || window.__webdavHostDocument.path !== requestedPath) return;
                 savedDocumentText = currentDocumentText();
                 lastReportedDocumentText = savedDocumentText;
                 reportDocumentChange(true);
+                window.parent.postMessage({
+                    type: 'webdav-document-opened',
+                    path: requestedPath,
+                    applied: String(appliedContent ?? currentDocumentText()) === requestedContent
+                        && currentDocumentText() === requestedContent
+                }, location.origin);
             }, 0);
             if (typeof window.showToast === 'function') window.showToast('WebDAV 문서를 MDPRO로 열었습니다.');
         }

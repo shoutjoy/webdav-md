@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 
 // Deterministic layout model exercises real editor event handlers without a browser.
-function setup() {
+function setup(createAllowed = true) {
     const elements = new Map();
     class Element {
         constructor(tag) {
@@ -47,7 +47,10 @@ function setup() {
     const viewport = new Element('div'); viewport.id = 'content-viewport';
     const window = {};
     const context = vm.createContext({ document, window, Event, setNewFileMenuVisible() {}, toggleMode() {},
-        createNewFile() { source.value = ''; window.A4Pages.sync(''); },
+        createNewFile() {
+            if (!createAllowed) return false;
+            source.value = ''; window.A4Pages.sync(''); return true;
+        },
         updateContent(value) { source.value = value; window.A4Pages.sync(value); },
     });
     vm.runInContext(readFileSync(new URL('../mdpro/js/a4-pages.js', import.meta.url), 'utf8'), context);
@@ -65,6 +68,70 @@ test('A4 is opt-in and original blank documents retain the original editor', () 
     assert.match(env.source.value, /mdpro-a4: portrait/);
     env.window.A4Pages.sync('ordinary markdown');
     assert.equal(env.host.hidden, true);
+});
+
+test('canceling new A4 creation preserves the current document', () => {
+    const env = setup(false);
+    env.source.value = 'keep this document';
+    env.window.A4Pages.sync(env.source.value);
+    env.window.createA4File('landscape');
+    assert.equal(env.source.value, 'keep this document');
+    assert.equal(env.host.hidden, true);
+});
+
+test('long and A4 layouts convert in both directions without losing content', () => {
+    const env = setup();
+    const original = '# 긴 문서\n\n첫 문단\n둘째 문단';
+    env.source.value = original;
+    env.window.A4Pages.sync(original);
+
+    assert.equal(env.window.A4Pages.convertLayout('landscape'), true);
+    assert.equal(env.host.hidden, false);
+    assert.match(env.source.value, /^<!-- mdpro-a4: landscape -->/);
+    assert.match(env.source.value, /첫 문단\n둘째 문단$/);
+
+    assert.equal(env.window.A4Pages.convertLayout('long'), true);
+    assert.equal(env.host.hidden, true);
+    assert.equal(env.source.value, original);
+});
+
+test('layout buttons wait for a required save before converting', async () => {
+    const env = setup();
+    env.source.value = '저장 전 내용';
+    env.window.A4Pages.sync(env.source.value);
+    let allowConversion = false;
+    let saveRequests = 0;
+    env.window.saveBeforeA4LayoutChange = async () => {
+        saveRequests += 1;
+        return allowConversion;
+    };
+
+    assert.equal(await env.window.convertCurrentPageLayout('portrait'), false);
+    assert.equal(env.source.value, '저장 전 내용');
+    allowConversion = true;
+    assert.equal(await env.window.convertCurrentPageLayout('portrait'), true);
+    assert.match(env.source.value, /^<!-- mdpro-a4: portrait -->/);
+    assert.equal(saveRequests, 2);
+});
+
+test('explicit A4 page breaks become line breaks when converting to a long page', () => {
+    const env = setup();
+    env.window.createA4File('portrait');
+    env.type(env.inputs()[0], '첫 페이지');
+    env.host.children.at(-1).dispatchEvent({ type: 'click' });
+    env.type(env.inputs()[1], '둘째 페이지');
+
+    env.window.A4Pages.convertLayout('long');
+    assert.equal(env.source.value, '첫 페이지\n둘째 페이지');
+});
+
+test('floating +P action adds a page only while A4 layout is active', () => {
+    const env = setup();
+    assert.equal(env.window.A4Pages.addPage(), false);
+    env.window.createA4File('portrait');
+    assert.equal(env.inputs().length, 1);
+    assert.equal(env.window.A4Pages.addPage(), true);
+    assert.equal(env.inputs().length, 2);
 });
 
 test('individual page directions survive reopening and whole-document changes clear overrides', () => {
@@ -117,6 +184,7 @@ test('view renders whole Markdown sections, keeps blank pages, and applies page 
     const sheets = target.children.filter(el => el.className === 'a4-sheet');
     assert.deepEqual(sheets.map(el => el.dataset.orientation), ['portrait', 'landscape']);
     assert.equal(sheets[1].children[2].children[1].textContent, 'A4 세로');
+    assert.equal(sheets[1].children[2].children.at(-1).textContent, '긴 문서');
     assert.equal(await env.window.A4Pages.renderView(target, 'ordinary', () => { throw Error('should not render'); }, () => true), false);
     assert.equal(target.classList.contains('a4-view'), false);
 });

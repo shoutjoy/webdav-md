@@ -3,11 +3,12 @@ import PanelResizeHandles from './PanelResizeHandles.jsx';
 
 const FMA_WIDTH_KEY = 'webdav-fma-panel-width';
 const APP_BASE_URL = import.meta.env.BASE_URL;
-const MDPRO_URL = `${APP_BASE_URL}mdpro/index.html?webdav=1&ui=20260908-mset-webdav-1`;
+const MDPRO_URL = `${APP_BASE_URL}mdpro/index.html?webdav=1&ui=20260909-webdav-a4-sync-1`;
 const FMA_URL = `${APP_BASE_URL}mdpro/Apps/fmaviewer/index.html?embedded=1`;
 
-export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, onSaveSettingsMset, onLoadSettingsMset, selectedFile, content, binaryContent, fmaImportBatch, loading, saving, explorerWidth, onSave, onSaveAs, onDocumentChange, onSaveImageToFolder, onClose, onToggleExplorer, onOpenExplorer, onOpenFolderExplorer, onOpenTocPopup, onThemeChange }) {
+export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, onSaveSettingsMset, onLoadSettingsMset, selectedFile, content, binaryContent, fmaImportBatch, loading, saving, explorerWidth, panelResizeEnabled, onSave, onSaveAs, onDocumentChange, onSaveImageToFolder, onClose, onToggleExplorer, onOpenExplorer, onOpenFolderExplorer, onOpenRecentWork, onRequestCreateFile, onOpenTocPopup, onThemeChange, autosaveEnabled }) {
   const mdproFrameRef = useRef(null);
+  const mdproStageRef = useRef(null);
   const fmaFrameRef = useRef(null);
   const jenaReadRef = useRef(onReadJenaRecords);
   useEffect(() => { jenaReadRef.current = onReadJenaRecords; }, [onReadJenaRecords]);
@@ -16,13 +17,29 @@ export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, onSav
   const settingsMsetRef = useRef({ save: onSaveSettingsMset, load: onLoadSettingsMset });
   useEffect(() => { settingsMsetRef.current = { save: onSaveSettingsMset, load: onLoadSettingsMset }; }, [onSaveSettingsMset, onLoadSettingsMset]);
   const documentRef = useRef({ selectedFile, content, binaryContent, fmaImportBatch });
-  const callbacksRef = useRef({ onSave, onSaveAs, onDocumentChange, onSaveImageToFolder, onToggleExplorer, onOpenExplorer, onOpenFolderExplorer, onOpenTocPopup, onThemeChange });
+  const callbacksRef = useRef({ onSave, onSaveAs, onDocumentChange, onSaveImageToFolder, onToggleExplorer, onOpenExplorer, onOpenFolderExplorer, onOpenRecentWork, onRequestCreateFile, onOpenTocPopup, onThemeChange });
+  const autosaveEnabledRef = useRef(autosaveEnabled);
+  const autosaveTimerRef = useRef(null);
+  const autosaveSequenceRef = useRef(0);
+  const autosaveQueueRef = useRef(Promise.resolve());
   const [fmaWidth, setFmaWidth] = useState(() => {
     const saved = Number.parseFloat(localStorage.getItem(FMA_WIDTH_KEY));
     return Number.isFinite(saved) ? Math.min(78, Math.max(32, saved)) : 58;
   });
 
   useEffect(() => { documentRef.current = { selectedFile, content, binaryContent, fmaImportBatch }; }, [selectedFile, content, binaryContent, fmaImportBatch]);
+  useEffect(() => {
+    autosaveEnabledRef.current = autosaveEnabled;
+    if (!autosaveEnabled && autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+  }, [autosaveEnabled]);
+  useEffect(() => {
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    autosaveTimerRef.current = null;
+    autosaveSequenceRef.current += 1;
+  }, [selectedFile?.remotePath]);
+  useEffect(() => () => {
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+  }, []);
   useEffect(() => {
     callbacksRef.current = {
       onSave,
@@ -32,10 +49,12 @@ export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, onSav
       onToggleExplorer,
       onOpenExplorer,
       onOpenFolderExplorer,
+      onOpenRecentWork,
+      onRequestCreateFile,
       onOpenTocPopup,
       onThemeChange,
     };
-  }, [onSave, onSaveAs, onDocumentChange, onSaveImageToFolder, onToggleExplorer, onOpenExplorer, onOpenFolderExplorer, onOpenTocPopup, onThemeChange]);
+  }, [onSave, onSaveAs, onDocumentChange, onSaveImageToFolder, onToggleExplorer, onOpenExplorer, onOpenFolderExplorer, onOpenRecentWork, onRequestCreateFile, onOpenTocPopup, onThemeChange]);
 
   const sendFmaContent = () => {
     const current = documentRef.current;
@@ -62,7 +81,7 @@ export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, onSav
     if (!frameDocument || frameDocument.getElementById('webdav-host-bridge-script')) return;
     const script = frameDocument.createElement('script');
     script.id = 'webdav-host-bridge-script';
-    script.src = `${APP_BASE_URL}mdpro/js/webdav-host-bridge.js?v=20260908-toc-popup-controls-3`;
+    script.src = `${APP_BASE_URL}mdpro/js/webdav-host-bridge.js?v=20260909-a4-open-sync-1`;
     frameDocument.body.appendChild(script);
   };
 
@@ -106,6 +125,7 @@ export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, onSav
           }
         }
         if (event.data.type === 'webdav-save-document') {
+          if (event.data.path !== documentRef.current.selectedFile?.remotePath) return;
           Promise.resolve(callbacksRef.current.onSave(String(event.data.content ?? ''), event.data.path)).then((saved) => {
             if (saved) mdproFrameRef.current?.contentWindow?.postMessage({ type: 'webdav-document-saved', path: event.data.path }, window.location.origin);
           });
@@ -115,10 +135,29 @@ export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, onSav
           const activePath = documentRef.current.selectedFile?.remotePath;
           if (!activePath || activePath === event.data.path) {
             callbacksRef.current.onDocumentChange?.(String(event.data.content ?? ''), Boolean(event.data.dirty));
+            if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+            if (autosaveEnabledRef.current && event.data.dirty && activePath) {
+              const sequence = ++autosaveSequenceRef.current;
+              const nextContent = String(event.data.content ?? '');
+              const nextPath = activePath;
+              autosaveTimerRef.current = setTimeout(() => {
+                autosaveQueueRef.current = autosaveQueueRef.current.then(() => callbacksRef.current.onSave(nextContent, nextPath, { autosave: true }));
+                autosaveQueueRef.current.then((saved) => {
+                  if (saved && sequence === autosaveSequenceRef.current) {
+                    mdproFrameRef.current?.contentWindow?.postMessage({ type: 'webdav-document-saved', path: nextPath }, window.location.origin);
+                  }
+                });
+              }, 1500);
+            }
           }
+        }
+        if (event.data.type === 'webdav-document-opened' && event.data.applied !== true) {
+          console.error(`MDPRO가 WebDAV 문서를 적용하지 못했습니다: ${event.data.path || ''}`);
         }
         if (event.data.type === 'mdpro-open-toc-popup') callbacksRef.current.onOpenTocPopup?.(String(event.data.content ?? ''));
         if (event.data.type === 'webdav-toggle-explorer') callbacksRef.current.onToggleExplorer();
+        if (event.origin === window.location.origin && event.data.type === 'webdav-open-recent-work') callbacksRef.current.onOpenRecentWork?.();
+        if (event.origin === window.location.origin && event.data.type === 'webdav-create-new-file') callbacksRef.current.onRequestCreateFile?.();
         if (event.data.type === 'mdpro-theme-changed') callbacksRef.current.onThemeChange(event.data.theme === 'dark');
       }
       if (event.source === fmaFrameRef.current?.contentWindow) {
@@ -143,6 +182,11 @@ export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, onSav
   }, [binaryContent, content, fmaImportBatch, selectedFile]);
 
   const isFmaOpen = selectedFile?.viewMode === 'fma';
+  const stagePath = String(selectedFile?.remotePath || '');
+  const stageTitle = selectedFile?.name || stagePath.split('/').filter(Boolean).at(-1) || 'WebDAV에서 문서를 선택하세요';
+  const stageDirectory = stagePath && stagePath.endsWith(stageTitle)
+    ? stagePath.slice(0, -stageTitle.length)
+    : '';
   const clickFmaControl = (controlId) => {
     fmaFrameRef.current?.contentDocument?.getElementById(controlId)?.click();
   };
@@ -165,9 +209,9 @@ export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, onSav
     resize(event.clientX);
   };
 
-  return <section className="mdpro-stage" style={{ flexBasis: `${100 - explorerWidth}%` }}>
-    <PanelResizeHandles />
-    <div className="mdpro-stage-bar"><span className="mdpro-stage-dot"/><strong>MDPRO</strong><span className="mdpro-stage-path">{selectedFile?.remotePath || 'WebDAV에서 문서를 선택하세요'}</span>{isFmaOpen && <button type="button" onClick={onClose}>FMA 닫기</button>}</div>
+  return <section ref={mdproStageRef} className="mdpro-stage" style={{ flexBasis: `${100 - explorerWidth}%` }}>
+    {panelResizeEnabled && <PanelResizeHandles edges={['left', 'right']}/>}
+    <div className="mdpro-stage-bar" title="2초간 누른 뒤 드래그하여 MDPRO 창 이동 · 더블클릭으로 원위치"><span className="mdpro-stage-dot"/><strong>MDPRO</strong><span className="mdpro-stage-path" title={stagePath || stageTitle}>{stageDirectory && <span className="mdpro-stage-directory">{stageDirectory}</span>}<span className="mdpro-stage-title">{stageTitle}</span></span>{isFmaOpen && <button type="button" onClick={onClose}>FMA 닫기</button>}</div>
     {loading && !saving && <div className="mdpro-loading">WebDAV 파일을 여는 중…</div>}
     {saving && <div className="mdpro-saving" role="status" aria-live="polite"><span>WebDAV에 저장합니다.</span></div>}
     <div className="mdpro-workspace">

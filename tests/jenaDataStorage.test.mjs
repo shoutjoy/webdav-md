@@ -97,6 +97,12 @@ test('hides protected folder and descendants while preserving similarly named us
   const entries = [...paths, '/JENA_DATA_OTHER', '/notes/JENA_DATA', '/notes/a.md'].map(filename => ({ filename }));
   assert.deepEqual(visibleWebdavEntries(entries).map(entry => entry.filename), ['/JENA_DATA_OTHER', '/notes/JENA_DATA', '/notes/a.md']);
   assert.equal(visibleWebdavEntries([{ remotePath: '/JENA_DATA/a.json' }]).length, 0);
+  assert.deepEqual(
+    visibleWebdavEntries(entries, { showHidden: true }).map(entry => entry.filename),
+    ['/.mdpro_mset', '/.webdav_temp', '/JENA_DATA_OTHER', '/notes/JENA_DATA', '/notes/a.md'],
+  );
+  assert.equal(visibleWebdavEntries([{ filename: '/notes/.draft.md' }]).length, 0);
+  assert.equal(visibleWebdavEntries([{ filename: '/notes/.draft.md' }], { showHidden: true }).length, 1);
 });
 
 test('data center reads only its own JSON records, omits deletion markers and performs no writes', async () => {

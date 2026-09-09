@@ -28,10 +28,21 @@ export function isMdproMsetPath(path) {
   return normalized === '/.mdpro_mset' || normalized.startsWith('/.mdpro_mset/');
 }
 
-export function visibleWebdavEntries(entries) {
+export function isWebdavTempPath(path) {
+  const normalized = normalizeRemotePath(path).toLowerCase();
+  return normalized === '/.webdav_temp' || normalized.startsWith('/.webdav_temp/');
+}
+
+export function visibleWebdavEntries(entries, { showHidden = false } = {}) {
   return entries.filter((entry) => {
     const path = entry.remotePath || entry.filename;
-    return !isJenaDataPath(path) && !isMdproMsetPath(path);
+    if (isJenaDataPath(path)) return false;
+    if (showHidden) return true;
+    const hasHiddenSegment = normalizeRemotePath(path)
+      .split('/')
+      .filter(Boolean)
+      .some((segment) => segment.startsWith('.'));
+    return !hasHiddenSegment && !isMdproMsetPath(path) && !isWebdavTempPath(path);
   });
 }
 

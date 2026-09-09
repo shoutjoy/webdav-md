@@ -1,11 +1,13 @@
 import { useEffect } from 'react';
 
 // Keep the initial split layout until the user moves or resizes a panel.
-export default function usePanelWindows() {
+export default function usePanelWindows({ mdpro = true, explorer = true } = {}) {
   useEffect(() => {
+    if (!mdpro && !explorer) return undefined;
     let interaction;
     let holdTimer;
-    const selector = '.webdav-explorer-panel, .mdpro-stage';
+    const selectors = [mdpro && '.mdpro-stage', explorer && '.webdav-explorer-panel'].filter(Boolean);
+    const selector = selectors.join(', ');
     const finish = () => {
       clearTimeout(holdTimer);
       interaction?.panel.classList.remove('is-panel-holding', 'is-panel-ready');
@@ -38,7 +40,7 @@ export default function usePanelWindows() {
           panel.classList.remove('is-panel-holding');
           panel.classList.add('is-panel-ready');
           document.body.classList.add('is-panel-moving');
-        }, 2500);
+        }, 2000);
       }
     };
     const move = (event) => {
@@ -129,5 +131,5 @@ export default function usePanelWindows() {
       window.removeEventListener('blur', finish);
       window.removeEventListener('resize', fit);
     };
-  }, []);
+  }, [mdpro, explorer]);
 }

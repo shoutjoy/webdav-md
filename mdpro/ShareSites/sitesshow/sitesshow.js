@@ -32,7 +32,8 @@
         { name: 'online Photoshop (photopea)', url: 'https://www.photopea.com/' },
         { name: 'colab.new', url: 'http://colab.new' },
         { name: '이미지확장앱', url: 'https://gemini.google.com/share/d1591e765dfd?skid=c20dbc64-20bb-4bcc-a772-24cf6a3ac2ea' },
-        { name: '인포그래픽앱', url: 'https://gemini.google.com/share/cf9601ca8bb0?skid=c485f35a-a1b3-421d-a5bd-7841cb209643' }
+        { name: '인포그래픽앱', url: 'https://gemini.google.com/share/cf9601ca8bb0?skid=c485f35a-a1b3-421d-a5bd-7841cb209643' },
+        { name: '인포그래픽생성앱kYLE', url: 'https://share.gemini.google/2wY4mVdEy7RB' }
     ];
 
     async function loadHtmlFragment(path) {
@@ -226,7 +227,10 @@
             return u === 'https://www.photopea.com' || u === 'https://photopea.com';
         });
         if (!hasPhotopea) base.push({ name: 'online Photoshop (photopea)', url: 'https://www.photopea.com/' });
-        DEFAULT_SITES_LIST.filter(function (item) { return item.url.startsWith('https://gemini.google.com/share/'); }).forEach(function (site) {
+        DEFAULT_SITES_LIST.filter(function (item) {
+            return item.url.startsWith('https://gemini.google.com/share/') ||
+                item.url.startsWith('https://share.gemini.google/');
+        }).forEach(function (site) {
             if (!base.some(function (item) { return item.url.split('?')[0] === site.url.split('?')[0]; })) {
                 base.push({ name: site.name, url: site.url });
             }
@@ -758,4 +762,3 @@ window.ensureSitesShowUiReady = ensureSitesShowUiReady;
 ensureSitesShowUiReady();
 document.addEventListener('DOMContentLoaded', ensureSitesShowUiReady);
 window.addEventListener('load', ensureSitesShowUiReady);
-

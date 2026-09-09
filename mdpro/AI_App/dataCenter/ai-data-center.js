@@ -231,6 +231,19 @@
     try {
       setSyncStatus('JENA_DATA 저장 중…');
       await migrateLegacyOnce();
+      // Pull before pushing so a new browser/device cannot overwrite a newer
+      // WebDAV conversation with its stale local IndexedDB copy.
+      var remote = await readRemoteFolder();
+      var localBeforeMerge = await readAll();
+      var localById = new Map(localBeforeMerge.map(function (record) { return [record.id, record]; }));
+      for (var remoteRecord of remote) {
+        if (!remoteRecord || !remoteRecord.id) continue;
+        var localRecord = localById.get(remoteRecord.id);
+        if (!localRecord || Number(remoteRecord.updatedAt || remoteRecord.createdAt || 0) > Number(localRecord.updatedAt || localRecord.createdAt || 0)) {
+          await save(remoteRecord);
+          localById.set(remoteRecord.id, remoteRecord);
+        }
+      }
       var all = await readAll();
       var database = await openDb();
       var deleted = await new Promise(function (resolve, reject) {
@@ -245,6 +258,7 @@
         syncedRecords.set(record.id, serialized);
       }
       setSyncStatus('WebDAV /JENA_DATA 자동 저장 완료');
+      root.dispatchEvent(new CustomEvent('ai-data-center-synced'));
     } catch (error) {
       setSyncStatus('로컬 보관 · 재시도 예정: ' + error.message);
     } finally {
@@ -489,11 +503,12 @@
     fitNextToAIJena(app);
     applyResponsiveScale();
     await refresh();
+    syncWebDAV().then(refresh).catch(function () {});
   }
   function close() { var app = document.getElementById('ai-data-center-app'); if (app) app.hidden = true; }
 
   root.addEventListener('online', scheduleSync);
   scheduleSync();
 
-  root.AIDataCenter = { save: save, readAll: readAll, open: open, close: close, refresh: refresh, databaseName: DB_NAME };
+  root.AIDataCenter = { save: save, remove: remove, readAll: readAll, syncNow: syncWebDAV, open: open, close: close, refresh: refresh, databaseName: DB_NAME };
 })(window);

@@ -1,27 +1,31 @@
 import RecentWorkDialog from './components/RecentWorkDialog.jsx';
-import { recentWorkKey, readRecentWork, recordRecentWork } from './recentWork.js';
+import { mergeRecentWorkItems, readRecentWork, readRecentWorkFromWebDav, recentWorkKey, recordRecentWork, writeRecentWork, writeRecentWorkToWebDav } from './recentWork.js';
 import { saveJenaRecord, readJenaRecords, visibleWebdavEntries, isJenaDataPath } from './jenaDataStorage.js';
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { create } from 'zustand';
 import { createClient } from 'webdav';
 import MdproEditor from './components/MdproEditor.jsx';
-import PanelResizeHandles from './components/PanelResizeHandles.jsx';
-import usePanelWindows from './usePanelWindows.js';
 import FileExplorer from './components/FileExplorer.jsx';
 import LoginPage from './components/LoginPage.jsx';
 import TopNav from './components/TopNav.jsx';
 import MobileWdocButton from './components/MobileWdocButton.jsx';
 import RenameModal from './components/RenameModal.jsx';
 import CreateDestinationModal from './components/CreateDestinationModal.jsx';
+import SaveAsModal from './components/SaveAsModal.jsx';
 import { normalizeRemotePath } from './webdavPaths.js';
 import { createDirectoryVerified, deleteRemoteItemVerified, moveRemoteItemVerified, saveFileVerified } from './webdavMoveEngine.js';
 import { isDmergeFileName, readDmergeArchive } from './dmergeArchive.js';
 import { clearLoginSession, readLoginSession, writeLoginSession } from './loginSession.js';
+import ShareDialog from './components/ShareDialog.jsx';
+import usePanelWindows from './usePanelWindows.js';
 
 const SAVED_LOGIN_KEY = 'webdav-viewer-login';
 const EXPLORER_WIDTH_KEY = 'webdav-explorer-width';
 const MOBILE_EXPLORER_WIDTH_KEY = 'webdav-mobile-explorer-width';
 const EXPLORER_COMPACT_KEY = 'webdav-explorer-compact';
+const AUTOSAVE_ENABLED_KEY = 'webdav-autosave-enabled';
+const SHOW_HIDDEN_ITEMS_KEY = 'webdav-show-hidden-items';
+const DEFAULT_SHARE_PASSWORD_KEY = 'webdav-default-share-password';
 const DEFAULT_EXPLORER_WIDTH = 20;
 const MOBILE_DEFAULT_EXPLORER_WIDTH = 33.333;
 const MIN_EXPLORER_WIDTH_PX = 100;
@@ -175,7 +179,7 @@ const updateDirectoryNode = (node, targetPath, nextEntries) => {
   return changed ? { ...node, entries } : node;
 };
 
-const mapWebDavEntries = (items) => visibleWebdavEntries(items)
+const mapWebDavEntries = (items, showHidden = false) => visibleWebdavEntries(items, { showHidden })
   .map((item) => ({
     name: item.basename,
     remotePath: normalizeRemotePath(item.filename),
@@ -257,16 +261,45 @@ const useDirectoryStore = create((set) => ({
 }));
 
 export default function App() {
-  usePanelWindows();
   const [recentItems, setRecentItems] = useState([]);
   const [recentOpen, setRecentOpen] = useState(false);
   const recentKeyRef = useRef('');
+  const recentSyncQueueRef = useRef(Promise.resolve());
+  const openRecentWorkDialog = useCallback(() => {
+    setError('');
+    const key = recentKeyRef.current;
+    const localItems = readRecentWork(localStorage, key);
+    setRecentItems(localItems);
+    setRecentOpen(true);
+    const client = clientRef.current;
+    if (!client || !key) return;
+    recentSyncQueueRef.current = recentSyncQueueRef.current.catch(() => {}).then(async () => {
+      const remoteItems = await readRecentWorkFromWebDav(client);
+      const merged = mergeRecentWorkItems(remoteItems, readRecentWork(localStorage, key));
+      writeRecentWork(localStorage, key, merged);
+      if (recentKeyRef.current === key) setRecentItems(merged);
+    }).catch(error => console.warn('WebDAV 최근 작업 캐시를 읽지 못했습니다:', error));
+  }, []);
   const lastOpenedRef = useRef(null);
   const rememberWork = (file) => {
     if (!file?.remotePath || !recentKeyRef.current) return;
     lastOpenedRef.current = file;
-    try { setRecentItems(recordRecentWork(localStorage, recentKeyRef.current, file)); }
+    const key = recentKeyRef.current;
+    let localItems;
+    try {
+      localItems = recordRecentWork(localStorage, key, file);
+      setRecentItems(localItems);
+    }
     catch { setError('최근 작업 기록을 저장하지 못했습니다. 브라우저 저장 공간을 확인해 주세요.'); }
+    const client = clientRef.current;
+    if (!client || !localItems) return;
+    recentSyncQueueRef.current = recentSyncQueueRef.current.catch(() => {}).then(async () => {
+      const remoteItems = await readRecentWorkFromWebDav(client);
+      const merged = mergeRecentWorkItems(remoteItems, readRecentWork(localStorage, key));
+      await writeRecentWorkToWebDav(client, merged);
+      writeRecentWork(localStorage, key, merged);
+      if (recentKeyRef.current === key) setRecentItems(merged);
+    }).catch(error => console.warn('WebDAV 최근 작업 캐시를 저장하지 못했습니다:', error));
   };
 
   const [url, setUrl] = useState('');
@@ -286,6 +319,11 @@ export default function App() {
   const [mediaPreviewUrl, setMediaPreviewUrl] = useState('');
   const [editorLoading, setEditorLoading] = useState(false);
   const [isWebDavSaving, setIsWebDavSaving] = useState(false);
+  const [autosaveEnabled, setAutosaveEnabled] = useState(() => localStorage.getItem(AUTOSAVE_ENABLED_KEY) === 'true');
+  const [showHiddenItems, setShowHiddenItems] = useState(() => localStorage.getItem(SHOW_HIDDEN_ITEMS_KEY) === 'true');
+  const [defaultSharePassword, setDefaultSharePassword] = useState(() => localStorage.getItem(DEFAULT_SHARE_PASSWORD_KEY) || '');
+  const [shareTarget, setShareTarget] = useState(null);
+  const [shareBusy, setShareBusy] = useState(false);
   const [explorerWidth, setExplorerWidth] = useState(() => {
     const isMobile = window.matchMedia('(max-width: 767px)').matches;
     const savedWidth = Number.parseFloat(localStorage.getItem(isMobile ? MOBILE_EXPLORER_WIDTH_KEY : EXPLORER_WIDTH_KEY));
@@ -299,11 +337,17 @@ export default function App() {
       ? false
       : localStorage.getItem('webdav-explorer-open') !== 'false'
   ));
+  usePanelWindows({
+    mdpro: true,
+    explorer: isExplorerOpen && isExplorerCompact,
+  });
   const [isDarkTheme, setIsDarkTheme] = useState(() => localStorage.getItem('md_viewer_theme') === 'dark');
   const [toastMessage, setToastMessage] = useState('');
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   const [renameTarget, setRenameTarget] = useState(null);
   const [createDestinationType, setCreateDestinationType] = useState('');
+  const [saveAsRequest, setSaveAsRequest] = useState(null);
+  const [fileSwitchPrompt, setFileSwitchPrompt] = useState(null);
   const [moveProgress, setMoveProgress] = useState(null);
   const [mobileWdocRect, setMobileWdocRect] = useState(null);
   const [isTocPopupOpen, setIsTocPopupOpen] = useState(false);
@@ -439,6 +483,24 @@ export default function App() {
     } else {
       setError('클립보드 복사에 실패했습니다.');
     }
+  };
+
+  const createFileShare = async ({ mode, sharePassword }) => {
+    if (!shareTarget || shareTarget.isDirectory) throw new Error('파일만 공유할 수 있습니다.');
+    setShareBusy(true);
+    try {
+      const response = await fetch('/api/webdav-shares', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode, sharePassword, webdavUrl: url.trim().replace(/\/$/, ''), username, webdavPassword: password, remotePath: shareTarget.remotePath, name: shareTarget.name }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || '공유 링크를 만들지 못했습니다.');
+      const shareUrl = new URL(window.location.href);
+      shareUrl.search = ''; shareUrl.hash = ''; shareUrl.searchParams.set(mode, result.id);
+      await copyToClipboard(shareUrl.toString());
+      showToast(`${mode} 링크가 복사되었습니다.`);
+      return shareUrl.toString();
+    } finally { setShareBusy(false); }
   };
 
   const parseMarkdownToc = (markdownText) => {
@@ -592,6 +654,37 @@ export default function App() {
     return true;
   }, [clearMediaPreview, resetDirectoryState]);
 
+  useEffect(() => {
+    if (!recentOpen || !isConnected) return undefined;
+    let cancelled = false;
+    const refreshRecentWork = () => {
+      const client = clientRef.current;
+      const key = recentKeyRef.current;
+      if (!client || !key) return;
+      recentSyncQueueRef.current = recentSyncQueueRef.current.catch(() => {}).then(async () => {
+        const remoteItems = await readRecentWorkFromWebDav(client);
+        const merged = mergeRecentWorkItems(remoteItems, readRecentWork(localStorage, key));
+        writeRecentWork(localStorage, key, merged);
+        if (!cancelled && recentKeyRef.current === key) setRecentItems(merged);
+      }).catch(error => console.warn('WebDAV 최근 작업 실시간 갱신에 실패했습니다:', error));
+    };
+    const handleStorage = (event) => {
+      if (event.key !== recentKeyRef.current || cancelled) return;
+      setRecentItems(readRecentWork(localStorage, recentKeyRef.current));
+      refreshRecentWork();
+    };
+    refreshRecentWork();
+    const timer = window.setInterval(refreshRecentWork, 2000);
+    window.addEventListener('focus', refreshRecentWork);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refreshRecentWork);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [isConnected, recentOpen]);
+
   // 연결 및 루트 디렉토리 읽기
   const connectWithCredentials = async ({
     nextUrl = url,
@@ -626,7 +719,19 @@ export default function App() {
         updateHistoryPath('/', true);
         recentKeyRef.current = recentWorkKey(baseUrl, nextUsername);
         lastOpenedRef.current = null;
-        const recent = readRecentWork(localStorage, recentKeyRef.current);
+        const localRecent = readRecentWork(localStorage, recentKeyRef.current);
+        let recent = localRecent;
+        try {
+          const remoteRecent = await readRecentWorkFromWebDav(clientRef.current);
+          const recentServerFiles = listed.filter(item => !item.isDirectory && item.lastModified instanceof Date && Number.isFinite(item.lastModified.getTime()))
+            .sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime())
+            .map(item => ({ name: item.name, remotePath: item.remotePath, updatedAt: item.lastModified.getTime() }));
+          recent = mergeRecentWorkItems(remoteRecent, localRecent, recentServerFiles);
+          writeRecentWork(localStorage, recentKeyRef.current, recent);
+          if (recent.length) await writeRecentWorkToWebDav(clientRef.current, recent);
+        } catch (recentError) {
+          console.warn('WebDAV 최근 작업 캐시 동기화에 실패해 브라우저 캐시를 사용합니다:', recentError);
+        }
         setRecentItems(recent);
         setRecentOpen(recent.length > 0);
         setIsConnected(true);
@@ -668,7 +773,7 @@ export default function App() {
           : `${normalizedPath}/`;
         items = await client.getDirectoryContents(alternatePath, { signal: controller.signal });
       }
-      const newFiles = mapWebDavEntries(items)
+      const newFiles = mapWebDavEntries(items, showHiddenItems)
         .sort((a, b) => {
           if (a.isDirectory === b.isDirectory) return a.name.localeCompare(b.name);
           return a.isDirectory ? -1 : 1;
@@ -686,9 +791,9 @@ export default function App() {
       window.clearTimeout(timeoutId);
       setLoading(false);
     }
-  }, [returnToLoginIfUnauthorized, setDirectoryContents]);
+  }, [returnToLoginIfUnauthorized, setDirectoryContents, showHiddenItems]);
 
-  const loadFullTree = useCallback(async () => {
+  const loadFullTree = useCallback(async (showHiddenOverride = showHiddenItems) => {
     const client = clientRef.current;
     if (!client) return false;
     setLoading(true);
@@ -696,7 +801,7 @@ export default function App() {
     try {
       let entries;
       try {
-        entries = mapWebDavEntries(await client.getDirectoryContents('/', { deep: true }));
+        entries = mapWebDavEntries(await client.getDirectoryContents('/', { deep: true }), showHiddenOverride);
       } catch (deepError) {
         if (deepError?.status === 401) throw deepError;
         const collected = [];
@@ -705,7 +810,7 @@ export default function App() {
           const normalizedPath = normalizeRemotePath(path);
           if (visited.has(normalizedPath)) return;
           visited.add(normalizedPath);
-          const children = mapWebDavEntries(await client.getDirectoryContents(normalizedPath));
+          const children = mapWebDavEntries(await client.getDirectoryContents(normalizedPath), showHiddenOverride);
           collected.push(...children);
           for (const child of children) {
             if (child.isDirectory) await walk(child.remotePath);
@@ -715,14 +820,14 @@ export default function App() {
         entries = collected;
       }
       setFullDirectoryTree(entries);
-      return true;
+      return entries;
     } catch (err) {
       if (!returnToLoginIfUnauthorized(err)) setError(`전체 폴더 트리 불러오기 실패: ${err.message}`);
       return false;
     } finally {
       setLoading(false);
     }
-  }, [returnToLoginIfUnauthorized, setFullDirectoryTree]);
+  }, [returnToLoginIfUnauthorized, setFullDirectoryTree, showHiddenItems]);
 
   const navigateToDirectory = async (path) => {
     const previousPath = currentPath;
@@ -764,13 +869,25 @@ export default function App() {
 
   const saveBeforeOpeningFile = async (file) => {
     if (!hasEditorChanges) return true;
-    const currentName = selectedFileRef.current?.name || '현재 문서';
+    const currentFile = selectedFileRef.current;
+    const currentName = currentFile?.name || '현재 문서';
+    const currentPath = normalizeRemotePath(currentFile?.remotePath || '/');
+    const currentContent = String(editorContentRef.current ?? '');
     const nextName = file?.name || '선택한 파일';
-    const shouldSave = window.confirm(
-      `“${currentName}”의 내용이 변경되었습니다.\n변경 내용을 저장한 뒤 “${nextName}” 파일로 이동할까요?\n\n취소하면 현재 문서에 머뭅니다.`,
-    );
+    const shouldSave = await new Promise((resolve) => {
+      setFileSwitchPrompt({ currentName, nextName, resolve });
+    });
     if (!shouldSave) return false;
-    return handleSaveFile(editorContentRef.current);
+    // Keep both the old path and old content fixed until the save is fully
+    // verified. The selected file must not decide the destination mid-save.
+    return handleSaveFile(currentContent, currentPath);
+  };
+
+  const resolveFileSwitchPrompt = (shouldSave) => {
+    const pending = fileSwitchPrompt;
+    if (!pending) return;
+    setFileSwitchPrompt(null);
+    pending.resolve(Boolean(shouldSave));
   };
 
   const closeMobileWdocExplorer = () => {
@@ -803,21 +920,16 @@ export default function App() {
 
     const remotePath = normalizeRemotePath(file.remotePath);
     const nextViewMode = fmaImage ? 'fma' : mediaType ? 'media' : docxFile ? 'docx' : 'text';
-    setSelectedFile({ ...file, remotePath, viewMode: nextViewMode, fmaImportMode });
-    setEditorBinary(null);
-    setEditorContent('');
-    setSavedContent('');
-    setEditorDirty(false);
-    editorContentRef.current = '';
-    setEditorBinary(null);
     setEditorLoading(true);
     setError('');
     try {
       clearMediaPreview();
       if (fmaImage) {
         const data = await client.getFileContents(remotePath);
+        const nextFile = { ...file, remotePath, viewMode: 'fma', fmaImportMode };
         setFmaImportBatch(null);
-        setSelectedFile({ ...file, remotePath, viewMode: 'fma', fmaImportMode });
+        selectedFileRef.current = nextFile;
+        setSelectedFile(nextFile);
         setEditorContent('');
         setSavedContent('');
         setEditorBinary(data);
@@ -825,20 +937,27 @@ export default function App() {
         const data = await client.getFileContents(remotePath);
         const mime = MEDIA_MIME_TYPES[getFileExtension(file.name)] || 'application/octet-stream';
         const blob = new Blob([data], { type: mime });
-        setSelectedFile({ ...file, remotePath, viewMode: 'media' });
+        const nextFile = { ...file, remotePath, viewMode: 'media' };
+        selectedFileRef.current = nextFile;
+        setSelectedFile(nextFile);
         setEditorContent('');
         setSavedContent('');
         setMediaPreviewUrl(URL.createObjectURL(blob));
       } else if (docxFile) {
         const data = await client.getFileContents(remotePath);
-        setSelectedFile({ ...file, remotePath, viewMode: 'docx' });
+        const nextFile = { ...file, remotePath, viewMode: 'docx' };
+        selectedFileRef.current = nextFile;
+        setSelectedFile(nextFile);
         setEditorContent('');
         setSavedContent('');
         setEditorBinary(data);
       } else {
         const data = await client.getFileContents(remotePath, { format: 'text' });
         const text = await textFromFileContents(data);
-        setSelectedFile({ ...file, remotePath, viewMode: 'text' });
+        const nextFile = { ...file, remotePath, viewMode: 'text' };
+        selectedFileRef.current = nextFile;
+        lastTextFileRef.current = nextFile;
+        setSelectedFile(nextFile);
         setEditorContent(text);
         setSavedContent(text);
         setEditorDirty(false);
@@ -856,27 +975,49 @@ export default function App() {
     }
   };
 
-  const handleSaveFile = async (nextContent) => {
+  const handleSaveFile = async (nextContent, sourcePath, options = {}) => {
     const client = clientRef.current;
     const selected = selectedFileRef.current;
     const file = selected?.viewMode === 'text' ? selected : lastTextFileRef.current;
     const content = typeof nextContent === 'string' ? nextContent : editorContentRef.current;
     if (!client || !file || file.viewMode !== 'text') return false;
+    if (sourcePath && normalizeRemotePath(sourcePath) !== normalizeRemotePath(file.remotePath)) return false;
 
     setEditorLoading(true);
     setIsWebDavSaving(true);
     setError('');
     try {
+      const previousData = await client.getFileContents(file.remotePath, { format: 'text' });
+      const previousContent = await textFromFileContents(previousData);
+      if (previousContent !== content) {
+        const tempFolder = '/tempSave';
+        if (!await client.exists(tempFolder)) await createDirectoryVerified(client, tempFolder);
+        const sourceName = normalizeRemotePath(file.remotePath).split('/').filter(Boolean).join('__') || 'document.md';
+        const safeName = sourceName.replace(/[^\p{L}\p{N}._-]+/gu, '_').slice(-160);
+        const backupPath = `${tempFolder}/${safeName}.backup.md`;
+        await saveFileVerified(client, backupPath, previousContent, {
+          overwrite: await client.exists(backupPath),
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        });
+      }
+      if (!content.trim() && previousContent.trim()) {
+        if (options.autosave || !window.confirm(`문서 내용이 비어 있어 저장을 중단했습니다.\n직전 내용은 /tempSave에 백업했습니다.\n\n정말 빈 문서로 저장할까요?`)) {
+          throw new Error('빈 문서 덮어쓰기를 차단했습니다. /tempSave 백업에서 복구할 수 있습니다.');
+        }
+      }
       await saveFileVerified(client, file.remotePath, content, {
         headers: { 'Content-Type': 'text/plain; charset=utf-8' },
       });
       rememberWork(file);
       setSavedContent(content);
-      setEditorContent(content);
-      setEditorDirty(false);
-      editorContentRef.current = content;
-      showToast(`원본 위치에 저장했습니다: ${file.remotePath}`);
-      await loadDirectory(currentPath);
+      const isStillCurrent = normalizeRemotePath(selectedFileRef.current?.remotePath) === normalizeRemotePath(file.remotePath);
+      const contentIsCurrent = editorContentRef.current === content;
+      if (isStillCurrent && contentIsCurrent) {
+        setEditorContent(content);
+        setEditorDirty(false);
+      }
+      showToast(options.autosave ? `자동 저장됨: ${file.remotePath}` : `원본 위치에 저장했습니다: ${file.remotePath}`);
+      if (!options.autosave) await loadDirectory(currentPath);
       return true;
     } catch (err) {
       if (!returnToLoginIfUnauthorized(err)) {
@@ -889,9 +1030,7 @@ export default function App() {
     }
   };
 
-  const handleSaveFileAs = async (nextContent, sourcePath) => {
-    const client = clientRef.current;
-    if (!client) return;
+  const handleSaveFileAs = (nextContent, sourcePath) => {
     const normalizedSource = normalizeRemotePath(sourcePath || selectedFileRef.current?.remotePath || '/document.md');
     const parts = normalizedSource.split('/').filter(Boolean);
     const sourceName = parts.pop() || 'document.md';
@@ -900,10 +1039,15 @@ export default function App() {
       ? `${sourceName.slice(0, dotIndex)}-copy${sourceName.slice(dotIndex)}`
       : `${sourceName}-copy.md`;
     const parentPath = parts.length ? `/${parts.join('/')}` : '/';
-    const suggestedPath = parentPath === '/' ? `/${copyName}` : `${parentPath}/${copyName}`;
-    const enteredPath = window.prompt('새 WebDAV 전체 경로를 입력하세요.', suggestedPath);
-    if (!enteredPath) return;
-    const targetPath = normalizeRemotePath(enteredPath);
+    setSaveAsRequest({ content: String(nextContent ?? ''), sourcePath: normalizedSource, parentPath, suggestedName: copyName });
+  };
+
+  const confirmSaveFileAs = async (targetDirectory, fileName) => {
+    const client = clientRef.current;
+    const request = saveAsRequest;
+    if (!client || !request) return;
+    const targetPath = normalizeRemotePath(targetDirectory === '/' ? `/${fileName}` : `${targetDirectory}/${fileName}`);
+    const normalizedSource = request.sourcePath;
     if (targetPath === normalizedSource) {
       showToast('다른 파일 경로를 입력해 주세요.');
       return;
@@ -914,9 +1058,9 @@ export default function App() {
     try {
       const targetExists = await client.exists(targetPath);
       if (targetExists && !window.confirm(`이미 존재하는 파일입니다. 덮어쓸까요?\n${targetPath}`)) return;
-      const content = String(nextContent ?? '');
+      const content = request.content;
       await saveFileVerified(client, targetPath, content, { overwrite: targetExists, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
-      const name = targetPath.split('/').filter(Boolean).at(-1) || copyName;
+      const name = targetPath.split('/').filter(Boolean).at(-1) || request.suggestedName;
       const nextFile = { ...(selectedFileRef.current || {}), name, remotePath: targetPath, viewMode: 'text' };
       setSelectedFile(nextFile);
       selectedFileRef.current = nextFile;
@@ -926,6 +1070,7 @@ export default function App() {
       setSavedContent(content);
       setEditorDirty(false);
       editorContentRef.current = content;
+      setSaveAsRequest(null);
       showToast(`새 WebDAV 파일로 저장했습니다: ${targetPath}`);
       await loadFullTree();
     } catch (err) {
@@ -1917,7 +2062,7 @@ export default function App() {
             if (await handleOpenFile(file)) setRecentOpen(false);
           }} />}
         <TopNav
-          onRecentWork={() => { setError(''); setRecentItems(readRecentWork(localStorage, recentKeyRef.current)); setRecentOpen(true); }}
+          onRecentWork={openRecentWorkDialog}
           currentPath={currentPath}
           publicUrl={buildPublicUrl(url, currentPath)}
           loading={loading}
@@ -1950,15 +2095,20 @@ export default function App() {
             setEditorBinary(null);
             clearMediaPreview();
           }}
+          autosaveEnabled={autosaveEnabled}
+          onAutosaveChange={(enabled) => {
+            setAutosaveEnabled(enabled);
+            localStorage.setItem(AUTOSAVE_ENABLED_KEY, String(enabled));
+            showToast(enabled ? 'WebDAV 자동저장을 켰습니다.' : 'WebDAV 자동저장을 껐습니다.');
+          }}
         />
 
         <div
           ref={splitContainerRef}
-          className="webdav-app-layout flex max-h-[calc(100vh-2rem)] min-h-[calc(100vh-2rem)] flex-col gap-1 overflow-hidden lg:flex-row"
+          className="webdav-app-layout flex max-h-[calc(100vh-2rem)] min-h-[calc(100vh-2rem)] flex-col gap-1 overflow-hidden md:flex-row"
           style={{ '--mobile-explorer-width': `${explorerWidth}%` }}
         >
           {isExplorerOpen && <div id="webdav-explorer-panel" className="webdav-explorer-panel" style={{ flexBasis: `${explorerWidth}%` }}>
-            <PanelResizeHandles />
             <FileExplorer
               files={files}
               directoryTree={directoryTree}
@@ -1980,6 +2130,7 @@ export default function App() {
               onOpenDirectory={openDirectory}
               onOpenArchive={handleOpenDmerge}
               onCopyUrl={handleCopyUrl}
+              onShareFile={setShareTarget}
               onOpenFile={handleOpenFile}
               onDownload={handleDownload}
               onRename={handleOpenRenameModal}
@@ -1991,6 +2142,14 @@ export default function App() {
               onRequestCreateFile={() => setCreateDestinationType('file')}
               onRequestCreateFolder={() => setCreateDestinationType('folder')}
               onToggleCompact={toggleExplorerCompact}
+              showHiddenItems={showHiddenItems}
+              defaultSharePassword={defaultSharePassword}
+              onDefaultSharePasswordChange={(value) => { setDefaultSharePassword(value); localStorage.setItem(DEFAULT_SHARE_PASSWORD_KEY, value); }}
+              onShowHiddenItemsChange={async (enabled) => {
+                setShowHiddenItems(enabled);
+                localStorage.setItem(SHOW_HIDDEN_ITEMS_KEY, String(enabled));
+                await loadFullTree(enabled);
+              }}
             />
             {isTocPopupOpen && <div className="webdav-toc-popup" style={{ ...tocPopupRect, '--toc-popup-font-size': `${tocPopupFontSize}px` }}>
               <div className="webdav-toc-popup-header" onPointerDown={(event) => startTocPopupPointerAction(event)}>
@@ -2071,7 +2230,9 @@ export default function App() {
             loading={editorLoading}
             saving={isWebDavSaving}
             explorerWidth={isExplorerOpen && !isExplorerCompact ? explorerWidth : 0}
+            panelResizeEnabled={isExplorerOpen && isExplorerCompact}
             onSave={handleSaveFile}
+            autosaveEnabled={autosaveEnabled}
             onSaveAs={handleSaveFileAs}
             onDocumentChange={handleEditorDocumentChange}
             onSaveImageToFolder={handleSaveImageToFolder}
@@ -2079,6 +2240,8 @@ export default function App() {
             onToggleExplorer={toggleExplorer}
             onOpenExplorer={openExplorer}
             onOpenFolderExplorer={openFolderExplorer}
+            onOpenRecentWork={openRecentWorkDialog}
+            onRequestCreateFile={() => setCreateDestinationType('file')}
             onOpenTocPopup={openTocPopup}
             onThemeChange={setIsDarkTheme}
           />
@@ -2101,6 +2264,33 @@ export default function App() {
         onConfirm={confirmCreateDestination}
         onCancel={() => setCreateDestinationType('')}
       />
+
+      <SaveAsModal
+        key={saveAsRequest ? `${saveAsRequest.sourcePath}:${saveAsRequest.suggestedName}` : 'closed'}
+        request={saveAsRequest}
+        directoryTree={directoryTree}
+        loading={isWebDavSaving}
+        onConfirm={confirmSaveFileAs}
+        onCancel={() => !isWebDavSaving && setSaveAsRequest(null)}
+      />
+
+      {fileSwitchPrompt && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/55 p-4" role="dialog" aria-modal="true" aria-labelledby="file-switch-save-title">
+          <div className="w-full max-w-md rounded-xl border border-amber-300 bg-white p-5 text-slate-900 shadow-2xl dark:border-amber-700 dark:bg-slate-900 dark:text-slate-100">
+            <h2 id="file-switch-save-title" className="text-lg font-bold">현재 문서를 먼저 저장하세요</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+              <strong>“{fileSwitchPrompt.currentName}”</strong>에 저장하지 않은 변경사항이 있습니다.<br />
+              저장을 완료한 뒤 <strong>“{fileSwitchPrompt.nextName}”</strong> 문서를 엽니다.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" disabled={isWebDavSaving} onClick={() => resolveFileSwitchPrompt(false)} className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold hover:bg-slate-100 disabled:opacity-50 dark:border-slate-600 dark:hover:bg-slate-800">취소</button>
+              <button type="button" disabled={isWebDavSaving} onClick={() => resolveFileSwitchPrompt(true)} className="rounded-md bg-amber-600 px-4 py-2 text-sm font-bold text-white hover:bg-amber-700 disabled:opacity-50">저장 후 열기</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ShareDialog file={shareTarget} defaultPassword={defaultSharePassword} busy={shareBusy} onCreate={createFileShare} onClose={() => !shareBusy && setShareTarget(null)}/>
 
       {toastMessage && (
         <div className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 rounded-lg bg-gray-900 px-5 py-3 text-sm font-semibold text-white shadow-2xl dark:border dark:border-slate-600">

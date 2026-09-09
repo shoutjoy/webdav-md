@@ -71,8 +71,62 @@
   background: transparent;
   pointer-events: none;
 }
-.ai-chat-panel.layout-popup { resize: both; }
-.ai-chat-panel.layout-popup.dragging { user-select: none; }
+.ai-chat-panel.layout-popup { resize: none; }
+.ai-chat-panel.layout-popup.dragging,
+.ai-chat-panel.layout-popup.resizing { user-select: none; }
+.ai-chat-popup-resizer { display: none; position: absolute; z-index: 80; touch-action: none; }
+.ai-chat-panel.layout-popup .ai-chat-popup-resizer { display: block; }
+.ai-chat-popup-resizer.is-n,
+.ai-chat-popup-resizer.is-s { left: 18px; right: 18px; height: 10px; cursor: ns-resize; }
+.ai-chat-popup-resizer.is-n { top: 0; }
+.ai-chat-popup-resizer.is-s { bottom: 0; }
+.ai-chat-popup-resizer.is-e,
+.ai-chat-popup-resizer.is-w { top: 18px; bottom: 18px; width: 10px; cursor: ew-resize; }
+.ai-chat-popup-resizer.is-e { right: 0; }
+.ai-chat-popup-resizer.is-w { left: 0; }
+.ai-chat-popup-resizer.is-ne,
+.ai-chat-popup-resizer.is-se,
+.ai-chat-popup-resizer.is-sw,
+.ai-chat-popup-resizer.is-nw { width: 20px; height: 20px; }
+.ai-chat-popup-resizer.is-ne { top: 0; right: 0; cursor: nesw-resize; }
+.ai-chat-popup-resizer.is-se { right: 0; bottom: 0; cursor: nwse-resize; }
+.ai-chat-popup-resizer.is-sw { bottom: 0; left: 0; cursor: nesw-resize; }
+.ai-chat-popup-resizer.is-nw { top: 0; left: 0; cursor: nwse-resize; }
+.ai-chat-popup-resizer.is-n::after,
+.ai-chat-popup-resizer.is-s::after,
+.ai-chat-popup-resizer.is-e::after,
+.ai-chat-popup-resizer.is-w::after {
+  content: "";
+  position: absolute;
+  border-radius: 999px;
+  background: rgba(103, 232, 249, .42);
+  transition: background .15s, box-shadow .15s;
+}
+.ai-chat-popup-resizer.is-n::after,
+.ai-chat-popup-resizer.is-s::after { left: 42%; width: 16%; height: 2px; }
+.ai-chat-popup-resizer.is-n::after { top: 2px; }
+.ai-chat-popup-resizer.is-s::after { bottom: 2px; }
+.ai-chat-popup-resizer.is-e::after,
+.ai-chat-popup-resizer.is-w::after { top: 42%; width: 2px; height: 16%; }
+.ai-chat-popup-resizer.is-e::after { right: 2px; }
+.ai-chat-popup-resizer.is-w::after { left: 2px; }
+.ai-chat-popup-resizer:hover::after,
+.ai-chat-popup-resizer:active::after { background: #67e8f9; box-shadow: 0 0 7px rgba(103,232,249,.9); }
+.ai-chat-popup-resizer.is-ne::after,
+.ai-chat-popup-resizer.is-se::after,
+.ai-chat-popup-resizer.is-sw::after,
+.ai-chat-popup-resizer.is-nw::after {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-color: rgba(103,232,249,.72);
+  border-style: solid;
+}
+.ai-chat-popup-resizer.is-ne::after { top: 3px; right: 3px; border-width: 2px 2px 0 0; }
+.ai-chat-popup-resizer.is-se::after { right: 3px; bottom: 3px; border-width: 0 2px 2px 0; }
+.ai-chat-popup-resizer.is-sw::after { bottom: 3px; left: 3px; border-width: 0 0 2px 2px; }
+.ai-chat-popup-resizer.is-nw::after { top: 3px; left: 3px; border-width: 2px 0 0 2px; }
 .ai-chat-mobile-size-handle { display: none; }
 @keyframes ai-chat-open { from { opacity: 0; transform: translateX(-18px) scale(.98); } to { opacity: 1; transform: none; } }
 
@@ -1688,6 +1742,58 @@ body.theme-light .ai-chat-message.user .ai-chat-message-content {
   border-color: #183b4a;
   background: #08111b;
   color: #e8f4f5;
+}
+
+/* MDpro's light theme keeps AI Jena on the same dark visual system as dark mode.
+   These late overrides prevent older light-palette rules from leaving dark text
+   on the chat answer and search-evidence surfaces. */
+body.theme-light .ai-chat-message.assistant:not(.error) .ai-chat-message-content,
+body.theme-light .ai-chat-panel.answer-plain-light .ai-chat-message.assistant:not(.error) .ai-chat-message-content {
+  border-color: #183b4a;
+  background: #08111b;
+  color: #e8f4f5;
+  box-shadow: none;
+}
+
+body.theme-light .ai-chat-academic-results {
+  border-color: #4f7599;
+  background: #17273b;
+  color: #dce9f8;
+}
+body.theme-light .ai-chat-academic-head {
+  border-color: #466887;
+  background: #213a55;
+}
+body.theme-light .ai-chat-academic-head strong { color: #d9f8ed; }
+body.theme-light .ai-chat-academic-head button {
+  border-color: #6683a7;
+  background: #2c4868;
+  color: #dceaff;
+}
+body.theme-light .ai-chat-academic-results > p { color: #9fb5cf; }
+body.theme-light .ai-chat-academic-results > p.ai-chat-academic-warning { color: #ffc978; }
+body.theme-light .ai-chat-academic-list article { border-color: rgba(91,119,153,.45); }
+body.theme-light .ai-chat-academic-list article > a,
+body.theme-light .ai-chat-academic-list article > strong { color: #cfe4ff; }
+body.theme-light .ai-chat-academic-list article > a:hover { color: #8fc5ff; }
+body.theme-light .ai-chat-academic-list article > a.ai-chat-internet-url { color: #82c7ff; }
+body.theme-light .ai-chat-academic-list article > span { color: #91a8c3; }
+body.theme-light .ai-chat-academic-list summary { color: #78dbb9; }
+body.theme-light .ai-chat-academic-list details p { color: #d0dceb; }
+body.theme-light .ai-chat-academic-footer {
+  border-color: #466887;
+  background: #1d3149;
+}
+body.theme-light .ai-chat-academic-footer > span { color: #a9bdd4; }
+body.theme-light .ai-chat-academic-footer button {
+  border-color: #5d789d;
+  background: #294765;
+  color: #dceaff;
+}
+body.theme-light .ai-chat-academic-footer button:hover {
+  border-color: #72cfaf;
+  background: #285c51;
+  color: #effff9;
 }
 
 .ai-chat-panel.layout-dock {

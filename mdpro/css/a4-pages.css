@@ -1,7 +1,74 @@
 #content-viewport.a4-active { overflow: auto; }
+body:not(.viewer-view-mode) #content-viewport.a4-active {
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable both-edges;
+}
 #content-viewport.a4-active:not(.hidden) { display: block; }
 .a4-active #editor-doc-wrap { display: none !important; }
-#a4-pages { width: max-content; min-width: 100%; padding: 0 0 32px; }
+.long-document-active:not(.hidden) { overflow-y: auto !important; align-items: flex-start; }
+#content-viewport.long-document-active #editor-doc-wrap {
+  flex: 0 0 auto;
+  min-height: 320px;
+  height: max-content;
+  overflow: visible;
+}
+#content-viewport.long-document-active #viewer-edit-ta {
+  min-height: 320px;
+  overflow-y: hidden;
+  resize: none;
+}
+#viewer-container.long-document-active #viewer.long-document-sheet {
+  position: relative;
+  overflow: visible;
+}
+.long-document-resize-handle {
+  position: absolute;
+  z-index: 35;
+  display: block;
+  box-sizing: border-box;
+  border: 1px solid #2563eb;
+  background: #dbeafe;
+  box-shadow: 0 1px 4px #0f172a55;
+  touch-action: none;
+  user-select: none;
+  opacity: .9;
+}
+.long-document-resize-height {
+  left: 50%;
+  bottom: -7px;
+  width: 72px;
+  height: 14px;
+  transform: translateX(-50%);
+  border-radius: 7px;
+  cursor: ns-resize;
+}
+.long-document-resize-corner {
+  right: -8px;
+  bottom: -8px;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px 3px 9px 3px;
+  cursor: nwse-resize;
+}
+.long-document-resize-corner::after {
+  content: '';
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid #1d4ed8;
+  border-bottom: 2px solid #1d4ed8;
+}
+body.long-document-resizing,
+body.long-document-resizing * { cursor: ns-resize !important; }
+body.long-document-resizing .long-document-resize-corner { cursor: nwse-resize !important; }
+.a4-active .long-document-resize-handle,
+#viewer.a4-view > .long-document-resize-handle { display: none !important; }
+#a4-pages { width: max-content; min-width: 100%; min-height: max-content; padding: 0 0 64px; }
 .a4-sheet { box-sizing: border-box; width: 210mm; height: 297mm; padding: 20mm; margin: 0 auto 24px; position: relative; background: var(--a4-paper, #fff); color: var(--a4-ink, #172033); box-shadow: 0 2px 12px #0005; }
 .a4-sheet[data-orientation="landscape"] { width: 297mm; height: 210mm; }
 .a4-text, #a4-measure { box-sizing: border-box; padding: 0; border: 0; font: 16px/26px Arial, sans-serif; letter-spacing: normal; tab-size: 4; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; }
