@@ -141,7 +141,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260829-pages-local-search-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?v=20260912-original-explainer-1',
+    aiChat: './AI_App/aiChat/ai-chat.js?v=20260912-mode-row-1',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260810-3'
@@ -17166,7 +17166,7 @@ window.AIChatBridge = Object.freeze({
                     ? '제공된 학술 초록 근거를 충분히 비교·검토하되 필수 항목을 먼저 모두 완결하고 남은 범위에서 상세화하세요. 문장 중간에서 끝내지 마세요.'
                     : '제공된 학술 초록 근거에서 핵심 주장, 같은 결과, 다른 결과를 간결하게 모두 완결하세요. 세부 내용보다 전체 항목의 완성을 우선하고 문장 중간에서 끝내지 마세요.')
                 : (reasoningMode
-                    ? '설정된 추론 강도로 충분히 검토한 뒤 완성도 높은 최종 답변을 작성하세요. 사용자가 요청한 모든 항목·코드·설명을 누락하지 말고, 내부 계획이나 추론은 최종 답변에 섞지 마세요.'
+                    ? '설정된 추론 강도로 이전 대화의 전제·수정·미해결 쟁점까지 충분히 검토한 뒤 전문가 수준의 상세한 최종 답변을 작성하세요. 명시적으로 짧게 요청하지 않았다면 결론만 압축하지 말고 근거, 가정, 대안과 반론, 위험과 한계, 시사점, 실행 가능한 다음 단계 및 답변에서 파생되는 중요한 질문을 주제에 맞게 깊이 있게 다루세요. 사용자가 요청한 모든 항목·코드·설명을 누락하지 말고, 내부 chain-of-thought나 작업 계획은 최종 답변에 섞지 마세요.'
                     : '핵심부터 바로 답하되 사용자가 요청한 코드, 설명, 형식과 분량을 완전하게 충족하세요. 인위적인 문장 수 제한을 두지 마세요.');
             const configuredMaxTokens = Math.max(1, Number(config.maxTokens) || 8192);
             const academicMaxTokens = Math.min(2400, configuredMaxTokens);

@@ -192,7 +192,11 @@
         : new URL('./Apps/PWA/pwa-settings.js', document.baseURI).href;
       const workerUrl = new URL('../../service-worker.js', scriptUrl);
       const scopeUrl = new URL('../../', scriptUrl);
-      state.registration = await navigator.serviceWorker.register(workerUrl.href, { scope: scopeUrl.pathname });
+      state.registration = await navigator.serviceWorker.register(workerUrl.href, {
+        scope: scopeUrl.pathname,
+        updateViaCache: 'none'
+      });
+      await state.registration.update();
       state.registration.addEventListener('updatefound', function () {
         const installing = state.registration.installing;
         if (!installing) return;
