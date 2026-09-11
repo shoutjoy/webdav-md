@@ -111,6 +111,18 @@ test('PV mirrors mixed page directions, switches slides, clamps navigation and f
     assert.equal(env.child.body.classList.contains('a4-document-dark'), true);
 });
 
+test('PV theme initialization waits safely when a new popup has no body yet', () => {
+    const env = fixture();
+    assert.equal(env.api.theme({ document: { body: null }, closed: false }), false);
+    let reads = 0;
+    const replacingDocument = {};
+    Object.defineProperty(replacingDocument, 'body', {
+        get: () => ++reads === 1 ? env.child.body : null
+    });
+    assert.equal(env.api.theme({ document: replacingDocument, closed: false }), true);
+    assert.equal(env.api.theme(env.win), true);
+});
+
 test('pen and highlighter survive slide movement and identical sync; eraser and clearing affect only ink', () => {
     const env = fixture(); env.api.mount(env.win, env.pages);
     env.button('펜').fire('click'); let svg = env.draw();

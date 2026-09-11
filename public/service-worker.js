@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'webdav-viewer-v1';
+const CACHE_VERSION = 'webdav-viewer-v2';
 const APP_SHELL = ['./', './manifest.webmanifest', './webdav.svg', './webdav-maskable.svg'];
 
 self.addEventListener('install', (event) => {
@@ -41,10 +41,15 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Prefer the current app asset while online. Cache-first kept old MDPRO
+  // scripts alive after an update, so editor fixes appeared to do nothing
+  // until users manually cleared browser storage.
   event.respondWith(
-    caches.match(request).then((cached) => cached || fetch(request).then((response) => {
-      if (response.ok) caches.open(CACHE_VERSION).then((cache) => cache.put(request, response.clone()));
-      return response;
-    })),
+    fetch(request)
+      .then((response) => {
+        if (response.ok) caches.open(CACHE_VERSION).then((cache) => cache.put(request, response.clone()));
+        return response;
+      })
+      .catch(() => caches.match(request)),
   );
 });

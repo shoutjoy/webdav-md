@@ -1,17 +1,29 @@
 import { useEffect, useRef, useState } from 'react';
-import { MAX_RECENT_WORK_ITEMS, readRecentWorkVisibleCount, RECENT_WORK_VISIBLE_COUNT_KEY } from '../recentWork.js';
+import {
+  MAX_RECENT_WORK_ITEMS,
+  readRecentWorkVisibleCount,
+  RECENT_WORK_VISIBLE_COUNT_KEY,
+  setRecentWorkAutoOpen,
+  shouldAutoOpenRecentWork,
+} from '../recentWork.js';
 
 const MIN_VISIBLE_COUNT = 1;
 
 export default function RecentWorkDialog({ items, busy, error, onOpen, onClose }) {
   const ref = useRef(null);
   const [visibleCount, setVisibleCount] = useState(() => readRecentWorkVisibleCount(localStorage));
+  const [skipNextTime, setSkipNextTime] = useState(() => !shouldAutoOpenRecentWork(localStorage));
   const changeVisibleCount = (amount) => {
     setVisibleCount(current => {
       const next = Math.min(MAX_RECENT_WORK_ITEMS, Math.max(MIN_VISIBLE_COUNT, current + amount));
       localStorage.setItem(RECENT_WORK_VISIBLE_COUNT_KEY, String(next));
       return next;
     });
+  };
+  const changeSkipNextTime = (event) => {
+    const checked = event.target.checked;
+    setSkipNextTime(checked);
+    setRecentWorkAutoOpen(localStorage, !checked);
   };
   useEffect(() => {
     const dialog = ref.current;
@@ -20,6 +32,10 @@ export default function RecentWorkDialog({ items, busy, error, onOpen, onClose }
   return <dialog ref={ref} className="recent-work-dialog" aria-labelledby="recent-work-title" onCancel={event => { event.preventDefault(); if (!busy) onClose(); }}>
     <h2 id="recent-work-title">최근 작업을 여시겠습니까?</h2>
     <p>이 브라우저에서 최근 작업한 파일을 최근 순으로 표시합니다. 선택하면 서버에 저장된 파일을 엽니다.</p>
+    <label className="recent-work-auto-open">
+      <input type="checkbox" checked={skipNextTime} disabled={busy} onChange={changeSkipNextTime} />
+      <span>다음부터 자동으로 열지 않기</span>
+    </label>
     {error && <p role="alert">{error}</p>}
     <div className="recent-work-list">
       {items.slice(0, visibleCount).map(item => <button key={item.remotePath} disabled={busy} onClick={() => onOpen(item)}>

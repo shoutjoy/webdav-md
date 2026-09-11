@@ -3,7 +3,7 @@ import PanelResizeHandles from './PanelResizeHandles.jsx';
 
 const FMA_WIDTH_KEY = 'webdav-fma-panel-width';
 const APP_BASE_URL = import.meta.env.BASE_URL;
-const MDPRO_URL = `${APP_BASE_URL}mdpro/index.html?webdav=1&editor=cm6&ui=20260912-list-enter-tab-1`;
+const MDPRO_URL = `${APP_BASE_URL}mdpro/index.html?webdav=1&editor=cm6&ui=20260912-list-outdent-9`;
 const FMA_URL = `${APP_BASE_URL}mdpro/Apps/fmaviewer/index.html?embedded=1`;
 
 export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, onSaveSettingsMset, onLoadSettingsMset, onReadCredentialVault, onWriteCredentialVault, selectedFile, content, binaryContent, fmaImportBatch, loading, saving, explorerWidth, panelResizeEnabled, onSave, onSaveAs, onDocumentChange, onSaveImageToFolder, onClose, onToggleExplorer, onShowDocumentExplorer, onOpenExplorer, onOpenFolderExplorer, onOpenRecentWork, onRequestCreateFile, onOpenTocPopup, onThemeChange, autosaveEnabled }) {
@@ -236,7 +236,7 @@ export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, onSav
     {loading && !saving && <div className="mdpro-loading">WebDAV 파일을 여는 중…</div>}
     {saving && <div className="mdpro-saving" role="status" aria-live="polite"><span>WebDAV에 저장합니다.</span></div>}
     <div className="mdpro-workspace">
-      <iframe ref={mdproFrameRef} src={MDPRO_URL} onLoad={attachWebdavBridge} title="MDPRO 문서 편집기" className="mdpro-frame" />
+      <iframe key={MDPRO_URL} ref={mdproFrameRef} src={MDPRO_URL} onLoad={attachWebdavBridge} title="MDPRO 문서 편집기" className="mdpro-frame" />
       {isFmaOpen && <>
         <div className="fma-panel-resizer" onPointerDown={startFmaResize} role="separator" aria-label="문서와 FMA 너비 조절" title="드래그하여 문서와 FMA 크기 조절"><span/></div>
         <aside className="fma-dock" style={{ flexBasis: `${fmaWidth}%` }}>

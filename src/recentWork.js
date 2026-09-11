@@ -6,6 +6,7 @@ export const recentWorkKey = (url, username) =>
 export const MAX_RECENT_WORK_ITEMS = 50;
 export const DEFAULT_RECENT_WORK_VISIBLE_COUNT = 10;
 export const RECENT_WORK_VISIBLE_COUNT_KEY = 'webdav-recent-work-visible-count';
+export const RECENT_WORK_AUTO_OPEN_KEY = 'webdav-recent-work-auto-open';
 export const RECENT_WORK_WEBDAV_FOLDER = '/.webdav_temp';
 export const RECENT_WORK_WEBDAV_PATH = `${RECENT_WORK_WEBDAV_FOLDER}/recent-work.json`;
 
@@ -14,6 +15,14 @@ export function readRecentWorkVisibleCount(storage) {
   return Number.isFinite(saved)
     ? Math.min(MAX_RECENT_WORK_ITEMS, Math.max(1, saved))
     : DEFAULT_RECENT_WORK_VISIBLE_COUNT;
+}
+
+export function shouldAutoOpenRecentWork(storage) {
+  return storage.getItem(RECENT_WORK_AUTO_OPEN_KEY) !== 'false';
+}
+
+export function setRecentWorkAutoOpen(storage, enabled) {
+  storage.setItem(RECENT_WORK_AUTO_OPEN_KEY, String(Boolean(enabled)));
 }
 
 const normalizeRecentWorkItems = (items, limit = MAX_RECENT_WORK_ITEMS) => Array.isArray(items) ? items.filter(item =>

@@ -1,5 +1,5 @@
 import RecentWorkDialog from './components/RecentWorkDialog.jsx';
-import { mergeRecentWorkItems, readRecentWork, readRecentWorkFromWebDav, recentWorkKey, recordRecentWork, writeRecentWork, writeRecentWorkToWebDav } from './recentWork.js';
+import { mergeRecentWorkItems, readRecentWork, readRecentWorkFromWebDav, recentWorkKey, recordRecentWork, shouldAutoOpenRecentWork, writeRecentWork, writeRecentWorkToWebDav } from './recentWork.js';
 import { saveJenaRecord, readJenaRecords, visibleWebdavEntries, isJenaDataPath } from './jenaDataStorage.js';
 import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { create } from 'zustand';
@@ -740,7 +740,7 @@ export default function App() {
           console.warn('WebDAV 최근 작업 캐시 동기화에 실패해 브라우저 캐시를 사용합니다:', recentError);
         }
         setRecentItems(recent);
-        setRecentOpen(recent.length > 0);
+        setRecentOpen(recent.length > 0 && shouldAutoOpenRecentWork(localStorage));
         setIsConnected(true);
       } else {
         clientRef.current = null;
@@ -880,21 +880,23 @@ export default function App() {
     const currentName = currentFile?.name || '현재 문서';
     const currentPath = normalizeRemotePath(currentFile?.remotePath || '/');
     const currentContent = String(editorContentRef.current ?? '');
+    if (!currentContent.trim()) return true;
     const nextName = file?.name || '선택한 파일';
-    const shouldSave = await new Promise((resolve) => {
+    const action = await new Promise((resolve) => {
       setFileSwitchPrompt({ currentName, nextName, resolve });
     });
-    if (!shouldSave) return false;
+    if (action === 'cancel') return false;
+    if (action === 'pass') return true;
     // Keep both the old path and old content fixed until the save is fully
     // verified. The selected file must not decide the destination mid-save.
     return handleSaveFile(currentContent, currentPath);
   };
 
-  const resolveFileSwitchPrompt = (shouldSave) => {
+  const resolveFileSwitchPrompt = (action) => {
     const pending = fileSwitchPrompt;
     if (!pending) return;
     setFileSwitchPrompt(null);
-    pending.resolve(Boolean(shouldSave));
+    pending.resolve(action);
   };
 
   const closeMobileWdocExplorer = () => {
@@ -2318,14 +2320,15 @@ export default function App() {
       {fileSwitchPrompt && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/55 p-4" role="dialog" aria-modal="true" aria-labelledby="file-switch-save-title">
           <div className="w-full max-w-md rounded-xl border border-amber-300 bg-white p-5 text-slate-900 shadow-2xl dark:border-amber-700 dark:bg-slate-900 dark:text-slate-100">
-            <h2 id="file-switch-save-title" className="text-lg font-bold">현재 문서를 먼저 저장하세요</h2>
+            <h2 id="file-switch-save-title" className="text-lg font-bold">현재 문서에 변경사항이 있습니다</h2>
             <p className="mt-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
               <strong>“{fileSwitchPrompt.currentName}”</strong>에 저장하지 않은 변경사항이 있습니다.<br />
-              저장을 완료한 뒤 <strong>“{fileSwitchPrompt.nextName}”</strong> 문서를 엽니다.
+              저장 후 열거나 Pass하여 <strong>“{fileSwitchPrompt.nextName}”</strong> 문서로 이동할 수 있습니다.
             </p>
             <div className="mt-5 flex justify-end gap-2">
-              <button type="button" disabled={isWebDavSaving} onClick={() => resolveFileSwitchPrompt(false)} className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold hover:bg-slate-100 disabled:opacity-50 dark:border-slate-600 dark:hover:bg-slate-800">취소</button>
-              <button type="button" disabled={isWebDavSaving} onClick={() => resolveFileSwitchPrompt(true)} className="rounded-md bg-amber-600 px-4 py-2 text-sm font-bold text-white hover:bg-amber-700 disabled:opacity-50">저장 후 열기</button>
+              <button type="button" disabled={isWebDavSaving} onClick={() => resolveFileSwitchPrompt('cancel')} className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold hover:bg-slate-100 disabled:opacity-50 dark:border-slate-600 dark:hover:bg-slate-800">취소</button>
+              <button type="button" disabled={isWebDavSaving} onClick={() => resolveFileSwitchPrompt('pass')} className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold hover:bg-slate-100 disabled:opacity-50 dark:border-slate-600 dark:hover:bg-slate-800">Pass</button>
+              <button type="button" disabled={isWebDavSaving} onClick={() => resolveFileSwitchPrompt('save')} className="rounded-md bg-amber-600 px-4 py-2 text-sm font-bold text-white hover:bg-amber-700 disabled:opacity-50">저장 후 열기</button>
             </div>
           </div>
         </div>

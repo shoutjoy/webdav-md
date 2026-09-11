@@ -43,7 +43,15 @@ function setup(createAllowed = true) {
         }
     }
     const handlers = {};
-    const document = { createElement: tag => new Element(tag), getElementById: id => elements.get(id), body: new Element('body'), addEventListener: (name, handler) => { handlers[name] = handler; } };
+    const document = {
+        createElement: tag => new Element(tag),
+        getElementById: id => elements.get(id),
+        querySelectorAll: selector => selector === '#viewer > .a4-sheet'
+            ? (elements.get('viewer')?.querySelectorAll(':scope > .a4-sheet') || [])
+            : [],
+        body: new Element('body'),
+        addEventListener: (name, handler) => { handlers[name] = handler; }
+    };
     const source = new Element('textarea'); source.id = 'viewer-edit-ta';
     const viewport = new Element('div'); viewport.id = 'content-viewport';
     const wrap = new Element('div'); wrap.id = 'editor-doc-wrap'; wrap.style.width = '794px'; wrap.append(source);
@@ -226,10 +234,19 @@ test('view settings start collapsed and preview reuses the exact view pages', as
     const expected = target.querySelectorAll(':scope > .a4-sheet');
     let mounted;
     env.window.A4Presentation = { mount: (_, sheets) => { mounted = sheets; } };
-    await env.window.A4Pages.preview({ closed: false }, env.source.value);
+    assert.equal(await env.window.A4Pages.preview({ closed: false }, env.source.value), true);
     assert.equal(mounted.length, 2);
     assert.equal(mounted[0], expected[0]);
     assert.equal(mounted[1], expected[1]);
+});
+
+test('preview does not claim success when hidden view pagination has no mountable pages', async () => {
+    const env = setup();
+    env.window.createA4File('landscape');
+    env.type(env.inputs()[0], '# live PV');
+    env.window.A4Presentation = { mount: () => { throw Error('must not mount empty pages'); } };
+
+    assert.equal(await env.window.A4Pages.preview({ closed: false }, env.source.value), false);
 });
 
 test('Ctrl arrows move one view page, clamp at boundaries, and leave editing shortcuts alone', () => {
