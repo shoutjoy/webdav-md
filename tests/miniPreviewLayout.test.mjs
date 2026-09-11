@@ -34,3 +34,10 @@ test('miniPV vertical bounds extend through the full MDPRO frame', () => {
     assert.match(script, /const viewportBottom = Math\.max\(rect\.bottom, Number\(window\.innerHeight\) \|\| rect\.bottom\);/);
     assert.match(script, /height: Math\.max\(1, viewportBottom - rect\.top\)/);
 });
+
+test('miniPV renders the live editor value while edit mode is active', () => {
+    assert.match(script, /function getMiniPreviewSourceMarkdown\(\)/);
+    assert.match(script, /isEditMode && editorTextarea && typeof editorTextarea\.value === 'string'/);
+    assert.match(script, /const raw = getMiniPreviewSourceMarkdown\(\);/);
+    assert.match(script, /renderMiniPreviewToc\(getMiniPreviewSourceMarkdown\(\)\)/);
+});

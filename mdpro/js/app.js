@@ -140,7 +140,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260829-pages-local-search-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?v=20260909-webdav-shell-popup-1',
+    aiChat: './AI_App/aiChat/ai-chat.js?v=20260911-floating-semantic-icons-1',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260810-3'
@@ -4706,8 +4706,10 @@ async function refreshCurrentLocalFileFromDisk() {
 
 window.refreshCurrentLocalFileFromDisk = refreshCurrentLocalFileFromDisk;
 
-async function createNewFile() {
-    const canProceed = await confirmSaveBeforeCreatingNewFile();
+async function createNewFile(options) {
+    const canProceed = options && options.skipSavePrompt
+        ? true
+        : await confirmSaveBeforeCreatingNewFile();
     if (!canProceed) {
         showToast('새 문서 만들기를 취소했습니다.');
         return false;
@@ -6657,7 +6659,11 @@ function scheduleRenderTOC(delayMs) {
 
 function scheduleMiniPreviewRender(delayMs) {
     if (!miniPreviewEnabled || !isEditMode) return;
-    const revision = syncRenderSourceRevision(currentMarkdown);
+    const liveMarkdown = String(editorTextarea && typeof editorTextarea.value === 'string'
+        ? editorTextarea.value
+        : currentMarkdown ?? '');
+    currentMarkdown = liveMarkdown;
+    const revision = syncRenderSourceRevision(liveMarkdown);
     if (!renderCoordinator) {
         setTimeout(function () { if (miniPreviewEnabled && isEditMode) renderMiniPreviewContent(); }, Math.max(80, Number(delayMs) || 0));
         return;
@@ -6673,7 +6679,11 @@ function scheduleMiniPreviewRender(delayMs) {
 
 function scheduleUpdatePreviewPopupContent(delayMs) {
     if (!(typeof isPreviewPopupAlive === 'function' && isPreviewPopupAlive())) return;
-    const revision = syncRenderSourceRevision(currentMarkdown);
+    const liveMarkdown = String(editorTextarea && typeof editorTextarea.value === 'string'
+        ? editorTextarea.value
+        : currentMarkdown ?? '');
+    currentMarkdown = liveMarkdown;
+    const revision = syncRenderSourceRevision(liveMarkdown);
     if (!renderCoordinator) {
         setTimeout(function () {
             if (typeof updatePreviewPopupContent === 'function') updatePreviewPopupContent();
@@ -13728,25 +13738,80 @@ function handleSettingsImportMsetClick(event) {
 
 function installSettingsMsetLongPress() {
     [
-        ['settings-export-mset-button', exportSettingsMsetToWebDav],
-        ['settings-import-mset-button', importSettingsMsetFromWebDav]
+        ['settings-export-mset-button', exportSettingsMsetToWebDav, 'WebDAV에 설정 저장'],
+        ['settings-import-mset-button', importSettingsMsetFromWebDav, 'WebDAV에서 설정 불러오기']
     ].forEach(function (entry) {
         const button = document.getElementById(entry[0]);
         if (!button || button.dataset.msetLongPressInstalled === '1') return;
         button.dataset.msetLongPressInstalled = '1';
         let timer = null;
+        let animationFrame = null;
+        let holdStartedAt = 0;
+        const popup = document.createElement('div');
+        popup.className = 'settings-mset-hold-popup';
+        popup.hidden = true;
+        popup.setAttribute('role', 'status');
+        popup.setAttribute('aria-live', 'polite');
+        popup.innerHTML = '<div class="settings-mset-hold-heading"><span></span><strong class="settings-mset-hold-percent">0%</strong></div>' +
+            '<div class="settings-mset-hold-track"><div class="settings-mset-hold-bar"></div></div>' +
+            '<p class="settings-mset-hold-help">손을 떼면 취소됩니다.</p>';
+        document.body.appendChild(popup);
+        const popupTitle = popup.querySelector('.settings-mset-hold-heading span');
+        const popupPercent = popup.querySelector('.settings-mset-hold-percent');
+        const setProgress = function (percent) {
+            const rounded = Math.max(0, Math.min(100, Math.round(percent)));
+            const value = rounded + '%';
+            button.style.setProperty('--mset-hold-progress', value);
+            popup.style.setProperty('--mset-hold-progress', value);
+            popupPercent.textContent = value;
+        };
+        const hideProgress = function () {
+            popup.hidden = true;
+            button.classList.remove('is-mset-holding', 'is-mset-processing');
+            button.style.removeProperty('--mset-hold-progress');
+        };
         const cancel = function () {
             if (timer != null) clearTimeout(timer);
             timer = null;
+            if (animationFrame != null) cancelAnimationFrame(animationFrame);
+            animationFrame = null;
+            if (button.dataset.msetLongPressTriggered !== '1') hideProgress();
         };
         button.addEventListener('pointerdown', function (event) {
             if (event.button != null && event.button !== 0) return;
             cancel();
             button.dataset.msetLongPressTriggered = '0';
-            timer = setTimeout(function () {
+            holdStartedAt = performance.now();
+            popupTitle.textContent = entry[2];
+            popup.querySelector('.settings-mset-hold-help').textContent = '손을 떼면 취소됩니다.';
+            popup.hidden = false;
+            button.classList.add('is-mset-holding');
+            setProgress(0);
+            const animate = function (now) {
+                setProgress(((now - holdStartedAt) / SETTINGS_MSET_LONG_PRESS_MS) * 100);
+                if (now - holdStartedAt < SETTINGS_MSET_LONG_PRESS_MS) animationFrame = requestAnimationFrame(animate);
+            };
+            animationFrame = requestAnimationFrame(animate);
+            timer = setTimeout(async function () {
                 timer = null;
+                if (animationFrame != null) cancelAnimationFrame(animationFrame);
+                animationFrame = null;
                 button.dataset.msetLongPressTriggered = '1';
-                entry[1]();
+                setProgress(100);
+                button.classList.remove('is-mset-holding');
+                button.classList.add('is-mset-processing');
+                popupPercent.textContent = '처리 중';
+                popup.querySelector('.settings-mset-hold-help').textContent = '완료될 때까지 잠시 기다려 주세요.';
+                button.disabled = true;
+                try {
+                    await entry[1]();
+                } finally {
+                    button.disabled = false;
+                    hideProgress();
+                    setTimeout(function () {
+                        button.dataset.msetLongPressTriggered = '0';
+                    }, 500);
+                }
             }, SETTINGS_MSET_LONG_PRESS_MS);
         });
         button.addEventListener('pointerup', cancel);
@@ -18341,12 +18406,16 @@ async function saveCurrentDocumentAsLocalFile() {
     }
 }
 
-async function saveToSelectedStorage(targetSource) {
+async function saveToSelectedStorage(targetSource, options) {
+    let saved;
     if (targetSource === 'local') {
         if (currentLocalFileRef || (currentFilePath && window.electron && window.electron.ipcRenderer)) {
-            return currentLocalFileRef ? saveCurrentLocalFile() : saveCurrentFile();
+            saved = await (currentLocalFileRef ? saveCurrentLocalFile() : saveCurrentFile());
+        } else {
+            saved = await saveCurrentDocumentAsLocalFile();
         }
-        return saveCurrentDocumentAsLocalFile();
+        if (saved === true && options && options.closeAfterSave) closeCurrentDocumentAfterSave();
+        return saved;
     }
     if (targetSource === 'github') {
         if (typeof window.pushCurrentContentToGithub !== 'function') {
@@ -18354,21 +18423,43 @@ async function saveToSelectedStorage(targetSource) {
             return false;
         }
         syncCurrentMarkdownFromEditor();
-        return window.pushCurrentContentToGithub();
+        saved = await window.pushCurrentContentToGithub();
+        if (saved === true && options && options.closeAfterSave) closeCurrentDocumentAfterSave();
+        return saved;
     }
     await ensureDatabaseStorageMode(targetSource);
-    return openDatabaseSaveModal(targetSource);
+    return openDatabaseSaveModal(targetSource, options);
 }
 
-async function saveToDB() {
+async function saveToDB(options) {
     const origin = getCurrentDocumentStorageOrigin();
     const targetSource = getSelectedSaveStorageSource();
     if (origin && origin.source !== targetSource) {
         const choice = await askStorageSaveLocation(origin, targetSource);
         if (choice === 'cancel') return false;
-        return saveToSelectedStorage(choice === 'origin' ? origin.source : targetSource);
+        return saveToSelectedStorage(choice === 'origin' ? origin.source : targetSource, options);
     }
-    return saveToSelectedStorage(targetSource);
+    return saveToSelectedStorage(targetSource, options);
+}
+
+function closeCurrentDocumentAfterSave() {
+    if (window.parent !== window) {
+        window.parent.postMessage({ type: 'webdav-close-document' }, location.origin);
+        window.__webdavHostDocument = null;
+    }
+    if (typeof createNewFile === 'function') {
+        Promise.resolve(createNewFile({ skipSavePrompt: true })).catch(function (error) {
+            showToast('새 파일을 열지 못했습니다: ' + (error && error.message ? error.message : error));
+        });
+        return true;
+    }
+    showToast('새 파일 기능을 사용할 수 없습니다.');
+    return false;
+}
+
+async function saveAndCloseCurrentDocument() {
+    closeSaveDropdown();
+    return saveToDB({ closeAfterSave: true });
 }
 
 async function saveBeforeA4LayoutChange() {
@@ -18381,6 +18472,7 @@ async function saveBeforeA4LayoutChange() {
 async function openDatabaseSaveModal(storageModeInput, options) {
     const storageMode = storageModeInput === 'sqlite' ? 'sqlite' : 'indb';
     const saveAs = !!(options && options.saveAs);
+    const closeAfterSave = !!(options && options.closeAfterSave);
 
     const modal = document.getElementById('save-modal');
     const titleEl = document.querySelector('#save-modal h3');
@@ -18469,7 +18561,8 @@ async function openDatabaseSaveModal(storageModeInput, options) {
             showToast(targetDoc
                 ? 'Existing ' + storageLabel + ' document overwritten.'
                 : 'Saved to ' + storageLabel + ' as "' + resolvedTitle + '".');
-            await revealSavedInDbDocument(savedDoc);
+            if (closeAfterSave) closeCurrentDocumentAfterSave();
+            else await revealSavedInDbDocument(savedDoc);
         } catch (error) {
             const prefix = error && error.code === 'VERSION_CONFLICT'
                 ? 'Save conflict: '
@@ -18523,6 +18616,7 @@ window.createDocumentInFolder = createDocumentInFolder;
 window.deleteFolderFromDB = deleteFolderFromDB;
 window.renameStoredDocument = renameStoredDocument;
 window.saveToDB = saveToDB;
+window.saveAndCloseCurrentDocument = saveAndCloseCurrentDocument;
 window.saveBeforeA4LayoutChange = saveBeforeA4LayoutChange;
 window.renderDBList = renderDBList;
 window.scheduleStorageSearch = scheduleStorageSearch;

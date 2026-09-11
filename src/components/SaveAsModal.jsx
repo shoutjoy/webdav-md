@@ -43,7 +43,7 @@ export default function SaveAsModal({ request, directoryTree, loading, onConfirm
     event.preventDefault();
     if (!validationError && !loading) onConfirm(selectedPath, fileName.trim());
   };
-  return <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="save-as-title">
+  return <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="save-as-title">
     <form onSubmit={submit} className="flex max-h-[min(720px,92vh)] w-full max-w-md flex-col overflow-hidden rounded-xl border border-slate-300 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
       <div className="flex items-center border-b border-slate-200 px-4 py-3 dark:border-slate-700"><FileOutput size={18} className="mr-2 shrink-0 text-indigo-600"/><div className="min-w-0 flex-1"><h2 id="save-as-title" className="font-semibold">WebDAV에 다른 이름으로 저장</h2><p className="text-xs text-slate-500">저장할 폴더와 새 파일명을 선택하세요.</p></div><button type="button" onClick={onCancel} disabled={loading} className="rounded p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" aria-label="닫기"><X size={18}/></button></div>
       <div className="min-h-48 flex-1 overflow-auto p-2" role="tree"><FolderChoice node={directoryTree} depth={0} expandedPaths={expandedPaths} selectedPath={selectedPath} onToggle={toggle} onSelect={setSelectedPath}/></div>

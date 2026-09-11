@@ -335,17 +335,18 @@
         const githubConfigured = !!(cfg.enabled && cfg.token);
         const repoLink = document.getElementById('tab-storage-github-link');
         const syncBtn = document.getElementById('btn-github-sync');
-        const syncLabel = document.getElementById('github-sync-label');
 
         syncStorageSourceTabsVisibility(settings);
         if (syncBtn) {
             const showSync = githubConfigured;
+            const labelTarget = cfg.repoWithPath || cfg.repo;
+            const syncTitle = labelTarget
+                ? ('GitHub Pull 동기화: ' + labelTarget)
+                : 'GitHub 저장소 Pull 동기화';
             syncBtn.classList.toggle('hidden', !showSync);
             syncBtn.classList.toggle('flex', showSync);
-        }
-        if (syncLabel) {
-            const labelTarget = cfg.repoWithPath || cfg.repo;
-            syncLabel.textContent = labelTarget ? ('sync ' + labelTarget) : 'sync';
+            syncBtn.title = syncTitle;
+            syncBtn.setAttribute('aria-label', syncTitle);
         }
         if (repoLink) {
             const linkPath = getGithubLinkPathFromConfig(cfg);

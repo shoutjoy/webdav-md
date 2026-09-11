@@ -14,10 +14,10 @@
         return editor && typeof editor.value === 'string' ? editor.value : '';
     }
 
-    function saveToWebDav(saveAs) {
+    function saveToWebDav(saveAs, closeAfterSave) {
         if (!window.__webdavHostDocument) return false;
         window.parent.postMessage({
-            type: saveAs ? 'webdav-save-document-as' : 'webdav-save-document',
+            type: saveAs ? 'webdav-save-document-as' : (closeAfterSave ? 'webdav-save-document-and-close' : 'webdav-save-document'),
             path: window.__webdavHostDocument.path,
             fileName: window.__webdavHostDocument.fileName,
             content: currentDocumentText()
@@ -100,18 +100,23 @@
             const menu = document.createElement('div');
             menu.id = 'webdav-save-dropdown-menu';
             menu.className = 'hidden absolute z-[90] right-0 top-[calc(100%+6px)] min-w-40 p-1.5 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 shadow-xl';
-            menu.innerHTML = '<button type="button" class="w-full px-3 py-2 rounded flex items-center gap-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"><i data-lucide="cloud-upload" class="w-4 h-4"></i><span>WDSaveAs</span></button>';
+            menu.innerHTML = '<button type="button" data-action="save-as" class="w-full px-3 py-2 rounded flex items-center gap-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"><i data-lucide="cloud-upload" class="w-4 h-4"></i><span>WDSaveAs</span></button><div class="my-1 border-t border-slate-200 dark:border-slate-700"></div><button type="button" data-action="save-close" class="w-full px-3 py-2 rounded flex items-center gap-2 text-left text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"><i data-lucide="save" class="w-4 h-4"></i><span>저장 후 닫기</span></button>';
             toggle.addEventListener('click', function (event) {
                 event.stopPropagation();
                 const opening = menu.classList.contains('hidden');
                 menu.classList.toggle('hidden', !opening);
                 toggle.setAttribute('aria-expanded', String(opening));
             });
-            menu.querySelector('button').addEventListener('click', function () {
+            menu.querySelector('[data-action="save-as"]').addEventListener('click', function () {
                 menu.classList.add('hidden');
                 toggle.setAttribute('aria-expanded', 'false');
                 if (typeof window.saveCurrentDocumentToWebDavAs === 'function') window.saveCurrentDocumentToWebDavAs();
                 else saveToWebDav(true);
+            });
+            menu.querySelector('[data-action="save-close"]').addEventListener('click', function () {
+                menu.classList.add('hidden');
+                toggle.setAttribute('aria-expanded', 'false');
+                saveToWebDav(false, true);
             });
             document.addEventListener('click', function (event) {
                 if (!wrap.contains(event.target)) {

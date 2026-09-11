@@ -1219,6 +1219,15 @@ export default function App() {
     showToast('WebDAV에서 추가할 이미지를 선택하세요.');
   };
 
+  const showDocumentExplorer = () => {
+    nextWebDavFmaImportRef.current = '';
+    setIsSelectingFmaFolder(false);
+    setIsExplorerOpen(true);
+    setIsExplorerCompact(false);
+    localStorage.setItem('webdav-explorer-open', 'true');
+    localStorage.setItem(EXPLORER_COMPACT_KEY, 'false');
+  };
+
   const openFolderExplorer = () => {
     nextWebDavFmaImportRef.current = 'folder';
     setIsSelectingFmaFolder(true);
@@ -1229,8 +1238,8 @@ export default function App() {
     showToast('FMA에 추가할 WebDAV 폴더를 선택하세요.');
   };
 
-  const handleCloseEditor = () => {
-    if (!confirmEditorClose()) return;
+  const handleCloseEditor = (options = {}) => {
+    if (!options?.skipConfirm && !confirmEditorClose()) return;
     clearMediaPreview();
     setSelectedFile(null);
     setEditorContent('');
@@ -1601,6 +1610,15 @@ export default function App() {
         headers: { 'Content-Type': 'text/markdown; charset=utf-8' },
       });
       await loadDirectory(normalizedTargetDirectory);
+      const newFile = { name: fileName, remotePath: filePath, isDirectory: false, viewMode: 'text' };
+      selectedFileRef.current = newFile;
+      lastTextFileRef.current = newFile;
+      setSelectedFile(newFile);
+      setEditorContent('');
+      setSavedContent('');
+      setEditorDirty(false);
+      editorContentRef.current = '';
+      rememberWork(newFile);
       showToast(`Markdown 파일을 만들었습니다: ${filePath}`);
     } catch (err) {
       if (!returnToLoginIfUnauthorized(err)) {
@@ -2260,6 +2278,7 @@ export default function App() {
             onSaveImageToFolder={handleSaveImageToFolder}
             onClose={handleCloseEditor}
             onToggleExplorer={toggleExplorer}
+            onShowDocumentExplorer={showDocumentExplorer}
             onOpenExplorer={openExplorer}
             onOpenFolderExplorer={openFolderExplorer}
             onOpenRecentWork={openRecentWorkDialog}

@@ -1366,7 +1366,6 @@ function previewPopupSplitTableRows(table, content) {
     if (String(table.tagName || '').toLowerCase() !== 'table') return null;
     const rows = Array.prototype.slice.call(table.querySelectorAll('tbody > tr'));
     if (rows.length < 2) return null;
-    const fragments = [];
     const makeTable = function () {
         const clone = table.cloneNode(false);
         Array.prototype.slice.call(table.children).forEach(function (child) {
@@ -1377,20 +1376,35 @@ function previewPopupSplitTableRows(table, content) {
         clone.appendChild(table.ownerDocument.createElement('tbody'));
         return clone;
     };
-    let current = makeTable();
+
+    // Only split off the rows that fit on the *current* page. The remainder is
+    // deliberately kept as one table so place() can measure it again after it
+    // advances to a fresh page. Building every fragment against `content` here
+    // used the first page's remaining height for all subsequent pages, which
+    // commonly turned a four-row table into four one-row tables.
+    const fitting = makeTable();
+    const fittingBody = fitting.querySelector('tbody');
+    let splitIndex = rows.length;
     for (let index = 0; index < rows.length; index += 1) {
-        const body = current.querySelector('tbody');
         const row = rows[index].cloneNode(true);
-        body.appendChild(row);
-        if (!previewPopupMeasureCandidate(content, current.cloneNode(true)) && body.children.length > 1) {
-            body.removeChild(row);
-            fragments.push(current);
-            current = makeTable();
-            current.querySelector('tbody').appendChild(row);
+        fittingBody.appendChild(row);
+        if (!previewPopupMeasureCandidate(content, fitting.cloneNode(true))) {
+            fittingBody.removeChild(row);
+            splitIndex = index;
+            break;
         }
     }
-    if (current.querySelector('tbody').children.length) fragments.push(current);
-    return fragments.length > 1 ? fragments : null;
+
+    // No row fits in the remaining space: let place() move the intact table to
+    // the next page before attempting a split there.
+    if (splitIndex <= 0 || splitIndex >= rows.length) return null;
+
+    const remainder = makeTable();
+    const remainderBody = remainder.querySelector('tbody');
+    rows.slice(splitIndex).forEach(function (row) {
+        remainderBody.appendChild(row.cloneNode(true));
+    });
+    return [fitting, remainder];
 }
 
 function previewPopupSplitPreformatted(element, content) {

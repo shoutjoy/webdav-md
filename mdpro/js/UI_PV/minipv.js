@@ -328,13 +328,31 @@ function applyMiniPreviewZoom() {
 function getMiniPreviewSyncContext() {
     if (typeof currentMarkdown !== 'undefined') {
         return {
-            markdown: String(isEditMode && editorTextarea ? editorTextarea.value : currentMarkdown ?? ''),
+            markdown: getMiniPreviewSourceMarkdown(),
             editor: editorTextarea,
             viewer: null,
             isEditMode: !!isEditMode
         };
     }
     return null;
+}
+
+// While the main editor is open, its textarea is the source of truth.  The
+// currentMarkdown cache is also used by view mode and can briefly lag behind
+// edits made by editor integrations, IME input, or programmatic insertions.
+function getMiniPreviewSourceMarkdown() {
+    try {
+        if (isEditMode && editorTextarea && typeof editorTextarea.value === 'string') {
+            return String(editorTextarea.value || '');
+        }
+    } catch (_) {}
+    try {
+        const textarea = document.getElementById('viewer-edit-ta');
+        if (isEditMode && textarea && typeof textarea.value === 'string') {
+            return String(textarea.value || '');
+        }
+    } catch (_) {}
+    return String(typeof currentMarkdown !== 'undefined' ? currentMarkdown ?? '' : '');
 }
 
 function applyMiniPreviewLineSync() {
@@ -683,12 +701,12 @@ function renderMiniPreviewContent() {
         return;
     }
     if (miniPreviewViewMode === 'toc') {
-        renderMiniPreviewToc(String(currentMarkdown ?? ''));
+        renderMiniPreviewToc(getMiniPreviewSourceMarkdown());
         return;
     }
     miniPreviewContent.classList.remove('mini-preview-toc-mode');
     const token = ++miniPreviewRenderToken;
-    const raw = String(currentMarkdown ?? '');
+    const raw = getMiniPreviewSourceMarkdown();
     const snapshot = prepareMarkdownRenderSnapshot(raw);
     const renderRaw = snapshot.renderSource;
     const isCurrentMiniRender = function () {
