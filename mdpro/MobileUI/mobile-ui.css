@@ -272,6 +272,33 @@
         line-height: 1.65 !important;
     }
 
+    /* A continuous document normally grows the textarea to its full content
+       height and scrolls #content-viewport. Mobile browsers keep a touch that
+       starts inside a textarea attached to that control, so the gesture never
+       reaches the outer viewport. Keep the editor at the available height on
+       mobile and make the textarea the native vertical scroll owner instead. */
+    body.mobile-ui-active #content-viewport.long-document-active {
+        overflow-y: hidden !important;
+        align-items: stretch;
+    }
+
+    body.mobile-ui-active #content-viewport.long-document-active #editor-doc-wrap {
+        flex: 1 1 auto;
+        min-height: 0;
+        height: 100% !important;
+        aspect-ratio: auto;
+        overflow: hidden;
+    }
+
+    body.mobile-ui-active #content-viewport.long-document-active #viewer-edit-ta {
+        min-height: 0;
+        height: 100% !important;
+        overflow-y: auto;
+        overscroll-behavior-y: contain;
+        touch-action: pan-y;
+        -webkit-overflow-scrolling: touch;
+    }
+
     body.mobile-ui-active #editor-shift-float,
     body.mobile-ui-active .scroll-jump-rail {
         display: none !important;

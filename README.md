@@ -24,6 +24,29 @@ is sent only to the same-origin Vite middleware in an `X-SerpApi-Key` header;
 the middleware calls SerpApi's Google engine and never writes the key into a
 generated asset. SerpApi is tried before the other search providers.
 
+## WebDAV backup email
+
+The automatic ZIP backup API is server-side middleware. It works when the app is
+served by `npm run dev` or `npm run preview`; a static GitHub Pages deployment does
+not run this API. For production, run the Vite server continuously or move
+`/api/webdav-backups` and its scheduler to a persistent Node server. The server
+also needs durable storage for `.webdav-backup-data`.
+
+Backup completion mail uses Resend. Copy `.env.example` to `.env` on the server
+and set the following server-only variables (never use a `VITE_` prefix and never
+put the API key in browser settings or committed source):
+
+```dotenv
+RESEND_API_KEY=re_your_real_api_key
+WEBDAV_BACKUP_FROM_EMAIL=WebDAV Backup <backup@your-verified-domain.example>
+WEBDAV_BACKUP_SECRET=replace-with-a-long-random-secret
+```
+
+Create the API key in Resend, verify the sending domain and its DNS records, and
+use an address on that verified domain for `WEBDAV_BACKUP_FROM_EMAIL`. Restart the
+server after changing `.env`. `WEBDAV_BACKUP_SECRET` should remain stable so saved
+WebDAV credentials can still be decrypted after a server migration.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

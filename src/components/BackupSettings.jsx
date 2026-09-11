@@ -2,6 +2,15 @@ import { useEffect, useState } from 'react';
 import { ArchiveRestore, Clock3, History, LoaderCircle, Play, Save } from 'lucide-react';
 
 const API_PATH = '/api/webdav-backups';
+const API_UNAVAILABLE_MESSAGE = '이 실행 환경에는 백업 서버 API가 없습니다. 서버에서 앱을 실행하거나 백업 API를 함께 배포해 주세요.';
+
+async function readApiJson(response) {
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.toLowerCase().includes('application/json')) {
+    throw new Error(API_UNAVAILABLE_MESSAGE);
+  }
+  return response.json();
+}
 
 export default function BackupSettings({ credentials }) {
   const [enabled, setEnabled] = useState(false);
@@ -12,12 +21,14 @@ export default function BackupSettings({ credentials }) {
   const [notificationEmail, setNotificationEmail] = useState('shoutjoy1@gmail.com');
   const [emailServiceConfigured, setEmailServiceConfigured] = useState(false);
   const [retentionCount, setRetentionCount] = useState(30);
+  const [apiAvailable, setApiAvailable] = useState(true);
 
   const load = async () => {
     try {
       const response = await fetch(`${API_PATH}/config`, { cache: 'no-store' });
-      const result = await response.json();
+      const result = await readApiJson(response);
       if (!response.ok) throw new Error(result.error);
+      setApiAvailable(true);
       setEnabled(result.enabled);
       setTime(result.time || '02:00');
       setRunning(result.running);
@@ -25,6 +36,7 @@ export default function BackupSettings({ credentials }) {
       setEmailServiceConfigured(result.emailServiceConfigured);
       setRetentionCount(result.retentionCount || 30);
     } catch (error) {
+      if (error.message === API_UNAVAILABLE_MESSAGE) setApiAvailable(false);
       setMessage(error.message || '백업 설정을 불러오지 못했습니다.');
     } finally {
       setBusy(false);
@@ -41,7 +53,7 @@ export default function BackupSettings({ credentials }) {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ enabled, time, retentionCount, notificationEmail, webdavUrl: credentials.url, username: credentials.username, password: credentials.password }),
       });
-      const result = await response.json();
+      const result = await readApiJson(response);
       if (!response.ok) throw new Error(result.error);
       setMessage('백업 설정을 저장했습니다.');
     } catch (error) {
@@ -58,7 +70,7 @@ export default function BackupSettings({ credentials }) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ webdavUrl: credentials.url, username: credentials.username, password: credentials.password }),
       });
-      const result = await response.json();
+      const result = await readApiJson(response);
       if (!response.ok) throw new Error(result.error);
       setMessage(`${result.fileCount}개 파일 백업을 완료했습니다.`);
     } catch (error) {
@@ -85,15 +97,15 @@ export default function BackupSettings({ credentials }) {
       <span className="block">완료 알림 이메일</span>
       <input type="email" value={notificationEmail} onChange={event => setNotificationEmail(event.target.value)} disabled={busy} className="mt-1 w-full rounded-md border border-slate-300 bg-transparent px-2 py-1.5 outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600"/>
     </label>
-    {!emailServiceConfigured && <p className="mt-2 text-[11px] text-amber-600 dark:text-amber-300">메일 서버 설정이 필요합니다: RESEND_API_KEY, WEBDAV_BACKUP_FROM_EMAIL</p>}
+    {apiAvailable && !emailServiceConfigured && <p className="mt-2 text-[11px] text-amber-600 dark:text-amber-300">서버 환경변수 설정이 필요합니다: RESEND_API_KEY, WEBDAV_BACKUP_FROM_EMAIL</p>}
     <label className="mt-3 flex items-center gap-3 text-sm">
       <Clock3 size={16} className="text-slate-400"/><span className="shrink-0">백업 시간</span>
       <input type="time" value={time} onChange={event => setTime(event.target.value)} disabled={busy} className="min-w-0 flex-1 rounded-md border border-slate-300 bg-transparent px-2 py-1.5 outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600"/>
     </label>
     <div className="mt-3 grid grid-cols-3 gap-2">
-      <button type="button" onClick={save} disabled={busy} className="flex items-center justify-center gap-1 rounded-md bg-indigo-600 px-2 py-2 text-xs font-semibold text-white disabled:opacity-50"><Save size={14}/>저장</button>
-      <button type="button" onClick={runNow} disabled={busy || running} className="flex items-center justify-center gap-1 rounded-md border border-slate-300 px-2 py-2 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:hover:bg-slate-800">{running ? <LoaderCircle size={14} className="animate-spin"/> : <Play size={14}/>}지금 백업</button>
-      <button type="button" onClick={openHistory} className="flex items-center justify-center gap-1 rounded-md border border-slate-300 px-2 py-2 text-xs font-semibold hover:bg-slate-50 dark:border-slate-600 dark:hover:bg-slate-800"><History size={14}/>백업 이력</button>
+      <button type="button" onClick={save} disabled={busy || !apiAvailable} className="flex items-center justify-center gap-1 rounded-md bg-indigo-600 px-2 py-2 text-xs font-semibold text-white disabled:opacity-50"><Save size={14}/>저장</button>
+      <button type="button" onClick={runNow} disabled={busy || running || !apiAvailable} className="flex items-center justify-center gap-1 rounded-md border border-slate-300 px-2 py-2 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:hover:bg-slate-800">{running ? <LoaderCircle size={14} className="animate-spin"/> : <Play size={14}/>}지금 백업</button>
+      <button type="button" onClick={openHistory} disabled={!apiAvailable} className="flex items-center justify-center gap-1 rounded-md border border-slate-300 px-2 py-2 text-xs font-semibold hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:hover:bg-slate-800"><History size={14}/>백업 이력</button>
     </div>
     {message && <p className="mt-2 text-xs text-indigo-600 dark:text-indigo-300" role="status">{message}</p>}
   </section>;
