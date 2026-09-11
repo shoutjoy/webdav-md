@@ -27,6 +27,12 @@
     let floatingPosition = null;
     let longResizeBound = false;
     let longResizeFrame = 0;
+    const A4_PORTRAIT_RATIO = 297 / 210;
+
+    function longDocumentMinimumHeight(target) {
+        const width = Math.max(0, Number(target?.getBoundingClientRect?.().width) || Number(target?.clientWidth) || 0);
+        return Math.max(320, Math.ceil(width * A4_PORTRAIT_RATIO));
+    }
 
     function longDocumentTarget() {
         const viewing = document.body.classList.contains('viewer-view-mode');
@@ -37,12 +43,17 @@
         if (orientation || !source.isConnected) return;
         const wrap = document.getElementById('editor-doc-wrap');
         if (!wrap) return;
-        const minimum = Math.max(320, Number(wrap.dataset.longManualHeight) || 0);
+        // A normal Markdown document remains a continuous document, but its
+        // first empty/short sheet starts at the physical proportions of A4.
+        // Longer content can still grow naturally below that first-page floor.
+        const minimum = Math.max(longDocumentMinimumHeight(wrap), Number(wrap.dataset.longManualHeight) || 0);
         source.style.height = '1px';
         const contentHeight = Math.ceil(source.scrollHeight + 2);
         const height = Math.max(minimum, contentHeight);
         source.style.height = height + 'px';
         wrap.style.height = height + 'px';
+        const viewer = document.getElementById('viewer');
+        if (viewer) viewer.style.minHeight = longDocumentMinimumHeight(viewer) + 'px';
     }
 
     function scheduleLongDocumentFit() {
@@ -76,10 +87,13 @@
             const wrap = document.getElementById('editor-doc-wrap');
             if (wrap) wrap.style.height = '';
             source.style.height = '';
+            const viewer = document.getElementById('viewer');
+            if (viewer) viewer.style.minHeight = '';
             return;
         }
         ensureLongResizeHandles(document.getElementById('editor-doc-wrap'));
-        ensureLongResizeHandles(document.getElementById('viewer'));
+        const viewer = document.getElementById('viewer');
+        ensureLongResizeHandles(viewer);
         scheduleLongDocumentFit();
     }
 

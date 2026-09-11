@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#4f46e5">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -35,8 +35,8 @@
     <script src="./js/md_notebooklm_equals_hr.js" charset="utf-8"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="stylesheet" href="./css/style.css?coverFold=20260908-input-fields-2&amp;v=20260908-purple-menu-hover-1&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;docxTableContrast=20260817-1&amp;tidyUi=20260811-1&amp;inline2refCss=20260822-2&amp;indbUi=20260812-3&amp;mermaidDisplay=20260810-1&amp;mermaidResize=20260810-1&amp;comment=20260810-3&amp;textStyle=20260815-supsub-1&amp;sidebarControls=20260812-4&amp;miniToc=20260815-responsive-1&amp;crossrefResults=20260812-1&amp;mainHeaderBackground=20260815-1&amp;lightChrome=20260823-6&amp;verticalEditToolbar=20260823-5&amp;aiHeaderButtons=20260823-1&amp;featureKeyStyle=20260823-1&amp;documentTheme=20260909-toggle-icon-2&amp;formatGutter=20260828-1&amp;miniPvResize=20260908-eight-way-1&amp;img2MathCss=20260909-webdav-1&amp;editorShiftSize=20260909-7&amp;editorWheelContain=20260909-1" charset="utf-8">
-    <link rel="stylesheet" href="./MobileUI/mobile-ui.css?v=20260817-5" charset="utf-8">
+    <link rel="stylesheet" href="./css/style.css?coverFold=20260908-input-fields-2&amp;v=20260908-purple-menu-hover-1&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;docxTableContrast=20260817-1&amp;tidyUi=20260811-1&amp;inline2refCss=20260822-2&amp;indbUi=20260812-3&amp;mermaidDisplay=20260810-1&amp;mermaidResize=20260810-1&amp;comment=20260810-3&amp;textStyle=20260815-supsub-1&amp;sidebarControls=20260812-4&amp;miniToc=20260815-responsive-1&amp;crossrefResults=20260812-1&amp;mainHeaderBackground=20260815-1&amp;lightChrome=20260823-6&amp;verticalEditToolbar=20260823-5&amp;aiHeaderButtons=20260823-1&amp;featureKeyStyle=20260823-1&amp;documentTheme=20260909-toggle-icon-2&amp;formatGutter=20260828-1&amp;miniPvResize=20260908-eight-way-1&amp;img2MathCss=20260909-webdav-1&amp;editorShiftSize=20260909-7&amp;editorWheelContain=20260909-1&amp;mermaidEditorResize=20260911-1" charset="utf-8">
+    <link rel="stylesheet" href="./MobileUI/mobile-ui.css?v=20260911-light-contrast-1" charset="utf-8">
     <link rel="stylesheet" href="./js/inDB/inDB.css?v=20260823-ai-audit-3" charset="utf-8">
     <link rel="stylesheet" href="./sidebar_left/sidebar-resize.css?v=20260812-1" charset="utf-8">
     <link rel="stylesheet" href="./sidebar_left/storage-tree.css?v=20260812-1" charset="utf-8">
@@ -1225,7 +1225,7 @@
                         placeholder="이곳에 마크다운 내용을 입력하세요..."></textarea>
                     </div>
                     <div id="mini-preview-host"></div>
-                    <div id="editor-shift-float" data-orientation="horizontal" class="no-print absolute left-2 bottom-2 z-30 flex items-center gap-1 px-2 py-1 rounded-md border border-slate-300 dark:border-slate-600 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow">
+                    <div id="editor-shift-float" data-orientation="vertical" class="no-print is-vertical absolute left-2 bottom-2 z-30 flex items-center gap-1 px-2 py-1 rounded-md border border-slate-300 dark:border-slate-600 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm shadow">
                         <button type="button" class="editor-shift-drag" aria-label="플로팅 바 이동" title="드래그하여 플로팅 바 이동">⠿</button>
                         <button type="button" onclick="adjustEditorHorizontalShift(-20)"
                             class="px-2 py-0.5 rounded border border-slate-300 dark:border-slate-600 text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
@@ -1245,7 +1245,7 @@
                             aria-label="A4 세로로 전환" title="A4 세로로 전환">세</button>
                         <button type="button" class="editor-add-page-button" onclick="addA4Page(event)"
                             aria-label="A4 페이지 추가" title="A4 페이지 추가">+P</button>
-                        <button type="button" class="editor-shift-orientation" aria-label="세로 메뉴로 전환" aria-pressed="false" title="세로 메뉴로 전환">↕</button>
+                        <button type="button" class="editor-shift-orientation" aria-label="가로 메뉴로 전환" aria-pressed="true" title="가로 메뉴로 전환">↔</button>
                     </div>
                 </div>
                 <button type="button" id="btn-copy-view-rich"
@@ -1509,7 +1509,7 @@
     <div id="mermaid-editor-modal" class="fixed inset-0 hidden z-[70] no-print pointer-events-none">
         <div id="mermaid-editor-modal-panel"
             class="pointer-events-auto absolute top-16 left-1/2 -translate-x-1/2 bg-white dark:bg-slate-900 rounded-xl shadow-2xl w-[min(1200px,96vw)] h-[min(860px,92vh)] flex flex-col border border-slate-200 dark:border-slate-700 overflow-hidden"
-            style="resize: both; min-width: 760px; min-height: 520px; max-width: 98vw; max-height: 95vh;">
+            style="resize: none; min-width: 760px; min-height: 520px; max-width: 98vw; max-height: 95vh;">
             <div id="mermaid-editor-modal-header" class="px-4 py-2.5 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex items-center justify-between cursor-move select-none">
                 <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">이미지 → Mermaid Ref</h3>
                 <div class="flex items-center gap-2">
@@ -1523,6 +1523,11 @@
             </div>
             <iframe id="mermaid-editor-frame" data-src="./js/mermaid/mermaid-editor/index.html?v=20260908-mermaid-1"
                 class="w-full h-full border-0 bg-white dark:bg-slate-900" title="Mermaid Editor"></iframe>
+            <div class="mermaid-editor-resize-handle resize-n" data-mermaid-resize="n" title="위쪽에서 높이 조절"></div>
+            <div class="mermaid-editor-resize-handle resize-e" data-mermaid-resize="e" title="오른쪽에서 너비 조절"></div>
+            <div class="mermaid-editor-resize-handle resize-s" data-mermaid-resize="s" title="아래쪽에서 높이 조절"></div>
+            <div class="mermaid-editor-resize-handle resize-w" data-mermaid-resize="w" title="왼쪽에서 너비 조절"></div>
+            <div class="mermaid-editor-resize-handle resize-se" data-mermaid-resize="se" title="오른쪽 아래에서 크기 조절"></div>
         </div>
     </div>
 
@@ -3602,7 +3607,7 @@
     defer>
 </script>
 <script
-    src="./js/app.js?a4Pages=20260909-a4-lcr-1&amp;mermaid=20260909-print-image-1&amp;v=20260908-note-cover-fold-menu-4&amp;msetWebdav=20260908-1&amp;wdNewFile=20260909-2&amp;aiJenaReasoning=20260829-low-high-1&amp;storageSafety=20260815-1&amp;localWriteback=20260815-1&amp;localFileRefresh=20260817-1&amp;docxImport=20260817-dark-table-contrast-1&amp;viewModeTextInput=20260815-2&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;indbImages=20260812-3&amp;indbToggle=20260816-1&amp;tidyCustomJs=20260811-1&amp;html2md=20260817-1&amp;inline2ref=20260822-4&amp;saveDropdown=20260822-1&amp;aiJenaAttachments=20260822-2&amp;aiDataCenter=20260823-1&amp;settingsDrag=20260811-1&amp;copyFab=20260810-ai-jena-bottom-1&amp;mobileAiJena=20260817-1&amp;feature=templates-new-file-menu-2&amp;storageVisibility=20260810-1&amp;settingsResetConfirm=1&amp;toolbarNames=20260807-1&amp;templateFullscreen=20260807-1&amp;settingsFold=20260807-1&amp;mermaidDisplay=20260810-3&amp;comment=20260812-html-comment-1&amp;perf=20260810-10&amp;pdfExport=20260812-edit-merge-1&amp;pvExport=20260813-modal-2&amp;pdfMergeTool=20260815-pdfm-project-15&amp;imageSizeHint=20260811-1&amp;textStyle=20260815-supsub-1&amp;localDefault=20260812-1&amp;folderTree=20260812-1&amp;documentMeta=20260812-1&amp;documentDrop=20260812-1&amp;sliderMaker=20260812-1&amp;scholarUpgrades=20260817-2&amp;pvHeaderSettings=20260815-1&amp;mainHeaderBackground=20260815-1&amp;mainHeaderScale=20260815-1&amp;headerFileActions=20260823-1&amp;listQuickMenu=20260823-1&amp;footnoteAnchorMenu=20260823-1&amp;imageInsertMenu=20260825-link-1&amp;verticalEditToolbar=20260823-2&amp;headerHeadingDisplay=20260825-1&amp;documentTheme=20260825-1&amp;fastSafetyTimeout=20260825-1&amp;fastCompleteStreaming=20260825-1&amp;fastLimitsUi=20260825-2&amp;aiDetailsToggle=20260825-1&amp;splitTab=20260825-1&amp;img2Math=20260909-webdav-1&amp;editorShiftSize=20260909-2"
+    src="./js/app.js?a4Pages=20260909-a4-lcr-1&amp;mermaid=20260909-print-image-1&amp;v=20260908-note-cover-fold-menu-4&amp;msetWebdav=20260908-1&amp;wdNewFile=20260909-2&amp;aiJenaReasoning=20260829-low-high-1&amp;storageSafety=20260815-1&amp;localWriteback=20260815-1&amp;localFileRefresh=20260817-1&amp;docxImport=20260817-dark-table-contrast-1&amp;viewModeTextInput=20260815-2&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;indbImages=20260812-3&amp;indbToggle=20260816-1&amp;tidyCustomJs=20260811-1&amp;html2md=20260817-1&amp;inline2ref=20260822-4&amp;saveDropdown=20260822-1&amp;aiJenaAttachments=20260822-2&amp;aiDataCenter=20260823-1&amp;settingsDrag=20260811-1&amp;copyFab=20260810-ai-jena-bottom-1&amp;mobileAiJena=20260817-1&amp;feature=templates-new-file-menu-2&amp;storageVisibility=20260810-1&amp;settingsResetConfirm=1&amp;toolbarNames=20260807-1&amp;templateFullscreen=20260807-1&amp;settingsFold=20260807-1&amp;mermaidDisplay=20260810-3&amp;comment=20260812-html-comment-1&amp;perf=20260810-10&amp;pdfExport=20260812-edit-merge-1&amp;pvExport=20260813-modal-2&amp;pdfMergeTool=20260815-pdfm-project-15&amp;imageSizeHint=20260811-1&amp;textStyle=20260815-supsub-1&amp;localDefault=20260812-1&amp;folderTree=20260812-1&amp;documentMeta=20260812-1&amp;documentDrop=20260812-1&amp;sliderMaker=20260812-1&amp;scholarUpgrades=20260817-2&amp;pvHeaderSettings=20260815-1&amp;mainHeaderBackground=20260815-1&amp;mainHeaderScale=20260815-1&amp;headerFileActions=20260823-1&amp;listQuickMenu=20260823-1&amp;footnoteAnchorMenu=20260823-1&amp;imageInsertMenu=20260825-link-1&amp;verticalEditToolbar=20260823-2&amp;headerHeadingDisplay=20260825-1&amp;documentTheme=20260825-1&amp;fastSafetyTimeout=20260825-1&amp;fastCompleteStreaming=20260825-1&amp;fastLimitsUi=20260825-2&amp;aiDetailsToggle=20260825-1&amp;splitTab=20260825-1&amp;img2Math=20260909-webdav-1&amp;editorShiftSize=20260909-2&amp;editorShiftOrientation=20260911-vertical-1&amp;mermaidEditorResize=20260911-1"
     charset="utf-8"
     defer>
 </script>
@@ -3698,9 +3703,9 @@
     defer
     onload="onGoogleGisLoaded()">
 </script>
-<link rel="stylesheet" href="./css/a4-pages.css?v=6">
+<link rel="stylesheet" href="./css/a4-pages.css?v=7">
 <script src="./js/a4-presentation.js?v=1" defer></script>
-<script src="./js/a4-pages.js?v=9" defer></script>
+<script src="./js/a4-pages.js?v=10" defer></script>
 </body>
 
 </html>

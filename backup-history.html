@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>WebDAV 백업 이력</title>
+  <style>
+    :root{font-family:Inter,Pretendard,"Noto Sans KR",sans-serif;color:#e5e7eb;background:#0f172a;color-scheme:dark}*{box-sizing:border-box}body{margin:0;padding:28px;background:linear-gradient(145deg,#0f172a,#111827);min-height:100vh}.wrap{max-width:980px;margin:auto}.head{display:flex;align-items:center;gap:14px;margin-bottom:22px}.head h1{font-size:25px;margin:0}.head p{margin:4px 0 0;color:#94a3b8;font-size:13px}.refresh{margin-left:auto;border:1px solid #475569;background:#1e293b;color:#e2e8f0;border-radius:9px;padding:9px 14px;cursor:pointer}.summary{padding:14px 16px;border:1px solid #334155;border-radius:12px;background:#162033;margin-bottom:14px;color:#cbd5e1;font-size:14px}.table{overflow:hidden;border:1px solid #334155;border-radius:12px;background:#111827}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:13px 14px;border-bottom:1px solid #263449;font-size:13px}th{color:#94a3b8;background:#172033;font-weight:600}tr:last-child td{border:0}.ok{color:#6ee7b7}.failed{color:#fca5a5}.download{display:inline-block;color:white;background:#4f46e5;text-decoration:none;border-radius:7px;padding:7px 10px;font-weight:600}.unavailable{color:#64748b}.empty{text-align:center!important;color:#94a3b8;padding:50px!important}.error{color:#fca5a5}@media(max-width:700px){body{padding:14px}.hide-mobile{display:none}th,td{padding:11px 8px}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="head"><div><h1>WebDAV 백업 이력</h1><p>자동 및 수동 전체 ZIP 백업 결과</p></div><button class="refresh" id="refresh">새로고침</button></div>
+    <div class="summary" id="summary">백업 이력을 불러오는 중입니다…</div>
+    <div class="table"><table><thead><tr><th>실행 시간</th><th>구분</th><th>상태</th><th class="hide-mobile">알림</th><th class="hide-mobile">파일 수</th><th class="hide-mobile">크기</th><th>ZIP</th></tr></thead><tbody id="history"></tbody></table></div>
+  </main>
+  <script>
+    const api = new URL('./api/webdav-backups/', document.baseURI);
+    const formatBytes = value => value == null ? '—' : value < 1024 ? value + ' B' : value < 1048576 ? (value / 1024).toFixed(1) + ' KB' : value < 1073741824 ? (value / 1048576).toFixed(1) + ' MB' : (value / 1073741824).toFixed(2) + ' GB';
+    const escapeHtml = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+    async function load(){
+      const summary = document.getElementById('summary'); const body = document.getElementById('history');
+      try { const response = await fetch(new URL('history', api), {cache:'no-store'}); const result = await response.json(); if(!response.ok) throw new Error(result.error);
+        const automaticCount=result.items.filter(item=>item.trigger==='schedule'&&item.status==='success').length,manualCount=result.items.filter(item=>item.trigger!=='schedule'&&item.status==='success').length;
+        summary.textContent = result.running ? '현재 전체 ZIP 백업이 진행 중입니다…' : `자동 백업 ${automaticCount}개 · 수동 백업 ${manualCount}개`;
+        body.innerHTML = result.items.length ? result.items.map(item => `<tr><td>${new Date(item.startedAt).toLocaleString('ko-KR')}</td><td>${item.trigger === 'schedule' ? '자동' : '수동'}</td><td class="${item.status === 'success' ? 'ok' : 'failed'}" title="${escapeHtml(item.error || '')}">${item.status === 'success' ? '완료' : '실패'}</td><td class="hide-mobile ${item.notificationStatus === 'sent' ? 'ok' : item.notificationStatus === 'failed' ? 'failed' : ''}" title="${escapeHtml(item.notificationError || '')}">${item.notificationStatus === 'sent' ? '발송' : item.notificationStatus === 'failed' ? '실패' : '—'}</td><td class="hide-mobile">${item.fileCount ?? '—'}</td><td class="hide-mobile">${formatBytes(item.size)}</td><td>${item.available ? `<a class="download" href="${new URL(encodeURIComponent(item.id) + '/download', api)}">다운로드</a>` : '<span class="unavailable">없음</span>'}</td></tr>`).join('') : '<tr><td colspan="7" class="empty">아직 백업 이력이 없습니다.</td></tr>';
+      } catch(error) { summary.innerHTML = `<span class="error">${escapeHtml(error.message || '이력을 불러오지 못했습니다.')}</span>`; body.innerHTML=''; }
+    }
+    document.getElementById('refresh').addEventListener('click', load); load(); setInterval(load, 15000);
+  </script>
+</body>
+</html>

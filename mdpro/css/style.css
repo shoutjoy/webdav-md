@@ -2334,6 +2334,81 @@
             touch-action: none;
         }
 
+        .mermaid-editor-resize-handle {
+            position: absolute;
+            z-index: 20;
+            touch-action: none;
+            user-select: none;
+        }
+
+        .mermaid-editor-resize-handle::after {
+            content: '';
+            position: absolute;
+            border-radius: 999px;
+            background: rgba(100, 116, 139, 0.7);
+        }
+
+        .mermaid-editor-resize-handle:hover::after,
+        .mermaid-editor-resize-handle.is-dragging::after {
+            background: #6366f1;
+        }
+
+        .mermaid-editor-resize-handle.resize-n,
+        .mermaid-editor-resize-handle.resize-s {
+            right: 18px;
+            left: 18px;
+            height: 10px;
+            cursor: ns-resize;
+        }
+
+        .mermaid-editor-resize-handle.resize-n { top: 0; }
+        .mermaid-editor-resize-handle.resize-s { bottom: 0; }
+        .mermaid-editor-resize-handle.resize-n::after,
+        .mermaid-editor-resize-handle.resize-s::after {
+            top: 3px;
+            left: calc(50% - 18px);
+            width: 36px;
+            height: 3px;
+        }
+
+        .mermaid-editor-resize-handle.resize-e,
+        .mermaid-editor-resize-handle.resize-w {
+            top: 18px;
+            bottom: 18px;
+            width: 10px;
+            cursor: ew-resize;
+        }
+
+        .mermaid-editor-resize-handle.resize-e { right: 0; }
+        .mermaid-editor-resize-handle.resize-w { left: 0; }
+        .mermaid-editor-resize-handle.resize-e::after,
+        .mermaid-editor-resize-handle.resize-w::after {
+            top: calc(50% - 18px);
+            left: 3px;
+            width: 3px;
+            height: 36px;
+        }
+
+        .mermaid-editor-resize-handle.resize-se {
+            right: 0;
+            bottom: 0;
+            width: 20px;
+            height: 20px;
+            cursor: nwse-resize;
+        }
+
+        .mermaid-editor-resize-handle.resize-se::after {
+            top: 10px;
+            left: 4px;
+            width: 13px;
+            height: 3px;
+            transform: rotate(-45deg);
+        }
+
+        #mermaid-editor-modal-panel[data-fullscreen="true"] .mermaid-editor-resize-handle {
+            display: none;
+        }
+
         #sites-panel {
             min-height: 220px;
         }
