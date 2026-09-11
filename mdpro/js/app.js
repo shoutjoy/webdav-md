@@ -2436,11 +2436,12 @@ window.onload = async () => {
             if (wrapped) return;
         }
         // Ctrl + Alt + 1, 2, 3, 4, 5 for Headings
-        if (e.ctrlKey && e.altKey && (e.code === 'Digit1' || e.key === '1')) { e.preventDefault(); applyHeading(1); return; }
-        if (e.ctrlKey && e.altKey && (e.code === 'Digit2' || e.key === '2')) { e.preventDefault(); applyHeading(2); return; }
-        if (e.ctrlKey && e.altKey && (e.code === 'Digit3' || e.key === '3')) { e.preventDefault(); applyHeading(3); return; }
-        if (e.ctrlKey && e.altKey && (e.code === 'Digit4' || e.key === '4')) { e.preventDefault(); applyHeading(4); return; }
-        if (e.ctrlKey && e.altKey && (e.code === 'Digit5' || e.key === '5')) { e.preventDefault(); applyHeading(5); return; }
+        const headingShortcutLevel = getHeadingShortcutLevel(e);
+        if (headingShortcutLevel) {
+            e.preventDefault();
+            applyHeading(headingShortcutLevel);
+            return;
+        }
         // Ctrl + 1 for Edit mode
         if (e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey && (e.code === 'Digit1' || e.key === '1')) {
             e.preventDefault();
@@ -7550,7 +7551,22 @@ function insertFencedCodeBlock(language) {
         editorTextarea.setSelectionRange(selectStart, selectStart + content.length);
     }
 }
+function getHeadingShortcutLevel(event) {
+    if (!event || !event.ctrlKey || !event.altKey || event.shiftKey || event.metaKey) return 0;
+    const codeMatch = /^Digit([1-5])$/.exec(String(event.code || ''));
+    if (codeMatch) return Number(codeMatch[1]);
+    const keyMatch = /^([1-5])$/.exec(String(event.key || ''));
+    if (keyMatch) return Number(keyMatch[1]);
+    const legacyKeyCode = Number(event.keyCode || event.which || 0);
+    return legacyKeyCode >= 49 && legacyKeyCode <= 53 ? legacyKeyCode - 48 : 0;
+}
+
 function applyHeading(level) {
+    const headingLevel = Number(level);
+    if (!Number.isInteger(headingLevel) || headingLevel < 1 || headingLevel > 5 || !editorTextarea) return;
+    // Heading hotkeys are global. Enter edit mode first so they also work while
+    // the document preview has focus, preserving the mapped preview caret.
+    if (!isEditMode) toggleMode('edit');
     if (!isEditMode) return;
     const text = editorTextarea.value;
     const cursor = editorTextarea.selectionStart;
@@ -7562,7 +7578,7 @@ function applyHeading(level) {
     let lineText = text.substring(lineStart, lineEnd);
     lineText = lineText.replace(/^#+\s*/, '');
 
-    const prefix = '#'.repeat(level) + ' ';
+    const prefix = '#'.repeat(headingLevel) + ' ';
     const replacement = prefix + lineText;
 
     editorTextarea.focus();
@@ -7925,9 +7941,50 @@ function getBulletMarkerByIndent(indentSpaces) {
     return markers[depth % markers.length];
 }
 
+function renumberNumberedSiblingsAfterIndent(text, lineStart, originalIndentLen, nestedLine) {
+    const originalLineEnd = text.indexOf('\n', lineStart);
+    const firstLineEnd = originalLineEnd < 0 ? text.length : originalLineEnd;
+    const originalLine = text.substring(lineStart, firstLineEnd);
+    const originalMatch = originalLine.match(/^(\s*)(\d+)\.\s+/);
+    if (!originalMatch) {
+        return { end: firstLineEnd, replacement: nestedLine };
+    }
+
+    let nextNumber = parseInt(originalMatch[2], 10);
+    let scanStart = firstLineEnd;
+    let blockEnd = firstLineEnd;
+    const followingLines = [];
+
+    while (scanStart < text.length && text.charAt(scanStart) === '\n') {
+        const nextStart = scanStart + 1;
+        let nextEnd = text.indexOf('\n', nextStart);
+        if (nextEnd < 0) nextEnd = text.length;
+        const line = text.substring(nextStart, nextEnd);
+        const match = line.match(/^(\s*)([-*+]|\d+\.)\s+(.*)$/);
+        if (!match || match[1].length < originalIndentLen) break;
+
+        let updatedLine = line;
+        if (match[1].length === originalIndentLen && /^\d+\.$/.test(match[2])) {
+            updatedLine = match[1] + nextNumber + '. ' + match[3];
+            nextNumber += 1;
+        }
+        followingLines.push(updatedLine);
+        blockEnd = nextEnd;
+        scanStart = nextEnd;
+    }
+
+    return {
+        end: blockEnd,
+        replacement: [nestedLine].concat(followingLines).join('\n')
+    };
+}
+
 function handleEditorListEnterKey(event) {
     if (!editorTextarea || !isEditMode) return false;
-    if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return false;
+    const isEnterInput = event.key === 'Enter'
+        || event.inputType === 'insertLineBreak'
+        || event.inputType === 'insertParagraph';
+    if (!isEnterInput || event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return false;
     if (editorTextarea.selectionStart !== editorTextarea.selectionEnd) return false;
 
     const cursor = editorTextarea.selectionStart;
@@ -8002,8 +8059,16 @@ function handleEditorListTabKey(event) {
     }
     const nextLine = nextIndent + nextToken + ' ' + content;
 
-    editorTextarea.setSelectionRange(lineStart, lineEnd);
-    document.execCommand('insertText', false, nextLine);
+    let replacementEnd = lineEnd;
+    let replacementText = nextLine;
+    if (/^\d+\.$/.test(token) && !event.shiftKey && nextIndentLen > oldIndentLen) {
+        const renumbered = renumberNumberedSiblingsAfterIndent(text, lineStart, oldIndentLen, nextLine);
+        replacementEnd = renumbered.end;
+        replacementText = renumbered.replacement;
+    }
+
+    editorTextarea.setSelectionRange(lineStart, replacementEnd);
+    document.execCommand('insertText', false, replacementText);
 
     const cursorOffset = Math.max(0, cursor - lineStart);
     const safeOffset = Math.min(cursorOffset + (nextLine.length - line.length), nextLine.length);
@@ -8027,6 +8092,11 @@ function bindEditorListKeyBehavior() {
         }
         if (handleEditorListEnterKey(event)) return;
         if (handleEditorListTabKey(event)) return;
+    });
+    editorTextarea.addEventListener('beforeinput', function (event) {
+        if (event.defaultPrevented) return;
+        if (event.inputType !== 'insertLineBreak' && event.inputType !== 'insertParagraph') return;
+        handleEditorListEnterKey(event);
     });
 }
 
