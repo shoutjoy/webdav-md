@@ -20,6 +20,42 @@
     let catalogSyncTimer = 0;
     let catalogSyncPromise = Promise.resolve(null);
     let catalogRestorePromise = null;
+    let webdavRequestSequence = 0;
+
+    function requestWebDavVault(action, value) {
+        if (!root.parent || root.parent === root) return Promise.resolve(null);
+        const requestId = 'credential-vault-' + Date.now() + '-' + (++webdavRequestSequence);
+        return new Promise(function (resolve, reject) {
+            let timer = 0;
+            function cleanup() {
+                root.removeEventListener('message', onMessage);
+                if (timer) root.clearTimeout(timer);
+            }
+            function onMessage(event) {
+                if (event.source !== root.parent || event.origin !== root.location.origin) return;
+                const data = event.data || {};
+                if (data.type !== 'mdpro-credential-vault-result' || data.requestId !== requestId) return;
+                cleanup();
+                if (data.ok) resolve(data.envelope || null);
+                else reject(new Error(data.error || 'WebDAV API 키 보관함 작업에 실패했습니다.'));
+            }
+            root.addEventListener('message', onMessage);
+            timer = root.setTimeout(function () {
+                cleanup();
+                reject(new Error('WebDAV API 키 보관함 응답 시간이 초과되었습니다.'));
+            }, 20000);
+            root.parent.postMessage({
+                type: action === 'write' ? 'mdpro-credential-vault-write' : 'mdpro-credential-vault-read',
+                requestId: requestId,
+                envelope: action === 'write' ? value : undefined
+            }, root.location.origin);
+        });
+    }
+
+    async function syncEnvelopeToWebDav() {
+        if (!envelope) return null;
+        return requestWebDavVault('write', envelope);
+    }
 
     function requireCrypto() {
         if (!root.crypto || !root.crypto.subtle || typeof TextEncoder !== 'function' || typeof TextDecoder !== 'function') {
@@ -170,6 +206,17 @@
             return item && item.key === SETTING_KEY && item.scopeType === 'profile';
         });
         envelope = stored && stored.value && typeof stored.value === 'object' ? stored.value : null;
+        try {
+            const remote = await requestWebDavVault('read');
+            if (remote && (!envelope || String(remote.updatedAt || '') > String(envelope.updatedAt || ''))) {
+                envelope = remote;
+                await putProfileSetting(SETTING_KEY, envelope, 'security');
+            } else if (envelope && !remote) {
+                await syncEnvelopeToWebDav();
+            }
+        } catch (error) {
+            console.warn('WebDAV credential vault restore skipped:', error && error.message ? error.message : error);
+        }
         if (!envelope) unlockedValues = null;
         return getStatus();
     }
@@ -214,6 +261,7 @@
         const values = readLocalValues();
         envelope = await encryptValues(pass, values);
         await putProfileSetting(SETTING_KEY, envelope, 'security');
+        await syncEnvelopeToWebDav();
         unlockedValues = normalizeValues(values);
         await clearLegacyPlaintext();
         await syncCatalog();
@@ -245,6 +293,7 @@
         const values = Object.assign({}, verifiedValues, readLocalValues());
         envelope = await encryptValues(pass, values);
         await putProfileSetting(SETTING_KEY, envelope, 'security');
+        await syncEnvelopeToWebDav();
         unlockedValues = normalizeValues(values);
         await clearLegacyPlaintext();
         await syncCatalog();
@@ -260,6 +309,7 @@
         const values = await decryptEnvelope(String(currentPassword || ''), envelope);
         envelope = await encryptValues(next, values);
         await putProfileSetting(SETTING_KEY, envelope, 'security');
+        await syncEnvelopeToWebDav();
         unlockedValues = values;
         await syncCatalog();
         root.dispatchEvent(new CustomEvent('mdp-credential-vault-change', { detail: getStatus() }));
