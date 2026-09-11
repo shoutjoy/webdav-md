@@ -167,7 +167,19 @@ function setMiniPreviewLayoutToLocal(layout) {
 function getMiniPreviewContainerRect() {
     const container = editorContainer || document.getElementById('content-viewport');
     if (!container) return null;
-    return container.getBoundingClientRect();
+    const rect = container.getBoundingClientRect();
+    // Horizontal placement follows the editor so a docked AI JENA is avoided,
+    // but vertical placement may use the complete MDPRO frame, including the
+    // status/footer area below the document viewport.
+    const viewportBottom = Math.max(rect.bottom, Number(window.innerHeight) || rect.bottom);
+    return {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: viewportBottom,
+        width: rect.width,
+        height: Math.max(1, viewportBottom - rect.top)
+    };
 }
 
 function getMiniPreviewAvoidRects(containerRect) {
