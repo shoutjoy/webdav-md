@@ -2011,3 +2011,25 @@ body.theme-light .ai-chat-compose-actions .ai-chat-realtime-sentence-toggle.acti
   color: #ffffff !important;
   box-shadow: 0 0 8px rgba(124, 58, 237, 0.35) !important;
 }
+
+/* Keep the composer controls within three button rows: two mode rows + one action row. */
+.ai-chat-compose-actions {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 4px;
+}
+.ai-chat-compose-actions > * { min-width: 0; }
+.ai-chat-compose-actions .ai-chat-attach,
+.ai-chat-compose-actions .ai-chat-import-selection,
+.ai-chat-compose-actions .ai-chat-stop,
+.ai-chat-compose-actions .ai-chat-send {
+  padding-right: 6px;
+  padding-left: 6px;
+  white-space: nowrap;
+}
+.ai-chat-compose-actions .ai-chat-import-selection {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ai-chat-compose-actions .ai-chat-realtime-toolbar { justify-self: start; }

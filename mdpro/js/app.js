@@ -394,6 +394,10 @@ function initializeLazyAiChatEntry() {
         checkbox.dataset.lazyAiChatBound = '1';
         checkbox.checked = localStorage.getItem(enabledKey) === '1';
         checkbox.addEventListener('change', function () {
+            if (checkbox.checked && menuCheckbox && menuCheckbox.checked) {
+                menuCheckbox.checked = false;
+                menuCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+            }
             localStorage.setItem(enabledKey, checkbox.checked ? '1' : '0');
             window.dispatchEvent(new CustomEvent('ai-jena-enabled-change', {
                 detail: { enabled: checkbox.checked }
@@ -405,12 +409,21 @@ function initializeLazyAiChatEntry() {
     if (menuCheckbox && !menuCheckbox.dataset.aiChatMenuBound) {
         menuCheckbox.dataset.aiChatMenuBound = '1';
         menuCheckbox.addEventListener('change', function () {
+            if (menuCheckbox.checked && checkbox && checkbox.checked) {
+                checkbox.checked = false;
+                checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+            }
             localStorage.setItem(menuEnabledKey, menuCheckbox.checked ? '1' : '0');
             syncMenuButton();
             if (!menuCheckbox.checked && typeof applyAiFeatureVisibility === 'function') applyAiFeatureVisibility();
         });
     }
     syncMenuButton();
+    // 이전 설정에서 두 진입 방식이 모두 켜져 있으면 플로팅을 우선해 한 가지만 유지한다.
+    if (checkbox && checkbox.checked && menuCheckbox && menuCheckbox.checked) {
+        menuCheckbox.checked = false;
+        menuCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+    }
     createLauncher();
 }
 

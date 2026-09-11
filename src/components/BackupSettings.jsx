@@ -10,9 +10,6 @@ export default function BackupSettings({ credentials }) {
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState('');
   const [notificationEmail, setNotificationEmail] = useState('shoutjoy1@gmail.com');
-  const [downloadUsername, setDownloadUsername] = useState('');
-  const [downloadPassword, setDownloadPassword] = useState('');
-  const [publicUrl, setPublicUrl] = useState('');
   const [emailServiceConfigured, setEmailServiceConfigured] = useState(false);
   const [retentionCount, setRetentionCount] = useState(30);
 
@@ -25,8 +22,6 @@ export default function BackupSettings({ credentials }) {
       setTime(result.time || '02:00');
       setRunning(result.running);
       setNotificationEmail(result.notificationEmail || 'shoutjoy1@gmail.com');
-      setDownloadUsername(result.downloadUsername || '');
-      setPublicUrl(result.publicUrl || '');
       setEmailServiceConfigured(result.emailServiceConfigured);
       setRetentionCount(result.retentionCount || 30);
     } catch (error) {
@@ -44,7 +39,7 @@ export default function BackupSettings({ credentials }) {
     try {
       const response = await fetch(`${API_PATH}/config`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ enabled, time, retentionCount, notificationEmail, downloadUsername, downloadPassword, publicUrl, webdavUrl: credentials.url, username: credentials.username, password: credentials.password }),
+        body: JSON.stringify({ enabled, time, retentionCount, notificationEmail, webdavUrl: credentials.url, username: credentials.username, password: credentials.password }),
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error);
@@ -90,14 +85,6 @@ export default function BackupSettings({ credentials }) {
       <span className="block">완료 알림 이메일</span>
       <input type="email" value={notificationEmail} onChange={event => setNotificationEmail(event.target.value)} disabled={busy} className="mt-1 w-full rounded-md border border-slate-300 bg-transparent px-2 py-1.5 outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600"/>
     </label>
-    <label className="mt-3 block text-sm">
-      <span className="block">외부 다운로드 주소</span>
-      <input type="url" value={publicUrl} onChange={event => setPublicUrl(event.target.value)} placeholder="https://backup.example.com" disabled={busy} className="mt-1 w-full rounded-md border border-slate-300 bg-transparent px-2 py-1.5 outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600"/>
-    </label>
-    <div className="mt-3 grid grid-cols-2 gap-2">
-      <label className="text-sm"><span className="block">다운로드 ID</span><input value={downloadUsername} onChange={event => setDownloadUsername(event.target.value)} autoComplete="username" disabled={busy} className="mt-1 w-full rounded-md border border-slate-300 bg-transparent px-2 py-1.5 outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600"/></label>
-      <label className="text-sm"><span className="block">다운로드 PW</span><input type="password" value={downloadPassword} onChange={event => setDownloadPassword(event.target.value)} autoComplete="new-password" placeholder="변경할 때만 입력" disabled={busy} className="mt-1 w-full rounded-md border border-slate-300 bg-transparent px-2 py-1.5 outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600"/></label>
-    </div>
     {!emailServiceConfigured && <p className="mt-2 text-[11px] text-amber-600 dark:text-amber-300">메일 서버 설정이 필요합니다: RESEND_API_KEY, WEBDAV_BACKUP_FROM_EMAIL</p>}
     <label className="mt-3 flex items-center gap-3 text-sm">
       <Clock3 size={16} className="text-slate-400"/><span className="shrink-0">백업 시간</span>

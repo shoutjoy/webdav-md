@@ -3,10 +3,10 @@ import PanelResizeHandles from './PanelResizeHandles.jsx';
 
 const FMA_WIDTH_KEY = 'webdav-fma-panel-width';
 const APP_BASE_URL = import.meta.env.BASE_URL;
-const MDPRO_URL = `${APP_BASE_URL}mdpro/index.html?webdav=1&ui=20260909-webdav-a4-sync-1`;
+const MDPRO_URL = `${APP_BASE_URL}mdpro/index.html?webdav=1&ui=20260911-ai-jena-mobile-disabled-1`;
 const FMA_URL = `${APP_BASE_URL}mdpro/Apps/fmaviewer/index.html?embedded=1`;
 
-export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, onSaveSettingsMset, onLoadSettingsMset, selectedFile, content, binaryContent, fmaImportBatch, loading, saving, explorerWidth, panelResizeEnabled, onSave, onSaveAs, onDocumentChange, onSaveImageToFolder, onClose, onToggleExplorer, onOpenExplorer, onOpenFolderExplorer, onOpenRecentWork, onRequestCreateFile, onOpenTocPopup, onThemeChange, autosaveEnabled }) {
+export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, onSaveSettingsMset, onLoadSettingsMset, onReadCredentialVault, onWriteCredentialVault, selectedFile, content, binaryContent, fmaImportBatch, loading, saving, explorerWidth, panelResizeEnabled, onSave, onSaveAs, onDocumentChange, onSaveImageToFolder, onClose, onToggleExplorer, onOpenExplorer, onOpenFolderExplorer, onOpenRecentWork, onRequestCreateFile, onOpenTocPopup, onThemeChange, autosaveEnabled }) {
   const mdproFrameRef = useRef(null);
   const mdproStageRef = useRef(null);
   const fmaFrameRef = useRef(null);
@@ -16,6 +16,8 @@ export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, onSav
   useEffect(() => { jenaSaveRef.current = onSaveJenaRecord; }, [onSaveJenaRecord]);
   const settingsMsetRef = useRef({ save: onSaveSettingsMset, load: onLoadSettingsMset });
   useEffect(() => { settingsMsetRef.current = { save: onSaveSettingsMset, load: onLoadSettingsMset }; }, [onSaveSettingsMset, onLoadSettingsMset]);
+  const credentialVaultRef = useRef({ read: onReadCredentialVault, write: onWriteCredentialVault });
+  useEffect(() => { credentialVaultRef.current = { read: onReadCredentialVault, write: onWriteCredentialVault }; }, [onReadCredentialVault, onWriteCredentialVault]);
   const documentRef = useRef({ selectedFile, content, binaryContent, fmaImportBatch });
   const callbacksRef = useRef({ onSave, onSaveAs, onDocumentChange, onSaveImageToFolder, onToggleExplorer, onOpenExplorer, onOpenFolderExplorer, onOpenRecentWork, onRequestCreateFile, onOpenTocPopup, onThemeChange });
   const autosaveEnabledRef = useRef(autosaveEnabled);
@@ -81,7 +83,7 @@ export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, onSav
     if (!frameDocument || frameDocument.getElementById('webdav-host-bridge-script')) return;
     const script = frameDocument.createElement('script');
     script.id = 'webdav-host-bridge-script';
-    script.src = `${APP_BASE_URL}mdpro/js/webdav-host-bridge.js?v=20260909-a4-open-sync-1`;
+    script.src = `${APP_BASE_URL}mdpro/js/webdav-host-bridge.js?v=20260911-credential-vault-1`;
     frameDocument.body.appendChild(script);
   };
 
@@ -115,6 +117,16 @@ export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, onSav
           Promise.resolve().then(operation).then(
             result => source.postMessage({ type: 'mdpro-settings-mset-result', requestId, ok: true, ...(isSave ? {} : { content: String(result ?? '') }) }, window.location.origin),
             error => source.postMessage({ type: 'mdpro-settings-mset-result', requestId, ok: false, error: error.message }, window.location.origin),
+          );
+        }
+        if (event.origin === window.location.origin && /^mdpro-credential-vault-(read|write)$/.test(event.data.type || '') && typeof event.data.requestId === 'string') {
+          const source = event.source;
+          const requestId = event.data.requestId;
+          const isWrite = event.data.type === 'mdpro-credential-vault-write';
+          const operation = isWrite ? () => credentialVaultRef.current.write(event.data.envelope) : () => credentialVaultRef.current.read();
+          Promise.resolve().then(operation).then(
+            result => source.postMessage({ type: 'mdpro-credential-vault-result', requestId, ok: true, envelope: result || null }, window.location.origin),
+            error => source.postMessage({ type: 'mdpro-credential-vault-result', requestId, ok: false, error: error.message }, window.location.origin),
           );
         }
 

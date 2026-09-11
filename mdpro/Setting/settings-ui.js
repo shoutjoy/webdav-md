@@ -1165,7 +1165,7 @@
             '<span class="rounded-full border px-2 py-0.5 text-[10px] font-bold ' + (vaultStatus.unlocked ? 'border-emerald-500 text-emerald-600' : 'border-amber-500 text-amber-600') + '">' + (vaultStatus.exists ? (vaultStatus.unlocked ? '보관함 잠금 해제' : '보관함 잠김') : '보관함 없음') + '</span></div>',
             '<section class="mt-4 rounded-lg border border-amber-300 bg-amber-50/70 p-3 dark:border-amber-900 dark:bg-amber-950/20">',
             '<h4 class="text-sm font-bold text-slate-800 dark:text-slate-100">API 키 암호화 보관함 <span class="ml-1 text-[10px] font-normal text-slate-500">(학술검색 결과 저장과 무관)</span></h4>',
-            '<p class="mt-1 text-[10px] leading-relaxed text-slate-600 dark:text-slate-400">비밀번호는 저장되지 않으며 AES-GCM 암호문만 SQLite에 저장됩니다. 비밀번호를 잊으면 복구할 수 없습니다.</p>',
+            '<p class="mt-1 text-[10px] leading-relaxed text-slate-600 dark:text-slate-400">비밀번호는 저장되지 않으며 AES-GCM 암호문만 SQLite와 연결된 WebDAV의 숨김 파일에 저장됩니다. 다른 기기에서는 같은 비밀번호로 잠금을 해제하세요. 비밀번호를 잊으면 복구할 수 없습니다.</p>',
             '<p class="mt-1 text-[10px] text-slate-500">' + (entrySummary || '암호화하여 저장된 API 키가 없습니다.') + '</p>',
             '<div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">',
             '<input id="sqlite-tool-vault-password" type="password" autocomplete="current-password" placeholder="현재 또는 새 비밀번호 (8자 이상)" class="rounded border border-slate-300 bg-white px-2 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900">',

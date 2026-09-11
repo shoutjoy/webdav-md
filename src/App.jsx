@@ -18,6 +18,7 @@ import { isDmergeFileName, readDmergeArchive } from './dmergeArchive.js';
 import { clearLoginSession, readLoginSession, writeLoginSession } from './loginSession.js';
 import ShareDialog from './components/ShareDialog.jsx';
 import usePanelWindows from './usePanelWindows.js';
+import { readCredentialVaultFromWebDav, writeCredentialVaultToWebDav } from './credentialVaultStorage.js';
 
 const SAVED_LOGIN_KEY = 'webdav-viewer-login';
 const EXPLORER_WIDTH_KEY = 'webdav-explorer-width';
@@ -2235,6 +2236,8 @@ export default function App() {
               if (!await client.exists(filePath)) throw new Error('WebDAV에 저장된 설정 파일이 없습니다.');
               return client.getFileContents(filePath, { format: 'text' });
             }}
+            onReadCredentialVault={() => readCredentialVaultFromWebDav(clientRef.current)}
+            onWriteCredentialVault={(envelope) => writeCredentialVaultToWebDav(clientRef.current, envelope)}
             selectedFile={selectedFile}
             content={editorContent}
             binaryContent={editorBinary}

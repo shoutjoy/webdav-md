@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import JSZip from 'jszip';
@@ -12,6 +12,7 @@ const manualBackupDirectory = resolve(backupDirectory, 'manual');
 const keyPath = resolve(dataDirectory, 'key');
 const configPath = resolve(dataDirectory, 'config.enc');
 const historyPath = resolve(dataDirectory, 'history.json');
+const remoteBackupRoot = '/.webdav-backups';
 
 mkdirSync(automaticBackupDirectory, { recursive: true });
 mkdirSync(manualBackupDirectory, { recursive: true });
@@ -76,9 +77,6 @@ const publicConfig = () => ({
   running,
   lastRunAt: history[0]?.startedAt || null,
   notificationEmail: config.notificationEmail || 'shoutjoy1@gmail.com',
-  downloadUsername: config.downloadUsername || '',
-  downloadAuthConfigured: Boolean(config.downloadUsername && config.downloadPassword),
-  publicUrl: config.publicUrl || '',
   emailServiceConfigured: Boolean(process.env.RESEND_API_KEY && process.env.WEBDAV_BACKUP_FROM_EMAIL),
   retentionCount: Math.max(1, Number(config.retentionCount) || 30),
 });
@@ -96,24 +94,20 @@ async function mapLimit(items, limit, worker) {
   await Promise.all(jobs);
 }
 
-const downloadPageUrl = (item) => {
-  const base = String(config.publicUrl || process.env.WEBDAV_BACKUP_PUBLIC_URL || '').replace(/\/$/, '');
-  if (!base) throw new Error('외부 다운로드 주소가 설정되지 않았습니다.');
-  return `${base}/backup-download.html?id=${encodeURIComponent(item.id)}`;
-};
+const webdavDownloadUrl = (item) => `${String(config.webdavUrl || '').replace(/\/$/, '')}${item.remotePath.split('/').map((part, index) => index === 0 ? '' : encodeURIComponent(part)).join('/')}`;
 
 async function sendBackupEmail(item) {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.WEBDAV_BACKUP_FROM_EMAIL;
   if (!apiKey || !from) throw new Error('메일 발송 환경변수 RESEND_API_KEY와 WEBDAV_BACKUP_FROM_EMAIL이 필요합니다.');
   const recipient = config.notificationEmail || 'shoutjoy1@gmail.com';
-  const link = downloadPageUrl(item);
+  const link = webdavDownloadUrl(item);
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       from, to: [recipient], subject: `[WebDAV] ${item.fileName} 백업 완료`,
-      text: `WebDAV 전체 백업이 완료되었습니다.\n\n파일: ${item.fileName}\n파일 수: ${item.fileCount}\n크기: ${item.size} bytes\n완료 시각: ${item.completedAt}\n\n백업 다운로드: ${link}\n\n설정된 다운로드 ID와 비밀번호를 입력하면 이 백업 파일만 다운로드할 수 있습니다.`,
+      text: `WebDAV 전체 백업이 완료되었습니다.\n\n파일: ${item.fileName}\n파일 수: ${item.fileCount}\n크기: ${item.size} bytes\n완료 시각: ${item.completedAt}\n\n백업 다운로드: ${link}\n\n평소 사용하는 WebDAV 계정으로 접속하면 이 ZIP 백업본을 다운로드할 수 있습니다.`,
     }),
   });
   if (!response.ok) {
@@ -148,11 +142,12 @@ function expiredAutomaticBackups(items, retentionCount) {
     .slice(Math.max(1, Number(retentionCount) || 30));
 }
 
-function rotateAutomaticBackups() {
+async function rotateAutomaticBackups(client) {
   const expiredIds = new Set();
   for (const item of expiredAutomaticBackups(history, config.retentionCount)) {
     const path = existingArchivePath(item);
     if (existsSync(path)) unlinkSync(path);
+    if (item.remotePath && await client.exists(item.remotePath)) await client.deleteFile(item.remotePath);
     expiredIds.add(item.id);
   }
   if (expiredIds.size) {
@@ -172,8 +167,9 @@ async function createBackup(trigger = 'schedule') {
   try {
     const client = createClient(config.webdavUrl.replace(/\/$/, ''), { username: config.username, password: config.password });
     const entries = await client.getDirectoryContents('/', { deep: true });
-    const files = entries.filter(entry => entry.type === 'file');
-    const directories = entries.filter(entry => entry.type === 'directory');
+    const sourceEntries = entries.filter(entry => entry.filename !== remoteBackupRoot && !entry.filename.startsWith(`${remoteBackupRoot}/`));
+    const files = sourceEntries.filter(entry => entry.type === 'file');
+    const directories = sourceEntries.filter(entry => entry.type === 'directory');
     const zip = new JSZip();
     directories.forEach(entry => {
       const path = safeZipPath(entry.filename);
@@ -186,12 +182,23 @@ async function createBackup(trigger = 'schedule') {
     zip.file('_webdav-backup.json', JSON.stringify({ createdAt: startedAt, source: config.webdavUrl, fileCount: files.length }, null, 2));
     const buffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', compressionOptions: { level: 6 } });
     writeFileSync(archivePath, buffer);
-    const item = { id, fileName, startedAt, completedAt: new Date().toISOString(), trigger, status: 'success', fileCount: files.length, size: buffer.length };
+    const remoteTypeDirectory = `${remoteBackupRoot}/${trigger === 'schedule' ? 'automatic' : 'manual'}`;
+    if (!await client.exists(remoteBackupRoot)) await client.createDirectory(remoteBackupRoot);
+    if (!await client.exists(remoteTypeDirectory)) await client.createDirectory(remoteTypeDirectory);
+    const remotePath = `${remoteTypeDirectory}/${fileName}`;
+    await client.putFileContents(remotePath, buffer, { overwrite: false });
+    const item = { id, fileName, remotePath, startedAt, completedAt: new Date().toISOString(), trigger, status: 'success', fileCount: files.length, size: buffer.length };
     history = [item, ...history];
     saveHistory(history);
     if (trigger === 'schedule') {
       await notifyScheduledBackup(item);
-      rotateAutomaticBackups();
+      try {
+        await rotateAutomaticBackups(client);
+      } catch (error) {
+        item.rotationError = error?.message || String(error);
+        saveHistory(history);
+        console.error('오래된 WebDAV 자동 백업 정리 실패:', error);
+      }
     }
     return item;
   } catch (error) {
@@ -232,17 +239,12 @@ export function createBackupMiddleware() {
           enabled: Boolean(body.enabled),
           time: body.time,
           notificationEmail: String(body.notificationEmail || 'shoutjoy1@gmail.com').trim(),
-          downloadUsername: String(body.downloadUsername || '').trim(),
-          publicUrl: String(body.publicUrl || '').trim().replace(/\/$/, ''),
           retentionCount: Math.max(1, Math.min(9999, Number.parseInt(body.retentionCount, 10) || 30)),
-          ...(body.downloadPassword ? { downloadPassword: String(body.downloadPassword) } : {}),
           ...(body.webdavUrl && body.username && body.password ? {
             webdavUrl: String(body.webdavUrl).replace(/\/$/, ''), username: String(body.username), password: String(body.password),
           } : {}),
         };
         if (nextConfig.enabled && (!nextConfig.webdavUrl || !nextConfig.username || !nextConfig.password)) return json(res, 400, { error: '자동 백업을 켜려면 WebDAV에 먼저 로그인해야 합니다.' });
-        if (nextConfig.enabled && (!nextConfig.downloadUsername || !nextConfig.downloadPassword)) return json(res, 400, { error: '자동 백업 링크에 사용할 다운로드 ID와 비밀번호를 입력하세요.' });
-        if (nextConfig.enabled && !(nextConfig.publicUrl || process.env.WEBDAV_BACKUP_PUBLIC_URL)) return json(res, 400, { error: '이메일에서 열 수 있는 외부 다운로드 주소를 입력하세요.' });
         config = nextConfig;
         saveConfig(config);
         return json(res, 200, publicConfig());
@@ -259,34 +261,6 @@ export function createBackupMiddleware() {
       if (req.method === 'GET' && requestUrl.pathname === `${API_PATH}/history`) {
         const items = history.map(item => ({ ...item, available: item.status === 'success' && existsSync(existingArchivePath(item)) }));
         return json(res, 200, { running, items });
-      }
-      const publicMatch = requestUrl.pathname.match(/^\/api\/webdav-backups\/public\/([^/]+)(?:\/(download))?$/);
-      if (req.method === 'GET' && publicMatch) {
-        const item = history.find(entry => entry.id === decodeURIComponent(publicMatch[1]) && entry.status === 'success');
-        if (!item) return json(res, 404, { error: '백업 파일을 찾을 수 없습니다.' });
-        if (!publicMatch[2]) return json(res, 200, { fileName: item.fileName, completedAt: item.completedAt, fileCount: item.fileCount, size: item.size });
-        const supplied = String(req.headers.authorization || '').match(/^Basic\s+(.+)$/i);
-        let suppliedUsername = ''; let suppliedPassword = '';
-        try {
-          const decoded = Buffer.from(supplied?.[1] || '', 'base64').toString('utf8');
-          const separator = decoded.indexOf(':');
-          suppliedUsername = separator >= 0 ? decoded.slice(0, separator) : '';
-          suppliedPassword = separator >= 0 ? decoded.slice(separator + 1) : '';
-        } catch { /* Invalid credentials are handled below. */ }
-        const expected = createHash('sha256').update(`${config.downloadUsername || ''}\0${config.downloadPassword || ''}`).digest();
-        const actual = createHash('sha256').update(`${suppliedUsername}\0${suppliedPassword}`).digest();
-        if (!config.downloadUsername || !config.downloadPassword || !timingSafeEqual(expected, actual)) {
-          res.setHeader('WWW-Authenticate', 'Basic realm="WebDAV Backup"');
-          return json(res, 401, { error: '다운로드 ID 또는 비밀번호가 올바르지 않습니다.' });
-        }
-        const path = existingArchivePath(item);
-        if (!existsSync(path)) return json(res, 404, { error: '백업 파일이 삭제되었거나 이동되었습니다.' });
-        res.statusCode = 200;
-        res.setHeader('Content-Type', 'application/zip');
-        res.setHeader('Content-Disposition', `attachment; filename="${basename(item.fileName)}"`);
-        res.setHeader('Content-Length', statSync(path).size);
-        res.end(readFileSync(path));
-        return;
       }
       const downloadMatch = requestUrl.pathname.match(/^\/api\/webdav-backups\/([^/]+)\/download$/);
       if (req.method === 'GET' && downloadMatch) {
@@ -308,4 +282,4 @@ export function createBackupMiddleware() {
   };
 }
 
-export const __backupTest = { safeZipPath, mapLimit, downloadPageUrl, expiredAutomaticBackups };
+export const __backupTest = { safeZipPath, mapLimit, webdavDownloadUrl, expiredAutomaticBackups };
