@@ -8,7 +8,17 @@
 }
 
 @media (max-width: 767px) {
+    html:has(body.mobile-ui-active),
     body.mobile-ui-active {
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    body.mobile-ui-active {
+        position: fixed;
+        inset: 0;
         --mobile-ui-dock-height: 64px;
         --mobile-ui-zoom-height: 44px;
         --mobile-ui-zoom-reserved-height: var(--mobile-ui-zoom-height);
@@ -172,6 +182,22 @@
         touch-action: manipulation;
     }
 
+    /* Desktop light-mode chrome paints toolbar controls white. On mobile the
+       toolbar head is intentionally light, so keep its disclosure control dark. */
+    html:not(.dark) body.mobile-ui-active #toolbar .mobile-edit-toolbar-toggle {
+        border-color: #94a3b8 !important;
+        background: #ffffff !important;
+        color: #1e293b !important;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+    }
+
+    html:not(.dark) body.mobile-ui-active #toolbar .mobile-edit-toolbar-toggle:hover,
+    html:not(.dark) body.mobile-ui-active #toolbar .mobile-edit-toolbar-toggle:focus-visible {
+        border-color: #64748b !important;
+        background: #e2e8f0 !important;
+        color: #0f172a !important;
+    }
+
     .dark body.mobile-ui-active .mobile-edit-toolbar-toggle {
         border-color: #475569;
         background: #1e293b;
@@ -328,6 +354,7 @@
         background: rgba(255, 255, 255, 0.94);
         box-shadow: 0 14px 36px rgba(15, 23, 42, 0.24);
         backdrop-filter: blur(14px);
+        transform: translateZ(0);
     }
 
     body.mobile-ui-active #app-status-footer {
@@ -365,6 +392,36 @@
         scrollbar-width: none;
         -webkit-overflow-scrolling: touch;
         transition: width 160ms ease, left 160ms ease, background-color 160ms ease;
+    }
+
+    /* The desktop footer uses pale text over a dark strip in light mode. The
+       mobile footer becomes a pale floating strip, so restore accessible ink
+       colors for every inherited Tailwind text utility and icon. */
+    html:not(.dark) body.mobile-ui-active #footer-zoom-font,
+    html:not(.dark) body.mobile-ui-active #footer-zoom-font span,
+    html:not(.dark) body.mobile-ui-active #footer-zoom-font label,
+    html:not(.dark) body.mobile-ui-active #footer-zoom-font button {
+        color: #334155 !important;
+    }
+
+    html:not(.dark) body.mobile-ui-active #footer-zoom-font > span {
+        color: #475569 !important;
+    }
+
+    html:not(.dark) body.mobile-ui-active #footer-zoom-font button:not(#btn-editor-light):not(.mobile-zoom-controls-toggle) {
+        border-radius: 0.4rem;
+        color: #1e293b !important;
+    }
+
+    html:not(.dark) body.mobile-ui-active #footer-zoom-font button:not(#btn-editor-light):not(.mobile-zoom-controls-toggle):hover,
+    html:not(.dark) body.mobile-ui-active #footer-zoom-font button:not(#btn-editor-light):not(.mobile-zoom-controls-toggle):focus-visible {
+        background: #e2e8f0 !important;
+        color: #0f172a !important;
+    }
+
+    html:not(.dark) body.mobile-ui-active #footer-zoom-font svg {
+        color: currentColor !important;
+        stroke: currentColor !important;
     }
 
     body.mobile-ui-active .mobile-zoom-controls-toggle {

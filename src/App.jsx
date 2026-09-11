@@ -1238,11 +1238,21 @@ export default function App() {
     if (!splitContainerRef.current) return;
 
     const container = splitContainerRef.current;
+    let dockedMdpro = false;
     const updateWidth = (clientX) => {
       const rect = container.getBoundingClientRect();
-      const nextWidth = ((clientX - rect.left) / rect.width) * 100;
+      const mdproPanel = container.querySelector('.mdpro-stage.is-floating-panel');
+      const mdproRect = mdproPanel?.getBoundingClientRect();
+      const shouldDock = mdproRect && clientX >= mdproRect.left - 28;
+      const dockX = shouldDock ? mdproRect.left : clientX;
+      const nextWidth = ((dockX - rect.left) / rect.width) * 100;
       const minWidth = (MIN_EXPLORER_WIDTH_PX / rect.width) * 100;
       setExplorerWidth(Math.min(MAX_EXPLORER_WIDTH, Math.max(minWidth, nextWidth)));
+      if (shouldDock) {
+        mdproPanel.classList.remove('is-floating-panel', 'is-panel-holding', 'is-panel-ready');
+        for (const key of ['left', 'top', 'width', 'height']) mdproPanel.style[key] = '';
+        dockedMdpro = true;
+      }
     };
     const handlePointerMove = (moveEvent) => updateWidth(moveEvent.clientX);
     const handlePointerUp = () => {
@@ -1254,6 +1264,7 @@ export default function App() {
         localStorage.setItem(storageKey, String(width));
         return width;
       });
+      if (dockedMdpro) showToast('WebDAV와 MDPRO를 다시 연결했습니다.');
       window.removeEventListener('pointermove', handlePointerMove);
       window.removeEventListener('pointerup', handlePointerUp);
     };
@@ -2144,6 +2155,7 @@ export default function App() {
               onToggleCompact={toggleExplorerCompact}
               showHiddenItems={showHiddenItems}
               defaultSharePassword={defaultSharePassword}
+              backupCredentials={{ url: url.trim().replace(/\/$/, ''), username, password }}
               onDefaultSharePasswordChange={(value) => { setDefaultSharePassword(value); localStorage.setItem(DEFAULT_SHARE_PASSWORD_KEY, value); }}
               onShowHiddenItemsChange={async (enabled) => {
                 setShowHiddenItems(enabled);

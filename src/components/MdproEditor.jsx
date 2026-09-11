@@ -210,7 +210,7 @@ export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, onSav
   };
 
   return <section ref={mdproStageRef} className="mdpro-stage" style={{ flexBasis: `${100 - explorerWidth}%` }}>
-    {panelResizeEnabled && <PanelResizeHandles edges={['left', 'right']}/>}
+    {panelResizeEnabled && <PanelResizeHandles edges={['top', 'bottom', 'left', 'right', 'bottom-right']}/>}
     <div className="mdpro-stage-bar" title="2초간 누른 뒤 드래그하여 MDPRO 창 이동 · 더블클릭으로 원위치"><span className="mdpro-stage-dot"/><strong>MDPRO</strong><span className="mdpro-stage-path" title={stagePath || stageTitle}>{stageDirectory && <span className="mdpro-stage-directory">{stageDirectory}</span>}<span className="mdpro-stage-title">{stageTitle}</span></span>{isFmaOpen && <button type="button" onClick={onClose}>FMA 닫기</button>}</div>
     {loading && !saving && <div className="mdpro-loading">WebDAV 파일을 여는 중…</div>}
     {saving && <div className="mdpro-saving" role="status" aria-live="polite"><span>WebDAV에 저장합니다.</span></div>}

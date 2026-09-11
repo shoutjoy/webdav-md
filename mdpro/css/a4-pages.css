@@ -15,6 +15,13 @@ body:not(.viewer-view-mode) #content-viewport.a4-active {
   height: max-content;
   overflow: visible;
 }
+/* Short and blank continuous documents begin as an A4 portrait sheet. The
+   script resolves the exact pixel floor from the rendered width so this also
+   works in installed PWA windows and after the sidebar changes width. */
+#content-viewport.long-document-active #editor-doc-wrap,
+#viewer-container.long-document-active #viewer.long-document-sheet {
+  aspect-ratio: 210 / 297;
+}
 #content-viewport.long-document-active #viewer-edit-ta {
   min-height: 320px;
   overflow-y: hidden;

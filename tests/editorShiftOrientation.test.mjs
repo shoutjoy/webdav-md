@@ -45,19 +45,19 @@ test('orientation button toggles every floating-bar control between a row and a 
     });
     vm.runInContext(`${initSource}\ninitEditorShiftFloat(control);`, context);
 
-    assert.equal(control.dataset.orientation, 'horizontal');
-    assert.equal(control.classList.contains('is-horizontal'), true);
-    assert.equal(toggle.textContent, '↕');
-    assert.equal(attrs['aria-pressed'], 'false');
-
-    listeners.click();
     assert.equal(control.dataset.orientation, 'vertical');
     assert.equal(control.classList.contains('is-vertical'), true);
     assert.equal(toggle.textContent, '↔');
-    assert.equal(attrs['aria-label'], '가로 메뉴로 전환');
     assert.equal(attrs['aria-pressed'], 'true');
 
     listeners.click();
     assert.equal(control.dataset.orientation, 'horizontal');
     assert.equal(control.classList.contains('is-horizontal'), true);
+    assert.equal(toggle.textContent, '↕');
+    assert.equal(attrs['aria-label'], '세로 메뉴로 전환');
+    assert.equal(attrs['aria-pressed'], 'false');
+
+    listeners.click();
+    assert.equal(control.dataset.orientation, 'vertical');
+    assert.equal(control.classList.contains('is-vertical'), true);
 });

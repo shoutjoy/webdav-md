@@ -198,8 +198,8 @@ body { margin: 0; background: #e9edf3; }
 }
 
 @media (max-width: 767px) {
-    html, body, #root { width:100%; height:100%; overflow:hidden; }
-    .webdav-shell { position:fixed; inset:0; width:100dvw; height:100dvh; min-height:0 !important; padding:0 !important; overflow:hidden; }
+    html, body, #root { width:100%; height:100%; height:100dvh; min-height:0; overflow:hidden; }
+    .webdav-shell { position:fixed; inset:0; width:100%; height:100%; min-height:0 !important; padding:0 !important; overflow:hidden; }
     .webdav-shell > div { max-width:none; }
     .mobile-wdoc-button {
         position:fixed;
@@ -252,19 +252,17 @@ body { margin: 0; background: #e9edf3; }
         background:rgba(99,102,241,.08);
     }
     .split-resizer-grip { height:96px; background:#6366f1; }
-    .mdpro-stage { width:100%; height:100dvh; flex-basis:100% !important; border-radius:0; }
+    .mdpro-stage { width:100%; height:100%; min-height:0; flex-basis:100% !important; border-radius:0; }
     .mdpro-stage-bar { display:none; }
     .mdpro-workspace { height:100%; }
+    .mdpro-frame,
     .mdpro-frame.mdpro-frame-mobile-fullscreen {
         position:fixed;
         inset:0;
         z-index:50;
-        width:100vw;
-        width:100dvw;
-        min-width:100vw;
-        min-width:100dvw;
-        height:100vh;
-        height:100dvh;
+        width:100%;
+        min-width:100%;
+        height:100%;
         max-width:none;
         max-height:none;
         background:#fff;

@@ -36,15 +36,19 @@ function setup(createAllowed = true) {
         setSelectionRange(start, end) { this.selectionStart = start; this.selectionEnd = end; }
         scrollIntoView() {}
         getBoundingClientRect() {
-            const columns = Math.floor((parseFloat(this.style.width) || 80) / 8);
+            const width = parseFloat(this.style.width) || 80;
+            const columns = Math.floor(width / 8);
             const lines = this.textContent.split('\n').reduce((n, line) => n + Math.max(1, Math.ceil(line.length / columns)), 0);
-            return { height: this.id === 'a4-measure' ? lines * 26 : 78, top: 0, bottom: 78 };
+            return { width, height: this.id === 'a4-measure' ? lines * 26 : 78, top: 0, bottom: 78 };
         }
     }
     const handlers = {};
     const document = { createElement: tag => new Element(tag), getElementById: id => elements.get(id), body: new Element('body'), addEventListener: (name, handler) => { handlers[name] = handler; } };
     const source = new Element('textarea'); source.id = 'viewer-edit-ta';
     const viewport = new Element('div'); viewport.id = 'content-viewport';
+    const wrap = new Element('div'); wrap.id = 'editor-doc-wrap'; wrap.style.width = '794px'; wrap.append(source);
+    const viewer = new Element('div'); viewer.id = 'viewer'; viewer.style.width = '794px';
+    const viewerContainer = new Element('div'); viewerContainer.id = 'viewer-container'; viewerContainer.append(viewer);
     const window = {};
     const context = vm.createContext({ document, window, Event, setNewFileMenuVisible() {}, toggleMode() {},
         createNewFile() {
@@ -57,8 +61,16 @@ function setup(createAllowed = true) {
     const host = elements.get('a4-pages');
     const inputs = () => host.children.filter(el => el.className === 'a4-sheet').map(el => el.children[0]);
     const type = (input, text) => { input.value = text; input.selectionStart = text.length; input.dispatchEvent({ type: 'input' }); };
-    return { window, source, host, inputs, type, document, handlers };
+    return { window, source, wrap, viewer, host, inputs, type, document, handlers };
 }
+
+test('blank continuous documents start at an A4 portrait height', () => {
+    const env = setup();
+    env.window.A4Pages.sync('');
+    assert.equal(env.wrap.style.height, '1123px');
+    assert.equal(env.source.style.height, '1123px');
+    assert.equal(env.viewer.style.minHeight, '1123px');
+});
 
 test('A4 is opt-in and original blank documents retain the original editor', () => {
     const env = setup();

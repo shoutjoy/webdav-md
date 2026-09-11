@@ -8401,6 +8401,7 @@ function openMermaidEditorModal() {
     ensureLazyFrameLoaded('mermaid-editor-frame');
     modal.classList.remove('hidden');
     bindMermaidEditorModalDrag();
+    bindMermaidEditorModalResize();
 }
 
 function closeMermaidEditorModal() {
@@ -8418,6 +8419,7 @@ function applyMermaidEditorDockRight(docked) {
     const dockBtn = document.getElementById('mermaid-editor-dock-right-btn');
     if (!panel) return;
     mermaidEditorModalDockRight = !!docked;
+    panel.dataset.fullscreen = 'false';
     if (dockBtn) dockBtn.textContent = mermaidEditorModalDockRight ? '<<' : '>>';
     if (mermaidEditorModalDockRight) {
         mermaidEditorModalFullscreen = false;
@@ -8426,11 +8428,12 @@ function applyMermaidEditorDockRight(docked) {
         panel.style.top = '8px';
         panel.style.right = '8px';
         panel.style.bottom = '8px';
-        panel.style.width = 'min(960px, 48vw)';
+        panel.style.width = 'min(480px, 24vw)';
         panel.style.height = 'calc(100vh - 16px)';
+        panel.style.minWidth = 'min(380px, calc(100vw - 16px))';
         panel.style.maxWidth = '98vw';
         panel.style.maxHeight = 'calc(100vh - 16px)';
-        panel.style.resize = 'both';
+        panel.style.resize = 'none';
         return;
     }
     panel.style.left = '50%';
@@ -8442,11 +8445,75 @@ function applyMermaidEditorDockRight(docked) {
     panel.style.transform = 'translateX(-50%)';
     panel.style.maxWidth = '98vw';
     panel.style.maxHeight = '95vh';
-    panel.style.resize = 'both';
+    panel.style.minWidth = 'min(760px, calc(100vw - 16px))';
+    panel.style.resize = 'none';
 }
 
 function toggleMermaidEditorDockRight() {
     applyMermaidEditorDockRight(!mermaidEditorModalDockRight);
+}
+
+function bindMermaidEditorModalResize() {
+    const panel = document.getElementById('mermaid-editor-modal-panel');
+    if (!panel || panel.dataset.resizeBound === 'true') return;
+    panel.dataset.resizeBound = 'true';
+
+    panel.querySelectorAll('[data-mermaid-resize]').forEach(function (handle) {
+        handle.addEventListener('pointerdown', function (event) {
+            if (event.button !== 0 || mermaidEditorModalFullscreen) return;
+            event.preventDefault();
+            event.stopPropagation();
+
+            const direction = handle.dataset.mermaidResize || '';
+            const rect = panel.getBoundingClientRect();
+            const startX = event.clientX;
+            const startY = event.clientY;
+            const minWidth = Math.min(mermaidEditorModalDockRight ? 380 : 760, window.innerWidth - 16);
+            const minHeight = Math.min(520, window.innerHeight - 16);
+
+            Object.assign(panel.style, {
+                left: rect.left + 'px',
+                top: rect.top + 'px',
+                right: 'auto',
+                bottom: 'auto',
+                width: rect.width + 'px',
+                height: rect.height + 'px',
+                transform: 'none'
+            });
+            handle.classList.add('is-dragging');
+            handle.setPointerCapture(event.pointerId);
+
+            const move = function (next) {
+                const dx = next.clientX - startX;
+                const dy = next.clientY - startY;
+                let left = rect.left;
+                let right = rect.right;
+                let top = rect.top;
+                let bottom = rect.bottom;
+                if (direction.includes('w')) left = Math.max(8, Math.min(right - minWidth, rect.left + dx));
+                if (direction.includes('e')) right = Math.min(window.innerWidth - 8, Math.max(left + minWidth, rect.right + dx));
+                if (direction.includes('n')) top = Math.max(8, Math.min(bottom - minHeight, rect.top + dy));
+                if (direction.includes('s')) bottom = Math.min(window.innerHeight - 8, Math.max(top + minHeight, rect.bottom + dy));
+                Object.assign(panel.style, {
+                    left: left + 'px',
+                    top: top + 'px',
+                    width: (right - left) + 'px',
+                    height: (bottom - top) + 'px'
+                });
+            };
+            const stop = function () {
+                handle.classList.remove('is-dragging');
+                handle.removeEventListener('pointermove', move);
+                handle.removeEventListener('pointerup', stop);
+                handle.removeEventListener('pointercancel', stop);
+                handle.removeEventListener('lostpointercapture', stop);
+            };
+            handle.addEventListener('pointermove', move);
+            handle.addEventListener('pointerup', stop);
+            handle.addEventListener('pointercancel', stop);
+            handle.addEventListener('lostpointercapture', stop);
+        });
+    });
 }
 
 function bindMermaidEditorModalDrag() {
@@ -8501,6 +8568,7 @@ function toggleMermaidEditorFullscreen() {
     if (!panel) return;
     if (mermaidEditorModalDockRight) applyMermaidEditorDockRight(false);
     mermaidEditorModalFullscreen = !mermaidEditorModalFullscreen;
+    panel.dataset.fullscreen = String(mermaidEditorModalFullscreen);
     if (mermaidEditorModalFullscreen) {
         panel.style.resize = 'none';
         panel.style.left = '8px';
@@ -8519,7 +8587,7 @@ function toggleMermaidEditorFullscreen() {
     panel.style.width = 'min(1200px, 96vw)';
     panel.style.height = 'min(860px, 92vh)';
     panel.style.transform = 'translateX(-50%)';
-    panel.style.resize = 'both';
+    panel.style.resize = 'none';
 }
 
 function insertMermaidBlockFromExternal(codeText) {
@@ -8904,7 +8972,9 @@ function initEditorShiftFloat(control) {
     const dragHandle = control.querySelector('.editor-shift-drag');
     const handle = dragHandle || control;
     const applyOrientation = () => {
-        const horizontal = editorShiftFloatPreferences.vertical !== true;
+        // Vertical is the first-run default; an explicitly saved horizontal
+        // preference is still respected on later launches.
+        const horizontal = editorShiftFloatPreferences.vertical === false;
         control.dataset.orientation = horizontal ? 'horizontal' : 'vertical';
         control.classList.toggle('is-horizontal', horizontal);
         control.classList.toggle('is-vertical', !horizontal);
@@ -8916,7 +8986,7 @@ function initEditorShiftFloat(control) {
     };
     applyOrientation();
     toggle?.addEventListener('click', () => {
-        editorShiftFloatPreferences.vertical = editorShiftFloatPreferences.vertical !== true;
+        editorShiftFloatPreferences.vertical = control.dataset.orientation !== 'vertical';
         applyOrientation();
         syncEditorShiftFloatPosition();
         saveEditorShiftFloatPreferences();

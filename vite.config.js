@@ -5,6 +5,7 @@ import { cpSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createWebSearchMiddleware } from './src/webSearchProxy.js';
 import { createShareMiddleware } from './src/shareServer.js';
+import { createBackupMiddleware } from './src/backupServer.js';
 
 const WEB_DAV_PROXY_PATH = '/__webdav_proxy';
 const WEB_DAV_TARGET = 'https://webdav.freemath.synology.me';
@@ -38,6 +39,7 @@ export default defineConfig(({ mode }) => {
       {
         name: 'ai-jena-web-search-proxy',
         configureServer(server) {
+          server.middlewares.use(createBackupMiddleware());
           server.middlewares.use(createShareMiddleware());
           server.middlewares.use(createWebSearchMiddleware({
             googleApiKey: env.GOOGLE_CUSTOM_SEARCH_API_KEY,
@@ -45,6 +47,7 @@ export default defineConfig(({ mode }) => {
           }));
         },
         configurePreviewServer(server) {
+          server.middlewares.use(createBackupMiddleware());
           server.middlewares.use(createShareMiddleware());
           server.middlewares.use(createWebSearchMiddleware({
             googleApiKey: env.GOOGLE_CUSTOM_SEARCH_API_KEY,

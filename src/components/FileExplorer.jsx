@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Archive, Check, ChevronDown, ChevronRight, Copy, Download, Edit, Eye, EyeOff, FileInput, FilePlus2, FileText, Folder, FolderInput, FolderOpen, FolderPlus, MousePointer2, PanelLeftClose, PanelLeftOpen, Settings, Share2, Trash2, Upload, X } from 'lucide-react';
 import MoveDestinationModal from './MoveDestinationModal.jsx';
+import BackupSettings from './BackupSettings.jsx';
 
 const FILE_TOOLS_VISIBLE_KEY = 'webdav-file-tools-visible';
 const FILE_TOOLS_MODE_KEY = 'webdav-file-tools-mode';
@@ -15,9 +16,11 @@ function getInitialFileToolsMode() {
   try {
     const savedMode = localStorage.getItem(FILE_TOOLS_MODE_KEY);
     if (FILE_TOOLS_MODES.includes(savedMode)) return savedMode;
-    return localStorage.getItem(FILE_TOOLS_VISIBLE_KEY) === 'false' ? 'hidden' : 'hover';
+    const legacyVisible = localStorage.getItem(FILE_TOOLS_VISIBLE_KEY);
+    if (legacyVisible === 'true') return 'hover';
+    return 'hidden';
   } catch {
-    return 'hover';
+    return 'hidden';
   }
 }
 
@@ -72,7 +75,7 @@ function TreeItem({ item, depth, expandedPaths, selectedFolderPath, selectionMod
   </>;
 }
 
-export default function FileExplorer({ files, directoryTree, loading, moveProgress, editorLoading, copiedKey, isDragging, explorerWidth, compact, folderSelectionMode, formatBytes, onDragEnter, onDragLeave, onDragOver, onDrop, onOpenDirectory, onOpenArchive, onCopyUrl, onShareFile, onOpenFile, onDownload, onRename, onMove, onMoveSelected, onDelete, onCreateFile, onCreateFolder, onRequestCreateFile, onRequestCreateFolder, onToggleCompact, showHiddenItems, onShowHiddenItemsChange, defaultSharePassword, onDefaultSharePasswordChange }) {
+export default function FileExplorer({ files, directoryTree, loading, moveProgress, editorLoading, copiedKey, isDragging, explorerWidth, compact, folderSelectionMode, formatBytes, onDragEnter, onDragLeave, onDragOver, onDrop, onOpenDirectory, onOpenArchive, onCopyUrl, onShareFile, onOpenFile, onDownload, onRename, onMove, onMoveSelected, onDelete, onCreateFile, onCreateFolder, onRequestCreateFile, onRequestCreateFolder, onToggleCompact, showHiddenItems, onShowHiddenItemsChange, defaultSharePassword, onDefaultSharePasswordChange, backupCredentials }) {
   const [expandedPaths, setExpandedPaths] = useState(() => new Set(['/']));
   const [selectedFolderPath, setSelectedFolderPath] = useState('/');
   const [selectionMode, setSelectionMode] = useState(false);
@@ -279,6 +282,7 @@ export default function FileExplorer({ files, directoryTree, loading, moveProgre
             <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">새 pwShare의 기본값입니다. 공유할 때 파일별로 바꿀 수 있습니다.</span>
             <input type="password" value={defaultSharePassword} onChange={(event) => onDefaultSharePasswordChange(event.target.value)} placeholder="기본 비밀번호" className="mt-2 w-full rounded-md border border-slate-300 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600"/>
           </label>
+          <BackupSettings credentials={backupCredentials}/>
         </div>
     </div>}
     <MoveDestinationModal key={moveRequest?.items?.map((item) => item.remotePath).join('|') || 'closed'} items={moveRequest?.items} directoryTree={directoryTree} loading={loading} progress={moveProgress} actionError={moveActionError} onConfirm={confirmMove} onCancel={() => { if (!loading) { setMoveRequest(null); setMoveActionError(''); } }}/>

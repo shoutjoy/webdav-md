@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 .webdav-share-data/
+.webdav-backup-data/
 
 # Local-only Tauri wrapper project (user requested not tracked)
 Webdavmd_tauri/
