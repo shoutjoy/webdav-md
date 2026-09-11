@@ -9117,6 +9117,9 @@ function showToast(msg, options) {
 function getActiveScrollTarget() {
     if (isEditMode) {
         const viewport = document.getElementById('content-viewport');
+        const mobileContinuousEditor = viewport?.classList.contains('long-document-active')
+            && document.body.classList.contains('mobile-ui-active');
+        if (mobileContinuousEditor && editorTextarea) return editorTextarea;
         if (viewport && (viewport.classList.contains('a4-active') || viewport.classList.contains('long-document-active'))) return viewport;
         if (editorTextarea) return editorTextarea;
     }
