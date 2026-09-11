@@ -2163,13 +2163,23 @@ function clampPreviewPopupViewControls(panel) {
     panel.style.bottom = 'auto';
 }
 
+function syncPreviewPopupViewControlsOrientationButton(panel) {
+    if (!panel) return;
+    const button = panel.querySelector('.pv-orientation-toggle');
+    if (!button) return;
+    const isHorizontal = panel.classList.contains('pv-controls-horizontal');
+    button.textContent = isHorizontal ? '↕' : '↔';
+    button.title = isHorizontal ? '세로 메뉴로 전환' : '가로 메뉴로 전환';
+    button.setAttribute('aria-label', button.title);
+    button.setAttribute('aria-pressed', isHorizontal ? 'false' : 'true');
+}
+
 function previewPopupToggleViewControlsOrientation() {
     if (!isPreviewPopupAlive()) return;
     const panel = previewPopupWindow.document.getElementById('pv-view-controls');
     if (!panel) return;
     panel.classList.toggle('pv-controls-horizontal');
-    const button = panel.querySelector('.pv-orientation-toggle');
-    if (button) button.textContent = panel.classList.contains('pv-controls-horizontal') ? '↕' : '↔';
+    syncPreviewPopupViewControlsOrientationButton(panel);
     previewPopupWindow.requestAnimationFrame(function () {
         clampPreviewPopupViewControls(panel);
         savePreviewPopupViewControlsLayout(panel);
@@ -2196,8 +2206,6 @@ function bindPreviewPopupViewControls() {
     orientation.type = 'button';
     orientation.className = 'pv-orientation-toggle';
     orientation.textContent = '↔';
-    orientation.title = '가로/세로 전환';
-    orientation.setAttribute('aria-label', '확대 축소 메뉴 방향 전환');
     orientation.addEventListener('click', previewPopupToggleViewControlsOrientation);
     actions.appendChild(drag);
     actions.appendChild(orientation);
@@ -2208,7 +2216,7 @@ function bindPreviewPopupViewControls() {
     if (saved && saved.orientation === 'horizontal') panel.classList.add('pv-controls-horizontal');
     panel.style.left = (saved && Number.isFinite(Number(saved.left)) ? Number(saved.left) : 10) + 'px';
     panel.style.top = (saved && Number.isFinite(Number(saved.top)) ? Number(saved.top) : 52) + 'px';
-    orientation.textContent = panel.classList.contains('pv-controls-horizontal') ? '↕' : '↔';
+    syncPreviewPopupViewControlsOrientationButton(panel);
     clampPreviewPopupViewControls(panel);
 
     let offsetX = 0;
@@ -2862,9 +2870,14 @@ async function updatePreviewPopupContent() {
     }
     const raw = previewPopupDraftDirty ? previewPopupDraftMarkdown : sourceMarkdown;
     if (!previewPopupDraftDirty && window.A4Pages && /^<!-- mdpro-a4: (portrait|landscape) -->\n/.test(raw)) {
-        await window.A4Pages.preview(previewPopupWindow, raw);
-        syncPreviewPopupEditorUi();
-        return;
+        const mounted = await window.A4Pages.preview(previewPopupWindow, raw);
+        if (mounted) {
+            syncPreviewPopupEditorUi();
+            return;
+        }
+        // A hidden/stale View render must never make the edit-side PV blank.
+        // Render the current editor source below as an immediate fallback; a
+        // later input/render pass will replace it with paginated A4 sheets.
     }
     if (window.A4Presentation) window.A4Presentation.leave(previewPopupWindow);
     const snapshot = prepareMarkdownRenderSnapshot(raw);

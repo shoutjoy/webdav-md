@@ -77,6 +77,7 @@
   var OLLAMA_MODEL_KEY = 'ss_ai_chat_ollama_model';
   var LITERTLM_MODEL_KEY = 'ss_ai_chat_litertlm_model';
   var WRITING_STYLE_KEY = 'ss_ai_chat_writing_style';
+  var GENERAL_ANSWER_KEY = 'ss_ai_chat_general_answer';
   var ANSWER_APPEARANCE_KEY = 'ss_ai_chat_answer_appearance';
   var ANSWER_FONT_SIZE_KEY = 'ss_ai_chat_answer_font_size';
   var ANSWER_APPEARANCE_DEFAULT_REVISION_KEY = 'ss_ai_chat_answer_appearance_default_revision';
@@ -104,7 +105,9 @@
   var HISTORY_WIDTH_KEY = 'ss_ai_chat_history_width';
   var LAYOUT_KEY = 'ss_ai_chat_layout';
   var START_LAYOUT_KEY = 'ss_ai_chat_start_layout';
+  var START_LAYOUT_DEFAULT_REVISION_KEY = 'ss_ai_chat_start_layout_default_revision';
   var POPUP_RECT_KEY = 'ss_ai_chat_popup_rect';
+  var FLOATING_POSITION_KEY = 'ss_ai_chat_floating_position';
   var POPUP_SIZE_REVISION_KEY = 'ss_ai_chat_popup_size_revision';
   var DOCK_WIDTH_KEY = 'ss_ai_chat_dock_width';
   var LAUNCHER_POSITION_KEY = 'ss_ai_chat_launcher_position';
@@ -112,7 +115,7 @@
   var MIGRATION_KEY = 'ss_ai_chat_idb_migrated_v1';
   var SQLITE_SYNC_KEYS = new Set([
     ENABLED_KEY, PROVIDER_KEY, GEMINI_MODEL_KEY, DEEPSEEK_MODEL_KEY, OPENAI_MODEL_KEY, OPENAI_COMPATIBLE_MODEL_KEY,
-    OLLAMA_MODEL_KEY, LITERTLM_MODEL_KEY, WRITING_STYLE_KEY, ANSWER_APPEARANCE_KEY, ANSWER_FONT_SIZE_KEY, RESPONSE_MODE_KEY, FAST_MODE_KEY, SENTENCE_ONLY_KEY, REALTIME_DOC_WRITE_KEY, REALTIME_DOC_TARGET_KEY, SHOW_REASONING_KEY,
+    OLLAMA_MODEL_KEY, LITERTLM_MODEL_KEY, WRITING_STYLE_KEY, GENERAL_ANSWER_KEY, ANSWER_APPEARANCE_KEY, ANSWER_FONT_SIZE_KEY, RESPONSE_MODE_KEY, FAST_MODE_KEY, SENTENCE_ONLY_KEY, REALTIME_DOC_WRITE_KEY, REALTIME_DOC_TARGET_KEY, SHOW_REASONING_KEY,
     ACADEMIC_SEARCH_KEY, ACADEMIC_COUNT_KEY, INTERNET_SEARCH_KEY, LAYOUT_KEY, START_LAYOUT_KEY
   ]);
   var CHAT_DB_NAME = 'md_viewer_ai_chat';
@@ -165,6 +168,7 @@
     provider: 'lmstudio',
     providerControlsOpen: false,
     writingStyle: 'academic',
+    generalAnswer: false,
     answerAppearance: 'plain-light',
     answerFontSize: 14,
     insertActionsExpanded: false,
@@ -205,6 +209,7 @@
   var realtimeDocAccumulated = '';
   var realtimeDocWritten = '';
   var realtimeDocActive = false;
+  var realtimeDocExclusive = false;
   var thinkingTimer = null;
   var thinkingStartedAt = 0;
   var thinkingProgress = 0;
@@ -244,11 +249,15 @@
 
   function writingStyleLabel(value) {
     return normalizeWritingStyle(value) === 'academic'
-      ? '전문적 학술체(다양한 학술 서술어)'
-      : '기본 존댓말(-습니다/-입니다)';
+      ? '학술체'
+      : '존댓말';
   }
 
   function writingStyleInstruction(options) {
+    // General-answer mode deliberately leaves tone and structure to the model.
+    // Safety, search-grounding, and explicit user-format rules are still added
+    // by their respective system instructions.
+    if (state.generalAnswer) return '';
     var academicContext = !!(options && options.academic);
     if (state.writingStyle === 'academic') {
       var customPrompt = typeof root.getAIWritingStylePrompt === 'function'
@@ -287,6 +296,12 @@
       '사용자가 코드나 Mermaid처럼 문장만으로 표현할 수 없는 출력 형식을 명시적으로 요청한 경우에는 그 형식 요청을 우선한다.',
       '[/필수 문장 전용 출력 규칙]'
     ].join(' ');
+  }
+
+  function originalAnswerInstruction() {
+    // original means model-native output: no AI Jena tone, structure, Markdown,
+    // sentence-only, or response-protocol instruction is added.
+    return '';
   }
 
   function saveBuiltInPromptRules() {
@@ -764,9 +779,10 @@
       + '        <button type="button" id="ai-chat-refresh-model" title="현재 모델 새로고침">↻</button>'
       + '      </div>'
       + '      <div class="ai-chat-writing-style-row">'
-      + '        <label>답변 문체<select id="ai-chat-writing-style"><option value="academic">전문적 학술체 (다양한 서술어)</option><option value="polite">기본 존댓말 (-습니다/-입니다)</option></select></label>'
-      + '        <label>답변 표시<select id="ai-chat-answer-appearance"><option value="current">현재 디자인</option><option value="plain-light">흰 바탕 · 검은 글씨</option></select></label>'
-      + '        <label class="ai-chat-insert-expand-toggle" title="켜면 각 AI 답변 아래에 문서 삽입 버튼을 펼쳐 표시합니다."><input type="checkbox" id="ai-chat-insert-expand"><span>문서에 넣기 펼치기</span></label>'
+      + '        <label class="ai-chat-writing-style-control">답변 문체<select id="ai-chat-writing-style"><option value="academic">학술체</option><option value="polite">존댓말</option></select></label>'
+      + '        <label class="ai-chat-general-answer-toggle" title="AI Jena의 문체·구조·형식 프롬프트를 적용하지 않고 모델 고유의 답변을 그대로 사용합니다."><input type="checkbox" id="ai-chat-general-answer"><span>original</span></label>'
+      + '        <label>답변 표시<select id="ai-chat-answer-appearance"><option value="current">다크</option><option value="plain-light">라이트</option></select></label>'
+      + '        <label class="ai-chat-insert-expand-toggle" title="켜면 각 AI 답변 아래에 삽입 방식을 펼쳐 표시합니다."><input type="checkbox" id="ai-chat-insert-expand"><span>삽입방식</span></label>'
       + '      </div>'
       + '      <details class="ai-chat-fast-settings-details">'
       + '        <summary>FAST 세부 설정</summary>'
@@ -779,6 +795,7 @@
       + '    <div id="ai-chat-status" class="ai-chat-status" role="status" aria-live="polite"></div>'
       + '    <div id="ai-chat-messages" class="ai-chat-messages"></div>'
       + '    <div class="ai-chat-composer">'
+      + '      <div id="ai-chat-floating-drag-handle" class="ai-chat-floating-drag-handle" role="button" tabindex="0" title="드래그하여 AI Jena 이동" aria-label="AI Jena 이동 손잡이"><span aria-hidden="true"></span></div>'
       + '      <input id="ai-chat-file-input" type="file" hidden multiple accept=".txt,.md,.markdown,.csv,.json,.html,.htm,.docx,.pdf,.pptx,.xlsx,.png,.jpg,.jpeg,.gif,.webp,.bmp,.svg,.avif,.ico,image/*">'
       + '      <div id="ai-chat-attachments" class="ai-chat-attachments" aria-live="polite"></div>'
       + '      <textarea id="ai-chat-input" rows="3" placeholder="질문을 입력하세요. Enter 전송 · Shift+Enter 줄바꿈"></textarea>'
@@ -1056,6 +1073,9 @@
     document.getElementById('ai-chat-writing-style').addEventListener('change', function (event) {
       setWritingStyle(event.target.value, true);
     });
+    document.getElementById('ai-chat-general-answer').addEventListener('change', function (event) {
+      setGeneralAnswer(event.target.checked, true);
+    });
     document.getElementById('ai-chat-answer-appearance').addEventListener('change', function (event) {
       setAnswerAppearance(event.target.value, true);
     });
@@ -1108,6 +1128,7 @@
     });
     root.addEventListener('resize', function () {
       clampPopupToViewport();
+      clampFloatingToViewport();
       clampLauncherToViewport();
       updateDockHistoryVisibility();
     });
@@ -1320,6 +1341,54 @@
     panel.style.right = 'auto';
     panel.style.bottom = 'auto';
     savePopupRect();
+  }
+
+  function readFloatingPosition() {
+    try {
+      var value = JSON.parse(storageGet(FLOATING_POSITION_KEY, 'null'));
+      return value && Number.isFinite(value.left) && Number.isFinite(value.top) ? value : null;
+    } catch (_) { return null; }
+  }
+
+  function saveFloatingPosition() {
+    var panel = document.getElementById('ai-chat-panel');
+    if (!panel || state.layout !== 'floating') return;
+    var rect = panel.getBoundingClientRect();
+    storageSet(FLOATING_POSITION_KEY, JSON.stringify({
+      left: Math.round(rect.left),
+      top: Math.round(rect.top)
+    }));
+  }
+
+  function applyFloatingPosition() {
+    var panel = document.getElementById('ai-chat-panel');
+    var saved = readFloatingPosition();
+    if (!panel || state.layout !== 'floating' || !saved) return;
+    var viewport = popupWindow();
+    var width = panel.offsetWidth || panel.getBoundingClientRect().width;
+    var height = panel.offsetHeight || panel.getBoundingClientRect().height;
+    panel.style.left = Math.max(4, Math.min(saved.left, viewport.innerWidth - width - 4)) + 'px';
+    panel.style.top = Math.max(4, Math.min(saved.top, viewport.innerHeight - height - 4)) + 'px';
+    panel.style.right = 'auto';
+    panel.style.bottom = 'auto';
+    panel.style.transform = 'none';
+  }
+
+  function clampFloatingToViewport() {
+    var panel = document.getElementById('ai-chat-panel');
+    if (!panel || !state.open || state.layout !== 'floating' || !readFloatingPosition()) return;
+    var rect = panel.getBoundingClientRect();
+    var viewport = popupWindow();
+    var width = Math.min(rect.width, viewport.innerWidth - 8);
+    var height = Math.min(rect.height, viewport.innerHeight - 8);
+    panel.style.width = Math.max(0, width) + 'px';
+    panel.style.height = Math.max(0, height) + 'px';
+    panel.style.left = Math.max(4, Math.min(rect.left, viewport.innerWidth - width - 4)) + 'px';
+    panel.style.top = Math.max(4, Math.min(rect.top, viewport.innerHeight - height - 4)) + 'px';
+    panel.style.right = 'auto';
+    panel.style.bottom = 'auto';
+    panel.style.transform = 'none';
+    saveFloatingPosition();
   }
 
   function normalizeLayout(layout) {
@@ -1605,6 +1674,7 @@
       (layout === 'popup' ? popupHost() : frameDocument.body).appendChild(panel);
       panel.removeAttribute('style');
       if (layout === 'popup') applyPopupRect();
+      if (layout === 'floating') applyFloatingPosition();
     }
     applyHistoryWidth(state.historyWidth, false);
     setFloatingExpanded(layout !== 'floating');
@@ -1648,8 +1718,13 @@
   function setupPopupDrag(panel) {
     var header = panel.querySelector('.ai-chat-header');
     if (!header) return;
-    header.addEventListener('pointerdown', function (event) {
-      if (state.layout !== 'popup' || event.button !== 0 || event.target.closest('button, select, input, textarea, .ai-chat-layout-menu')) return;
+    var floatingHandle = panel.querySelector('.ai-chat-floating-drag-handle');
+    function startDrag(event) {
+      var movableLayout = state.layout === 'popup' || state.layout === 'floating';
+      if (!movableLayout || (event.pointerType === 'mouse' && event.button !== 0) || event.target.closest('button, select, input, textarea, .ai-chat-layout-menu')) return;
+      if (state.layout === 'floating' && !event.target.closest('.ai-chat-header, .ai-chat-floating-drag-handle')) return;
+      var draggedLayout = state.layout;
+      var dragSurface = event.currentTarget;
       var rect = panel.getBoundingClientRect();
       var offsetX = event.clientX - rect.left;
       var offsetY = event.clientY - rect.top;
@@ -1657,8 +1732,13 @@
       panel.style.top = rect.top + 'px';
       panel.style.right = 'auto';
       panel.style.bottom = 'auto';
+      panel.style.transform = 'none';
+      if (draggedLayout === 'floating') {
+        panel.style.width = Math.round(rect.width) + 'px';
+        panel.style.height = Math.round(rect.height) + 'px';
+      }
       panel.classList.add('dragging');
-      header.setPointerCapture(event.pointerId);
+      dragSurface.setPointerCapture(event.pointerId);
       function move(moveEvent) {
         var viewport = popupWindow();
         var left = Math.max(4, Math.min(moveEvent.clientX - offsetX, viewport.innerWidth - panel.offsetWidth - 4));
@@ -1668,18 +1748,22 @@
       }
       function finish() {
         panel.classList.remove('dragging');
-        header.removeEventListener('pointermove', move);
-        header.removeEventListener('pointerup', finish);
-        header.removeEventListener('pointercancel', finish);
-        savePopupRect();
+        dragSurface.removeEventListener('pointermove', move);
+        dragSurface.removeEventListener('pointerup', finish);
+        dragSurface.removeEventListener('pointercancel', finish);
+        if (draggedLayout === 'popup') savePopupRect();
+        if (draggedLayout === 'floating') saveFloatingPosition();
       }
-      header.addEventListener('pointermove', move);
-      header.addEventListener('pointerup', finish);
-      header.addEventListener('pointercancel', finish);
+      dragSurface.addEventListener('pointermove', move);
+      dragSurface.addEventListener('pointerup', finish);
+      dragSurface.addEventListener('pointercancel', finish);
       event.preventDefault();
-    });
+    }
+    header.addEventListener('pointerdown', startDrag);
+    if (floatingHandle) floatingHandle.addEventListener('pointerdown', startDrag);
     panel.addEventListener('pointerup', function () {
       if (state.layout === 'popup') setTimeout(savePopupRect, 0);
+      if (state.layout === 'floating') setTimeout(saveFloatingPosition, 0);
     });
   }
 
@@ -1945,7 +2029,7 @@
       reasoningBody.textContent = liveStream.reasoning || '첫 추론 토큰을 기다리는 중…';
       followLiveStreamEnd(reasoningBody, followReasoning && !!liveStream.reasoning);
     }
-    if (answerWrap) answerWrap.hidden = false;
+    if (answerWrap) answerWrap.hidden = !!state.realtimeDocWrite;
     if (answerBody) {
       answerBody.classList.toggle('waiting', !liveStream.answer);
       answerBody.textContent = liveStream.answer || (showLiveReasoning
@@ -2520,6 +2604,24 @@
     if (announce) setStatus('답변 문체를 ' + writingStyleLabel(state.writingStyle) + '로 설정했습니다.', 'ok');
   }
 
+  function setGeneralAnswer(enabled, announce) {
+    state.generalAnswer = !!enabled;
+    storageSet(GENERAL_ANSWER_KEY, state.generalAnswer ? '1' : '0');
+    var checkbox = document.getElementById('ai-chat-general-answer');
+    var select = document.getElementById('ai-chat-writing-style');
+    if (checkbox) checkbox.checked = state.generalAnswer;
+    if (select) {
+      select.disabled = state.running || state.generalAnswer;
+      select.title = state.generalAnswer ? 'original 모드에서는 AI Jena의 문체·구조·형식 프롬프트를 적용하지 않습니다.' : '';
+    }
+    updateHeaderModel();
+    if (announce) {
+      setStatus(state.generalAnswer
+        ? 'original을 켰습니다. AI Jena의 답변 형식 제한 없이 모델 고유의 응답을 사용합니다.'
+        : 'original을 껐습니다. 선택한 답변 문체를 다시 적용합니다.', 'ok');
+    }
+  }
+
   function normalizeAnswerAppearance(value) {
     return value === 'plain-light' ? 'plain-light' : 'current';
   }
@@ -2533,8 +2635,8 @@
     if (panel) panel.classList.toggle('answer-plain-light', state.answerAppearance === 'plain-light');
     if (announce) {
       setStatus(state.answerAppearance === 'plain-light'
-        ? 'AI 답변을 흰 바탕 · 검은 글씨로 표시합니다.'
-        : 'AI 답변을 현재 디자인으로 표시합니다.', 'ok');
+        ? 'AI 답변을 라이트로 표시합니다.'
+        : 'AI 답변을 다크로 표시합니다.', 'ok');
     }
   }
 
@@ -2588,6 +2690,16 @@
       var check = btn.querySelector('.ai-chat-rt-check-box');
       if (check) check.classList.toggle('checked', state.realtimeDocWrite);
     }
+    if (state.running && state.realtimeDocWrite) {
+      beginRealtimeDocForCurrentGeneration();
+      if (state.layout === 'floating') setFloatingExpanded(false);
+    }
+    if (state.running && !state.realtimeDocWrite && realtimeDocActive) {
+      try { getBridge().cancelRealtimeDocStream(); } catch (_) {}
+      realtimeDocActive = false;
+      realtimeDocExclusive = false;
+    }
+    updateLiveStreamDom();
   }
 
   function setRealtimeDocTarget(target, persist) {
@@ -2612,6 +2724,28 @@
     var bottomBtn = document.getElementById('ai-chat-realtime-target-bottom');
     if (cursorBtn) cursorBtn.classList.toggle('active', state.realtimeDocTarget === 'cursor');
     if (bottomBtn) bottomBtn.classList.toggle('active', state.realtimeDocTarget === 'document-end');
+  }
+
+  function beginRealtimeDocForCurrentGeneration() {
+    if (!state.running || !state.realtimeDocWrite || realtimeDocActive) return false;
+    try {
+      var bridge = getBridge();
+      if (!bridge || typeof bridge.startRealtimeDocStream !== 'function') return false;
+      var streamInit = bridge.startRealtimeDocStream({ target: state.realtimeDocTarget });
+      realtimeDocAccumulated = '';
+      realtimeDocWritten = '';
+      realtimeDocActive = true;
+      realtimeDocExclusive = true;
+      if (liveStream && liveStream.answer) streamDeltaToRealtimeDoc(liveStream.answer);
+      if (streamInit && streamInit.isReplacing) {
+        setStatus('선택한 텍스트를 대체하여 실시간 작성 중...', 'loading');
+      }
+      return true;
+    } catch (err) {
+      console.warn('Realtime doc stream start failed:', err);
+      setStatus('실시간 문서 작성을 시작하지 못했습니다: ' + (err && err.message ? err.message : err), 'error');
+      return false;
+    }
   }
 
   function streamDeltaToRealtimeDoc(chunk) {
@@ -2650,6 +2784,7 @@
     setTimeout(updateDockHistoryVisibility, 0);
     if (state.open) {
       if (state.layout === 'popup') applyPopupRect();
+      if (state.layout === 'floating') applyFloatingPosition();
       setTimeout(promotePanelToTopLayer, 0);
       renderMessages();
       refreshModels(true);
@@ -2668,6 +2803,7 @@
     var provider = document.getElementById('ai-chat-provider');
     var model = document.getElementById('ai-chat-model');
     var writingStyle = document.getElementById('ai-chat-writing-style');
+    var generalAnswer = document.getElementById('ai-chat-general-answer');
     var answerAppearance = document.getElementById('ai-chat-answer-appearance');
     var refresh = document.getElementById('ai-chat-refresh-model');
     var importSelection = document.getElementById('ai-chat-import-selection');
@@ -2683,7 +2819,8 @@
     if (input) input.disabled = state.running || state.storageInitializing;
     if (provider) provider.disabled = state.running;
     if (model) model.disabled = state.running || state.provider === 'lmstudio';
-    if (writingStyle) writingStyle.disabled = state.running;
+    if (writingStyle) writingStyle.disabled = state.running || state.generalAnswer;
+    if (generalAnswer) generalAnswer.disabled = state.running;
     if (answerAppearance) answerAppearance.disabled = state.running;
     if (refresh) refresh.disabled = state.running;
     if (importSelection) importSelection.disabled = state.running || state.storageInitializing;
@@ -2720,6 +2857,9 @@
     header.textContent += state.provider === 'aistudio' && isGeminiImageModel(state.geminiModel)
       ? ' · 이미지 생성'
       : (state.fastMode ? ' · FAST' : (state.responseMode === 'reasoning' ? ' · 추론' : ' · 즉시응답'));
+    if (state.generalAnswer && !(state.provider === 'aistudio' && isGeminiImageModel(state.geminiModel))) {
+      header.textContent += ' · original';
+    }
     if (state.responseMode === 'reasoning' && !state.showReasoning && !(state.provider === 'aistudio' && isGeminiImageModel(state.geminiModel))) {
       header.textContent += ' · 내용 숨김';
     }
@@ -3462,7 +3602,7 @@
     return parts.join('\n\n');
   }
 
-  function separateEmbeddedReasoning(answerText, explicitReasoning) {
+  function separateEmbeddedReasoning(answerText, explicitReasoning, preserveModelAnswer) {
     var answer = String(answerText || '').trim();
     var reasoning = String(explicitReasoning || '').trim();
     if (!answer) return { answer: '', reasoning: reasoning };
@@ -3476,6 +3616,7 @@
       .replace(/\n{3,}/g, '\n\n')
       .trim();
     if (tagged.length) reasoning = joinSeparatedReasoning(reasoning, tagged.join('\n\n'));
+    if (preserveModelAnswer) return { answer: answer, reasoning: reasoning };
 
     // Prefer an explicit final-answer boundary when a model emits one inside
     // the normal content field instead of reasoning_content.
@@ -4558,6 +4699,7 @@
       list.appendChild(empty);
     } else {
       state.messages.forEach(function (message, messageIndex) {
+        if (message && message.documentOnly) return;
         if (message && message.role === 'assistant') sanitizeAssistantMessage(message);
         var item = document.createElement('article');
         item.className = 'ai-chat-message ' + message.role + (message.error ? ' error' : '') + (message.failed ? ' failed' : '');
@@ -4961,7 +5103,7 @@
       '- 저장 시각: ' + new Date().toLocaleString('ko-KR'),
       '- AI 공급자: ' + providerLabel,
       '- 모델: ' + modelLabel,
-      '- 답변 문체: ' + writingStyleLabel(state.writingStyle),
+      '- 답변 문체: ' + (state.generalAnswer ? 'original' : writingStyleLabel(state.writingStyle)),
       '- 응답 모드: ' + (state.responseMode === 'reasoning' ? '추론' : '즉시응답'),
       '- 추론 내용 표시: ' + (state.showReasoning ? '함' : '안 함'),
       ''
@@ -5464,7 +5606,9 @@
     var input = document.getElementById('ai-chat-input');
     var text = input ? String(input.value || '').trim() : '';
     if (!text && !pendingAttachments.length) return;
-    if (state.layout === 'floating') setFloatingExpanded(true);
+    // Alt+4의 축소형 입력창은 문서 직접 작성 중에도 그대로 유지한다.
+    // 일반 채팅 답변일 때만 대화 영역을 자동으로 펼친다.
+    if (state.layout === 'floating' && !state.realtimeDocWrite) setFloatingExpanded(true);
     if (!text) text = '첨부 파일의 내용을 분석해 주세요.';
     var selectedDocText = '';
     try {
@@ -5496,20 +5640,9 @@
     realtimeDocAccumulated = '';
     realtimeDocWritten = '';
     realtimeDocActive = false;
+    realtimeDocExclusive = false;
     if (state.realtimeDocWrite) {
-      try {
-        var bridge = getBridge();
-        if (typeof bridge.startRealtimeDocStream === 'function') {
-          var streamInit = bridge.startRealtimeDocStream({ target: state.realtimeDocTarget });
-          realtimeDocActive = true;
-          if (streamInit && streamInit.isReplacing) {
-            setStatus('선택한 텍스트를 대체하여 실시간 작성 중...', 'loading');
-          }
-        }
-      } catch (err) {
-        console.warn('Realtime doc stream start failed:', err);
-        setStatus('실시간 문서 작성을 시작하지 못했습니다: ' + (err && err.message ? err.message : err), 'error');
-      }
+      beginRealtimeDocForCurrentGeneration();
     }
     try {
       var academicSearchActive = !state.fastMode && state.academicSearchEnabled && !(state.provider === 'aistudio' && isGeminiImageModel(state.geminiModel));
@@ -5629,6 +5762,7 @@
         academicEvidenceCount: academicProfile ? academicProfile.count : 0,
         academicEvidenceTokens: academicProfile ? academicProfile.fullEvidenceTokens : 0,
         retainForContinuation: true,
+        preserveModelStyle: state.generalAnswer && !academicSearchActive && !internetSearchActive && !state.fastMode && !state.realtimeDocWrite,
         messages: academicSearchActive
           ? [{ role: 'user', content: academicModelInput(text, pendingUser.academicQuery, splitAcademicResponse ? 1 : 0, !!reusableAcademic, academicProfile) }]
           : contextMessages(),
@@ -5648,7 +5782,9 @@
               MERMAID_DARK_MODE_PROMPT_RULE,
               'For a Mermaid request, return exactly one fenced mermaid code block and nothing else.'
             ].join(' ')
-          : [
+          : state.generalAnswer
+            ? originalAnswerInstruction()
+            : [
               'You are a capable conversational assistant. Answer in Korean unless the user requests another language.',
               writingStyleInstruction({ academic: false }),
               sentenceOnlyInstruction(),
@@ -5675,12 +5811,15 @@
       var reasoningStatus = extractModelStatus(result && result.reasoning ? String(result.reasoning) : '');
       if (reasoningStatus.notice && !responseStatus.notice) responseStatus.notice = reasoningStatus.notice;
       var reasoningText = reasoningStatus.answer;
-      var separatedResponse = separateEmbeddedReasoning(responseStatus.answer, reasoningText);
+      var preserveModelAnswer = state.generalAnswer && !academicSearchActive && !internetSearchActive && !state.fastMode && !state.realtimeDocWrite;
+      var separatedResponse = separateEmbeddedReasoning(responseStatus.answer, reasoningText, preserveModelAnswer);
       responseStatus.answer = separatedResponse.answer;
       reasoningText = separatedResponse.reasoning;
       if (!responseStatus.answer && !responseStatus.notice && !reasoningText) throw new Error('AI 응답이 비어 있습니다.');
       var sections = responseStatus.answer
-        ? parseAssistantSections(responseStatus.answer)
+        ? (preserveModelAnswer
+          ? { answer: responseStatus.answer, explanation: '', checklist: '', remaining: responseStatus.answer }
+          : parseAssistantSections(responseStatus.answer))
         : { answer: '', explanation: '', checklist: '', remaining: '' };
       if (academicSearchActive) {
         var visibleAcademicAnswer = extractVisibleAnswerBody(sections.answer, true);
@@ -5732,7 +5871,8 @@
         academicTotalParts: splitAcademicResponse ? 3 : null,
         academicPartComplete: splitAcademicResponse
           ? !!sections.answer && !responseStatus.notice && answerEndsCleanly(sections.answer) && academicPartChecklistComplete(sections.answer, 1)
-          : null
+          : null,
+        documentOnly: realtimeDocExclusive && !(result && Array.isArray(result.images) && result.images.length)
       };
       assistantMessage.continuationAvailable = splitAcademicResponse
         ? true
@@ -5833,6 +5973,7 @@
     } else {
       state.writingStyle = normalizeWritingStyle(storageGet(WRITING_STYLE_KEY, 'academic'));
     }
+    state.generalAnswer = storageGet(GENERAL_ANSWER_KEY, '0') === '1';
     var answerAppearanceDefaultRevision = storageGet(ANSWER_APPEARANCE_DEFAULT_REVISION_KEY, '');
     if (answerAppearanceDefaultRevision !== 'plain-light-v1') {
       state.answerAppearance = 'plain-light';
@@ -5864,12 +6005,22 @@
     state.openaiCompatibleModel = storageGet(OPENAI_COMPATIBLE_MODEL_KEY, storageGet('ss_openai_compatible_model_id', 'orcarouter/free'));
     // AI Jena starts from the user-selected start layout. Popup/fullscreen
     // positions are restored from the last saved coordinates.
-    state.startLayout = normalizeLayout(storageGet(START_LAYOUT_KEY, 'dock'));
+    var startLayoutDefaultRevision = storageGet(START_LAYOUT_DEFAULT_REVISION_KEY, '');
+    if (startLayoutDefaultRevision !== 'dock-alt2-v1') {
+      // Apply Alt+2/Dock as the default once, including for existing users.
+      // Later user-selected start layouts remain preserved.
+      state.startLayout = 'dock';
+      storageSet(START_LAYOUT_KEY, state.startLayout);
+      storageSet(START_LAYOUT_DEFAULT_REVISION_KEY, 'dock-alt2-v1');
+    } else {
+      state.startLayout = normalizeLayout(storageGet(START_LAYOUT_KEY, 'dock'));
+    }
     state.layout = normalizeLayout(storageGet(LAYOUT_KEY, state.startLayout));
     state.enabled = storageGet(ENABLED_KEY, '0') === '1';
     updateProviderUI();
     setProviderControlsOpen(state.providerControlsOpen);
     setWritingStyle(state.writingStyle, false);
+    setGeneralAnswer(state.generalAnswer, false);
     setAnswerAppearance(state.answerAppearance, false);
     setAnswerFontSize(state.answerFontSize);
     setResponseMode(state.responseMode);
@@ -5913,6 +6064,7 @@
       state.openaiModel = storageGet(OPENAI_MODEL_KEY, state.openaiModel);
       state.openaiCompatibleModel = storageGet(OPENAI_COMPATIBLE_MODEL_KEY, storageGet('ss_openai_compatible_model_id', state.openaiCompatibleModel));
       state.writingStyle = normalizeWritingStyle(storageGet(WRITING_STYLE_KEY, state.writingStyle));
+      state.generalAnswer = storageGet(GENERAL_ANSWER_KEY, state.generalAnswer ? '1' : '0') === '1';
       state.answerAppearance = normalizeAnswerAppearance(storageGet(ANSWER_APPEARANCE_KEY, state.answerAppearance));
       state.answerFontSize = normalizeAnswerFontSize(storageGet(ANSWER_FONT_SIZE_KEY, String(state.answerFontSize)));
       state.responseMode = storageGet(RESPONSE_MODE_KEY, state.responseMode) === 'reasoning' ? 'reasoning' : 'quick';
@@ -5929,6 +6081,7 @@
       state.enabled = storageGet(ENABLED_KEY, state.enabled ? '1' : '0') === '1';
       updateProviderUI();
       setWritingStyle(state.writingStyle, false);
+      setGeneralAnswer(state.generalAnswer, false);
       setAnswerAppearance(state.answerAppearance, false);
       setAnswerFontSize(state.answerFontSize);
       setResponseMode(state.responseMode);

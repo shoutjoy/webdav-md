@@ -46,6 +46,7 @@ const FIRST_RUN_AI_SETTINGS_DEFAULTS = Object.freeze({
     templateNewFileVisible: true,
     noteCoverInsertVisible: true,
     pdfMergeVisible: false,
+    recentWorkVisible: true,
     chromeSplitTabVisible: false,
     html2pptVisible: true,
     html2pptNameVisible: false,
@@ -140,7 +141,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260829-pages-local-search-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?v=20260911-floating-semantic-icons-1',
+    aiChat: './AI_App/aiChat/ai-chat.js?v=20260912-original-explainer-1',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260810-3'
@@ -680,6 +681,17 @@ const fileCreatedDisplay = document.getElementById('file-created-display');
 const dropZone = document.getElementById('drop-zone');
 const inputModal = document.getElementById('input-modal');
 let documentFileDropHandlersInstalled = false;
+
+function syncEditModeStateFromDom() {
+    const editVisible = !!(editorContainer && !editorContainer.classList.contains('hidden'));
+    const viewVisible = !!(viewerContainer && !viewerContainer.classList.contains('hidden'));
+
+    // The iframe bridge can restore surface visibility before the matching
+    // JavaScript flag. The surface the user can see is the source of truth.
+    if (editVisible && !viewVisible) isEditMode = true;
+    else if (viewVisible && !editVisible) isEditMode = false;
+    return isEditMode;
+}
 
 function isDocumentFileDrag(event) {
     const transfer = event && event.dataTransfer ? event.dataTransfer : null;
@@ -2080,6 +2092,92 @@ function initializeOptionalCodeMirrorPrototype() {
         });
 }
 
+const EDITOR_TOOLBAR_FLOATING_PANEL_IDS = [
+    'text-emphasis-quick-panel',
+    'heading-quick-panel',
+    'list-quick-panel',
+    'code-quote-quick-panel',
+    'mermaid-quick-panel',
+    'table-insert-picker',
+    'image-insert-quick-panel',
+    'math-quick-panel',
+    'tidy-quick-panel',
+    'footnote-quick-panel'
+];
+
+function positionOpenEditorToolbarPanels() {
+    const vertical = document.body.classList.contains('edit-toolbar-vertical');
+    const toolbar = document.getElementById('toolbar');
+    if (toolbar) toolbar.style.overflow = vertical ? 'visible' : '';
+    EDITOR_TOOLBAR_FLOATING_PANEL_IDS.forEach(function (id) {
+        const panel = document.getElementById(id);
+        if (!panel) return;
+        if (!vertical) {
+            panel.style.removeProperty('position');
+            panel.style.removeProperty('top');
+            panel.style.removeProperty('right');
+            panel.style.removeProperty('left');
+            panel.style.removeProperty('z-index');
+            return;
+        }
+        if (panel.classList.contains('hidden')) return;
+        const button = panel.parentElement && panel.parentElement.querySelector(':scope > button');
+        if (!button) return;
+        const buttonRect = button.getBoundingClientRect();
+        const panelRect = panel.getBoundingClientRect();
+        const top = Math.max(8, Math.min(buttonRect.top, window.innerHeight - panelRect.height - 8));
+        panel.style.position = 'fixed';
+        panel.style.top = top + 'px';
+        panel.style.right = Math.max(8, window.innerWidth - buttonRect.left + 8) + 'px';
+        panel.style.left = 'auto';
+        panel.style.zIndex = '100';
+    });
+}
+
+function registerEssentialEditorCommands() {
+    window.insertAtCursor = insertAtCursor;
+    window.applyHeading = applyHeading;
+    window.insertListAtSelection = insertListAtSelection;
+    window.handleTableInsertion = handleTableInsertion;
+    window.insertLiteralAtCursor = insertLiteralAtCursor;
+    window.openLinkModal = openLinkModal;
+    window.toggleTextEmphasisQuickMenu = toggleTextEmphasisQuickMenu;
+    window.closeTextEmphasisQuickMenu = closeTextEmphasisQuickMenu;
+    window.toggleHeadingQuickMenu = toggleHeadingQuickMenu;
+    window.closeHeadingQuickMenu = closeHeadingQuickMenu;
+    window.toggleListQuickMenu = toggleListQuickMenu;
+    window.closeListQuickMenu = closeListQuickMenu;
+    window.toggleCodeQuoteQuickMenu = toggleCodeQuoteQuickMenu;
+    window.closeCodeQuoteQuickMenu = closeCodeQuoteQuickMenu;
+    window.toggleMermaidQuickMenu = toggleMermaidQuickMenu;
+    window.closeMermaidQuickMenu = closeMermaidQuickMenu;
+
+    if (!window.__editorToolbarPanelPositionBound) {
+        window.__editorToolbarPanelPositionBound = true;
+        document.addEventListener('click', function () {
+            setTimeout(positionOpenEditorToolbarPanels, 0);
+        });
+        window.addEventListener('resize', positionOpenEditorToolbarPanels);
+        const toolbar = document.getElementById('toolbar');
+        if (toolbar) toolbar.addEventListener('scroll', positionOpenEditorToolbarPanels, { passive: true });
+    }
+
+    // Core typing behavior must not wait for database/settings startup.
+    bindEditorListKeyBehavior();
+    if (!window.__essentialHeadingShortcutBound) {
+        window.__essentialHeadingShortcutBound = true;
+        window.addEventListener('keydown', function (event) {
+            const level = getHeadingShortcutLevel(event);
+            if (!level) return;
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            applyHeading(level);
+        }, true);
+    }
+}
+
+registerEssentialEditorCommands();
+
 window.onload = async () => {
     try {
         if (window.MiniPreviewUI && window.MiniPreviewUI.ready && typeof window.MiniPreviewUI.ready.then === 'function') {
@@ -2336,18 +2434,14 @@ window.onload = async () => {
     const editToolsEl = document.getElementById('edit-tools');
     if (editToolsEl) {
         editToolsEl.addEventListener('click', function (e) {
-            if (isEditMode || !viewModeEditEnabled) return;
+            syncEditModeStateFromDom();
+            if (isEditMode) return;
             const target = e && e.target && e.target.closest ? e.target.closest('button') : null;
             if (!target) return;
             const vm = window.ViewModeEditTRT;
             if (!vm || typeof vm.parseToolbarAction !== 'function') return;
             const action = vm.parseToolbarAction(target);
             if (!action || !action.mutate) return;
-            if (e) {
-                if (typeof e.preventDefault === 'function') e.preventDefault();
-                if (typeof e.stopPropagation === 'function') e.stopPropagation();
-                if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-            }
             const selectedInView = typeof vm.getViewerSelectedText === 'function'
                 ? vm.getViewerSelectedText({
                     viewer: viewer,
@@ -2355,41 +2449,14 @@ window.onload = async () => {
                     enabled: viewModeEditEnabled
                 })
                 : '';
-            if (typeof vm.applyToolbarAction === 'function' && editorTextarea) {
-                const text = String(editorTextarea.value || currentMarkdown || '');
-                const hintPos = (function () {
-                    const fromClick = Number(viewClickMappedCaretPos);
-                    if (Number.isFinite(fromClick) && fromClick >= 0) return Math.max(0, Math.min(fromClick, text.length));
-                    if (viewerContainer) {
-                        const ratio = getScrollRatio(viewerContainer);
-                        return Math.max(0, Math.min(getMarkdownPositionFromRatio(ratio), text.length));
-                    }
-                    return Math.max(0, Math.min(Number(lastEditCaretPos) || 0, text.length));
-                })();
-                const applied = vm.applyToolbarAction({
-                    action: action,
-                    selectedText: selectedInView,
-                    sourceText: text,
-                    hintPos: hintPos,
-                    enterButtonInsertBr: enterButtonInsertBr,
-                    tidySeparatorSpacing: tidySeparatorSpacing
-                });
-                if (applied && applied.changed && typeof applied.text === 'string') {
-                    editorTextarea.value = applied.text;
-                    currentMarkdown = applied.text;
-                    lastEditCaretPos = Math.max(0, Math.min(Number(applied.caretPos) || 0, applied.text.length));
-                    performAutoSave();
-                    if (activeSidebarTab === 'toc') renderTOC();
-                    renderMarkdown();
-                    requestAnimationFrame(function () {
-                        if (isEditMode || !viewerContainer) return;
-                        const ratio = getMarkdownRatioFromCharPos(lastEditCaretPos);
-                        setScrollRatio(viewerContainer, ratio);
-                    });
-                    return;
-                }
+
+            // Do not consume the click here. Switch to the real editor, restore
+            // its selection, and let the button's original onclick run once.
+            // The former preview mutation path stopped propagation and could
+            // leave every toolbar command looking unresponsive.
+            if (!Number.isFinite(Number(viewClickMappedCaretPos))) {
+                viewClickMappedCaretPos = Math.max(0, Number(lastEditCaretPos) || 0);
             }
-            viewClickMappedCaretPos = Math.max(0, Number(lastEditCaretPos) || 0);
             toggleMode('edit');
             if (editorTextarea && selectedInView) {
                 const text = String(editorTextarea.value || '');
@@ -2401,12 +2468,6 @@ window.onload = async () => {
                     lastEditCaretPos = found;
                 }
             }
-            if (typeof vm.executeParsedAction === 'function') vm.executeParsedAction(action);
-            if (editorTextarea) lastEditCaretPos = Math.max(0, Number(editorTextarea.selectionStart) || 0);
-            requestAnimationFrame(function () {
-                if (!isEditMode || !editorTextarea) return;
-                try { editorTextarea.focus(); } catch (err) {}
-            });
         }, true);
     }
     if (viewer) {
@@ -2421,6 +2482,7 @@ window.onload = async () => {
 
     // Keyboard Shortcuts
     window.addEventListener('keydown', (e) => {
+        syncEditModeStateFromDom();
         const isAltGraph = typeof e.getModifierState === 'function' && e.getModifierState('AltGraph');
         if (window.EditorRule && typeof window.EditorRule.handleSelectionWrapByTypedPair === 'function') {
             const wrapped = window.EditorRule.handleSelectionWrapByTypedPair(e, {
@@ -7406,6 +7468,41 @@ function bindMermaidQuickMenuDismiss() {
 }
 
 // --- Helper Insertion (Modal) ---
+// `document.execCommand('insertText')` only works reliably while the textarea
+// owns the active browser selection. Toolbar/menu clicks move focus to a
+// button, so every command that depended on execCommand could silently do
+// nothing. Replace the textarea range directly instead; callers keep control
+// of their own caret, scrolling, autosave, and preview updates.
+function replaceEditorSelectionText(replacement) {
+    if (!editorTextarea) return false;
+    const value = String(editorTextarea.value || '');
+    const rawStart = Number(editorTextarea.selectionStart);
+    const rawEnd = Number(editorTextarea.selectionEnd);
+    const start = Math.max(0, Math.min(Number.isFinite(rawStart) ? rawStart : value.length, value.length));
+    const end = Math.max(start, Math.min(Number.isFinite(rawEnd) ? rawEnd : start, value.length));
+    const insertedText = String(replacement == null ? '' : replacement);
+
+    const cmView = editorTextarea.__mdCm6View;
+    if (cmView) {
+        cmView.dispatch({
+            changes: { from: start, to: end, insert: insertedText },
+            selection: { anchor: start + insertedText.length },
+            scrollIntoView: true,
+            userEvent: 'input'
+        });
+        return true;
+    }
+
+    if (typeof editorTextarea.setRangeText === 'function') {
+        editorTextarea.setRangeText(insertedText, start, end, 'end');
+    } else {
+        editorTextarea.value = value.substring(0, start) + insertedText + value.substring(end);
+        const nextPosition = start + insertedText.length;
+        editorTextarea.setSelectionRange(nextPosition, nextPosition);
+    }
+    return true;
+}
+
 function insertAtCursor(type) {
     if (!isEditMode || !editorTextarea) return;
     if (type === 'code') {
@@ -7466,7 +7563,7 @@ function insertAtCursor(type) {
 
     editorTextarea.focus();
     editorTextarea.setSelectionRange(start, end);
-    document.execCommand('insertText', false, replacement);
+    replaceEditorSelectionText(replacement);
 
     currentMarkdown = editorTextarea.value;
     editorTextarea.scrollTop = currentScrollTop;
@@ -7537,7 +7634,7 @@ function insertFencedCodeBlock(language) {
 
     editorTextarea.focus();
     editorTextarea.setSelectionRange(start, end);
-    document.execCommand('insertText', false, replacement);
+    replaceEditorSelectionText(replacement);
     currentMarkdown = editorTextarea.value;
     editorTextarea.scrollTop = currentScrollTop;
     editorTextarea.scrollLeft = currentScrollLeft;
@@ -7562,6 +7659,7 @@ function getHeadingShortcutLevel(event) {
 }
 
 function applyHeading(level) {
+    syncEditModeStateFromDom();
     const headingLevel = Number(level);
     if (!Number.isInteger(headingLevel) || headingLevel < 1 || headingLevel > 5 || !editorTextarea) return;
     // Heading hotkeys are global. Enter edit mode first so they also work while
@@ -7583,7 +7681,7 @@ function applyHeading(level) {
 
     editorTextarea.focus();
     editorTextarea.setSelectionRange(lineStart, lineEnd);
-    document.execCommand('insertText', false, replacement);
+    replaceEditorSelectionText(replacement);
 
     currentMarkdown = editorTextarea.value;
 
@@ -7644,7 +7742,7 @@ function handleTableInsertion() {
 
     editorTextarea.focus();
     editorTextarea.setSelectionRange(start, end);
-    document.execCommand('insertText', false, replacement);
+    replaceEditorSelectionText(replacement);
 
     currentMarkdown = editorTextarea.value;
     editorTextarea.scrollTop = scrollTop;
@@ -7654,6 +7752,7 @@ function handleTableInsertion() {
 }
 
 function insertListAtSelection(kind) {
+    syncEditModeStateFromDom();
     if (!isEditMode || !editorTextarea) {
         showToast('Use this in edit mode.');
         return;
@@ -7685,7 +7784,7 @@ function insertListAtSelection(kind) {
 
         editorTextarea.focus();
         editorTextarea.setSelectionRange(lineStart, lineEnd);
-        document.execCommand('insertText', false, replacement);
+        replaceEditorSelectionText(replacement);
         currentMarkdown = editorTextarea.value;
         editorTextarea.scrollTop = scrollTop;
         editorTextarea.scrollLeft = scrollLeft;
@@ -7905,7 +8004,7 @@ function insertCaptionHtmlAtCursor(html) {
     const replacement = before + html + after;
     editorTextarea.focus();
     editorTextarea.setSelectionRange(start, end);
-    document.execCommand('insertText', false, replacement);
+    replaceEditorSelectionText(replacement);
     currentMarkdown = editorTextarea.value;
     editorTextarea.scrollTop = scrollTop;
     editorTextarea.scrollLeft = scrollLeft;
@@ -7980,6 +8079,7 @@ function renumberNumberedSiblingsAfterIndent(text, lineStart, originalIndentLen,
 }
 
 function handleEditorListEnterKey(event) {
+    syncEditModeStateFromDom();
     if (!editorTextarea || !isEditMode) return false;
     const isEnterInput = event.key === 'Enter'
         || event.inputType === 'insertLineBreak'
@@ -8002,8 +8102,28 @@ function handleEditorListEnterKey(event) {
     event.preventDefault();
 
     if (!content.trim()) {
+        let replacement = '';
+        if (indent.length > 0) {
+            const parentIndent = indent.slice(0, Math.max(0, indent.length - 2));
+            let parentToken = getBulletMarkerByIndent(parentIndent.length);
+            if (/^\d+\.$/.test(token)) {
+                parentToken = '1.';
+                const previousLines = text.slice(0, lineStart).split('\n');
+                for (let index = previousLines.length - 1; index >= 0; index -= 1) {
+                    const previous = previousLines[index];
+                    if (!previous.trim()) continue;
+                    const match = previous.match(/^([ \t]*)([-*+]|\d+\.)[ \t]+/);
+                    if (!match || match[1].length < parentIndent.length) break;
+                    if (match[1].length === parentIndent.length) {
+                        if (/^\d+\.$/.test(match[2])) parentToken = (parseInt(match[2], 10) + 1) + '.';
+                        break;
+                    }
+                }
+            }
+            replacement = parentIndent + parentToken + ' ';
+        }
         editorTextarea.setSelectionRange(lineStart, lineEnd);
-        document.execCommand('insertText', false, '');
+        replaceEditorSelectionText(replacement);
         currentMarkdown = editorTextarea.value;
         renderMarkdown();
         if (activeSidebarTab === 'toc') renderTOC();
@@ -8017,7 +8137,7 @@ function handleEditorListEnterKey(event) {
     }
     const insertion = '\n' + indent + nextToken + ' ';
     editorTextarea.setSelectionRange(cursor, cursor);
-    document.execCommand('insertText', false, insertion);
+    replaceEditorSelectionText(insertion);
     currentMarkdown = editorTextarea.value;
     renderMarkdown();
     if (activeSidebarTab === 'toc') renderTOC();
@@ -8026,6 +8146,7 @@ function handleEditorListEnterKey(event) {
 }
 
 function handleEditorListTabKey(event) {
+    syncEditModeStateFromDom();
     if (!editorTextarea || !isEditMode) return false;
     if (event.key !== 'Tab' || event.ctrlKey || event.altKey || event.metaKey) return false;
     if (editorTextarea.selectionStart !== editorTextarea.selectionEnd) return false;
@@ -8068,7 +8189,7 @@ function handleEditorListTabKey(event) {
     }
 
     editorTextarea.setSelectionRange(lineStart, replacementEnd);
-    document.execCommand('insertText', false, replacementText);
+    replaceEditorSelectionText(replacementText);
 
     const cursorOffset = Math.max(0, cursor - lineStart);
     const safeOffset = Math.min(cursorOffset + (nextLine.length - line.length), nextLine.length);
@@ -8084,20 +8205,30 @@ function handleEditorListTabKey(event) {
 function bindEditorListKeyBehavior() {
     if (!editorTextarea || editorTextarea.__listKeyBehaviorBound) return;
     editorTextarea.__listKeyBehaviorBound = true;
-    editorTextarea.addEventListener('keydown', function (event) {
+    // CodeMirror replaces the visible textarea with a contenteditable child.
+    // Capture at their shared container before CodeMirror's default Enter/Tab.
+    const inputRoot = editorTextarea.parentElement || editorTextarea;
+    const isEditorInput = function (event) {
+        return event.target === editorTextarea || !!(event.target && event.target.closest
+            && event.target.closest('#md-cm6-editor .cm-content'));
+    };
+    inputRoot.addEventListener('keydown', function (event) {
+        if (!isEditorInput(event) || event.defaultPrevented || event.isComposing) return;
         if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && (event.key === 'Enter' || event.code === 'Enter')) {
             event.preventDefault();
+            event.stopPropagation();
             insertLiteralAtCursor('\n\n<div class="page-break"></div>\n\n');
             return;
         }
-        if (handleEditorListEnterKey(event)) return;
-        if (handleEditorListTabKey(event)) return;
-    });
-    editorTextarea.addEventListener('beforeinput', function (event) {
-        if (event.defaultPrevented) return;
+        if (handleEditorListEnterKey(event) || handleEditorListTabKey(event)) {
+            event.stopPropagation();
+        }
+    }, true);
+    inputRoot.addEventListener('beforeinput', function (event) {
+        if (!isEditorInput(event) || event.defaultPrevented || event.isComposing) return;
         if (event.inputType !== 'insertLineBreak' && event.inputType !== 'insertParagraph') return;
-        handleEditorListEnterKey(event);
-    });
+        if (handleEditorListEnterKey(event)) event.stopPropagation();
+    }, true);
 }
 
 function bindWheelZoomShortcuts() {
@@ -8139,7 +8270,7 @@ function insertLiteralAtCursor(literal) {
     const currentScrollTop = editorTextarea.scrollTop;
     editorTextarea.focus();
     editorTextarea.setSelectionRange(start, end);
-    document.execCommand('insertText', false, literal);
+    replaceEditorSelectionText(literal);
     currentMarkdown = editorTextarea.value;
     editorTextarea.scrollTop = currentScrollTop;
     editorTextarea.setSelectionRange(start + literal.length, start + literal.length);
@@ -8173,7 +8304,7 @@ function insertFootnoteTemplate() {
 
     // Insert marker at current selection via undo-friendly path.
     editorTextarea.setSelectionRange(start, end);
-    document.execCommand('insertText', false, marker);
+    replaceEditorSelectionText(marker);
     let workingText = editorTextarea.value;
 
     // Append definition only when missing.
@@ -8181,7 +8312,7 @@ function insertFootnoteTemplate() {
         const appendText = (workingText.endsWith('\n') ? '' : '\n') + '\n' + footnoteDef;
         const tail = editorTextarea.value.length;
         editorTextarea.setSelectionRange(tail, tail);
-        document.execCommand('insertText', false, appendText);
+        replaceEditorSelectionText(appendText);
         workingText = editorTextarea.value;
     }
 
@@ -8387,7 +8518,7 @@ function convertSelectionPatternToTable() {
 
     editorTextarea.focus();
     editorTextarea.setSelectionRange(start, end);
-    document.execCommand('insertText', false, replacement);
+    replaceEditorSelectionText(replacement);
 
     currentMarkdown = editorTextarea.value;
     editorTextarea.setSelectionRange(start + replacement.length, start + replacement.length);
@@ -8422,7 +8553,7 @@ function convertSelectionMarkdownToHtml() {
     const scrollTop = editorTextarea.scrollTop;
     editorTextarea.focus();
     editorTextarea.setSelectionRange(start, end);
-    document.execCommand('insertText', false, convertedHtml);
+    replaceEditorSelectionText(convertedHtml);
 
     currentMarkdown = editorTextarea.value;
     editorTextarea.scrollTop = scrollTop;
@@ -8705,7 +8836,7 @@ function insertMermaidBlockFromExternal(codeText) {
 
     editorTextarea.focus();
     editorTextarea.setSelectionRange(start, end);
-    document.execCommand('insertText', false, replacement);
+    replaceEditorSelectionText(replacement);
     currentMarkdown = editorTextarea.value;
     performAutoSave();
     if (activeSidebarTab === 'toc') renderTOC();
@@ -10919,7 +11050,7 @@ function wrapSelectionWithDelimiters(left, right, placeholder) {
 
     editorTextarea.focus();
     editorTextarea.setSelectionRange(start, end);
-    document.execCommand('insertText', false, replacement);
+    replaceEditorSelectionText(replacement);
     currentMarkdown = editorTextarea.value;
     editorTextarea.scrollTop = scrollTop;
     editorTextarea.scrollLeft = scrollLeft;
@@ -11540,7 +11671,7 @@ function insertMarkdownTableBySize(rowsInput, colsInput) {
     const replacement = prefix + lines.join('\n') + suffix;
     editorTextarea.focus();
     editorTextarea.setSelectionRange(start, end);
-    document.execCommand('insertText', false, replacement);
+    replaceEditorSelectionText(replacement);
     currentMarkdown = editorTextarea.value;
     editorTextarea.scrollTop = scrollTop;
     const pos = start + replacement.length;
@@ -11679,6 +11810,24 @@ function getPdfMergeVisibleFromSettings(settings) {
 
 function getChromeSplitTabVisibleFromSettings(settings) {
     return !!(settings && settings.chromeSplitTabVisible === true);
+}
+
+function getRecentWorkVisibleFromSettings(settings) {
+    return !settings || settings.recentWorkVisible !== false;
+}
+
+function applyRecentWorkVisibility(settings) {
+    const enabled = getRecentWorkVisibleFromSettings(settings);
+    const menuItem = document.getElementById('open-recent-work-menu-item');
+    if (menuItem) menuItem.classList.toggle('hidden', !enabled);
+    if (!enabled) setOpenSourceMenuVisible(false);
+}
+
+async function toggleRecentWorkVisibilitySection() {
+    const check = document.getElementById('recent-work-visible');
+    const enabled = !!(check && check.checked);
+    applyRecentWorkVisibility({ recentWorkVisible: enabled });
+    try { await setAiSettings({ recentWorkVisible: enabled }); } catch (e) { console.error(e); }
 }
 
 function applyChromeSplitTabVisibility(settings) {
@@ -12594,7 +12743,7 @@ function insertTemplateTextAtCursor(templateText) {
 
     editorTextarea.focus();
     editorTextarea.setSelectionRange(start, end);
-    document.execCommand('insertText', false, replacement);
+    replaceEditorSelectionText(replacement);
     currentMarkdown = editorTextarea.value;
     renderMarkdown();
     renderTOC();
@@ -13520,6 +13669,8 @@ async function persistAiSettingsFromModal() {
     const noteCoverInsertVisible = !!(noteCoverInsertVisibleEl && noteCoverInsertVisibleEl.checked);
     const pdfMergeVisibleEl = document.getElementById('pdf-merge-visible');
     const pdfMergeVisible = !!(pdfMergeVisibleEl && pdfMergeVisibleEl.checked);
+    const recentWorkVisibleEl = document.getElementById('recent-work-visible');
+    const recentWorkVisible = !(recentWorkVisibleEl && recentWorkVisibleEl.checked === false);
     const chromeSplitTabVisibleEl = document.getElementById('chrome-split-tab-visible');
     const chromeSplitTabVisible = !!(chromeSplitTabVisibleEl && chromeSplitTabVisibleEl.checked);
     const githubTokenEl = document.getElementById('github-token-input');
@@ -13553,6 +13704,7 @@ async function persistAiSettingsFromModal() {
         templateNewFileVisible: templateNewFileVisible,
         noteCoverInsertVisible: noteCoverInsertVisible,
         pdfMergeVisible: pdfMergeVisible,
+        recentWorkVisible: recentWorkVisible,
         chromeSplitTabVisible: chromeSplitTabVisible,
         templateCustomList: normalizeTemplateCustomList(templateCustomList).map(function (item) {
             return { id: item.id, name: item.name, desc: item.desc, content: item.content };
@@ -16381,7 +16533,7 @@ function insertAIChatTextIntoDocument(text, mode) {
     pushReplaceUndoSnapshot();
     editorTextarea.focus();
     editorTextarea.setSelectionRange(start, end);
-    const applied = document.execCommand('insertText', false, insertion);
+    const applied = replaceEditorSelectionText(insertion);
     if (!applied) {
         editorTextarea.value = before + insertion + after;
         editorTextarea.dispatchEvent(new Event('input', { bubbles: true }));
@@ -17001,7 +17153,9 @@ window.AIChatBridge = Object.freeze({
             const reasoningMode = request.mode === 'reasoning' && request.academicSearch !== true;
             const continuationMode = request.continuation === true;
             const splitAcademicMode = request.splitAcademicResponse === true;
-            const modeInstruction = request.academicSearch
+            const modeInstruction = request.preserveModelStyle === true
+                ? ''
+                : request.academicSearch
                 ? ''
                 : continuationMode
                 ? '이전 응답에서 아직 작성하지 않은 본문만 이어서 작성하세요. 질문·체크리스트·계획·작업 지시·모델의 생각·이미 작성한 문장은 출력하지 마세요.'
@@ -17617,6 +17771,8 @@ function restoreFeatureSettings(settings) {
     if (noteCoverInsertCheck) noteCoverInsertCheck.checked = settings.noteCoverInsertVisible === true;
     const pdfMergeCheck = document.getElementById('pdf-merge-visible');
     if (pdfMergeCheck) pdfMergeCheck.checked = settings.pdfMergeVisible === true;
+    const recentWorkCheck = document.getElementById('recent-work-visible');
+    if (recentWorkCheck) recentWorkCheck.checked = getRecentWorkVisibleFromSettings(settings);
     const chromeSplitTabCheck = document.getElementById('chrome-split-tab-visible');
     if (chromeSplitTabCheck) chromeSplitTabCheck.checked = getChromeSplitTabVisibleFromSettings(settings);
     const html2pptCheck = document.getElementById('html2ppt-visible');
@@ -17698,6 +17854,8 @@ async function loadAiSettingsToUI() {
         if (noteCoverInsertCheckEmpty) noteCoverInsertCheckEmpty.checked = false;
         const pdfMergeCheckEmpty = document.getElementById('pdf-merge-visible');
         if (pdfMergeCheckEmpty) pdfMergeCheckEmpty.checked = false;
+        const recentWorkCheckEmpty = document.getElementById('recent-work-visible');
+        if (recentWorkCheckEmpty) recentWorkCheckEmpty.checked = true;
         const chromeSplitTabCheckEmpty = document.getElementById('chrome-split-tab-visible');
         if (chromeSplitTabCheckEmpty) chromeSplitTabCheckEmpty.checked = false;
         const html2pptCheckEmpty = document.getElementById('html2ppt-visible');
@@ -17766,6 +17924,7 @@ async function loadAiSettingsToUI() {
         applyTemplateVisibility({ templateVisible: false });
         applyNoteCoverInsertVisibility({ noteCoverInsertVisible: false });
         applyPdfMergeVisibility({ pdfMergeVisible: false });
+        applyRecentWorkVisibility({ recentWorkVisible: true });
         applyChromeSplitTabVisibility({ chromeSplitTabVisible: false });
     applyHtml2pptVisibility({ html2pptVisible: false, html2pptNameVisible: false });
     applyFmaViewerVisibility({ fmaViewerVisible: false, fmaViewerNameVisible: false });
@@ -17958,6 +18117,7 @@ async function initAiVisibility() {
     applyTemplateVisibility(settings || { templateVisible: false });
     applyNoteCoverInsertVisibility(settings || { noteCoverInsertVisible: false });
     applyPdfMergeVisibility(settings || { pdfMergeVisible: false });
+    applyRecentWorkVisibility(settings || { recentWorkVisible: true });
     applyChromeSplitTabVisibility(settings || { chromeSplitTabVisible: false });
     applyHtml2pptVisibility(settings || { html2pptVisible: false, html2pptNameVisible: false });
     applyFmaViewerVisibility(settings || { fmaViewerVisible: false, fmaViewerNameVisible: false });
@@ -19219,7 +19379,7 @@ function replaceTextareaContentWithUndo(nextText, selectionStart, selectionEnd) 
     if (normalizedText !== String(editorTextarea.value || '')) pushReplaceUndoSnapshot();
     editorTextarea.focus();
     editorTextarea.setSelectionRange(0, editorTextarea.value.length);
-    const applied = document.execCommand('insertText', false, normalizedText);
+    const applied = replaceEditorSelectionText(normalizedText);
     if (!applied) editorTextarea.value = normalizedText;
     if (typeof selectionStart === 'number' && typeof selectionEnd === 'number') {
         const max = editorTextarea.value.length;
@@ -19372,7 +19532,7 @@ function moveLineUp() {
 
     editorTextarea.setSelectionRange(prevLineStart, lineEnd);
     const replacement = currentLineText + '\n' + prevLineText.replace(/\n$/, '');
-    document.execCommand('insertText', false, replacement);
+    replaceEditorSelectionText(replacement);
 
     currentMarkdown = editorTextarea.value;
     performAutoSave();
@@ -19398,7 +19558,7 @@ function moveLineDown() {
 
     editorTextarea.setSelectionRange(lineStart, nextLineEnd);
     const replacement = nextLineText + '\n' + currentLineText;
-    document.execCommand('insertText', false, replacement);
+    replaceEditorSelectionText(replacement);
 
     currentMarkdown = editorTextarea.value;
     performAutoSave();
@@ -19418,7 +19578,7 @@ function copyLineDown() {
     let currentLineText = text.substring(lineStart, lineEnd);
 
     editorTextarea.setSelectionRange(lineEnd, lineEnd);
-    document.execCommand('insertText', false, '\n' + currentLineText);
+    replaceEditorSelectionText('\n' + currentLineText);
 
     currentMarkdown = editorTextarea.value;
     performAutoSave();

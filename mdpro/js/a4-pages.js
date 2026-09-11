@@ -693,8 +693,22 @@
         if (viewRevision !== text || !viewPages.length) {
             if (typeof renderMarkdown === 'function') await renderMarkdown({ force: true });
         }
-        if (source.value !== text || win.closed) return true;
-        if (window.A4Presentation && viewPages.length) window.A4Presentation.mount(win, viewPages);
+        if (source.value !== text || win.closed) return false;
+
+        // Do not report a successful A4 preview until there are real pages to
+        // mount. While editing, the main viewer is hidden and a render can be
+        // superseded by a newer keystroke. The old behaviour returned `true`
+        // even with zero pages, so the PV caller stopped and left a blank
+        // window until the user opened View mode. Re-read the rendered viewer
+        // after the forced render and let the caller use its live Markdown
+        // fallback when pagination is not ready yet.
+        const renderedPages = Array.from(document.querySelectorAll?.('#viewer > .a4-sheet') || []);
+        if (renderedPages.length && document.getElementById('viewer')?.dataset.a4Revision === text) {
+            viewRevision = text;
+            viewPages = renderedPages;
+        }
+        if (!window.A4Presentation || !viewPages.length || viewRevision !== text) return false;
+        window.A4Presentation.mount(win, viewPages);
         return true;
     }
 

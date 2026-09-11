@@ -225,7 +225,8 @@ body.theme-light .ai-chat-panel.layout-floating {
 }
 
 .ai-chat-panel.layout-floating::after { display: none; }
-.ai-chat-panel.layout-floating .ai-chat-header { padding-top: 11px; }
+.ai-chat-panel.layout-floating .ai-chat-header { padding-top: 11px; cursor: grab; touch-action: none; }
+.ai-chat-panel.layout-floating.dragging .ai-chat-header { cursor: grabbing; }
 .ai-chat-panel.layout-floating .ai-chat-composer {
   margin: 0 12px 12px;
   padding: 9px 10px;
@@ -618,13 +619,30 @@ html.ai-chat-page-pushed .ai-chat-panel.layout-popup {
 .ai-chat-provider-row button { width: 34px; height: 34px; padding: 0; font-size: 18px; }
 .ai-chat-writing-style-row {
   display: grid;
-  grid-template-columns: minmax(0, 220px) minmax(0, 170px) auto;
-  gap: 10px;
+  grid-template-columns: minmax(0, 180px) auto minmax(0, 160px) auto;
+  gap: 8px;
   align-items: end;
   justify-content: start;
   padding: 3px 11px 10px;
   background: var(--chat-surface);
 }
+.ai-chat-writing-style-control {
+  min-width: 0;
+}
+.ai-chat-general-answer-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 34px;
+  margin-bottom: 7px;
+  font-size: 10px !important;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+.ai-chat-general-answer-toggle input { margin: 0; accent-color: var(--chat-accent, #6366f1); }
+.ai-chat-general-answer-toggle input:disabled + span { opacity: .55; }
 .ai-chat-insert-expand-toggle {
   display: inline-flex;
   align-items: center;
@@ -1451,6 +1469,7 @@ body.theme-light .ai-chat-message-attachments figure,
 body.theme-light .ai-chat-message-file { border-color: #c4cfdf; background: #f3f6fb; color: #27364d; }
 body.theme-light .ai-chat-message-attachments figcaption { color: #475569; }
 body.theme-light .ai-chat-insert-expand-toggle { color: #475569; }
+body.theme-light .ai-chat-general-answer-toggle { color: #475569; }
 body.theme-light .ai-chat-insert-expanded-label { color: #0f766e; }
 body.theme-light .ai-chat-insert-expanded button { color: #3730a3; }
 body.theme-light .ai-chat-insert-expanded button:hover { background: #eef2ff; border-color: #a5b4fc; }
@@ -1594,6 +1613,7 @@ body.theme-light .ai-chat-message-attachments figure,
 body.theme-light .ai-chat-message-file { border-color: #48484a; background: #2c2c2e; color: #e5e5ea; }
 body.theme-light .ai-chat-message-attachments figcaption,
 body.theme-light .ai-chat-insert-expand-toggle { color: #a1a1a6; }
+body.theme-light .ai-chat-general-answer-toggle { color: #a1a1a6; }
 body.theme-light .ai-chat-message.user .ai-chat-message-content { border-color: #2997ff; background: #0a84ff; color: #fff; }
 
 /* The assistant answer is intentionally unchanged from the original light mode. */
@@ -1657,7 +1677,7 @@ body.theme-light .ai-chat-panel.image-model-selected .ai-chat-mode-row { backgro
   .ai-chat-mobile-size-handle.dragging span { background: #22d3ee; }
   .ai-chat-provider-row { grid-template-columns: minmax(0, 1fr) 34px; }
   .ai-chat-provider-row label:first-child { grid-column: 1 / -1; }
-  .ai-chat-writing-style-row { grid-template-columns: minmax(0, 1fr); }
+  .ai-chat-writing-style-row { grid-template-columns: minmax(0, 1fr) auto; }
   .ai-chat-insert-expand-toggle { margin-bottom: 0; }
   .ai-chat-mode-row { flex-wrap: wrap; }
   .ai-chat-mode-row small { width: 100%; text-align: left; }
@@ -2096,6 +2116,28 @@ body.theme-light .ai-chat-compose-actions .ai-chat-realtime-sentence-toggle.acti
 .ai-chat-floating-toggle,
 .ai-chat-floating-settings { display: none; }
 
+.ai-chat-floating-drag-handle { display: none; }
+.ai-chat-panel.layout-floating .ai-chat-floating-drag-handle {
+  grid-column: 1 / -1;
+  display: grid;
+  width: 100%;
+  height: 12px;
+  place-items: center;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.ai-chat-panel.layout-floating .ai-chat-floating-drag-handle span {
+  width: 56px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(103, 232, 249, .55);
+  box-shadow: 0 0 0 1px rgba(8, 47, 73, .8), 0 2px 8px rgba(0, 0, 0, .35);
+}
+.ai-chat-panel.layout-floating .ai-chat-floating-drag-handle:hover span,
+.ai-chat-panel.layout-floating .ai-chat-floating-drag-handle:focus-visible span { background: #67e8f9; }
+.ai-chat-panel.layout-floating.dragging .ai-chat-floating-drag-handle { cursor: grabbing; }
+
 .ai-chat-panel.layout-floating.floating-compact,
 body.theme-light .ai-chat-panel.layout-floating.floating-compact {
   height: auto;
@@ -2226,4 +2268,26 @@ body.theme-light .ai-chat-panel.layout-floating.floating-compact {
   .ai-chat-panel.layout-floating .ai-chat-mode-row,
   .ai-chat-panel.layout-floating .ai-chat-compose-actions { grid-column: 1; justify-content: center; }
   .ai-chat-panel.layout-floating .ai-chat-mode-row { overflow-x: auto; justify-content: flex-start; }
+}
+
+/* UI contract: the primary AI Jena menu must remain reachable in every
+   expanded layout. Keep this final override below theme/responsive rules. */
+.ai-chat-panel:not(.floating-compact) .ai-chat-header-actions {
+  display: flex !important;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 5px;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+.ai-chat-panel:not(.floating-compact) .ai-chat-header-actions > .ai-chat-icon-action,
+.ai-chat-panel:not(.floating-compact) .ai-chat-header-actions > .ai-chat-layout-menu-wrap,
+.ai-chat-panel:not(.floating-compact) .ai-chat-header-actions > .ai-chat-layout-menu-wrap > .ai-chat-icon-action {
+  display: inline-flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+.ai-chat-panel:not(.floating-compact) .ai-chat-header > div:first-child {
+  flex: 1 1 auto;
+  min-width: 72px;
 }

@@ -449,6 +449,7 @@
                     options: {
                         models: aiJenaModels,
                         writingStyle: readValue('ss_ai_chat_writing_style', 'academic'),
+                        generalAnswer: readValue('ss_ai_chat_general_answer', '0') === '1',
                         responseMode: readValue('ss_ai_chat_response_mode', 'quick'),
                         showReasoning: readValue('ss_ai_chat_show_reasoning', '0') === '1',
                         academicSearchEnabled: readValue('ss_ai_chat_academic_search_enabled', '0') === '1',
@@ -563,6 +564,7 @@
             writeRestoredValue('ss_ai_chat_deepseek_model', models.deepseek, 256);
             writeRestoredValue('ss_ai_chat_openai_model', models.openai, 256);
             writeRestoredValue('ss_ai_chat_writing_style', options.writingStyle, 80);
+            writeRestoredValue('ss_ai_chat_general_answer', options.generalAnswer === true ? '1' : '0', 8);
             writeRestoredValue('ss_ai_chat_response_mode', options.responseMode, 80);
             writeRestoredValue('ss_ai_chat_show_reasoning', options.showReasoning === true ? '1' : '0', 8);
             writeRestoredValue('ss_ai_chat_academic_search_enabled', options.academicSearchEnabled === true ? '1' : '0', 8);

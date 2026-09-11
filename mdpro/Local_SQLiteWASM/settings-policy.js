@@ -17,6 +17,7 @@
         templateVisible: ['features', 'global', ['boolean'], 16],
         noteCoverInsertVisible: ['features', 'global', ['boolean'], 16],
         pdfMergeVisible: ['features', 'global', ['boolean'], 16],
+        recentWorkVisible: ['features', 'global', ['boolean'], 16],
         html2pptVisible: ['features', 'global', ['boolean'], 16],
         html2pptNameVisible: ['features', 'global', ['boolean'], 16],
         fmaViewerVisible: ['features', 'global', ['boolean'], 16],

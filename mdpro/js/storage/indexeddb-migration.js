@@ -15,6 +15,7 @@
         templateVisible: ['features', 'global'], templateNewFileVisible: ['features', 'global'],
         noteCoverInsertVisible: ['features', 'global'],
         pdfMergeVisible: ['features', 'global'],
+        recentWorkVisible: ['features', 'global'],
         chromeSplitTabVisible: ['features', 'global'],
         html2pptVisible: ['features', 'global'],
         html2pptNameVisible: ['features', 'global'], fmaViewerVisible: ['features', 'global'],

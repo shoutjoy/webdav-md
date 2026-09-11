@@ -27,10 +27,16 @@
     }
 
     function theme(win) {
-        if (!win || win.closed || !win.document) return;
+        if (!win || win.closed || !win.document) return false;
+        // A newly opened popup can replace its document between document.write
+        // and load. Keep one body reference so a transient second lookup cannot
+        // turn null between the readiness check and the class updates.
+        const body = win.document.body;
+        if (!body || !body.classList) return false;
         const light = !!document.getElementById('drop-zone')?.classList.contains('document-light-mode');
-        win.document.body.classList.toggle('a4-document-light', light);
-        win.document.body.classList.toggle('a4-document-dark', !light);
+        body.classList.toggle('a4-document-light', light);
+        body.classList.toggle('a4-document-dark', !light);
+        return true;
     }
 
     function renderInk(session, page, svg) {
