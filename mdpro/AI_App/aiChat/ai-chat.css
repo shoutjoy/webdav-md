@@ -672,11 +672,13 @@ html.ai-chat-page-pushed .ai-chat-panel.layout-popup {
 
 .ai-chat-mode-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 6px;
   min-width: 0;
   padding: 8px 1px 1px;
+  overflow-x: auto;
+  overflow-y: hidden;
   background: transparent;
 }
 .ai-chat-mode-row > span { color: var(--chat-muted); font-size: 11px; white-space: nowrap; }
@@ -1679,7 +1681,7 @@ body.theme-light .ai-chat-panel.image-model-selected .ai-chat-mode-row { backgro
   .ai-chat-provider-row label:first-child { grid-column: 1 / -1; }
   .ai-chat-writing-style-row { grid-template-columns: minmax(0, 1fr) auto; }
   .ai-chat-insert-expand-toggle { margin-bottom: 0; }
-  .ai-chat-mode-row { flex-wrap: wrap; }
+  .ai-chat-mode-row { flex-wrap: nowrap; }
   .ai-chat-mode-row small { width: 100%; text-align: left; }
   .ai-chat-panel.layout-fullscreen { inset: 2px; border-radius: 8px; }
   .ai-chat-panel.layout-fullscreen .ai-chat-history-sidebar { position: absolute; z-index: 8; top: 0; bottom: 0; left: 0; width: min(var(--ai-chat-history-width, 270px), 82vw); box-shadow: 8px 0 24px rgba(0,0,0,.4); }

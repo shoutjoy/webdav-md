@@ -1,8 +1,10 @@
 'use strict';
 
 const CACHE_PREFIX = 'md-viewer-pwa-';
-const CACHE_VERSION = '20260816-1';
-const STATIC_CACHE = CACHE_PREFIX + CACHE_VERSION;
+const CACHE_VERSION = '20260912-cache-cleanup-1';
+const STATIC_CACHE = CACHE_PREFIX + 'static-' + CACHE_VERSION;
+const RUNTIME_CACHE = CACHE_PREFIX + 'runtime-' + CACHE_VERSION;
+const MAX_RUNTIME_ENTRIES = 80;
 const CORE_ASSETS = [
   './',
   './index.html',
@@ -30,10 +32,35 @@ async function cacheCoreAssets() {
 async function removeOldCaches(includeCurrent) {
   const keys = await caches.keys();
   const targets = keys.filter(function (key) {
-    return key.startsWith(CACHE_PREFIX) && (includeCurrent || key !== STATIC_CACHE);
+    return key.startsWith(CACHE_PREFIX)
+      && (includeCurrent || (key !== STATIC_CACHE && key !== RUNTIME_CACHE));
   });
   await Promise.all(targets.map(function (key) { return caches.delete(key); }));
   return targets.length;
+}
+
+async function matchCachedAsset(request) {
+  return (await caches.match(request)) || (await caches.match(request, { ignoreSearch: true }));
+}
+
+async function cacheLatestRuntimeAsset(request, response) {
+  const cache = await caches.open(RUNTIME_CACHE);
+  const requestUrl = new URL(request.url);
+  const keys = await cache.keys();
+  const obsolete = keys.filter(function (cachedRequest) {
+    const cachedUrl = new URL(cachedRequest.url);
+    return cachedUrl.origin === requestUrl.origin
+      && cachedUrl.pathname === requestUrl.pathname
+      && cachedUrl.search !== requestUrl.search;
+  });
+  await Promise.all(obsolete.map(function (cachedRequest) { return cache.delete(cachedRequest); }));
+  await cache.put(request, response);
+
+  const currentKeys = await cache.keys();
+  const overflow = Math.max(0, currentKeys.length - MAX_RUNTIME_ENTRIES);
+  await Promise.all(currentKeys.slice(0, overflow).map(function (cachedRequest) {
+    return cache.delete(cachedRequest);
+  }));
 }
 
 self.addEventListener('install', function (event) {
@@ -68,21 +95,21 @@ self.addEventListener('fetch', function (event) {
     return;
   }
 
-  const cacheableDestination = ['script', 'style', 'image', 'font'].includes(request.destination);
+  const cacheableDestination = ['script', 'style', 'font'].includes(request.destination);
   if (!cacheableDestination) return;
 
-  event.respondWith(caches.match(request).then(function (cached) {
-    const network = fetch(request).then(function (response) {
+  event.respondWith((async function () {
+    const cached = await matchCachedAsset(request);
+    try {
+      const response = await fetch(request);
       if (response && response.ok && response.type === 'basic') {
-        const copy = response.clone();
-        event.waitUntil(caches.open(STATIC_CACHE).then(function (cache) {
-          return cache.put(request, copy);
-        }));
+        event.waitUntil(cacheLatestRuntimeAsset(request, response.clone()));
       }
       return response;
-    }).catch(function () { return cached || Response.error(); });
-    return cached || network;
-  }));
+    } catch (error) {
+      return cached || Response.error();
+    }
+  })());
 });
 
 self.addEventListener('message', function (event) {
