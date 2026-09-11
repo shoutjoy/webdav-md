@@ -36,3 +36,27 @@ test('mode button hints match shortcuts', () => {
     assert.match(html, /id="btn-edit" title="Ctrl\+1" aria-keyshortcuts="Control\+1"/);
     assert.match(html, /id="btn-view" title="Ctrl\+2" aria-keyshortcuts="Control\+2"/);
 });
+
+test('heading shortcuts cover Ctrl+Alt+1 through Ctrl+Alt+5', () => {
+    const handlerStart = source.indexOf('// Ctrl + Alt + 1, 2, 3, 4, 5 for Headings');
+    const handlerEnd = source.indexOf('// Ctrl + 1 for Edit mode', handlerStart);
+    const handler = source.slice(handlerStart, handlerEnd);
+    assert.match(handler, /getHeadingShortcutLevel\(e\)/);
+
+    const helperStart = source.indexOf('function getHeadingShortcutLevel(event)');
+    const helperEnd = source.indexOf('\nfunction applyHeading(level)', helperStart);
+    const helperSource = source.slice(helperStart, helperEnd);
+    const context = {};
+    vm.runInNewContext(`${helperSource}; this.getHeadingShortcutLevel = getHeadingShortcutLevel;`, context);
+    for (let level = 1; level <= 5; level += 1) {
+        assert.equal(context.getHeadingShortcutLevel({ ctrlKey: true, altKey: true, shiftKey: false, metaKey: false, code: `Digit${level}`, key: '' }), level);
+    }
+    assert.equal(context.getHeadingShortcutLevel({ ctrlKey: true, altKey: true, shiftKey: true, metaKey: false, code: 'Digit1' }), 0);
+});
+
+test('heading application enters edit mode when invoked from preview', () => {
+    const applyStart = source.indexOf('function applyHeading(level)');
+    const applyEnd = source.indexOf('\nfunction handleTableInsertion()', applyStart);
+    const applySource = source.slice(applyStart, applyEnd);
+    assert.match(applySource, /if \(!isEditMode\) toggleMode\('edit'\)/);
+});

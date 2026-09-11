@@ -33,6 +33,8 @@
             { id: 'h1', label: 'Heading H1', shortcut: 'Ctrl+Alt+1', run: function () { applyHeading(1); } },
             { id: 'h2', label: 'Heading H2', shortcut: 'Ctrl+Alt+2', run: function () { applyHeading(2); } },
             { id: 'h3', label: 'Heading H3', shortcut: 'Ctrl+Alt+3', run: function () { applyHeading(3); } },
+            { id: 'h4', label: 'Heading H4', shortcut: 'Ctrl+Alt+4', run: function () { applyHeading(4); } },
+            { id: 'h5', label: 'Heading H5', shortcut: 'Ctrl+Alt+5', run: function () { applyHeading(5); } },
             { id: 'list_bullet', label: 'Bullet List', shortcut: 'Alt+5', run: function () { insertListAtSelection('bullet'); } },
             { id: 'list_number', label: 'Number List', shortcut: 'Alt+6', run: function () { insertListAtSelection('number'); } },
             { id: 'code', label: 'Code Block', shortcut: 'Alt+C', run: function () { insertAtCursor('code'); } },
@@ -172,6 +174,8 @@
             h1: 'applyHeading(1);',
             h2: 'applyHeading(2);',
             h3: 'applyHeading(3);',
+            h4: 'applyHeading(4);',
+            h5: 'applyHeading(5);',
             list_bullet: 'insertListAtSelection("bullet");',
             list_number: 'insertListAtSelection("number");',
             code: 'insertAtCursor("code");',
@@ -717,6 +721,8 @@
             'applyHeading(1)': 'h1',
             'applyHeading(2)': 'h2',
             'applyHeading(3)': 'h3',
+            'applyHeading(4)': 'h4',
+            'applyHeading(5)': 'h5',
             "insertListAtSelection('bullet')": 'list_bullet',
             "insertListAtSelection('number')": 'list_number',
             "insertAtCursor('code')": 'code',
@@ -745,6 +751,8 @@
         if (e.ctrlKey && e.altKey && !e.shiftKey && key === '1') return 'h1';
         if (e.ctrlKey && e.altKey && !e.shiftKey && key === '2') return 'h2';
         if (e.ctrlKey && e.altKey && !e.shiftKey && key === '3') return 'h3';
+        if (e.ctrlKey && e.altKey && !e.shiftKey && key === '4') return 'h4';
+        if (e.ctrlKey && e.altKey && !e.shiftKey && key === '5') return 'h5';
         if (e.altKey && !e.ctrlKey && !e.shiftKey && key === '5') return 'list_bullet';
         if (e.altKey && !e.ctrlKey && !e.shiftKey && key === '6') return 'list_number';
         if (e.altKey && !e.ctrlKey && !e.shiftKey && key === 'c') return 'code';

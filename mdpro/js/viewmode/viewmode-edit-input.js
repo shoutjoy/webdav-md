@@ -97,6 +97,61 @@
         applyMarkdown(text.slice(0, cursor) + value + text.slice(cursor), cursor + value.length);
     }
 
+    function getListMarkerForIndent(indentLength) {
+        var markers = ['-', '*', '+'];
+        var depth = Math.max(0, Math.floor((Number(indentLength) || 0) / 2));
+        return markers[depth % markers.length];
+    }
+
+    function continueListAtCaret() {
+        var text = getCurrentMarkdown();
+        var cursor = clampPos(caretPos, text);
+        var lineStart = text.lastIndexOf('\n', cursor - 1) + 1;
+        var line = text.substring(lineStart, cursor);
+        var match = line.match(/^(\s*)([-*+]|\d+\.)\s+(.*)$/);
+        if (!match) return false;
+
+        var indent = match[1] || '';
+        var token = match[2] || '-';
+        var content = match[3] || '';
+        if (!content.trim()) {
+            applyMarkdown(text.slice(0, lineStart) + text.slice(cursor), lineStart);
+            return true;
+        }
+
+        var nextToken = token;
+        if (/^\d+\.$/.test(token)) nextToken = (parseInt(token, 10) + 1) + '.';
+        var insertion = '\n' + indent + nextToken + ' ';
+        applyMarkdown(text.slice(0, cursor) + insertion + text.slice(cursor), cursor + insertion.length);
+        return true;
+    }
+
+    function changeListDepthAtCaret(outdent) {
+        var text = getCurrentMarkdown();
+        var cursor = clampPos(caretPos, text);
+        var lineStart = text.lastIndexOf('\n', cursor - 1) + 1;
+        var lineEnd = text.indexOf('\n', cursor);
+        if (lineEnd < 0) lineEnd = text.length;
+        var line = text.substring(lineStart, lineEnd);
+        var match = line.match(/^(\s*)([-*+]|\d+\.)\s+(.*)$/);
+        if (!match) return false;
+
+        var oldIndent = match[1] || '';
+        var token = match[2] || '-';
+        var nextIndentLength = outdent ? Math.max(0, oldIndent.length - 2) : oldIndent.length + 2;
+        var nextToken = /^\d+\.$/.test(token)
+            ? (!outdent ? '1.' : token)
+            : getListMarkerForIndent(nextIndentLength);
+        var nextLine = ' '.repeat(nextIndentLength) + nextToken + ' ' + (match[3] || '');
+        var cursorOffset = Math.max(0, cursor - lineStart);
+        var nextCursor = lineStart + Math.min(
+            cursorOffset + (nextLine.length - line.length),
+            nextLine.length
+        );
+        applyMarkdown(text.slice(0, lineStart) + nextLine + text.slice(lineEnd), nextCursor);
+        return true;
+    }
+
     function deleteAtCaret(backward) {
         var text = getCurrentMarkdown();
         var cursor = clampPos(caretPos, text);
@@ -150,10 +205,10 @@
                 deleteAtCaret(false);
             } else if (event.key === 'Enter') {
                 event.preventDefault();
-                insertTextAtCaret('\n');
+                if (!continueListAtCaret()) insertTextAtCaret('\n');
             } else if (event.key === 'Tab') {
                 event.preventDefault();
-                insertTextAtCaret('  ');
+                if (!changeListDepthAtCaret(event.shiftKey)) insertTextAtCaret('  ');
             } else if (event.key === 'Escape') {
                 inputSink.blur();
             }
@@ -208,6 +263,8 @@
         isEnabled: isEnabled,
         insertTextAtCaret: insertTextAtCaret,
         deleteAtCaret: deleteAtCaret,
+        continueListAtCaret: continueListAtCaret,
+        changeListDepthAtCaret: changeListDepthAtCaret,
         updateInteractionState: updateInteractionState
     };
 
