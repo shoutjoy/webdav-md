@@ -29,3 +29,8 @@ test('miniPV supports broad vertical movement and resizing', () => {
     assert.match(script, /const maxTop = Math\.max\(8, Math\.floor\(rect\.height - visibleEdge\)\);/);
     assert.match(styles, /#mini-preview-panel \{ min-width:180px; min-height:96px; \}/);
 });
+
+test('miniPV vertical bounds extend through the full MDPRO frame', () => {
+    assert.match(script, /const viewportBottom = Math\.max\(rect\.bottom, Number\(window\.innerHeight\) \|\| rect\.bottom\);/);
+    assert.match(script, /height: Math\.max\(1, viewportBottom - rect\.top\)/);
+});
