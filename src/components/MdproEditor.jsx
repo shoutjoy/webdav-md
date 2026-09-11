@@ -3,7 +3,7 @@ import PanelResizeHandles from './PanelResizeHandles.jsx';
 
 const FMA_WIDTH_KEY = 'webdav-fma-panel-width';
 const APP_BASE_URL = import.meta.env.BASE_URL;
-const MDPRO_URL = `${APP_BASE_URL}mdpro/index.html?webdav=1&ui=20260911-ai-jena-mobile-disabled-1`;
+const MDPRO_URL = `${APP_BASE_URL}mdpro/index.html?webdav=1&ui=20260911-mini-preview-free-vertical-1`;
 const FMA_URL = `${APP_BASE_URL}mdpro/Apps/fmaviewer/index.html?embedded=1`;
 
 export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, onSaveSettingsMset, onLoadSettingsMset, onReadCredentialVault, onWriteCredentialVault, selectedFile, content, binaryContent, fmaImportBatch, loading, saving, explorerWidth, panelResizeEnabled, onSave, onSaveAs, onDocumentChange, onSaveImageToFolder, onClose, onToggleExplorer, onOpenExplorer, onOpenFolderExplorer, onOpenRecentWork, onRequestCreateFile, onOpenTocPopup, onThemeChange, autosaveEnabled }) {
@@ -83,7 +83,7 @@ export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, onSav
     if (!frameDocument || frameDocument.getElementById('webdav-host-bridge-script')) return;
     const script = frameDocument.createElement('script');
     script.id = 'webdav-host-bridge-script';
-    script.src = `${APP_BASE_URL}mdpro/js/webdav-host-bridge.js?v=20260911-credential-vault-1`;
+    script.src = `${APP_BASE_URL}mdpro/js/webdav-host-bridge.js?v=20260911-mini-preview-toggle-1`;
     frameDocument.body.appendChild(script);
   };
 

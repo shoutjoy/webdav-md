@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertCircle, ArrowLeft, Check, Copy, FilePlus, FolderPlus, FolderOpen, LogOut, Menu, PanelLeft, RefreshCw, Upload, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Check, Copy, FilePlus, FolderPlus, FolderOpen, LogOut, Menu, PanelLeft, PanelRightOpen, RefreshCw, Upload, X } from 'lucide-react';
 
 const WD_DOCK_POSITION_KEY = 'webdav-wd-dock-position-v3';
 const VIEWPORT_MARGIN = 16;
@@ -9,7 +9,7 @@ const clampDockPosition = (x, y, width, height) => ({
   y: Math.min(Math.max(VIEWPORT_MARGIN, y), Math.max(VIEWPORT_MARGIN, window.innerHeight - height - VIEWPORT_MARGIN)),
 });
 
-export default function TopNav({ currentPath, publicUrl, loading, error, copiedKey, fileInputRef, onGoBack, onUpload, onNewFile, onNewFolder, onRefresh, explorerOpen, mobileWdocRect, onToggleExplorer, onOpenFolderUrl, onCopyFolderUrl, onDisconnect, onRecentWork, autosaveEnabled, onAutosaveChange }) {
+export default function TopNav({ currentPath, publicUrl, loading, error, copiedKey, fileInputRef, onGoBack, onUpload, onNewFile, onNewFolder, onRefresh, explorerOpen, mobileWdocRect, onToggleExplorer, onToggleMiniPreview, onOpenFolderUrl, onCopyFolderUrl, onDisconnect, onRecentWork, autosaveEnabled, onAutosaveChange }) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState(() => {
     try {
@@ -112,7 +112,7 @@ export default function TopNav({ currentPath, publicUrl, loading, error, copiedK
   return <>
     <div
       ref={dockRef}
-      className={`wd-dock fixed z-50 ${position ? '' : 'right-4 top-4 opacity-0'}`}
+      className={`wd-dock fixed z-50 flex items-center gap-2 ${position ? '' : 'right-4 top-4 opacity-0'}`}
       style={position ? { left: position.x, top: position.y } : undefined}
     >
       <button
@@ -128,6 +128,16 @@ export default function TopNav({ currentPath, publicUrl, loading, error, copiedK
       >
         <span className="text-xs font-semibold tracking-wide">WD Dock</span>
         {open ? <X size={18}/> : <Menu size={18}/>} 
+      </button>
+      <button
+        type="button"
+        onClick={onToggleMiniPreview}
+        className="flex h-10 items-center gap-1.5 rounded-full border border-indigo-400/70 bg-slate-900 px-3 text-indigo-100 shadow-[0_8px_24px_rgba(15,23,42,0.32)] hover:bg-indigo-950 dark:border-indigo-400/60 dark:bg-slate-900 dark:hover:bg-indigo-950"
+        title="MDPRO miniPV 열기/닫기"
+        aria-label="miniPV 열기/닫기"
+      >
+        <PanelRightOpen size={16}/>
+        <span className="text-xs font-semibold">miniPV</span>
       </button>
       {open && <div className={`absolute top-[calc(100%+0.4rem)] w-[min(470px,calc(100vw-2rem))] overflow-hidden rounded-xl border border-slate-200 bg-white/95 text-slate-800 shadow-2xl backdrop-blur dark:border-slate-600 dark:bg-slate-900/95 dark:text-slate-100 dark:shadow-[0_18px_48px_rgba(0,0,0,0.78),0_0_0_1px_rgba(148,163,184,0.16)] ${dockIsOnLeft ? 'left-0' : 'right-0'}`}>
         <div className="flex items-center gap-1.5 border-b border-slate-200 p-2 dark:border-slate-700">

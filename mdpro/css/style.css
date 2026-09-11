@@ -2056,11 +2056,12 @@
             }
         }
 
+        #mini-preview-panel { min-width:180px; min-height:96px; }
         .mini-preview-resize-handle { position:absolute; z-index:30; touch-action:none; user-select:none; }
-        .mini-preview-resize-n, .mini-preview-resize-s { left:14px; right:14px; height:8px; cursor:ns-resize; }
+        .mini-preview-resize-n, .mini-preview-resize-s { left:14px; right:14px; height:12px; cursor:ns-resize; }
         .mini-preview-resize-n { top:0; }
         .mini-preview-resize-s { bottom:0; }
-        .mini-preview-resize-e, .mini-preview-resize-w { top:14px; bottom:14px; width:8px; cursor:ew-resize; }
+        .mini-preview-resize-e, .mini-preview-resize-w { top:14px; bottom:14px; width:12px; cursor:ew-resize; }
         .mini-preview-resize-e { right:0; }
         .mini-preview-resize-w { left:0; }
         .mini-preview-resize-ne, .mini-preview-resize-se, .mini-preview-resize-sw, .mini-preview-resize-nw { width:16px; height:16px; }

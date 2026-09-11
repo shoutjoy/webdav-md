@@ -2,7 +2,7 @@ const MINI_PREVIEW_KEY = 'md_viewer_minipv_enabled';
 const MINI_PREVIEW_LAYOUT_KEY = 'md_viewer_minipv_layout';
 const MINI_PREVIEW_EDITOR_SYNC_KEY = 'md_viewer_minipv_editor_sync_enabled';
 const MINI_PREVIEW_HTML = ''
-    + '<div id="mini-preview-panel" class="hidden absolute top-2 right-2 w-[340px] max-w-[42vw] h-[68%] min-h-[220px] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-2xl overflow-hidden no-print z-20">'
+    + '<div id="mini-preview-panel" class="hidden fixed top-2 right-2 w-[340px] max-w-[42vw] h-[68%] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-md shadow-2xl overflow-hidden no-print z-[70]">'
     + '<div id="mini-preview-header" class="flex items-center justify-between px-2 py-1 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 cursor-move touch-none select-none">'
     + '<span class="text-xs font-bold text-slate-700 dark:text-slate-200">miniPV</span>'
     + '<div id="mini-preview-actions" class="flex items-center gap-1">'
@@ -60,6 +60,13 @@ window.MiniPreviewUI.ready = loadMiniPreviewHtml();
 
 function bindMiniPreviewElements() {
     miniPreviewPanel = document.getElementById('mini-preview-panel');
+    // The editor viewport scrolls for long documents. Keeping the floating
+    // panel inside it makes the header and bottom resize handles scroll behind
+    // the toolbars. Mount it at the document level and position it against the
+    // editor's visible rectangle instead.
+    if (miniPreviewPanel && miniPreviewPanel.parentElement !== document.body) {
+        document.body.appendChild(miniPreviewPanel);
+    }
     miniPreviewContent = document.getElementById('mini-preview-content');
     miniPreviewHeader = document.getElementById('mini-preview-header');
     miniPreviewResizeHandles = Array.from(document.querySelectorAll('#mini-preview-panel .mini-preview-resize-handle'));
@@ -86,7 +93,7 @@ function ensureMiniPreviewHtml() {
 }
 
 function loadMiniPreviewHtml() {
-    return fetch('./js/UI_PV/minipv.html?v=20260908-eight-way-resize-1', { cache: 'no-cache' })
+    return fetch('./js/UI_PV/minipv.html?v=20260911-free-vertical-3', { cache: 'no-cache' })
         .then(function (res) {
             if (!res.ok) throw new Error('Failed to load miniPV HTML.');
             return res.text();
@@ -163,24 +170,90 @@ function getMiniPreviewContainerRect() {
     return container.getBoundingClientRect();
 }
 
-function clampMiniPreviewLayout(layoutInput) {
+function getMiniPreviewAvoidRects(containerRect) {
+    const panel = document.getElementById('ai-chat-panel');
+    if (!panel || panel === miniPreviewPanel || panel.getAttribute('aria-hidden') === 'true') return [];
+    const style = typeof window.getComputedStyle === 'function' ? window.getComputedStyle(panel) : null;
+    if (style && (style.display === 'none' || style.visibility === 'hidden')) return [];
+    const rect = panel.getBoundingClientRect();
+    if (!rect || rect.width < 2 || rect.height < 2) return [];
+    const intersects = rect.right > containerRect.left && rect.left < containerRect.right
+        && rect.bottom > containerRect.top && rect.top < containerRect.bottom;
+    return intersects ? [rect] : [];
+}
+
+function clampMiniPreviewLayoutToContainer(layoutInput, rect) {
     const layout = layoutInput || {};
-    const rect = getMiniPreviewContainerRect();
     if (!rect) return { left: 8, top: 8, width: 340, height: 380 };
-    const minW = 240;
-    const minH = 180;
-    const maxW = Math.max(minW, Math.floor(rect.width - 16));
-    const maxH = Math.max(minH, Math.floor(rect.height - 16));
+    const minW = 180;
+    const minH = 96;
+    const visibleEdge = 48;
+    // Permit intentionally oversized panels. Keeping only the header or a
+    // useful edge visible gives the user substantially more vertical travel
+    // while still leaving a way to drag the panel back into view.
+    const maxW = Math.max(minW, Math.floor(rect.width * 1.5));
+    const maxH = Math.max(minH, Math.floor(rect.height * 2));
     const width = Math.max(minW, Math.min(Number(layout.width) || 340, maxW));
     const height = Math.max(minH, Math.min(Number(layout.height) || Math.floor(rect.height * 0.68), maxH));
-    const left = Math.max(8, Math.min(Number(layout.left), Math.max(8, Math.floor(rect.width - width - 8))));
-    const top = Math.max(8, Math.min(Number(layout.top), Math.max(8, Math.floor(rect.height - height - 8))));
+    const minLeft = Math.min(8, Math.floor(visibleEdge - width));
+    const maxLeft = Math.max(8, Math.floor(rect.width - visibleEdge));
+    const minTop = 8;
+    const maxTop = Math.max(8, Math.floor(rect.height - visibleEdge));
+    const left = Math.max(minLeft, Math.min(Number(layout.left), maxLeft));
+    const top = Math.max(minTop, Math.min(Number(layout.top), maxTop));
     return {
-        left: Number.isFinite(left) ? left : Math.max(8, Math.floor(rect.width - width - 8)),
+        left: Number.isFinite(left) ? left : Math.max(minLeft, Math.floor(rect.width - width - 8)),
         top: Number.isFinite(top) ? top : 8,
         width: width,
         height: height
     };
+}
+
+function miniPreviewOverlapArea(layout, avoidRect, containerRect) {
+    const left = containerRect.left + layout.left;
+    const top = containerRect.top + layout.top;
+    const right = left + layout.width;
+    const bottom = top + layout.height;
+    const overlapW = Math.max(0, Math.min(right, avoidRect.right) - Math.max(left, avoidRect.left));
+    const overlapH = Math.max(0, Math.min(bottom, avoidRect.bottom) - Math.max(top, avoidRect.top));
+    return overlapW * overlapH;
+}
+
+function avoidMiniPreviewObstructions(layout, containerRect) {
+    const avoidRects = getMiniPreviewAvoidRects(containerRect);
+    if (!avoidRects.length) return layout;
+    const gap = 12;
+    let current = layout;
+    avoidRects.forEach(function (avoidRect) {
+        if (!miniPreviewOverlapArea(current, avoidRect, containerRect)) return;
+        const relativeLeft = avoidRect.left - containerRect.left;
+        const relativeTop = avoidRect.top - containerRect.top;
+        const candidates = [
+            { ...current, left: relativeLeft - current.width - gap },
+            { ...current, left: avoidRect.right - containerRect.left + gap },
+            { ...current, top: relativeTop - current.height - gap },
+            { ...current, top: avoidRect.bottom - containerRect.top + gap }
+        ].map(function (candidate) {
+            return clampMiniPreviewLayoutToContainer(candidate, containerRect);
+        });
+        candidates.push(current);
+        candidates.sort(function (a, b) {
+            const areaA = miniPreviewOverlapArea(a, avoidRect, containerRect);
+            const areaB = miniPreviewOverlapArea(b, avoidRect, containerRect);
+            if (areaA !== areaB) return areaA - areaB;
+            const distanceA = Math.abs(a.left - current.left) + Math.abs(a.top - current.top);
+            const distanceB = Math.abs(b.left - current.left) + Math.abs(b.top - current.top);
+            return distanceA - distanceB;
+        });
+        current = candidates[0];
+    });
+    return current;
+}
+
+function clampMiniPreviewLayout(layoutInput) {
+    const rect = getMiniPreviewContainerRect();
+    const clamped = clampMiniPreviewLayoutToContainer(layoutInput, rect);
+    return rect ? avoidMiniPreviewObstructions(clamped, rect) : clamped;
 }
 
 function applyMiniPreviewLayout(layoutInput) {
@@ -193,8 +266,9 @@ function applyMiniPreviewLayout(layoutInput) {
             const height = Math.max(220, Math.min(Math.floor(rect.height * 0.94), Math.floor(rect.height - 16)));
             const left = Math.max(8, Math.floor((rect.width - width) / 2));
             const top = Math.max(8, Math.floor((rect.height - height) / 2));
-            miniPreviewPanel.style.left = left + 'px';
-            miniPreviewPanel.style.top = top + 'px';
+            miniPreviewPanel.style.position = 'fixed';
+            miniPreviewPanel.style.left = rect.left + left + 'px';
+            miniPreviewPanel.style.top = rect.top + top + 'px';
             miniPreviewPanel.style.width = width + 'px';
             miniPreviewPanel.style.height = height + 'px';
         } else {
@@ -208,8 +282,10 @@ function applyMiniPreviewLayout(layoutInput) {
         return;
     }
     const layout = clampMiniPreviewLayout(layoutInput || getMiniPreviewLayoutFromLocal() || {});
-    miniPreviewPanel.style.left = layout.left + 'px';
-    miniPreviewPanel.style.top = layout.top + 'px';
+    const rect = getMiniPreviewContainerRect();
+    miniPreviewPanel.style.position = 'fixed';
+    miniPreviewPanel.style.left = ((rect ? rect.left : 0) + layout.left) + 'px';
+    miniPreviewPanel.style.top = ((rect ? rect.top : 0) + layout.top) + 'px';
     miniPreviewPanel.style.width = layout.width + 'px';
     miniPreviewPanel.style.height = layout.height + 'px';
     miniPreviewPanel.style.right = 'auto';
@@ -769,16 +845,16 @@ function bindMiniPreviewInteractions() {
             if (mode.includes('w')) {
                 left = miniPreviewStartLeft + dx;
                 width = miniPreviewStartW - dx;
-                if (width < 240) {
-                    width = 240;
+                if (width < 180) {
+                    width = 180;
                     left = rightEdge - width;
                 }
             }
             if (mode.includes('n')) {
                 top = miniPreviewStartTop + dy;
                 height = miniPreviewStartH - dy;
-                if (height < 180) {
-                    height = 180;
+                if (height < 96) {
+                    height = 96;
                     top = bottomEdge - height;
                 }
             }
@@ -812,6 +888,17 @@ function bindMiniPreviewInteractions() {
 
     window.addEventListener('resize', function () {
         if (miniPreviewEnabled) applyMiniPreviewLayout(miniPreviewLayoutBeforeFullscreen || getMiniPreviewLayoutFromLocal() || {});
+    });
+    window.addEventListener('ai-jena-layout-change', function () {
+        if (!miniPreviewEnabled || miniPreviewFullscreen) return;
+        applyMiniPreviewLayout(getMiniPreviewLayoutFromLocal() || {});
+        // AI JENA animates between layouts, so clamp once more after its final
+        // rectangle settles.
+        window.setTimeout(function () {
+            if (miniPreviewEnabled && !miniPreviewFullscreen) {
+                applyMiniPreviewLayout(getMiniPreviewLayoutFromLocal() || {});
+            }
+        }, 180);
     });
 }
 

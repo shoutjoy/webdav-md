@@ -199,6 +199,10 @@
             scrollToLine(data.lineIndex);
             return;
         }
+        if (data?.type === 'webdav-toggle-mini-preview') {
+            if (typeof window.toggleMiniPreview === 'function') window.toggleMiniPreview();
+            return;
+        }
         if (data?.type === 'webdav-document-saved') {
             if (!window.__webdavHostDocument || String(data.path || '') !== window.__webdavHostDocument.path) return;
             savedDocumentText = currentDocumentText();
