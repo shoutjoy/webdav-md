@@ -41,7 +41,7 @@
     <link rel="stylesheet" href="./sidebar_left/sidebar-resize.css?v=20260812-1" charset="utf-8">
     <link rel="stylesheet" href="./sidebar_left/storage-tree.css?v=20260812-1" charset="utf-8">
     <link rel="stylesheet" href="./sidebarAI/sidebar-ai.css?v=20260817-scholar-upgrades-1" charset="utf-8">
-    <link rel="stylesheet" href="./AI_App/aiChat/ai-chat.css?v=20260911-bottom-actions-3rows-1" charset="utf-8">
+    <link rel="stylesheet" href="./AI_App/aiChat/ai-chat.css?v=20260911-floating-semantic-icons-1" charset="utf-8">
     <link rel="stylesheet" href="./AI_App/dataCenter/ai-data-center.css?v=20260908-hidden-jena-data-2" charset="utf-8">
     <link rel="stylesheet" href="./js/Scholarref/styles/scholarref.css?v=20260812-scholar-modules-1" charset="utf-8">
     <link rel="stylesheet" href="./ShareSites/Share/share.css?v=20260408-2" charset="utf-8">
@@ -300,6 +300,7 @@
             display: flex;
         }
         .settings-footer-action {
+            position: relative;
             display: inline-flex;
             width: 2.25rem;
             height: 2.25rem;
@@ -309,6 +310,69 @@
             gap: 0.4rem;
             padding: 0;
             white-space: nowrap;
+            overflow: hidden;
+            isolation: isolate;
+        }
+        .settings-footer-action > * {
+            position: relative;
+            z-index: 1;
+        }
+        .settings-footer-action.is-mset-holding::before {
+            content: "";
+            position: absolute;
+            z-index: 0;
+            inset: 0 auto 0 0;
+            width: var(--mset-hold-progress, 0%);
+            background: rgba(99, 102, 241, 0.28);
+            transition: width 40ms linear;
+        }
+        .settings-footer-action.is-mset-processing {
+            cursor: progress;
+            border-color: #6366f1;
+        }
+        .settings-mset-hold-popup {
+            position: fixed;
+            z-index: 2147483647;
+            left: 50%;
+            bottom: 4.75rem;
+            width: min(19rem, calc(100vw - 2rem));
+            transform: translateX(-50%);
+            padding: 0.8rem 0.9rem;
+            border: 1px solid #818cf8;
+            border-radius: 0.75rem;
+            background: rgba(15, 23, 42, 0.96);
+            color: #f8fafc;
+            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.38);
+            pointer-events: none;
+        }
+        .settings-mset-hold-popup[hidden] { display: none; }
+        .settings-mset-hold-heading {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            margin-bottom: 0.55rem;
+            font-size: 0.78rem;
+            font-weight: 700;
+        }
+        .settings-mset-hold-percent { color: #a5b4fc; font-variant-numeric: tabular-nums; }
+        .settings-mset-hold-track {
+            height: 0.45rem;
+            overflow: hidden;
+            border-radius: 9999px;
+            background: #334155;
+        }
+        .settings-mset-hold-bar {
+            width: var(--mset-hold-progress, 0%);
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #818cf8, #38bdf8);
+            transition: width 40ms linear;
+        }
+        .settings-mset-hold-help {
+            margin-top: 0.45rem;
+            color: #cbd5e1;
+            font-size: 0.68rem;
         }
         .settings-footer-action .settings-action-label {
             display: none;
@@ -480,6 +544,12 @@
                         class="w-full px-3 py-2 rounded flex items-center gap-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
                         <i data-lucide="file-plus-2" class="w-4 h-4"></i>
                         <span>saveAs</span>
+                    </button>
+                    <div class="my-1 border-t border-slate-200 dark:border-slate-700"></div>
+                    <button type="button" role="menuitem" onclick="saveAndCloseCurrentDocument()"
+                        class="w-full px-3 py-2 rounded flex items-center gap-2 text-left text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
+                        <i data-lucide="save" class="w-4 h-4"></i>
+                        <span>저장 후 닫기</span>
                     </button>
                 </div>
             </div>
@@ -3492,7 +3562,7 @@
 
 <!-- 왼쪽 사이드바 -->
 <script
-    src="./sidebar_left/sidebar-left.js?v=20260908-toc-popup-controls-3"
+    src="./sidebar_left/sidebar-left.js?v=20260911-icon-only-actions-1"
     charset="utf-8"
     defer>
 </script>
@@ -3567,7 +3637,7 @@
     defer>
 </script>
 <script
-    src="./js/UI_PV/minipv.js?v=20260911-full-frame-vertical-4"
+    src="./js/UI_PV/minipv.js?v=20260911-live-editor-source-1"
     charset="utf-8"
     defer>
 </script>
@@ -3613,7 +3683,7 @@
     defer>
 </script>
 <script
-    src="./js/app.js?a4Pages=20260909-a4-lcr-1&amp;mermaid=20260909-print-image-1&amp;v=20260908-note-cover-fold-menu-4&amp;msetWebdav=20260908-1&amp;wdNewFile=20260909-2&amp;aiJenaReasoning=20260829-low-high-1&amp;storageSafety=20260815-1&amp;localWriteback=20260815-1&amp;localFileRefresh=20260817-1&amp;docxImport=20260817-dark-table-contrast-1&amp;viewModeTextInput=20260815-2&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;indbImages=20260812-3&amp;indbToggle=20260816-1&amp;tidyCustomJs=20260811-1&amp;html2md=20260817-1&amp;inline2ref=20260822-4&amp;saveDropdown=20260822-1&amp;aiJenaAttachments=20260822-2&amp;aiDataCenter=20260823-1&amp;settingsDrag=20260811-1&amp;copyFab=20260810-ai-jena-bottom-1&amp;mobileAiJena=20260817-1&amp;feature=templates-new-file-menu-2&amp;storageVisibility=20260810-1&amp;settingsResetConfirm=1&amp;toolbarNames=20260807-1&amp;templateFullscreen=20260807-1&amp;settingsFold=20260807-1&amp;mermaidDisplay=20260810-3&amp;comment=20260812-html-comment-1&amp;perf=20260810-10&amp;pdfExport=20260812-edit-merge-1&amp;pvExport=20260813-modal-2&amp;pdfMergeTool=20260815-pdfm-project-15&amp;imageSizeHint=20260811-1&amp;textStyle=20260815-supsub-1&amp;localDefault=20260812-1&amp;folderTree=20260812-1&amp;documentMeta=20260812-1&amp;documentDrop=20260812-1&amp;sliderMaker=20260812-1&amp;scholarUpgrades=20260817-2&amp;pvHeaderSettings=20260815-1&amp;mainHeaderBackground=20260815-1&amp;mainHeaderScale=20260815-1&amp;headerFileActions=20260823-1&amp;listQuickMenu=20260823-1&amp;footnoteAnchorMenu=20260823-1&amp;imageInsertMenu=20260825-link-1&amp;verticalEditToolbar=20260823-2&amp;headerHeadingDisplay=20260825-1&amp;documentTheme=20260825-1&amp;fastSafetyTimeout=20260825-1&amp;fastCompleteStreaming=20260825-1&amp;fastLimitsUi=20260825-2&amp;aiDetailsToggle=20260825-1&amp;splitTab=20260825-1&amp;img2Math=20260909-webdav-1&amp;editorShiftSize=20260909-2&amp;editorShiftOrientation=20260911-vertical-1&amp;mermaidEditorResize=20260911-1"
+    src="./js/app.js?a4Pages=20260909-a4-lcr-1&amp;mermaid=20260909-print-image-1&amp;v=20260908-note-cover-fold-menu-4&amp;msetWebdav=20260908-1&amp;wdNewFile=20260909-2&amp;aiJenaReasoning=20260829-low-high-1&amp;storageSafety=20260815-1&amp;localWriteback=20260815-1&amp;localFileRefresh=20260817-1&amp;docxImport=20260817-dark-table-contrast-1&amp;viewModeTextInput=20260815-2&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;indbImages=20260812-3&amp;indbToggle=20260816-1&amp;tidyCustomJs=20260811-1&amp;html2md=20260817-1&amp;inline2ref=20260822-4&amp;saveDropdown=20260822-1&amp;aiJenaAttachments=20260822-2&amp;aiDataCenter=20260823-1&amp;settingsDrag=20260811-1&amp;copyFab=20260810-ai-jena-bottom-1&amp;mobileAiJena=20260817-1&amp;feature=templates-new-file-menu-2&amp;storageVisibility=20260810-1&amp;settingsResetConfirm=1&amp;toolbarNames=20260807-1&amp;templateFullscreen=20260807-1&amp;settingsFold=20260807-1&amp;mermaidDisplay=20260810-3&amp;comment=20260812-html-comment-1&amp;perf=20260810-10&amp;pdfExport=20260812-edit-merge-1&amp;pvExport=20260813-modal-2&amp;pdfMergeTool=20260815-pdfm-project-15&amp;imageSizeHint=20260811-1&amp;textStyle=20260815-supsub-1&amp;localDefault=20260812-1&amp;folderTree=20260812-1&amp;documentMeta=20260812-1&amp;documentDrop=20260812-1&amp;sliderMaker=20260812-1&amp;scholarUpgrades=20260817-2&amp;pvHeaderSettings=20260815-1&amp;mainHeaderBackground=20260815-1&amp;mainHeaderScale=20260815-1&amp;headerFileActions=20260823-1&amp;listQuickMenu=20260823-1&amp;footnoteAnchorMenu=20260823-1&amp;imageInsertMenu=20260825-link-1&amp;verticalEditToolbar=20260823-2&amp;headerHeadingDisplay=20260825-1&amp;documentTheme=20260825-1&amp;fastSafetyTimeout=20260825-1&amp;fastCompleteStreaming=20260825-1&amp;fastLimitsUi=20260825-2&amp;aiDetailsToggle=20260825-1&amp;splitTab=20260825-1&amp;img2Math=20260909-webdav-1&amp;editorShiftSize=20260909-2&amp;editorShiftOrientation=20260911-vertical-1&amp;mermaidEditorResize=20260911-1&amp;aiJenaFloating=20260911-semantic-icons-1&amp;pvLiveEdit=20260911-1&amp;dataImageFold=20260912-1"
     charset="utf-8"
     defer>
 </script>
@@ -3664,7 +3734,7 @@
 
 <!-- GitHub 실제 기능 -->
 <script
-    src="./js/GithubData/github-app.js?v=20260815-storage-safety-1&amp;storageVisibility=20260816-indb-toggle-1&amp;tidyTextFiles=20260811-1&amp;fileControls=20260812-3"
+    src="./js/GithubData/github-app.js?v=20260911-sync-hover-address-1&amp;storageVisibility=20260816-indb-toggle-1&amp;tidyTextFiles=20260811-1&amp;fileControls=20260812-3"
     charset="utf-8"
     defer>
 </script>
@@ -3678,7 +3748,7 @@
 
 <!-- 편집기·미리보기 연동 -->
 <script
-    src="./js/UI_PV/editpv.js?a4Slides=20260908-1&amp;v=20260823-floating-controls-1&amp;mermaidDisplay=20260810-4&amp;comment=20260810-1&amp;perf=20260810-2&amp;pvPrint=20260811-1"
+    src="./js/UI_PV/editpv.js?a4Slides=20260908-1&amp;v=20260823-floating-controls-1&amp;mermaidDisplay=20260810-4&amp;comment=20260810-1&amp;perf=20260810-2&amp;pvPrint=20260911-table-pagination-1"
     charset="utf-8"
     defer>
 </script>

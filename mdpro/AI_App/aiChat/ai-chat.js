@@ -731,6 +731,7 @@
       + '        <button type="button" data-ai-chat-layout="popup" role="menuitem"><span class="ai-chat-layout-label">팝업 <kbd>Alt+1</kbd></span><span class="ai-chat-start-badge" data-ai-chat-start="popup">OFF</span></button>'
       + '        <button type="button" data-ai-chat-layout="dock" role="menuitem"><span class="ai-chat-layout-label">Dock · 우측 사이드바 <kbd>Alt+2</kbd></span><span class="ai-chat-start-badge" data-ai-chat-start="dock">OFF</span></button>'
       + '        <button type="button" data-ai-chat-layout="fullscreen" role="menuitem"><span class="ai-chat-layout-label">전체화면 · 기록 보기 <kbd>Alt+3</kbd></span><span class="ai-chat-start-badge" data-ai-chat-start="fullscreen">OFF</span></button>'
+      + '        <button type="button" data-ai-chat-layout="floating" role="menuitem"><span class="ai-chat-layout-label">하단 플로팅 <kbd>Alt+4</kbd></span><span class="ai-chat-start-badge" data-ai-chat-start="floating">OFF</span></button>'
       + '        <div class="ai-chat-answer-font-size"><div class="ai-chat-answer-font-head"><span>답변 폰트</span><output id="ai-chat-answer-font-size-value" for="ai-chat-answer-font-size">14px</output></div><div class="ai-chat-answer-font-controls"><button type="button" id="ai-chat-answer-font-size-down" class="ai-chat-font-size-step" aria-label="답변 폰트 줄이기">−</button><input id="ai-chat-answer-font-size" type="range" min="5" max="25" step="1" value="14" aria-label="답변 폰트"><button type="button" id="ai-chat-answer-font-size-up" class="ai-chat-font-size-step" aria-label="답변 폰트 키우기">+</button></div></div>'
       + '        <button type="button" id="ai-chat-set-start-layout" class="ai-chat-set-start-layout" role="menuitem">현재 배치를 시작 위치로 지정</button>'
       + '      </div>'
@@ -783,6 +784,8 @@
       + '      <textarea id="ai-chat-input" rows="3" placeholder="질문을 입력하세요. Enter 전송 · Shift+Enter 줄바꿈"></textarea>'
       + '      <div class="ai-chat-storage-note">대화 내용은 IndexedDB에 저장됩니다.</div>'
       + '      <div class="ai-chat-mode-row" role="group" aria-label="응답 모드">'
+      + '        <button type="button" id="ai-chat-floating-toggle" class="ai-chat-floating-toggle" title="대화창 펼치기" aria-label="대화창 펼치기" aria-expanded="false">☰</button>'
+      + '        <button type="button" id="ai-chat-floating-settings" class="ai-chat-floating-settings" title="AI 공급자 설정" aria-label="AI 공급자 설정">⚙</button>'
       + '        <button type="button" data-ai-chat-mode="quick">⚡ 즉시</button>'
       + '        <label class="ai-chat-fast-toggle" title="설명 없이 답만 빠르게 생성합니다. Mermaid 요청은 코드만 반환합니다."><input type="checkbox" id="ai-chat-fast-mode"><span>FAST</span></label>'
       + '        <button type="button" data-ai-chat-mode="reasoning">🧠 추론</button>'
@@ -916,6 +919,18 @@
     document.getElementById('ai-chat-provider-toggle').addEventListener('click', function () {
       syncFastLimitControls();
       setProviderControlsOpen(!state.providerControlsOpen);
+    });
+    document.getElementById('ai-chat-floating-toggle').addEventListener('click', function () {
+      setFloatingExpanded(document.getElementById('ai-chat-panel').classList.contains('floating-compact'));
+    });
+    document.getElementById('ai-chat-floating-settings').addEventListener('click', function () {
+      setFloatingExpanded(true);
+      syncFastLimitControls();
+      setProviderControlsOpen(true);
+      setTimeout(function () {
+        var providerToggle = document.getElementById('ai-chat-provider-toggle');
+        if (providerToggle) providerToggle.focus();
+      }, 0);
     });
     syncFastLimitControls();
     document.getElementById('ai-chat-fast-token-limit').addEventListener('change', saveFastLimitControls);
@@ -1116,7 +1131,9 @@
             ? 'dock'
             : event.code === 'Digit3' || event.code === 'Numpad3'
               ? 'fullscreen'
-              : '';
+              : event.code === 'Digit4' || event.code === 'Numpad4'
+                ? 'floating'
+                : '';
         if (layoutShortcut) {
           event.preventDefault();
           event.stopPropagation();
@@ -1306,13 +1323,14 @@
   }
 
   function normalizeLayout(layout) {
-    return layout === 'dock' || layout === 'fullscreen' ? layout : 'popup';
+    return layout === 'dock' || layout === 'fullscreen' || layout === 'floating' ? layout : 'popup';
   }
 
   function startLayoutLabel(layout) {
     layout = normalizeLayout(layout);
     if (layout === 'dock') return 'Dock · 우측 사이드바';
     if (layout === 'fullscreen') return '전체화면';
+    if (layout === 'floating') return '하단 플로팅';
     return '팝업';
   }
 
@@ -1321,6 +1339,20 @@
     storageSet(START_LAYOUT_KEY, state.startLayout);
     updateLayoutButtons();
     closeLayoutMenu();
+  }
+
+  function setFloatingExpanded(expanded) {
+    var panel = document.getElementById('ai-chat-panel');
+    var button = document.getElementById('ai-chat-floating-toggle');
+    if (!panel) return;
+    var isExpanded = !!expanded;
+    panel.classList.toggle('floating-compact', state.layout === 'floating' && !isExpanded);
+    if (button) {
+      button.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+      button.setAttribute('aria-label', isExpanded ? '입력창만 보기' : '대화창 펼치기');
+      button.title = isExpanded ? '입력창만 보기' : '대화창 펼치기';
+      button.textContent = isExpanded ? '⌄' : '☰';
+    }
   }
 
   function openAtStartLayout() {
@@ -1562,8 +1594,9 @@
     if (state.layout === 'popup' && state.open) savePopupRect();
     state.layout = layout;
     storageSet(LAYOUT_KEY, layout);
-    panel.classList.remove('layout-popup', 'layout-dock', 'layout-fullscreen');
+    panel.classList.remove('layout-popup', 'layout-dock', 'layout-fullscreen', 'layout-floating');
     panel.classList.add('layout-' + layout);
+    panel.classList.remove('floating-compact');
     if (layout === 'dock' && slot) {
       slot.style.width = Math.min(DEFAULT_CHAT_WIDTH, root.innerWidth) + 'px';
       slot.appendChild(panel);
@@ -1574,6 +1607,7 @@
       if (layout === 'popup') applyPopupRect();
     }
     applyHistoryWidth(state.historyWidth, false);
+    setFloatingExpanded(layout !== 'floating');
     closeLayoutMenu();
     updateLayoutButtons();
     syncLayoutVisibility();
@@ -5430,6 +5464,7 @@
     var input = document.getElementById('ai-chat-input');
     var text = input ? String(input.value || '').trim() : '';
     if (!text && !pendingAttachments.length) return;
+    if (state.layout === 'floating') setFloatingExpanded(true);
     if (!text) text = '첨부 파일의 내용을 분석해 주세요.';
     var selectedDocText = '';
     try {
