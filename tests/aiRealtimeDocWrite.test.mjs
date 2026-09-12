@@ -5,6 +5,7 @@ import fs from 'node:fs';
 const aiChatSource = fs.readFileSync(new URL('../mdpro/AI_App/aiChat/ai-chat.js', import.meta.url), 'utf8');
 const appSource = fs.readFileSync(new URL('../mdpro/js/app.js', import.meta.url), 'utf8');
 const cssSource = fs.readFileSync(new URL('../mdpro/AI_App/aiChat/ai-chat.css', import.meta.url), 'utf8');
+const indexSource = fs.readFileSync(new URL('../mdpro/index.html', import.meta.url), 'utf8');
 
 test('realtime doc write controls are rendered in composer actions', () => {
   assert.match(aiChatSource, /id="ai-chat-realtime-doc-toggle"/);
@@ -75,9 +76,15 @@ test('selection replacement in document stream is implemented', () => {
 
 test('realtime document answers remain available as collapsed AI Jena records', () => {
   assert.doesNotMatch(aiChatSource, /if \(message && message\.documentOnly\) return;/);
+  assert.match(aiChatSource, /if \(message\.documentOnly\) \{[\s\S]*message\.realtimeDocRecord = true;[\s\S]*message\.documentOnly = false;/);
+  assert.match(aiChatSource, /realtimeDocRecord: realtimeDocExclusive/);
+  assert.match(aiChatSource, /documentOnly: false/);
   assert.match(aiChatSource, /className = 'ai-chat-document-answer-record'/);
   assert.match(aiChatSource, /문서에 작성된 답변 · 기록 펼쳐보기/);
   assert.match(cssSource, /\.ai-chat-document-answer-record\s*\{/);
+  assert.match(appSource, /ai-chat\.js\?v=20260912-realtime-record-2/);
+  assert.match(indexSource, /ai-chat\.css\?v=20260912-realtime-record-2/);
+  assert.match(indexSource, /aiJenaRealtimeRecord=20260912-2/);
 });
 
 test('Alt+4 settings can close and scroll within a mobile viewport', () => {

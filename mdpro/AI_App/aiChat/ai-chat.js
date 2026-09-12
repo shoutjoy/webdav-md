@@ -3721,6 +3721,12 @@
 
   function sanitizeAssistantMessage(message) {
     if (!message || message.role !== 'assistant') return message;
+    // Older realtime-writing replies were persisted as documentOnly and then
+    // omitted from the chat. Migrate them to a visible, collapsed chat record.
+    if (message.documentOnly) {
+      message.realtimeDocRecord = true;
+      message.documentOnly = false;
+    }
     // Retired validation notices must not block or confuse saved conversations.
     if (message.notice) message.notice = String(message.notice).split(/\r?\n/).filter(function (line) {
       return !/^Mermaid (?:검증 모듈이 없습니다|문법 검증 실패|검증\/수정 실패|문법을 자동 수정하고 재검증했습니다)/.test(line.trim());
@@ -4923,7 +4929,7 @@
           item.appendChild(answerLabel);
         }
         if (String(message.content || '').trim()) {
-          if (message.role === 'assistant' && message.documentOnly) {
+          if (message.role === 'assistant' && message.realtimeDocRecord) {
             var documentRecord = document.createElement('details');
             documentRecord.className = 'ai-chat-document-answer-record';
             var documentRecordSummary = document.createElement('summary');
@@ -5935,7 +5941,8 @@
         academicPartComplete: splitAcademicResponse
           ? !!sections.answer && !responseStatus.notice && answerEndsCleanly(sections.answer) && academicPartChecklistComplete(sections.answer, 1)
           : null,
-        documentOnly: realtimeDocExclusive && !(result && Array.isArray(result.images) && result.images.length)
+        realtimeDocRecord: realtimeDocExclusive && !(result && Array.isArray(result.images) && result.images.length),
+        documentOnly: false
       };
       assistantMessage.continuationAvailable = splitAcademicResponse
         ? true
