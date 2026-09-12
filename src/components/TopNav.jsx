@@ -132,7 +132,7 @@ export default function TopNav({ currentPath, publicUrl, loading, error, copiedK
       <button
         type="button"
         onClick={onToggleMiniPreview}
-        className="flex h-10 items-center gap-1.5 rounded-full border border-indigo-400/70 bg-slate-900 px-3 text-indigo-100 shadow-[0_8px_24px_rgba(15,23,42,0.32)] hover:bg-indigo-950 dark:border-indigo-400/60 dark:bg-slate-900 dark:hover:bg-indigo-950"
+        className="hidden h-10 items-center gap-1.5 rounded-full border border-indigo-400/70 bg-slate-900 px-3 text-indigo-100 shadow-[0_8px_24px_rgba(15,23,42,0.32)] hover:bg-indigo-950 sm:flex dark:border-indigo-400/60 dark:bg-slate-900 dark:hover:bg-indigo-950"
         title="MDPRO miniPV 열기/닫기"
         aria-label="miniPV 열기/닫기"
       >

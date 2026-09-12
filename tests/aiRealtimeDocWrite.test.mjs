@@ -73,3 +73,14 @@ test('selection replacement in document stream is implemented', () => {
   assert.match(aiChatSource, /선택한 텍스트를 대체하여/);
 });
 
+test('realtime document answers remain available as collapsed AI Jena records', () => {
+  assert.doesNotMatch(aiChatSource, /if \(message && message\.documentOnly\) return;/);
+  assert.match(aiChatSource, /className = 'ai-chat-document-answer-record'/);
+  assert.match(aiChatSource, /문서에 작성된 답변 · 기록 펼쳐보기/);
+  assert.match(cssSource, /\.ai-chat-document-answer-record\s*\{/);
+});
+
+test('Alt+4 settings can close and scroll within a mobile viewport', () => {
+  assert.match(aiChatSource, /if \(settingsWereOpen\) \{[\s\S]*setProviderControlsOpen\(false\)/);
+  assert.match(cssSource, /layout-floating:not\(\.floating-compact\) \.ai-chat-provider-controls:not\(\.collapsed\)[^}]*overflow-y:\s*auto/s);
+});

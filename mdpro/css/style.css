@@ -3478,7 +3478,8 @@ html.header-file-actions-text .app-header .header-file-action-label {
 }
 
 .app-header #btn-scholar-ai.header-quick-tool-active,
-.app-header #btn-sspimg-ai.header-quick-tool-active {
+.app-header #btn-sspimg-ai.header-quick-tool-active,
+.app-header #btn-ai-jena-menu.header-quick-tool-active {
     box-shadow: 0 0 0 2px currentColor;
 }
 

@@ -885,6 +885,26 @@ body.ai-chat-history-resizing { cursor: ew-resize !important; user-select: none 
 .ai-chat-message-actions .ai-chat-markdown-toggle[aria-pressed="true"] { border-color: #6f94ca; background: #314966; color: #fff; }
 .ai-chat-message-actions > .ai-chat-answer-delete { color: #ffabb5; }
 .ai-chat-message-actions > .ai-chat-answer-delete:hover { border-color: #9a5360; background: #4b303b; color: #ffdce0; }
+.ai-chat-document-answer-record {
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid rgba(45, 212, 191, .55);
+  border-radius: 12px;
+  background: rgba(5, 31, 34, .5);
+}
+.ai-chat-document-answer-record > summary {
+  padding: 10px 12px;
+  color: #99f6e4;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+  user-select: none;
+}
+.ai-chat-document-answer-record[open] > summary {
+  border-bottom: 1px solid rgba(45, 212, 191, .35);
+}
+.ai-chat-document-answer-body { padding: 10px 12px; }
+.ai-chat-document-answer-body > .ai-chat-message-content { border-radius: 9px; }
 .ai-chat-insert-control { position: relative; display: inline-flex; flex: 0 0 auto; align-items: stretch; }
 .ai-chat-insert-wrap { position: static; display: inline-flex; align-items: stretch; }
 .ai-chat-insert-wrap > summary {
@@ -2270,6 +2290,14 @@ body.theme-light .ai-chat-panel.layout-floating.floating-compact {
   .ai-chat-panel.layout-floating .ai-chat-mode-row,
   .ai-chat-panel.layout-floating .ai-chat-compose-actions { grid-column: 1; justify-content: center; }
   .ai-chat-panel.layout-floating .ai-chat-mode-row { overflow-x: auto; justify-content: flex-start; }
+  .ai-chat-panel.layout-floating:not(.floating-compact) .ai-chat-provider-controls:not(.collapsed) {
+    flex: 0 1 auto;
+    max-height: min(46dvh, 360px);
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 /* UI contract: the primary AI Jena menu must remain reachable in every

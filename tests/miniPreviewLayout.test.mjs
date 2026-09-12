@@ -35,6 +35,13 @@ test('miniPV vertical bounds extend through the full MDPRO frame', () => {
     assert.match(script, /height: Math\.max\(1, viewportBottom - rect\.top\)/);
 });
 
+test('miniPV is fitted fully inside the visible viewport whenever it opens', () => {
+    assert.match(script, /function clampMiniPreviewLayoutForOpening\(/);
+    assert.match(script, /viewportWidth - rect\.left - margin/);
+    assert.match(script, /viewportHeight - rect\.top - margin/);
+    assert.match(script, /applyMiniPreviewLayout\(miniPreviewLayoutBeforeFullscreen \|\| getMiniPreviewLayoutFromLocal\(\) \|\| \{\}, true\)/);
+});
+
 test('miniPV renders the live editor value while edit mode is active', () => {
     assert.match(script, /function getMiniPreviewSourceMarkdown\(\)/);
     assert.match(script, /isEditMode && editorTextarea && typeof editorTextarea\.value === 'string'/);

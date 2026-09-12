@@ -955,9 +955,23 @@
       setFloatingExpanded(document.getElementById('ai-chat-panel').classList.contains('floating-compact'));
     });
     document.getElementById('ai-chat-floating-settings').addEventListener('click', function () {
+      var floatingPanel = document.getElementById('ai-chat-panel');
+      var settingsWereOpen = !!(state.providerControlsOpen && floatingPanel && !floatingPanel.classList.contains('floating-compact'));
+      if (settingsWereOpen) {
+        setProviderControlsOpen(false);
+        if (floatingPanel && floatingPanel.dataset.settingsOpenedFromCompact === 'true') {
+          setFloatingExpanded(false);
+        }
+        if (floatingPanel) delete floatingPanel.dataset.settingsOpenedFromCompact;
+        var floatingInput = document.getElementById('ai-chat-input');
+        if (floatingInput) floatingInput.focus();
+        return;
+      }
+      var openedFromCompact = !!(floatingPanel && floatingPanel.classList.contains('floating-compact'));
       setFloatingExpanded(true);
       syncFastLimitControls();
       setProviderControlsOpen(true);
+      if (floatingPanel) floatingPanel.dataset.settingsOpenedFromCompact = openedFromCompact ? 'true' : 'false';
       setTimeout(function () {
         var providerToggle = document.getElementById('ai-chat-provider-toggle');
         if (providerToggle) providerToggle.focus();
@@ -2224,7 +2238,12 @@
     state.enabled = true;
     var launcher = document.getElementById('ai-chat-launcher');
     if (launcher) launcher.classList.toggle('enabled', storageGet(ENABLED_KEY, '0') === '1');
+    if (state.open) {
+      setOpen(false);
+      return false;
+    }
     openAtStartLayout();
+    return true;
   }
 
   function setProviderControlsOpen(open) {
@@ -2788,12 +2807,19 @@
     state.open = !!open && state.enabled;
     var panel = document.getElementById('ai-chat-panel');
     var launcher = document.getElementById('ai-chat-launcher');
+    var menuButton = document.getElementById('btn-ai-jena-menu');
     if (panel) {
       panel.classList.toggle('open', state.open);
       panel.setAttribute('aria-hidden', state.open ? 'false' : 'true');
       if (!state.open) leaveChatTopLayer();
     }
     if (launcher) launcher.classList.toggle('active', state.open);
+    if (menuButton) {
+      menuButton.classList.toggle('header-quick-tool-active', state.open);
+      menuButton.setAttribute('aria-pressed', state.open ? 'true' : 'false');
+      menuButton.setAttribute('aria-label', state.open ? 'AI Jena 닫기' : 'AI Jena 열기');
+      menuButton.title = state.open ? 'AI Jena 닫기' : 'AI Jena 열기';
+    }
     syncLayoutVisibility();
     setTimeout(updateDockHistoryVisibility, 0);
     if (state.open) {
@@ -4715,7 +4741,6 @@
       list.appendChild(empty);
     } else {
       state.messages.forEach(function (message, messageIndex) {
-        if (message && message.documentOnly) return;
         if (message && message.role === 'assistant') sanitizeAssistantMessage(message);
         var item = document.createElement('article');
         item.className = 'ai-chat-message ' + message.role + (message.error ? ' error' : '') + (message.failed ? ' failed' : '');
@@ -4897,7 +4922,22 @@
                 : (message.isContinuation ? '추가 답변' : '최종 답변'));
           item.appendChild(answerLabel);
         }
-        if (String(message.content || '').trim()) item.appendChild(content);
+        if (String(message.content || '').trim()) {
+          if (message.role === 'assistant' && message.documentOnly) {
+            var documentRecord = document.createElement('details');
+            documentRecord.className = 'ai-chat-document-answer-record';
+            var documentRecordSummary = document.createElement('summary');
+            documentRecordSummary.textContent = '문서에 작성된 답변 · 기록 펼쳐보기';
+            var documentRecordBody = document.createElement('div');
+            documentRecordBody.className = 'ai-chat-document-answer-body';
+            documentRecordBody.appendChild(content);
+            documentRecord.appendChild(documentRecordSummary);
+            documentRecord.appendChild(documentRecordBody);
+            item.appendChild(documentRecord);
+          } else {
+            item.appendChild(content);
+          }
+        }
         if (message.role === 'assistant' && (message.provider === 'lmstudio' || message.provider === 'ollama' || message.provider === 'aistudio') && message.usage) {
           var usage = message.usage || {};
           var responseStatsParts = [];

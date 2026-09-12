@@ -7,6 +7,8 @@ import { dirname, resolve } from 'node:path';
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const chatScript = readFileSync(resolve(repositoryRoot, 'mdpro/AI_App/aiChat/ai-chat.js'), 'utf8');
 const chatStyles = readFileSync(resolve(repositoryRoot, 'mdpro/AI_App/aiChat/ai-chat.css'), 'utf8');
+const appStyles = readFileSync(resolve(repositoryRoot, 'mdpro/css/style.css'), 'utf8');
+const markup = readFileSync(resolve(repositoryRoot, 'mdpro/index.html'), 'utf8');
 
 const requiredHeaderControls = [
   'ai-chat-history-toggle',
@@ -32,4 +34,11 @@ test('AI Jena keeps the Alt+4 movement and compact real-time behavior', () => {
 test('expanded AI Jena layouts force the header menu to remain visible', () => {
   assert.match(chatStyles, /\.ai-chat-panel:not\(\.floating-compact\) \.ai-chat-header-actions\s*\{[^}]*display:\s*flex\s*!important/s);
   assert.match(chatStyles, /\.ai-chat-header-actions[^}]*visibility:\s*visible\s*!important/s);
+});
+
+test('the AI Jena menu button toggles the panel closed in Alt+4 and every other layout', () => {
+  assert.match(chatScript, /function openFromMenu\(\)\s*\{[\s\S]*if \(state\.open\) \{[\s\S]*setOpen\(false\);[\s\S]*return false;/);
+  assert.match(chatScript, /menuButton\.setAttribute\('aria-pressed', state\.open \? 'true' : 'false'\)/);
+  assert.match(markup, /id="btn-ai-jena-menu"[^>]*aria-pressed="false"/);
+  assert.match(appStyles, /#btn-ai-jena-menu\.header-quick-tool-active/);
 });
