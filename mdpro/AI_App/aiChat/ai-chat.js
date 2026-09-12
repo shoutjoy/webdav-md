@@ -69,6 +69,7 @@
   }
 
   var ENABLED_KEY = 'ss_ai_chat_enabled';
+  var HEADER_UTILITIES_KEY = 'ss_ai_chat_header_utilities_enabled';
   var PROVIDER_KEY = 'ss_ai_chat_provider';
   var GEMINI_MODEL_KEY = 'ss_ai_chat_gemini_model';
   var DEEPSEEK_MODEL_KEY = 'ss_ai_chat_deepseek_model';
@@ -210,6 +211,7 @@
   var realtimeDocWritten = '';
   var realtimeDocActive = false;
   var realtimeDocExclusive = false;
+  var floatingCompactReturnPosition = null;
   var thinkingTimer = null;
   var thinkingStartedAt = 0;
   var thinkingProgress = 0;
@@ -741,6 +743,7 @@
       + '    <button type="button" id="ai-chat-history-toggle" class="ai-chat-icon-action" title="왼쪽 대화 기록 열기" aria-label="왼쪽 대화 기록 열기" aria-expanded="false">'
       + '      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M5.5 8h1M5.5 12h1M5.5 16h1"/></svg><span class="ai-chat-action-label">기록</span>'
       + '    </button>'
+      + '    <button type="button" id="ai-chat-floating-close" class="ai-chat-icon-action" title="플로팅 닫기" aria-label="AI Jena 플로팅 닫기">×</button>'
       + '    <button type="button" id="ai-chat-new" class="ai-chat-icon-action" title="새 대화" aria-label="새 대화">'
       + '      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="ai-chat-action-label">새 대화</span>'
       + '    </button>'
@@ -816,7 +819,6 @@
       + '      <div class="ai-chat-storage-note">대화 내용은 IndexedDB에 저장됩니다.</div>'
       + '      <div class="ai-chat-mode-row" role="group" aria-label="응답 모드">'
       + '        <button type="button" id="ai-chat-floating-toggle" class="ai-chat-floating-toggle" title="대화창 펼치기" aria-label="대화창 펼치기" aria-expanded="false">☰</button>'
-      + '        <button type="button" id="ai-chat-floating-settings" class="ai-chat-floating-settings" title="AI 공급자 설정" aria-label="AI 공급자 설정">⚙</button>'
       + '        <button type="button" data-ai-chat-mode="quick">즉시</button>'
       + '        <label class="ai-chat-fast-toggle" title="설명 없이 답만 빠르게 생성합니다. Mermaid 요청은 코드만 반환합니다."><input type="checkbox" id="ai-chat-fast-mode"><span>FAST</span></label>'
       + '        <button type="button" data-ai-chat-mode="reasoning">추론</button>'
@@ -876,6 +878,7 @@
     setupLauncherDrag(launcher);
     document.getElementById('ai-chat-close').addEventListener('click', function () { setOpen(false); });
     document.getElementById('ai-chat-history-toggle').addEventListener('click', toggleHistorySidebar);
+    document.getElementById('ai-chat-floating-close').addEventListener('click', function () { setOpen(false); });
     document.getElementById('ai-chat-new').addEventListener('click', startNewChat);
     document.getElementById('ai-chat-history-new').addEventListener('click', startNewChat);
     document.getElementById('ai-chat-history-close').addEventListener('click', closeHistorySidebar);
@@ -953,29 +956,6 @@
     });
     document.getElementById('ai-chat-floating-toggle').addEventListener('click', function () {
       setFloatingExpanded(document.getElementById('ai-chat-panel').classList.contains('floating-compact'));
-    });
-    document.getElementById('ai-chat-floating-settings').addEventListener('click', function () {
-      var floatingPanel = document.getElementById('ai-chat-panel');
-      var settingsWereOpen = !!(state.providerControlsOpen && floatingPanel && !floatingPanel.classList.contains('floating-compact'));
-      if (settingsWereOpen) {
-        setProviderControlsOpen(false);
-        if (floatingPanel && floatingPanel.dataset.settingsOpenedFromCompact === 'true') {
-          setFloatingExpanded(false);
-        }
-        if (floatingPanel) delete floatingPanel.dataset.settingsOpenedFromCompact;
-        var floatingInput = document.getElementById('ai-chat-input');
-        if (floatingInput) floatingInput.focus();
-        return;
-      }
-      var openedFromCompact = !!(floatingPanel && floatingPanel.classList.contains('floating-compact'));
-      setFloatingExpanded(true);
-      syncFastLimitControls();
-      setProviderControlsOpen(true);
-      if (floatingPanel) floatingPanel.dataset.settingsOpenedFromCompact = openedFromCompact ? 'true' : 'false';
-      setTimeout(function () {
-        var providerToggle = document.getElementById('ai-chat-provider-toggle');
-        if (providerToggle) providerToggle.focus();
-      }, 0);
     });
     syncFastLimitControls();
     document.getElementById('ai-chat-fast-token-limit').addEventListener('change', saveFastLimitControls);
@@ -1388,11 +1368,36 @@
     }));
   }
 
+  function getFloatingBottomMargin() {
+    return root.innerWidth <= 700 ? 6 : 22;
+  }
+
+  function positionFloatingCompactAtBottom() {
+    var panel = document.getElementById('ai-chat-panel');
+    if (!panel || !state.open || state.layout !== 'floating' || !panel.classList.contains('floating-compact')) return;
+    var saved = readFloatingPosition();
+    var rect = panel.getBoundingClientRect();
+    var width = Math.min(rect.width, Math.max(0, root.innerWidth - 8));
+    var height = Math.min(rect.height, Math.max(0, root.innerHeight - 8));
+    var defaultLeft = Math.max(4, (root.innerWidth - width) / 2);
+    var left = saved ? saved.left : defaultLeft;
+    panel.style.width = width + 'px';
+    panel.style.height = height + 'px';
+    panel.style.left = Math.max(4, Math.min(left, root.innerWidth - width - 4)) + 'px';
+    panel.style.top = Math.max(4, root.innerHeight - height - getFloatingBottomMargin()) + 'px';
+    panel.style.right = 'auto';
+    panel.style.bottom = 'auto';
+    panel.style.transform = 'none';
+    saveFloatingPosition();
+  }
+
   function applyFloatingPosition() {
     var panel = document.getElementById('ai-chat-panel');
     var saved = readFloatingPosition();
     if (!panel || state.layout !== 'floating' || !saved) return;
-    var viewport = popupWindow();
+    // Floating panels live inside the editor iframe, unlike popup panels that
+    // are adopted into the WebDAV shell. Clamp against the iframe viewport.
+    var viewport = root;
     var width = panel.offsetWidth || panel.getBoundingClientRect().width;
     var height = panel.offsetHeight || panel.getBoundingClientRect().height;
     panel.style.left = Math.max(4, Math.min(saved.left, viewport.innerWidth - width - 4)) + 'px';
@@ -1404,15 +1409,18 @@
 
   function clampFloatingToViewport() {
     var panel = document.getElementById('ai-chat-panel');
-    if (!panel || !state.open || state.layout !== 'floating' || !readFloatingPosition()) return;
+    if (!panel || !state.open || state.layout !== 'floating') return;
     var rect = panel.getBoundingClientRect();
-    var viewport = popupWindow();
+    var viewport = root;
     var width = Math.min(rect.width, viewport.innerWidth - 8);
     var height = Math.min(rect.height, viewport.innerHeight - 8);
     panel.style.width = Math.max(0, width) + 'px';
     panel.style.height = Math.max(0, height) + 'px';
     panel.style.left = Math.max(4, Math.min(rect.left, viewport.innerWidth - width - 4)) + 'px';
-    panel.style.top = Math.max(4, Math.min(rect.top, viewport.innerHeight - height - 4)) + 'px';
+    var top = panel.classList.contains('floating-compact')
+      ? viewport.innerHeight - height - getFloatingBottomMargin()
+      : Math.min(rect.top, viewport.innerHeight - height - 4);
+    panel.style.top = Math.max(4, top) + 'px';
     panel.style.right = 'auto';
     panel.style.bottom = 'auto';
     panel.style.transform = 'none';
@@ -1443,12 +1451,45 @@
     var button = document.getElementById('ai-chat-floating-toggle');
     if (!panel) return;
     var isExpanded = !!expanded;
+    var wasCompact = panel.classList.contains('floating-compact');
+    if (state.layout === 'floating' && isExpanded && wasCompact) {
+      var compactRect = panel.getBoundingClientRect();
+      floatingCompactReturnPosition = { left: compactRect.left, top: compactRect.top, bottom: compactRect.bottom };
+    }
     panel.classList.toggle('floating-compact', state.layout === 'floating' && !isExpanded);
     if (button) {
       button.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
       button.setAttribute('aria-label', isExpanded ? '입력창만 보기' : '대화창 펼치기');
       button.title = isExpanded ? '입력창만 보기' : '대화창 펼치기';
       button.textContent = isExpanded ? '⌄' : '☰';
+    }
+    if (state.layout === 'floating') {
+      var schedule = root.requestAnimationFrame || function (callback) { return setTimeout(callback, 16); };
+      schedule(function () {
+        if (!isExpanded) {
+          // A drag while expanded can leave a large inline height behind. The
+          // compact bar must be measured from its own CSS size before clamping.
+          panel.style.width = '';
+          panel.style.height = '';
+        }
+        var currentRect = panel.getBoundingClientRect();
+        var target = floatingCompactReturnPosition
+          || readFloatingPosition()
+          || { left: currentRect.left, top: currentRect.top };
+        var viewport = root;
+        var width = panel.offsetWidth || currentRect.width;
+        var height = panel.offsetHeight || currentRect.height;
+        panel.style.left = Math.max(4, Math.min(target.left, viewport.innerWidth - width - 4)) + 'px';
+        var targetTop = isExpanded && Number.isFinite(target.bottom) ? target.bottom - height : target.top;
+        panel.style.top = Math.max(4, Math.min(targetTop, viewport.innerHeight - height - 4)) + 'px';
+        panel.style.right = 'auto';
+        panel.style.bottom = 'auto';
+        panel.style.transform = 'none';
+        if (!isExpanded) {
+          floatingCompactReturnPosition = null;
+          saveFloatingPosition();
+        }
+      });
     }
   }
 
@@ -1690,6 +1731,7 @@
     leaveChatTopLayer();
     if (state.layout === 'popup' && state.open) savePopupRect();
     state.layout = layout;
+    if (layout !== 'floating') floatingCompactReturnPosition = null;
     storageSet(LAYOUT_KEY, layout);
     panel.classList.remove('layout-popup', 'layout-dock', 'layout-fullscreen', 'layout-floating');
     panel.classList.add('layout-' + layout);
@@ -1768,7 +1810,7 @@
       panel.classList.add('dragging');
       dragSurface.setPointerCapture(event.pointerId);
       function move(moveEvent) {
-        var viewport = popupWindow();
+        var viewport = draggedLayout === 'floating' ? root : popupWindow();
         var left = Math.max(4, Math.min(moveEvent.clientX - offsetX, viewport.innerWidth - panel.offsetWidth - 4));
         var top = Math.max(4, Math.min(moveEvent.clientY - offsetY, viewport.innerHeight - panel.offsetHeight - 4));
         panel.style.left = left + 'px';
@@ -2247,6 +2289,11 @@
   }
 
   function setProviderControlsOpen(open) {
+    var panel = document.getElementById('ai-chat-panel');
+    var floatingBottom = null;
+    if (panel && state.layout === 'floating' && !panel.classList.contains('floating-compact')) {
+      floatingBottom = panel.getBoundingClientRect().bottom;
+    }
     state.providerControlsOpen = !!open;
     storageSet(PROVIDER_CONTROLS_KEY, state.providerControlsOpen ? '1' : '0');
     var controls = document.getElementById('ai-chat-provider-controls');
@@ -2257,6 +2304,24 @@
     if (toggle) toggle.setAttribute('aria-expanded', state.providerControlsOpen ? 'true' : 'false');
     if (chevron) chevron.textContent = state.providerControlsOpen ? '▾' : '▸';
     if (label) label.textContent = state.providerControlsOpen ? '접기' : '설정';
+    if (panel) panel.classList.toggle('floating-settings-open', state.layout === 'floating' && state.providerControlsOpen);
+    if (floatingBottom != null) {
+      var schedule = root.requestAnimationFrame || function (callback) { return setTimeout(callback, 16); };
+      schedule(function () {
+        if (!panel || state.layout !== 'floating') return;
+        var viewport = root;
+        panel.style.removeProperty('height');
+        var rect = panel.getBoundingClientRect();
+        var maxHeight = Math.max(0, viewport.innerHeight - 8);
+        var height = Math.min(rect.height, maxHeight);
+        var top = Math.max(4, Math.min(floatingBottom - height, viewport.innerHeight - height - 4));
+        if (rect.height > maxHeight) panel.style.height = height + 'px';
+        panel.style.top = top + 'px';
+        panel.style.right = 'auto';
+        panel.style.bottom = 'auto';
+        panel.style.transform = 'none';
+      });
+    }
   }
 
   function readLocalFastConfig() {
@@ -2824,7 +2889,12 @@
     setTimeout(updateDockHistoryVisibility, 0);
     if (state.open) {
       if (state.layout === 'popup') applyPopupRect();
-      if (state.layout === 'floating') applyFloatingPosition();
+      if (state.layout === 'floating') {
+        floatingCompactReturnPosition = null;
+        setFloatingExpanded(false);
+        var schedule = root.requestAnimationFrame || function (callback) { return setTimeout(callback, 16); };
+        schedule(positionFloatingCompactAtBottom);
+      }
       setTimeout(promotePanelToTopLayer, 0);
       renderMessages();
       refreshModels(true);
@@ -6018,6 +6088,29 @@
     }
   }
 
+  function setHeaderUtilitiesVisible(enabled) {
+    var panel = document.getElementById('ai-chat-panel');
+    if (!panel) return false;
+    var isVisible = !!enabled;
+    panel.classList.toggle('ai-chat-header-utilities-visible', isVisible);
+    ['ai-chat-new', 'ai-chat-copy-all', 'ai-chat-save-all'].forEach(function (id) {
+      var button = document.getElementById(id);
+      if (!button) return;
+      button.hidden = !isVisible;
+      button.setAttribute('aria-hidden', isVisible ? 'false' : 'true');
+      if (isVisible) {
+        button.style.removeProperty('display');
+        button.removeAttribute('tabindex');
+      } else {
+        // An inline !important guard keeps older cached layout CSS from
+        // exposing these controls until the ENV checkbox is enabled.
+        button.style.setProperty('display', 'none', 'important');
+        button.setAttribute('tabindex', '-1');
+      }
+    });
+    return isVisible;
+  }
+
   async function init() {
     try {
       var initialBridge = root.AIChatBridge;
@@ -6027,6 +6120,7 @@
       syncAllConversationStores(true).then(renderConversationHistory).catch(function () {});
     });
     createUI();
+    setHeaderUtilitiesVisible(storageGet(HEADER_UTILITIES_KEY, '0') === '1');
     bindPreserveEditorSelectionOnPanel();
     var savedProvider = storageGet(PROVIDER_KEY, 'lmstudio');
     state.provider = savedProvider === 'aistudio' || savedProvider === 'ollama' || savedProvider === 'litertlm' || savedProvider === 'deepseek' || savedProvider === 'openai-compatible' || savedProvider === 'openai'
@@ -6117,6 +6211,7 @@
   root.AIChat = Object.freeze({
     init: init,
     setEnabled: setEnabled,
+    setHeaderUtilitiesVisible: setHeaderUtilitiesVisible,
     openFromMenu: openFromMenu,
     isEnabled: function () { return state.enabled; },
     isOpen: function () { return state.open; },

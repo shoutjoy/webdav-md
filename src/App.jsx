@@ -544,12 +544,6 @@ export default function App() {
     }, window.location.origin);
   };
 
-  const toggleMdproMiniPreview = () => {
-    const iframe = document.querySelector('iframe[title="MDPRO 문서 편집기"]');
-    if (!iframe?.contentWindow) return;
-    iframe.contentWindow.postMessage({ type: 'webdav-toggle-mini-preview' }, window.location.origin);
-  };
-
   const openTocPopup = (currentContent) => {
     const markdown = typeof currentContent === 'string' ? currentContent : editorContentRef.current;
     const items = parseMarkdownToc(markdown);
@@ -2115,7 +2109,6 @@ export default function App() {
           explorerOpen={isExplorerOpen}
           mobileWdocRect={mobileWdocRect}
           onToggleExplorer={toggleExplorer}
-          onToggleMiniPreview={toggleMdproMiniPreview}
           onOpenFolderUrl={openFolderInNewWindow}
 
           onCopyFolderUrl={() => handleCopyUrl(currentPath, 'folder')}
