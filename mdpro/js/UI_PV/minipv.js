@@ -268,7 +268,30 @@ function clampMiniPreviewLayout(layoutInput) {
     return rect ? avoidMiniPreviewObstructions(clamped, rect) : clamped;
 }
 
-function applyMiniPreviewLayout(layoutInput) {
+function clampMiniPreviewLayoutForOpening(layoutInput) {
+    const rect = getMiniPreviewContainerRect();
+    const layout = clampMiniPreviewLayout(layoutInput);
+    if (!rect) return layout;
+    const viewportWidth = Math.max(1, Number(window.innerWidth) || rect.right || rect.width);
+    const viewportHeight = Math.max(1, Number(window.innerHeight) || rect.bottom || rect.height);
+    const margin = 8;
+    const minLeft = Math.max(margin, margin - rect.left);
+    const minTop = Math.max(margin, margin - rect.top);
+    const visibleRight = Math.min(rect.width - margin, viewportWidth - rect.left - margin);
+    const visibleBottom = Math.min(rect.height - margin, viewportHeight - rect.top - margin);
+    const availableWidth = Math.max(1, visibleRight - minLeft);
+    const availableHeight = Math.max(1, visibleBottom - minTop);
+    const width = Math.min(layout.width, availableWidth);
+    const height = Math.min(layout.height, availableHeight);
+    return {
+        left: Math.max(minLeft, Math.min(layout.left, visibleRight - width)),
+        top: Math.max(minTop, Math.min(layout.top, visibleBottom - height)),
+        width: width,
+        height: height
+    };
+}
+
+function applyMiniPreviewLayout(layoutInput, keepFullyVisible) {
     if (!miniPreviewPanel) bindMiniPreviewElements();
     if (!miniPreviewPanel) return;
     if (miniPreviewFullscreen) {
@@ -293,7 +316,10 @@ function applyMiniPreviewLayout(layoutInput) {
         miniPreviewPanel.style.maxWidth = 'none';
         return;
     }
-    const layout = clampMiniPreviewLayout(layoutInput || getMiniPreviewLayoutFromLocal() || {});
+    const requestedLayout = layoutInput || getMiniPreviewLayoutFromLocal() || {};
+    const layout = keepFullyVisible
+        ? clampMiniPreviewLayoutForOpening(requestedLayout)
+        : clampMiniPreviewLayout(requestedLayout);
     const rect = getMiniPreviewContainerRect();
     miniPreviewPanel.style.position = 'fixed';
     miniPreviewPanel.style.left = ((rect ? rect.left : 0) + layout.left) + 'px';
@@ -966,7 +992,7 @@ function applyMiniPreviewVisibility() {
     miniPreviewPanel.classList.toggle('hidden', !show);
         if (show) {
             bindMiniPreviewInteractions();
-            applyMiniPreviewLayout(miniPreviewLayoutBeforeFullscreen || getMiniPreviewLayoutFromLocal() || {});
+            applyMiniPreviewLayout(miniPreviewLayoutBeforeFullscreen || getMiniPreviewLayoutFromLocal() || {}, true);
             updateMiniPreviewFullscreenUi();
             updateMiniPreviewSyncUi();
             applyMiniPreviewZoom();
