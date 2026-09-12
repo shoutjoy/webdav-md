@@ -7856,7 +7856,8 @@ function insertListAtSelection(kind) {
 
 const captionInsertState = {
     mode: 'table',
-    format: 'angle'
+    format: 'angle',
+    tableAlignment: 'left'
 };
 
 function getCaptionFormats(mode) {
@@ -7893,12 +7894,19 @@ function buildCaptionText(mode, formatId, number, title) {
     return format.build(n) + ' ' + body;
 }
 
-function buildCaptionHtml(mode, formatId, number, title) {
+function normalizeCaptionAlignment(alignment) {
+    return ['left', 'center', 'right'].includes(alignment) ? alignment : 'left';
+}
+
+function buildCaptionHtml(mode, formatId, number, title, alignment) {
     const formats = getCaptionFormats(mode);
     const format = formats.find(function (item) { return item.id === formatId; }) || formats[0];
     const n = Math.max(1, parseInt(number, 10) || 1);
     const body = String(title || '').trim() || '내용';
-    return '<span class="tbl-caption">' + format.build(n) + ' ' + escapeCaptionHtml(body) + '</span>';
+    const alignmentClass = mode === 'table'
+        ? ' tbl-caption-align-' + normalizeCaptionAlignment(alignment)
+        : '';
+    return '<span class="tbl-caption' + alignmentClass + '">' + format.build(n) + ' ' + escapeCaptionHtml(body) + '</span>';
 }
 
 function getCaptionUi(mode) {
@@ -7907,6 +7915,7 @@ function getCaptionUi(mode) {
         mode: normalized,
         panel: document.getElementById(normalized + '-caption-panel'),
         formatButtons: document.getElementById(normalized + '-caption-format-buttons'),
+        alignmentButtons: document.getElementById(normalized + '-caption-alignment-buttons'),
         numberInput: document.getElementById(normalized + '-caption-number-input'),
         textInput: document.getElementById(normalized + '-caption-text-input'),
         preview: document.getElementById(normalized + '-caption-preview')
@@ -7925,6 +7934,38 @@ function updateCaptionInsertPreview(mode) {
         numberInput ? numberInput.value : 1,
         textInput ? textInput.value : ''
     );
+    if (ui.mode === 'table') {
+        preview.style.textAlign = normalizeCaptionAlignment(captionInsertState.tableAlignment);
+    }
+}
+
+function renderCaptionAlignmentButtons(mode) {
+    const ui = getCaptionUi(mode || captionInsertState.mode);
+    const wrap = ui.alignmentButtons;
+    if (!wrap || ui.mode !== 'table') return;
+    const alignments = [
+        { id: 'left', label: '왼쪽' },
+        { id: 'center', label: '가운데' },
+        { id: 'right', label: '오른쪽' }
+    ];
+    const currentAlignment = normalizeCaptionAlignment(captionInsertState.tableAlignment);
+    wrap.innerHTML = '';
+    alignments.forEach(function (alignment) {
+        const btn = document.createElement('button');
+        const selected = alignment.id === currentAlignment;
+        btn.type = 'button';
+        btn.textContent = alignment.label;
+        btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
+        btn.className = 'flex-1 px-2.5 py-1.5 rounded-md border text-xs font-semibold ' + (selected
+            ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200'
+            : 'border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700');
+        btn.addEventListener('click', function () {
+            captionInsertState.tableAlignment = alignment.id;
+            renderCaptionAlignmentButtons(ui.mode);
+            updateCaptionInsertPreview(ui.mode);
+        });
+        wrap.appendChild(btn);
+    });
 }
 
 function renderCaptionFormatButtons(mode) {
@@ -7971,6 +8012,9 @@ function prepareCaptionPanel(mode) {
     }
     const ui = getCaptionUi(mode);
     captionInsertState.mode = ui.mode;
+    if (ui.mode === 'table') {
+        captionInsertState.tableAlignment = 'left';
+    }
     if (!captionInsertState[ui.mode + 'Format']) {
         captionInsertState[ui.mode + 'Format'] = ui.mode === 'figure' ? 'bracket' : 'angle';
     }
@@ -7986,6 +8030,7 @@ function prepareCaptionPanel(mode) {
         textInput.oninput = function () { updateCaptionInsertPreview(ui.mode); };
     }
     renderCaptionFormatButtons(ui.mode);
+    renderCaptionAlignmentButtons(ui.mode);
     updateCaptionInsertPreview(ui.mode);
     return true;
 }
@@ -8044,7 +8089,8 @@ function confirmCaptionInsert(mode) {
         ui.mode,
         format,
         numberInput ? numberInput.value : 1,
-        textInput ? textInput.value : ''
+        textInput ? textInput.value : '',
+        ui.mode === 'table' ? captionInsertState.tableAlignment : undefined
     );
     if (insertCaptionHtmlAtCursor(html)) {
         if (ui.mode === 'table') toggleCaptionInsertPanel('table', false);
