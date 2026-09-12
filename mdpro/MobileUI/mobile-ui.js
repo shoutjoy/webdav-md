@@ -11,6 +11,100 @@
     let headerFileMenuOpen = false;
     let headerFeatureMenuOpen = false;
     let zoomControlsCollapsed = false;
+    const HEADER_DROPDOWNS = [
+        { menuId: 'new-file-menu', anchorSelector: '#new-file-menu-toggle', alignment: 'left' },
+        { menuId: 'open-source-menu', anchorSelector: '#open-source-menu-button', alignment: 'left' },
+        { menuId: 'save-dropdown-menu', anchorSelector: '#save-dropdown-toggle', alignment: 'right' },
+        { menuId: 'webdav-save-dropdown-menu', anchorSelector: '#webdav-save-dropdown-wrap [aria-label="WebDAV 저장 메뉴"]', alignment: 'right' }
+    ];
+
+    function clearHeaderDropdownPosition(menu) {
+        if (!menu) return;
+        ['position', 'top', 'right', 'bottom', 'left', 'max-width'].forEach(function (property) {
+            menu.style.removeProperty(property);
+        });
+        const marker = menu.__mobileHeaderDropdownMarker;
+        if (marker && marker.parentNode) {
+            marker.parentNode.insertBefore(menu, marker);
+            marker.remove();
+        }
+        delete menu.__mobileHeaderDropdownMarker;
+    }
+
+    function portalHeaderDropdown(menu) {
+        if (!menu || menu.__mobileHeaderDropdownMarker || !menu.parentNode) return;
+        const marker = document.createComment('mobile-header-dropdown:' + (menu.id || 'menu'));
+        menu.parentNode.insertBefore(marker, menu);
+        menu.__mobileHeaderDropdownMarker = marker;
+        document.body.appendChild(menu);
+    }
+
+    function positionHeaderDropdown(menu, anchor, alignment) {
+        if (!menu || !anchor) return false;
+        if (!media.matches || !document.body.classList.contains('mobile-ui-active')) {
+            clearHeaderDropdownPosition(menu);
+            return false;
+        }
+
+        const viewport = window.visualViewport;
+        const viewportLeft = viewport ? viewport.offsetLeft : 0;
+        const viewportTop = viewport ? viewport.offsetTop : 0;
+        const viewportWidth = viewport ? viewport.width : document.documentElement.clientWidth;
+        const viewportHeight = viewport ? viewport.height : document.documentElement.clientHeight;
+        const margin = 8;
+        const gap = 6;
+        const anchorRect = anchor.getBoundingClientRect();
+
+        portalHeaderDropdown(menu);
+        menu.style.setProperty('position', 'fixed');
+        menu.style.setProperty('right', 'auto');
+        menu.style.setProperty('bottom', 'auto');
+        menu.style.setProperty('max-width', Math.max(0, viewportWidth - margin * 2) + 'px');
+
+        const menuRect = menu.getBoundingClientRect();
+        const menuWidth = Math.min(menuRect.width || menu.offsetWidth || 220, Math.max(0, viewportWidth - margin * 2));
+        const menuHeight = menuRect.height || menu.offsetHeight || 0;
+        let left = alignment === 'right' ? anchorRect.right - menuWidth : anchorRect.left;
+        left = Math.max(viewportLeft + margin, Math.min(left, viewportLeft + viewportWidth - menuWidth - margin));
+
+        let top = anchorRect.bottom + gap;
+        if (menuHeight && top + menuHeight > viewportTop + viewportHeight - margin) {
+            top = Math.max(viewportTop + margin, anchorRect.top - menuHeight - gap);
+        }
+
+        menu.style.setProperty('left', Math.round(left) + 'px');
+        menu.style.setProperty('top', Math.round(top) + 'px');
+        return true;
+    }
+
+    function clearAllHeaderDropdownPositions() {
+        HEADER_DROPDOWNS.forEach(function (entry) {
+            clearHeaderDropdownPosition(document.getElementById(entry.menuId));
+        });
+    }
+
+    function syncHeaderDropdownPositions() {
+        HEADER_DROPDOWNS.forEach(function (entry) {
+            const menu = document.getElementById(entry.menuId);
+            const anchor = document.querySelector(entry.anchorSelector);
+            if (!menu) return;
+            if (menu.classList.contains('hidden') || !anchor || !anchor.getClientRects().length) {
+                if (!menu.classList.contains('hidden') && (!anchor || !anchor.getClientRects().length)) {
+                    menu.classList.add('hidden');
+                }
+                clearHeaderDropdownPosition(menu);
+                return;
+            }
+            positionHeaderDropdown(menu, anchor, entry.alignment);
+        });
+    }
+
+    function scheduleHeaderDropdownPositionSync() {
+        const schedule = typeof window.requestAnimationFrame === 'function'
+            ? function (callback) { return window.requestAnimationFrame(callback); }
+            : function (callback) { return window.setTimeout(callback, 0); };
+        schedule(syncHeaderDropdownPositions);
+    }
 
     function readEditToolsPreference() {
         try {
@@ -317,6 +411,7 @@
     function applyViewportMode() {
         document.body.classList.toggle('mobile-ui-active', media.matches);
         if (!media.matches) {
+            clearAllHeaderDropdownPositions();
             setSidebarOpen(false);
             setReadingFocus(false);
             document.body.classList.remove('mobile-keyboard-open');
@@ -350,6 +445,13 @@
         applyViewportMode();
         syncThemeState();
         bindKeyboardAwareness();
+        document.addEventListener('click', scheduleHeaderDropdownPositionSync, true);
+        document.addEventListener('scroll', scheduleHeaderDropdownPositionSync, true);
+        window.addEventListener('resize', scheduleHeaderDropdownPositionSync);
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', scheduleHeaderDropdownPositionSync);
+            window.visualViewport.addEventListener('scroll', scheduleHeaderDropdownPositionSync);
+        }
 
         window.addEventListener('ai-jena-enabled-change', function (event) {
             syncAiJenaState(event && event.detail);
@@ -400,6 +502,8 @@
         closeSidebar: function () { setSidebarOpen(false); },
         toggleHeaderFileMenu: function () { setHeaderGroupOpen('file', !headerFileMenuOpen, true); },
         toggleHeaderFeatureMenu: function () { setHeaderGroupOpen('feature', !headerFeatureMenuOpen, true); },
-        toggleZoomControls: function () { setZoomControlsCollapsed(!zoomControlsCollapsed, true); }
+        toggleZoomControls: function () { setZoomControlsCollapsed(!zoomControlsCollapsed, true); },
+        positionHeaderDropdown: positionHeaderDropdown,
+        clearHeaderDropdownPosition: clearHeaderDropdownPosition
     };
 })();
