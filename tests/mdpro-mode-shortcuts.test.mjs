@@ -37,6 +37,20 @@ test('mode button hints match shortcuts', () => {
     assert.match(html, /id="btn-view" title="Ctrl\+2" aria-keyshortcuts="Control\+2"/);
 });
 
+test('edit to view mode restores the editor viewport instead of the caret position', () => {
+    const toggleStart = source.indexOf('function toggleMode(mode)');
+    const toggleEnd = source.indexOf('\nconst DEDICATED_LOCAL_VIEWER_EXTENSIONS', toggleStart);
+    const toggleSource = source.slice(toggleStart, toggleEnd);
+    const captureIndex = toggleSource.indexOf('const editScrollTarget = getActiveScrollTarget()');
+    const hideIndex = toggleSource.indexOf("ec.classList.add('hidden')", captureIndex);
+
+    assert.ok(captureIndex >= 0, 'editor scroll ratio should be captured');
+    assert.ok(hideIndex > captureIndex, 'editor scroll ratio must be captured before the editor is hidden');
+    assert.match(toggleSource, /getScrollRatio\(editScrollTarget\)/);
+    assert.match(toggleSource, /setScrollRatio\(vc, editScrollRatio\)/);
+    assert.doesNotMatch(toggleSource, /setScrollRatio\(vc, ratioFromCaret\)/);
+});
+
 test('heading shortcuts cover Ctrl+Alt+1 through Ctrl+Alt+5', () => {
     const handlerStart = source.indexOf('// Ctrl + Alt + 1, 2, 3, 4, 5 for Headings');
     const handlerEnd = source.indexOf('// Ctrl + 1 for Edit mode', handlerStart);

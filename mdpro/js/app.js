@@ -4252,6 +4252,13 @@ function toggleMode(mode) {
             if (isEditMode) restoreLastClickedTocPosition();
         });
     } else {
+        // Capture the editor viewport before hiding it. The caret can remain at
+        // the end of the document after an edit command, so using only its
+        // position can incorrectly send preview mode to the very bottom.
+        const editScrollTarget = getActiveScrollTarget();
+        const editScrollRatio = editScrollTarget
+            ? getScrollRatio(editScrollTarget)
+            : getMarkdownRatioFromCharPos(lastEditCaretPos);
         if (editorTextarea) {
             lastEditCaretPos = Math.max(0, editorTextarea.selectionStart || 0);
         }
@@ -4298,11 +4305,10 @@ function toggleMode(mode) {
             if (currentMarkdown.trim() && viewer && !viewer.textContent.trim()) {
                 await renderMarkdown({ force: true });
             }
-            const ratioFromCaret = getMarkdownRatioFromCharPos(lastEditCaretPos);
             requestAnimationFrame(function () {
                 if (isEditMode) return;
                 if (restoreLastClickedTocPosition()) return;
-                setScrollRatio(vc, ratioFromCaret);
+                setScrollRatio(vc, editScrollRatio);
             });
         });
         applyMiniPreviewVisibility();
@@ -9396,7 +9402,17 @@ function getActiveScrollTarget() {
         const mobileContinuousEditor = viewport?.classList.contains('long-document-active')
             && document.body.classList.contains('mobile-ui-active');
         if (mobileContinuousEditor && editorTextarea) return editorTextarea;
-        if (viewport && (viewport.classList.contains('a4-active') || viewport.classList.contains('long-document-active'))) return viewport;
+        const viewportOwnsScroll = viewport && viewport.scrollHeight > viewport.clientHeight + 1;
+        const textareaOwnsScroll = editorTextarea && editorTextarea.scrollHeight > editorTextarea.clientHeight + 1;
+        const layoutUsesViewport = viewport
+            && (viewport.classList.contains('a4-active') || viewport.classList.contains('long-document-active'));
+        // Continuous editing can use either the outer viewport or the textarea,
+        // depending on responsive CSS and when its content height was measured.
+        // Target the element that actually owns the vertical overflow so the
+        // jump buttons do not scroll a non-scrollable viewport.
+        if (layoutUsesViewport && viewportOwnsScroll) return viewport;
+        if (textareaOwnsScroll) return editorTextarea;
+        if (layoutUsesViewport) return viewport;
         if (editorTextarea) return editorTextarea;
     }
     if (viewerContainer) return viewerContainer;
