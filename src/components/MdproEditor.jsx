@@ -3,7 +3,7 @@ import PanelResizeHandles from './PanelResizeHandles.jsx';
 
 const FMA_WIDTH_KEY = 'webdav-fma-panel-width';
 const APP_BASE_URL = import.meta.env.BASE_URL;
-const MDPRO_URL = `${APP_BASE_URL}mdpro/index.html?webdav=1&editor=cm6&ui=20260912-list-outdent-9`;
+const MDPRO_URL = `${APP_BASE_URL}mdpro/index.html?webdav=1&editor=cm6&ui=20260912-mobile-header-portal-2`;
 const FMA_URL = `${APP_BASE_URL}mdpro/Apps/fmaviewer/index.html?embedded=1`;
 
 export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, onSaveSettingsMset, onLoadSettingsMset, onReadCredentialVault, onWriteCredentialVault, selectedFile, content, binaryContent, fmaImportBatch, loading, saving, explorerWidth, panelResizeEnabled, onSave, onSaveAs, onDocumentChange, onSaveImageToFolder, onClose, onToggleExplorer, onShowDocumentExplorer, onOpenExplorer, onOpenFolderExplorer, onOpenRecentWork, onRequestCreateFile, onOpenTocPopup, onThemeChange, autosaveEnabled }) {

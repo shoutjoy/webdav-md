@@ -955,7 +955,11 @@
       setProviderControlsOpen(!state.providerControlsOpen);
     });
     document.getElementById('ai-chat-floating-toggle').addEventListener('click', function () {
+      var settingsWereOpen = state.providerControlsOpen;
       setFloatingExpanded(document.getElementById('ai-chat-panel').classList.contains('floating-compact'));
+      if (settingsWereOpen) {
+        setProviderControlsOpen(false);
+      }
     });
     syncFastLimitControls();
     document.getElementById('ai-chat-fast-token-limit').addEventListener('change', saveFastLimitControls);
@@ -1140,6 +1144,10 @@
       clampLauncherToViewport();
       updateDockHistoryVisibility();
     });
+    if (root.visualViewport) {
+      root.visualViewport.addEventListener('resize', clampFloatingToViewport);
+      root.visualViewport.addEventListener('scroll', clampFloatingToViewport);
+    }
     if (shellDocument) root.parent.addEventListener('resize', clampPopupToViewport);
     root.addEventListener('md-edit-toolbar-orientation-change', function () {
       requestAnimationFrame(clampLauncherToViewport);
@@ -1372,19 +1380,29 @@
     return root.innerWidth <= 700 ? 6 : 22;
   }
 
+  function getFloatingViewportBounds() {
+    var visualViewport = root.visualViewport;
+    var left = visualViewport && Number.isFinite(visualViewport.offsetLeft) ? visualViewport.offsetLeft : 0;
+    var top = visualViewport && Number.isFinite(visualViewport.offsetTop) ? visualViewport.offsetTop : 0;
+    var width = visualViewport && Number.isFinite(visualViewport.width) ? visualViewport.width : root.innerWidth;
+    var height = visualViewport && Number.isFinite(visualViewport.height) ? visualViewport.height : root.innerHeight;
+    return { left: left, top: top, right: left + width, bottom: top + height, width: width, height: height };
+  }
+
   function positionFloatingCompactAtBottom() {
     var panel = document.getElementById('ai-chat-panel');
     if (!panel || !state.open || state.layout !== 'floating' || !panel.classList.contains('floating-compact')) return;
     var saved = readFloatingPosition();
     var rect = panel.getBoundingClientRect();
-    var width = Math.min(rect.width, Math.max(0, root.innerWidth - 8));
-    var height = Math.min(rect.height, Math.max(0, root.innerHeight - 8));
-    var defaultLeft = Math.max(4, (root.innerWidth - width) / 2);
+    var viewport = getFloatingViewportBounds();
+    var width = Math.min(rect.width, Math.max(0, viewport.width - 8));
+    var height = Math.min(rect.height, Math.max(0, viewport.height - 8));
+    var defaultLeft = Math.max(viewport.left + 4, viewport.left + (viewport.width - width) / 2);
     var left = saved ? saved.left : defaultLeft;
     panel.style.width = width + 'px';
     panel.style.height = height + 'px';
-    panel.style.left = Math.max(4, Math.min(left, root.innerWidth - width - 4)) + 'px';
-    panel.style.top = Math.max(4, root.innerHeight - height - getFloatingBottomMargin()) + 'px';
+    panel.style.left = Math.max(viewport.left + 4, Math.min(left, viewport.right - width - 4)) + 'px';
+    panel.style.top = Math.max(viewport.top + 4, viewport.bottom - height - getFloatingBottomMargin()) + 'px';
     panel.style.right = 'auto';
     panel.style.bottom = 'auto';
     panel.style.transform = 'none';
@@ -1397,11 +1415,11 @@
     if (!panel || state.layout !== 'floating' || !saved) return;
     // Floating panels live inside the editor iframe, unlike popup panels that
     // are adopted into the WebDAV shell. Clamp against the iframe viewport.
-    var viewport = root;
+    var viewport = getFloatingViewportBounds();
     var width = panel.offsetWidth || panel.getBoundingClientRect().width;
     var height = panel.offsetHeight || panel.getBoundingClientRect().height;
-    panel.style.left = Math.max(4, Math.min(saved.left, viewport.innerWidth - width - 4)) + 'px';
-    panel.style.top = Math.max(4, Math.min(saved.top, viewport.innerHeight - height - 4)) + 'px';
+    panel.style.left = Math.max(viewport.left + 4, Math.min(saved.left, viewport.right - width - 4)) + 'px';
+    panel.style.top = Math.max(viewport.top + 4, Math.min(saved.top, viewport.bottom - height - 4)) + 'px';
     panel.style.right = 'auto';
     panel.style.bottom = 'auto';
     panel.style.transform = 'none';
@@ -1411,16 +1429,16 @@
     var panel = document.getElementById('ai-chat-panel');
     if (!panel || !state.open || state.layout !== 'floating') return;
     var rect = panel.getBoundingClientRect();
-    var viewport = root;
-    var width = Math.min(rect.width, viewport.innerWidth - 8);
-    var height = Math.min(rect.height, viewport.innerHeight - 8);
+    var viewport = getFloatingViewportBounds();
+    var width = Math.min(rect.width, viewport.width - 8);
+    var height = Math.min(rect.height, viewport.height - 8);
     panel.style.width = Math.max(0, width) + 'px';
     panel.style.height = Math.max(0, height) + 'px';
-    panel.style.left = Math.max(4, Math.min(rect.left, viewport.innerWidth - width - 4)) + 'px';
+    panel.style.left = Math.max(viewport.left + 4, Math.min(rect.left, viewport.right - width - 4)) + 'px';
     var top = panel.classList.contains('floating-compact')
-      ? viewport.innerHeight - height - getFloatingBottomMargin()
-      : Math.min(rect.top, viewport.innerHeight - height - 4);
-    panel.style.top = Math.max(4, top) + 'px';
+      ? viewport.bottom - height - getFloatingBottomMargin()
+      : Math.min(rect.top, viewport.bottom - height - 4);
+    panel.style.top = Math.max(viewport.top + 4, top) + 'px';
     panel.style.right = 'auto';
     panel.style.bottom = 'auto';
     panel.style.transform = 'none';
@@ -1476,12 +1494,12 @@
         var target = floatingCompactReturnPosition
           || readFloatingPosition()
           || { left: currentRect.left, top: currentRect.top };
-        var viewport = root;
+        var viewport = getFloatingViewportBounds();
         var width = panel.offsetWidth || currentRect.width;
         var height = panel.offsetHeight || currentRect.height;
-        panel.style.left = Math.max(4, Math.min(target.left, viewport.innerWidth - width - 4)) + 'px';
+        panel.style.left = Math.max(viewport.left + 4, Math.min(target.left, viewport.right - width - 4)) + 'px';
         var targetTop = isExpanded && Number.isFinite(target.bottom) ? target.bottom - height : target.top;
-        panel.style.top = Math.max(4, Math.min(targetTop, viewport.innerHeight - height - 4)) + 'px';
+        panel.style.top = Math.max(viewport.top + 4, Math.min(targetTop, viewport.bottom - height - 4)) + 'px';
         panel.style.right = 'auto';
         panel.style.bottom = 'auto';
         panel.style.transform = 'none';
@@ -1810,9 +1828,13 @@
       panel.classList.add('dragging');
       dragSurface.setPointerCapture(event.pointerId);
       function move(moveEvent) {
-        var viewport = draggedLayout === 'floating' ? root : popupWindow();
-        var left = Math.max(4, Math.min(moveEvent.clientX - offsetX, viewport.innerWidth - panel.offsetWidth - 4));
-        var top = Math.max(4, Math.min(moveEvent.clientY - offsetY, viewport.innerHeight - panel.offsetHeight - 4));
+        var viewport = draggedLayout === 'floating' ? getFloatingViewportBounds() : popupWindow();
+        var viewportLeft = draggedLayout === 'floating' ? viewport.left : 0;
+        var viewportTop = draggedLayout === 'floating' ? viewport.top : 0;
+        var viewportRight = draggedLayout === 'floating' ? viewport.right : viewport.innerWidth;
+        var viewportBottom = draggedLayout === 'floating' ? viewport.bottom : viewport.innerHeight;
+        var left = Math.max(viewportLeft + 4, Math.min(moveEvent.clientX - offsetX, viewportRight - panel.offsetWidth - 4));
+        var top = Math.max(viewportTop + 4, Math.min(moveEvent.clientY - offsetY, viewportBottom - panel.offsetHeight - 4));
         panel.style.left = left + 'px';
         panel.style.top = top + 'px';
       }
@@ -2309,13 +2331,17 @@
       var schedule = root.requestAnimationFrame || function (callback) { return setTimeout(callback, 16); };
       schedule(function () {
         if (!panel || state.layout !== 'floating') return;
-        var viewport = root;
+        var viewport = getFloatingViewportBounds();
         panel.style.removeProperty('height');
         var rect = panel.getBoundingClientRect();
-        var maxHeight = Math.max(0, viewport.innerHeight - 8);
+        var maxHeight = Math.max(0, viewport.height - 8);
         var height = Math.min(rect.height, maxHeight);
-        var top = Math.max(4, Math.min(floatingBottom - height, viewport.innerHeight - height - 4));
+        var width = Math.min(rect.width, Math.max(0, viewport.width - 8));
+        var left = Math.max(viewport.left + 4, Math.min(rect.left, viewport.right - width - 4));
+        var top = Math.max(viewport.top + 4, Math.min(floatingBottom - height, viewport.bottom - height - 4));
+        if (rect.width > width) panel.style.width = width + 'px';
         if (rect.height > maxHeight) panel.style.height = height + 'px';
+        panel.style.left = left + 'px';
         panel.style.top = top + 'px';
         panel.style.right = 'auto';
         panel.style.bottom = 'auto';

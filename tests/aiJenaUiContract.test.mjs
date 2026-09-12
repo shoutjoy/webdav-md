@@ -32,8 +32,8 @@ test('AI Jena keeps the Alt+4 movement and compact real-time behavior', () => {
   assert.match(chatScript, /floatingCompactReturnPosition = \{ left: compactRect\.left, top: compactRect\.top, bottom: compactRect\.bottom \}/);
   assert.match(chatScript, /panel\.style\.width = '';[\s\S]*panel\.style\.height = '';/);
   assert.match(chatScript, /if \(!isExpanded\) \{[\s\S]*floatingCompactReturnPosition = null;[\s\S]*saveFloatingPosition\(\)/);
-  assert.match(chatScript, /function clampFloatingToViewport\(\)[\s\S]*var viewport = root;/);
-  assert.match(chatScript, /function positionFloatingCompactAtBottom\(\)[\s\S]*root\.innerHeight - height - getFloatingBottomMargin\(\)/);
+  assert.match(chatScript, /function clampFloatingToViewport\(\)[\s\S]*var viewport = getFloatingViewportBounds\(\)/);
+  assert.match(chatScript, /function positionFloatingCompactAtBottom\(\)[\s\S]*viewport\.bottom - height - getFloatingBottomMargin\(\)/);
   assert.match(chatScript, /setFloatingExpanded\(false\);[\s\S]*schedule\(positionFloatingCompactAtBottom\)/);
 });
 
@@ -44,6 +44,13 @@ test('Alt+4 settings expand upward and provide a floating-only close control', (
   assert.match(chatStyles, /\.ai-chat-icon-action:not\(#ai-chat-new\):not\(#ai-chat-copy-all\):not\(#ai-chat-save-all\):not\(#ai-chat-floating-close\)/);
   assert.match(chatStyles, /\.ai-chat-panel\.layout-floating:not\(\.floating-compact\) #ai-chat-floating-close\s*\{\s*display:\s*inline-flex\s*!important;/);
   assert.match(chatStyles, /@media \(max-width: 760px\)[\s\S]*floating-settings-open[\s\S]*min-height:\s*72px/);
+});
+
+test('Alt+4 settings stay inside the visible browser viewport', () => {
+  assert.match(chatScript, /function getFloatingViewportBounds\(\)[\s\S]*root\.visualViewport/);
+  assert.match(chatScript, /function setProviderControlsOpen\(open\)[\s\S]*getFloatingViewportBounds\(\)[\s\S]*viewport\.bottom - height - 4/);
+  assert.match(chatScript, /visualViewport\.addEventListener\('resize', clampFloatingToViewport\)/);
+  assert.match(chatScript, /visualViewport\.addEventListener\('scroll', clampFloatingToViewport\)/);
 });
 
 test('AI Jena uses only the main provider settings control', () => {
