@@ -109,6 +109,7 @@
   var START_LAYOUT_DEFAULT_REVISION_KEY = 'ss_ai_chat_start_layout_default_revision';
   var POPUP_RECT_KEY = 'ss_ai_chat_popup_rect';
   var FLOATING_POSITION_KEY = 'ss_ai_chat_floating_position';
+  var FLOATING_SIZE_KEY = 'ss_ai_chat_floating_size';
   var POPUP_SIZE_REVISION_KEY = 'ss_ai_chat_popup_size_revision';
   var DOCK_WIDTH_KEY = 'ss_ai_chat_dock_width';
   var LAUNCHER_POSITION_KEY = 'ss_ai_chat_launcher_position';
@@ -858,7 +859,12 @@
       + '<div class="ai-chat-popup-resizer is-ne" data-ai-chat-resize="ne" aria-hidden="true"></div>'
       + '<div class="ai-chat-popup-resizer is-se" data-ai-chat-resize="se" aria-hidden="true"></div>'
       + '<div class="ai-chat-popup-resizer is-sw" data-ai-chat-resize="sw" aria-hidden="true"></div>'
-      + '<div class="ai-chat-popup-resizer is-nw" data-ai-chat-resize="nw" aria-hidden="true"></div>';
+      + '<div class="ai-chat-popup-resizer is-nw" data-ai-chat-resize="nw" aria-hidden="true"></div>'
+      + '<div class="ai-chat-floating-resizer is-n" data-ai-chat-floating-resize="n" role="separator" aria-label="AI Jena 위쪽 높이 조절" aria-orientation="horizontal" tabindex="0"></div>'
+      + '<div class="ai-chat-floating-resizer is-e" data-ai-chat-floating-resize="e" role="separator" aria-label="AI Jena 오른쪽 너비 조절" aria-orientation="vertical" tabindex="0"></div>'
+      + '<div class="ai-chat-floating-resizer is-s" data-ai-chat-floating-resize="s" role="separator" aria-label="AI Jena 아래쪽 높이 조절" aria-orientation="horizontal" tabindex="0"></div>'
+      + '<div class="ai-chat-floating-resizer is-w" data-ai-chat-floating-resize="w" role="separator" aria-label="AI Jena 왼쪽 너비 조절" aria-orientation="vertical" tabindex="0"></div>'
+      + '<div class="ai-chat-floating-resizer is-se" data-ai-chat-floating-resize="se" role="separator" aria-label="AI Jena 오른쪽 아래 크기 조절" tabindex="0"></div>';
 
     var dockSlot = document.createElement('div');
     dockSlot.id = 'ai-chat-dock-slot';
@@ -1128,6 +1134,7 @@
     });
     setupPopupDrag(panel);
     setupPopupResize(panel);
+    setupFloatingResize(panel);
     setupMobilePopupResize(panel);
     setupDockResize(dockSlot);
     if (root.ResizeObserver) {
@@ -1376,6 +1383,34 @@
     }));
   }
 
+  function readFloatingSize() {
+    try {
+      var value = JSON.parse(storageGet(FLOATING_SIZE_KEY, 'null'));
+      return value && Number.isFinite(value.width) && Number.isFinite(value.height) ? value : null;
+    } catch (_) { return null; }
+  }
+
+  function saveFloatingSize() {
+    var panel = document.getElementById('ai-chat-panel');
+    if (!panel || state.layout !== 'floating' || panel.classList.contains('floating-compact')) return;
+    var rect = panel.getBoundingClientRect();
+    storageSet(FLOATING_SIZE_KEY, JSON.stringify({
+      width: Math.round(rect.width),
+      height: Math.round(rect.height)
+    }));
+  }
+
+  function applyFloatingSize() {
+    var panel = document.getElementById('ai-chat-panel');
+    var saved = readFloatingSize();
+    if (!panel || state.layout !== 'floating' || !saved || !root.matchMedia('(max-width: 760px)').matches) return;
+    var viewport = getFloatingViewportBounds();
+    var minWidth = Math.min(280, viewport.width - 8);
+    var minHeight = Math.min(260, viewport.height - 8);
+    panel.style.width = Math.max(minWidth, Math.min(saved.width, viewport.width - 8)) + 'px';
+    panel.style.height = Math.max(minHeight, Math.min(saved.height, viewport.height - 8)) + 'px';
+  }
+
   function getFloatingBottomMargin() {
     return root.innerWidth <= 700 ? 6 : 22;
   }
@@ -1475,6 +1510,7 @@
       floatingCompactReturnPosition = { left: compactRect.left, top: compactRect.top, bottom: compactRect.bottom };
     }
     panel.classList.toggle('floating-compact', state.layout === 'floating' && !isExpanded);
+    if (state.layout === 'floating' && isExpanded) applyFloatingSize();
     if (button) {
       button.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
       button.setAttribute('aria-label', isExpanded ? '입력창만 보기' : '대화창 펼치기');
@@ -1904,6 +1940,70 @@
           handle.removeEventListener('pointercancel', finish);
           panel.classList.remove('resizing');
           savePopupRect();
+        }
+
+        handle.addEventListener('pointermove', move);
+        handle.addEventListener('pointerup', finish);
+        handle.addEventListener('pointercancel', finish);
+        event.preventDefault();
+        event.stopPropagation();
+      });
+    }
+  }
+
+  function setupFloatingResize(panel) {
+    var handles = panel.querySelectorAll('[data-ai-chat-floating-resize]');
+    for (var i = 0; i < handles.length; i++) {
+      handles[i].addEventListener('pointerdown', function (event) {
+        if (state.layout !== 'floating' || !root.matchMedia('(max-width: 760px)').matches
+          || (event.pointerType === 'mouse' && event.button !== 0)) return;
+        var handle = event.currentTarget;
+        var direction = handle.getAttribute('data-ai-chat-floating-resize') || '';
+        if (panel.classList.contains('floating-compact')) setFloatingExpanded(true);
+        var startRect = panel.getBoundingClientRect();
+        var startX = event.clientX;
+        var startY = event.clientY;
+        panel.style.left = Math.round(startRect.left) + 'px';
+        panel.style.top = Math.round(startRect.top) + 'px';
+        panel.style.right = 'auto';
+        panel.style.bottom = 'auto';
+        panel.style.width = Math.round(startRect.width) + 'px';
+        panel.style.height = Math.round(startRect.height) + 'px';
+        panel.style.transform = 'none';
+        handle.setPointerCapture(event.pointerId);
+        panel.classList.add('resizing');
+
+        function move(moveEvent) {
+          if (!handle.hasPointerCapture(moveEvent.pointerId)) return;
+          var viewport = getFloatingViewportBounds();
+          var dx = moveEvent.clientX - startX;
+          var dy = moveEvent.clientY - startY;
+          var minWidth = Math.min(280, viewport.width - 8);
+          var minHeight = Math.min(260, viewport.height - 8);
+          var left = startRect.left;
+          var top = startRect.top;
+          var right = startRect.right;
+          var bottom = startRect.bottom;
+
+          if (direction.indexOf('w') !== -1) left = Math.max(viewport.left + 4, Math.min(startRect.left + dx, right - minWidth));
+          if (direction.indexOf('e') !== -1) right = Math.min(viewport.right - 4, Math.max(startRect.right + dx, left + minWidth));
+          if (direction.indexOf('n') !== -1) top = Math.max(viewport.top + 4, Math.min(startRect.top + dy, bottom - minHeight));
+          if (direction.indexOf('s') !== -1) bottom = Math.min(viewport.bottom - 4, Math.max(startRect.bottom + dy, top + minHeight));
+
+          panel.style.left = Math.round(left) + 'px';
+          panel.style.top = Math.round(top) + 'px';
+          panel.style.width = Math.round(right - left) + 'px';
+          panel.style.height = Math.round(bottom - top) + 'px';
+        }
+
+        function finish(finishEvent) {
+          if (handle.hasPointerCapture(finishEvent.pointerId)) handle.releasePointerCapture(finishEvent.pointerId);
+          handle.removeEventListener('pointermove', move);
+          handle.removeEventListener('pointerup', finish);
+          handle.removeEventListener('pointercancel', finish);
+          panel.classList.remove('resizing');
+          saveFloatingPosition();
+          saveFloatingSize();
         }
 
         handle.addEventListener('pointermove', move);

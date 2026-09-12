@@ -37,6 +37,17 @@ test('AI Jena keeps the Alt+4 movement and compact real-time behavior', () => {
   assert.match(chatScript, /setFloatingExpanded\(false\);[\s\S]*schedule\(positionFloatingCompactAtBottom\)/);
 });
 
+test('mobile Alt+4 exposes four edge resize handles and a southeast corner handle', () => {
+  for (const direction of ['n', 'e', 's', 'w', 'se']) {
+    assert.match(chatScript, new RegExp(`data-ai-chat-floating-resize=["']${direction}["']`));
+  }
+  assert.match(chatScript, /function setupFloatingResize\(panel\)[\s\S]*state\.layout !== 'floating'[\s\S]*max-width: 760px/);
+  assert.match(chatScript, /panel\.classList\.contains\('floating-compact'\)\) setFloatingExpanded\(true\)/);
+  assert.match(chatScript, /saveFloatingPosition\(\);[\s\S]*saveFloatingSize\(\);/);
+  assert.match(chatStyles, /@media \(max-width: 760px\)[\s\S]*\.ai-chat-panel\.layout-floating \.ai-chat-floating-resizer \{ display: block; \}/);
+  assert.match(chatStyles, /\.ai-chat-floating-resizer\.is-se[\s\S]*cursor:\s*nwse-resize/);
+});
+
 test('Alt+4 settings expand upward and provide a floating-only close control', () => {
   assert.match(chatScript, /id=["']ai-chat-floating-close["']/);
   assert.match(chatScript, /floatingBottom = panel\.getBoundingClientRect\(\)\.bottom/);

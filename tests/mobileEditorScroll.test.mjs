@@ -14,3 +14,8 @@ test('mobile continuous editor keeps the textarea as the vertical scroll owner',
 test('document jump controls target the mobile textarea', () => {
     assert.match(appJs, /mobileContinuousEditor[\s\S]*body\.classList\.contains\('mobile-ui-active'\)[\s\S]*if \(mobileContinuousEditor && editorTextarea\) return editorTextarea;/);
 });
+
+test('mobile view mode stays inside the dynamic viewport and preserves its scroll tail', () => {
+    assert.match(mobileCss, /@supports \(height:\s*100dvh\)\s*\{[\s\S]*body\.mobile-ui-active\s*\{[^}]*height:\s*100dvh/s);
+    assert.match(mobileCss, /body\.mobile-ui-active #viewer-container\s*\{[^}]*min-height:\s*0[^}]*padding:[^}]*--mobile-ui-dock-height[^}]*overscroll-behavior-y:\s*contain[^}]*-webkit-overflow-scrolling:\s*touch/s);
+});
