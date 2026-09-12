@@ -20,7 +20,15 @@ function setup(createAllowed = true) {
         get clientWidth() { return this.parent?.dataset.orientation === 'landscape' ? 100 : 80; }
         get clientHeight() { return this.parent?.dataset.orientation === 'landscape' ? 52 : 78; }
         get childNodes() { return this.children; }
-        get scrollHeight() { return this.children.length * 26; }
+        get scrollHeight() {
+            return this.children.filter(el => !String(el.className || '').includes('long-document-resize-handle')).length * 26;
+        }
+        querySelector(selector) {
+            if (selector.includes('long-document-resize-handle')) {
+                return this.children.find(el => String(el.className || '').includes('long-document-resize-handle')) || null;
+            }
+            return null;
+        }
         querySelectorAll(selector) {
             if (selector.includes('a4-view-section')) return this.children.filter(el => el.className === 'a4-view-section');
             if (selector.includes('a4-sheet')) return this.children.filter(el => el.className === 'a4-sheet');
@@ -77,6 +85,19 @@ test('blank continuous documents start at an A4 portrait height', () => {
     env.window.A4Pages.sync('');
     assert.equal(env.wrap.style.height, '1123px');
     assert.equal(env.source.style.height, '1123px');
+    assert.equal(env.viewer.style.minHeight, '1123px');
+    assert.equal(env.viewer.style.height, 'auto');
+});
+
+test('continuous view sheet follows rendered content height and can shrink again', () => {
+    const env = setup();
+    env.window.A4Pages.sync('ordinary markdown');
+    for (let index = 0; index < 50; index += 1) env.viewer.append(env.document.createElement('p'));
+    env.window.A4Pages.fitLongDocumentToContent();
+    assert.equal(env.viewer.style.minHeight, '1302px');
+
+    env.viewer.replaceChildren();
+    env.window.A4Pages.fitLongDocumentToContent();
     assert.equal(env.viewer.style.minHeight, '1123px');
 });
 
