@@ -141,7 +141,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260829-pages-local-search-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?v=20260912-realtime-record-2',
+    aiChat: './AI_App/aiChat/ai-chat.js?v=20260912-floating-bottom-anchor-1',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260810-3'
@@ -255,6 +255,24 @@ async function ensureMdMathEngineLoaded() {
 }
 window.ensureMdMathEngineLoaded = ensureMdMathEngineLoaded;
 
+const AI_JENA_HEADER_UTILITIES_KEY = 'ss_ai_chat_header_utilities_enabled';
+
+function applyAiJenaHeaderUtilitiesVisibility() {
+    const enabled = localStorage.getItem(AI_JENA_HEADER_UTILITIES_KEY) === '1';
+    const checkbox = document.getElementById('ai-chat-header-utilities-enabled');
+    if (checkbox) checkbox.checked = enabled;
+    if (window.AIChat && typeof window.AIChat.setHeaderUtilitiesVisible === 'function') {
+        window.AIChat.setHeaderUtilitiesVisible(enabled);
+    }
+    return enabled;
+}
+
+function setAiJenaHeaderUtilitiesVisible(enabled) {
+    localStorage.setItem(AI_JENA_HEADER_UTILITIES_KEY, enabled ? '1' : '0');
+    applyAiJenaHeaderUtilitiesVisibility();
+}
+window.setAiJenaHeaderUtilitiesVisible = setAiJenaHeaderUtilitiesVisible;
+
 function initializeLazyAiChatEntry() {
     const enabledKey = 'ss_ai_chat_enabled';
     const menuEnabledKey = 'ss_ai_chat_menu_enabled';
@@ -280,6 +298,7 @@ function initializeLazyAiChatEntry() {
             headerBtns.style.display = 'flex';
         }
     };
+    applyAiJenaHeaderUtilitiesVisibility();
     let launcher = null;
     let cleanupLauncherLayout = null;
     const removeLauncher = function () {
@@ -13798,6 +13817,7 @@ const SETTINGS_EXPORT_LOCAL_KEYS = [
     'ss_viewer_scholar_ai_ui_font_size',
     'ss_ai_chat_enabled',
     'ss_ai_chat_menu_enabled',
+    AI_JENA_HEADER_UTILITIES_KEY,
     'ss_ai_chat_provider',
     'ss_ai_chat_gemini_model',
     'ss_ai_chat_writing_style',
@@ -17821,6 +17841,7 @@ function restoreFeatureSettings(settings) {
 }
 
 async function loadAiSettingsToUI() {
+    applyAiJenaHeaderUtilitiesVisibility();
     if (window.GithubDataSettings && typeof window.GithubDataSettings.ensureUiReady === 'function') {
         await window.GithubDataSettings.ensureUiReady();
     }

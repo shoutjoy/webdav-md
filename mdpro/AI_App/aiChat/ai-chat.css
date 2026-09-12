@@ -227,6 +227,9 @@ body.theme-light .ai-chat-panel.layout-floating {
 .ai-chat-panel.layout-floating::after { display: none; }
 .ai-chat-panel.layout-floating .ai-chat-header { padding-top: 11px; cursor: grab; touch-action: none; }
 .ai-chat-panel.layout-floating.dragging .ai-chat-header { cursor: grabbing; }
+.ai-chat-panel.layout-floating.floating-settings-open {
+  height: min(760px, calc(100dvh - 8px));
+}
 .ai-chat-panel.layout-floating .ai-chat-composer {
   margin: 0 12px 12px;
   padding: 9px 10px;
@@ -262,6 +265,10 @@ body.theme-light .ai-chat-panel.layout-floating {
     transform: none;
   }
   .ai-chat-panel.layout-floating .ai-chat-composer { margin: 0 6px 6px; }
+  .ai-chat-panel.layout-floating.floating-settings-open,
+  body.theme-light .ai-chat-panel.layout-floating.floating-settings-open {
+    height: calc(100dvh - 8px);
+  }
 }
 body.ai-chat-fullscreen-open { overflow: hidden; }
 
@@ -508,6 +515,8 @@ html.ai-chat-page-pushed .ai-chat-panel.layout-popup {
 }
 .ai-chat-header button { min-height: 29px; padding: 4px 8px; font-size: 12px; }
 #ai-chat-close { min-width: 30px; font-size: 19px; line-height: 1; }
+#ai-chat-floating-close { display: none !important; min-width: 30px; font-size: 19px; line-height: 1; }
+.ai-chat-panel.layout-floating:not(.floating-compact) #ai-chat-floating-close { display: inline-flex !important; }
 .ai-chat-header button:hover,
 .ai-chat-provider-row button:hover,
 .ai-chat-compose-actions button:hover,
@@ -2135,8 +2144,9 @@ body.theme-light .ai-chat-compose-actions .ai-chat-realtime-sentence-toggle.acti
 .ai-chat-compose-actions .ai-chat-realtime-toolbar { justify-self: start; }
 
 /* Compact Gemini-like composer for the bottom-floating layout. */
-.ai-chat-floating-toggle,
-.ai-chat-floating-settings { display: none; }
+.ai-chat-floating-toggle { display: none; }
+/* Hide the removed duplicate settings button if an older chat script is cached. */
+.ai-chat-floating-settings { display: none !important; }
 
 .ai-chat-floating-drag-handle { display: none; }
 .ai-chat-panel.layout-floating .ai-chat-floating-drag-handle {
@@ -2178,8 +2188,7 @@ body.theme-light .ai-chat-panel.layout-floating.floating-compact {
 .ai-chat-panel.layout-floating.floating-compact .ai-chat-storage-note { display: none !important; }
 .ai-chat-panel.layout-floating.floating-compact .ai-chat-shell,
 .ai-chat-panel.layout-floating.floating-compact .ai-chat-main { overflow: visible; }
-.ai-chat-panel.layout-floating .ai-chat-floating-toggle,
-.ai-chat-panel.layout-floating .ai-chat-floating-settings {
+.ai-chat-panel.layout-floating .ai-chat-floating-toggle {
   display: inline-grid;
   place-items: center;
 }
@@ -2238,7 +2247,6 @@ body.theme-light .ai-chat-panel.layout-floating.floating-compact {
 .ai-chat-panel.layout-floating #ai-chat-internet-toggle::before { content: "🌐"; }
 .ai-chat-panel.layout-floating #ai-chat-floating-toggle::before { content: "☰"; }
 .ai-chat-panel.layout-floating:not(.floating-compact) #ai-chat-floating-toggle::before { content: "⌄"; }
-.ai-chat-panel.layout-floating #ai-chat-floating-settings::before { content: "⚙"; }
 .ai-chat-panel.layout-floating #ai-chat-attach::before { content: "📄"; }
 .ai-chat-panel.layout-floating #ai-chat-import-selection::before { content: "⑂"; }
 .ai-chat-panel.layout-floating #ai-chat-stop::before { content: "■"; }
@@ -2298,6 +2306,9 @@ body.theme-light .ai-chat-panel.layout-floating.floating-compact {
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
   }
+  .ai-chat-panel.layout-floating.floating-settings-open .ai-chat-messages {
+    min-height: 72px;
+  }
 }
 
 /* UI contract: the primary AI Jena menu must remain reachable in every
@@ -2310,12 +2321,22 @@ body.theme-light .ai-chat-panel.layout-floating.floating-compact {
   visibility: visible !important;
   opacity: 1 !important;
 }
-.ai-chat-panel:not(.floating-compact) .ai-chat-header-actions > .ai-chat-icon-action,
+.ai-chat-panel:not(.floating-compact) .ai-chat-header-actions > .ai-chat-icon-action:not(#ai-chat-new):not(#ai-chat-copy-all):not(#ai-chat-save-all):not(#ai-chat-floating-close),
 .ai-chat-panel:not(.floating-compact) .ai-chat-header-actions > .ai-chat-layout-menu-wrap,
 .ai-chat-panel:not(.floating-compact) .ai-chat-header-actions > .ai-chat-layout-menu-wrap > .ai-chat-icon-action {
   display: inline-flex !important;
   visibility: visible !important;
   opacity: 1 !important;
+}
+.ai-chat-panel #ai-chat-new,
+.ai-chat-panel #ai-chat-copy-all,
+.ai-chat-panel #ai-chat-save-all {
+  display: none !important;
+}
+.ai-chat-panel.ai-chat-header-utilities-visible #ai-chat-new,
+.ai-chat-panel.ai-chat-header-utilities-visible #ai-chat-copy-all,
+.ai-chat-panel.ai-chat-header-utilities-visible #ai-chat-save-all {
+  display: inline-flex !important;
 }
 .ai-chat-panel:not(.floating-compact) .ai-chat-header > div:first-child {
   flex: 1 1 auto;
