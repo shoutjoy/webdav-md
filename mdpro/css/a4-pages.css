@@ -29,6 +29,7 @@ body:not(.viewer-view-mode) #content-viewport.a4-active {
 }
 #viewer-container.long-document-active #viewer.long-document-sheet {
   position: relative;
+  height: auto;
   overflow: visible;
 }
 .long-document-resize-handle {

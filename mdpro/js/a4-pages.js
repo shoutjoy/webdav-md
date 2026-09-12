@@ -27,6 +27,7 @@
     let floatingPosition = null;
     let longResizeBound = false;
     let longResizeFrame = 0;
+    let longContentObserver = null;
     const A4_PORTRAIT_RATIO = 297 / 210;
 
     function longDocumentMinimumHeight(target) {
@@ -52,8 +53,28 @@
         const height = Math.max(minimum, contentHeight);
         source.style.height = height + 'px';
         wrap.style.height = height + 'px';
+    }
+
+    function fitLongViewerToContent() {
+        if (orientation) return;
         const viewer = document.getElementById('viewer');
-        if (viewer) viewer.style.minHeight = longDocumentMinimumHeight(viewer) + 'px';
+        if (!viewer || !viewer.isConnected) return;
+        // Renderers such as Mermaid and images can finish after the Markdown
+        // HTML has been inserted. Reset the sheet to its user-selected floor
+        // before reading scrollHeight so it can grow and shrink with that late
+        // content instead of leaving it outside the document border.
+        const minimum = Math.max(longDocumentMinimumHeight(viewer), Number(viewer.dataset.longManualHeight) || 0);
+        if (viewer.style.height !== 'auto') viewer.style.height = 'auto';
+        const minimumCss = minimum + 'px';
+        if (viewer.style.minHeight !== minimumCss) viewer.style.minHeight = minimumCss;
+        const contentHeight = Math.ceil(Number(viewer.scrollHeight) || 0) + 2;
+        const fittedCss = Math.max(minimum, contentHeight) + 'px';
+        if (viewer.style.minHeight !== fittedCss) viewer.style.minHeight = fittedCss;
+    }
+
+    function fitLongDocumentToContent() {
+        fitLongEditorToContent();
+        fitLongViewerToContent();
     }
 
     function scheduleLongDocumentFit() {
@@ -61,7 +82,25 @@
         const schedule = typeof window.requestAnimationFrame === 'function'
             ? window.requestAnimationFrame.bind(window)
             : callback => { callback(); return 0; };
-        longResizeFrame = schedule(fitLongEditorToContent);
+        longResizeFrame = schedule(fitLongDocumentToContent);
+    }
+
+    function bindLongDocumentContentTracking() {
+        const viewer = document.getElementById('viewer');
+        if (!viewer || longContentObserver) return;
+        if (typeof MutationObserver === 'function') {
+            longContentObserver = new MutationObserver(scheduleLongDocumentFit);
+            longContentObserver.observe(viewer, {
+                childList: true,
+                subtree: true,
+                characterData: true,
+                attributes: true,
+                attributeFilter: ['style', 'class', 'width', 'height']
+            });
+        }
+        // Intrinsic image/media dimensions do not necessarily mutate the DOM.
+        viewer.addEventListener?.('load', scheduleLongDocumentFit, true);
+        document.fonts?.ready?.then(scheduleLongDocumentFit).catch?.(() => {});
     }
 
     function ensureLongResizeHandles(target) {
@@ -88,7 +127,10 @@
             if (wrap) wrap.style.height = '';
             source.style.height = '';
             const viewer = document.getElementById('viewer');
-            if (viewer) viewer.style.minHeight = '';
+            if (viewer) {
+                viewer.style.height = '';
+                viewer.style.minHeight = '';
+            }
             return;
         }
         ensureLongResizeHandles(document.getElementById('editor-doc-wrap'));
@@ -133,7 +175,7 @@
                 document.removeEventListener('pointerup', end);
                 document.removeEventListener('pointercancel', end);
                 document.body.classList.remove('long-document-resizing');
-                if (target.id === 'editor-doc-wrap') scheduleLongDocumentFit();
+                scheduleLongDocumentFit();
             };
             document.addEventListener('pointermove', move);
             document.addEventListener('pointerup', end);
@@ -731,7 +773,7 @@
         if (navigateView(event.key === 'ArrowRight' ? 1 : -1)) { event.preventDefault(); event.stopImmediatePropagation(); }
     }, true);
 
-    window.A4Pages = { sync, changeDirection, convertLayout, addPage, renderView, paginateView, preview, navigateView };
+    window.A4Pages = { sync, changeDirection, convertLayout, addPage, renderView, paginateView, preview, navigateView, fitLongDocumentToContent };
     window.addA4Page = function (event) {
         event?.stopPropagation();
         return addPage();
@@ -756,6 +798,7 @@
     };
     bindLongResizeHandles();
     bindDocumentWheelRecovery();
+    bindLongDocumentContentTracking();
     sync(source.value);
     window.addEventListener?.('resize', scheduleLongDocumentFit, { passive: true });
 }());
