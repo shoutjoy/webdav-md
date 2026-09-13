@@ -4769,7 +4769,8 @@
         title: String(item && item.title || '제목 없음').slice(0, 500),
         url: url,
         snippet: String(item && item.snippet || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 3000),
-        content: String(item && item.content || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1800),
+        content: String(item && item.content || '').replace(/<[^>]*>/g, ' ').replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim(),
+        contentComplete: item && item.contentComplete === true,
         date: String(item && item.date || '').slice(0, 80),
         source: String(item && item.source || '').slice(0, 200),
         engine: String(item && item.engine || '').slice(0, 100),
@@ -4783,7 +4784,7 @@
       return '[' + (index + 1) + '] ' + item.title + '\nURL: ' + item.url
         + '\n출처: ' + (item.source || '알 수 없음') + (item.date ? ' / 날짜: ' + item.date : '')
         + '\n요약: ' + (item.snippet || '검색 결과 요약 없음')
-        + (item.content ? '\n페이지 본문 일부: ' + item.content : '')
+        + (item.content ? '\n페이지 본문 일부: ' + item.content.slice(0, 1400) : '')
         + '\n엔진: ' + (item.engine || 'web') + ' / 채널: ' + (item.channel || 'general');
     }).join('\n\n');
   }
@@ -4803,7 +4804,7 @@
       if (source.engine) lines.push('- 검색 엔진: ' + escapeMarkdownText(source.engine));
       if (source.channel) lines.push('- 채널: ' + escapeMarkdownText(source.channel));
       lines.push('', source.snippet || '검색 결과 요약 없음', '');
-      if (source.content) lines.push('페이지 본문 일부: ' + source.content, '');
+      if (source.content) lines.push(source.contentComplete ? '기사 본문:' : '가져온 본문(일부일 수 있음):', source.content, '');
     });
     return lines.join('\n').trim();
   }
@@ -4915,7 +4916,8 @@
       if (source.snippet || source.content) {
         var details = document.createElement('details');
         var summary = document.createElement('summary');
-        summary.textContent = source.content ? '본문 일부 보기' : '요약 보기';
+        summary.textContent = source.content ? (source.contentComplete ? '기사 본문' : '가져온 본문(일부일 수 있음)') : '검색 요약만 제공됨';
+        details.open = true;
         var snippet = document.createElement('p');
         snippet.textContent = source.snippet;
         details.appendChild(summary);
@@ -4923,6 +4925,7 @@
         if (source.content) {
           var content = document.createElement('p');
           content.textContent = source.content;
+          content.style.whiteSpace = 'pre-wrap';
           details.appendChild(content);
         }
         item.appendChild(details);
