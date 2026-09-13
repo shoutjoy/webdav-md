@@ -70,3 +70,25 @@ test('middleware uses a request-scoped SerpApi key before other providers', asyn
   assert.equal(payload.engine, 'serpapi-google');
   assert.equal(payload.results[0].source, 'Google via SerpApi');
 });
+
+test('search payload includes a bounded public-page excerpt when available', async () => {
+  const fetchImpl = async (url) => {
+    if (url.hostname === 'serpapi.com') return {
+      ok: true, json: async () => ({ organic_results: [{ title: 'Article', link: 'https://example.com/article', snippet: 'Short result' }] }),
+    };
+    assert.equal(url.href, 'https://example.com/article');
+    assert.equal(url.protocol, 'https:');
+    return {
+      ok: true,
+      headers: { get: () => 'text/html; charset=utf-8' },
+      text: async () => '<html><nav>Navigation text</nav><article><p>' + 'Useful article detail. '.repeat(20) + '</p></article></html>',
+    };
+  };
+  const middleware = createWebSearchMiddleware({ fetchImpl });
+  const response = { setHeader() {}, end(value) { this.body = value; } };
+  await middleware({ url: '/api/web-search?q=test', headers: { 'x-serpapi-key': 'request-key' } }, response, () => assert.fail('unexpected next'));
+  const payload = JSON.parse(response.body);
+  assert.ok(payload.results[0].content.length > payload.results[0].snippet.length);
+  assert.ok(payload.results[0].content.length <= 1400);
+  assert.ok(!payload.results[0].content.includes('Navigation text'));
+});

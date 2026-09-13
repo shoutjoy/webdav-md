@@ -139,9 +139,9 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     html2canvas: './vendor/html2canvas/html2canvas.min.js?v=1.4.1',
     jsPdf: './vendor/jspdf/jspdf.umd.min.js?v=4.2.1',
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
-    aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260829-pages-local-search-1',
+    aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260914-serpapi-vault-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?v=20260912-mobile-floating-resize-1',
+    aiChat: './AI_App/aiChat/ai-chat.js?v=20260914-reuse-window-and-page-excerpt-2',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260810-3'
@@ -10232,11 +10232,24 @@ function updateSerpApiKeyConnectionUI() {
         return false;
     }
     const verified = localStorage.getItem(SERPAPI_VERIFIED_KEY) === credentialFingerprint(key);
-    setCredentialConnectionVisual('settings-serpapi-api-key', 'settings-serpapi-api-key-feedback', verified ? 'connected' : 'neutral', verified ? '연결됨: SerpApi Google 검색 확인 완료' : '키 저장·연결 확인을 눌러 실제 검색을 확인하세요.');
+    setCredentialConnectionVisual('settings-serpapi-api-key', 'settings-serpapi-api-key-feedback', verified ? 'connected' : 'neutral', verified ? '저장됨 · SerpApi Google 검색 확인 완료' : '저장 후 연결 확인을 누르면 실제 검색을 시험합니다.');
     return true;
 }
 
-async function saveSerpApiSettings() {
+function saveSerpApiSettings() {
+    const input = document.getElementById('settings-serpapi-api-key');
+    const key = String(input && input.value || '').trim();
+    if (!key) {
+        setCredentialConnectionVisual('settings-serpapi-api-key', 'settings-serpapi-api-key-feedback', 'error', 'SerpApi API Key를 입력하세요.');
+        return false;
+    }
+    localStorage.setItem(SERPAPI_STORAGE_KEY, key);
+    localStorage.removeItem(SERPAPI_VERIFIED_KEY);
+    setCredentialConnectionVisual('settings-serpapi-api-key', 'settings-serpapi-api-key-feedback', 'neutral', '키가 이 브라우저에 저장되었습니다. 연결 확인은 별도로 실행해 주세요.');
+    return true;
+}
+
+async function verifySerpApiSettings() {
     const input = document.getElementById('settings-serpapi-api-key');
     const key = String(input && input.value || '').trim();
     if (!key) {
@@ -10255,7 +10268,11 @@ async function saveSerpApiSettings() {
         setCredentialConnectionVisual('settings-serpapi-api-key', 'settings-serpapi-api-key-feedback', 'connected', '저장됨 · 연결됨: SerpApi Google 검색 확인 완료');
         return true;
     } catch (error) {
-        setCredentialConnectionVisual('settings-serpapi-api-key', 'settings-serpapi-api-key-feedback', 'error', '키는 저장됨 · 연결 확인 실패: ' + (error && error.message ? error.message : error));
+        const detail = error && error.message ? error.message : String(error);
+        const timeout = /timeout|timed out|시간 초과|abort/i.test(detail);
+        setCredentialConnectionVisual('settings-serpapi-api-key', 'settings-serpapi-api-key-feedback', 'error', timeout
+            ? '키는 저장됨 · SerpApi 응답 시간 초과. 키 유효성은 확인되지 않았습니다. 잠시 후 다시 확인해 주세요.'
+            : '키는 저장됨 · 연결 확인 실패: ' + detail);
         return false;
     }
 }
@@ -10265,20 +10282,23 @@ function clearSerpApiSettings() {
     localStorage.removeItem(SERPAPI_VERIFIED_KEY);
     const input = document.getElementById('settings-serpapi-api-key');
     if (input) input.value = '';
-    setCredentialConnectionVisual('settings-serpapi-api-key', 'settings-serpapi-api-key-feedback', 'neutral', 'SerpApi 키를 삭제했습니다. DuckDuckGo와 Bing RSS 검색은 계속 사용할 수 있습니다.');
+    const vaultKey = window.MDPCredentialVault && window.MDPCredentialVault.getSecret('serpapi');
+    setCredentialConnectionVisual('settings-serpapi-api-key', 'settings-serpapi-api-key-feedback', 'neutral', vaultKey ? '브라우저에 저장된 키를 삭제했습니다. 암호화 보관함의 키는 계속 사용됩니다.' : 'SerpApi 키를 삭제했습니다. DuckDuckGo와 Bing RSS 검색은 계속 사용할 수 있습니다.');
     return true;
 }
 
 function loadSerpApiSettingsUI() {
     const input = document.getElementById('settings-serpapi-api-key');
-    if (input) input.value = getProtectedAiCredential('serpapi', SERPAPI_STORAGE_KEY);
+    if (input) input.value = String(localStorage.getItem(SERPAPI_STORAGE_KEY) || '').trim() || getProtectedAiCredential('serpapi', SERPAPI_STORAGE_KEY);
     updateSerpApiKeyConnectionUI();
 }
 
 window.updateSerpApiKeyConnectionUI = updateSerpApiKeyConnectionUI;
 window.saveSerpApiSettings = saveSerpApiSettings;
+window.verifySerpApiSettings = verifySerpApiSettings;
 window.clearSerpApiSettings = clearSerpApiSettings;
 document.addEventListener('DOMContentLoaded', loadSerpApiSettingsUI);
+window.addEventListener('mdp-credential-vault-change', loadSerpApiSettingsUI);
 
 function validateApiKeyInputUI() {
     const input = document.getElementById('ai-api-key');

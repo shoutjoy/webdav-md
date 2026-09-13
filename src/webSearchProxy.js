@@ -56,6 +56,67 @@ function sendJson(response, status, payload) {
   response.end(JSON.stringify(payload));
 }
 
+function publicPageUrl(value) {
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) return null;
+    if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal') || host.endsWith('.test')) return null;
+    if (/^\d+\.\d+\.\d+\.\d+$/.test(host) || host.includes(':') || !host.includes('.')) return null;
+    return url;
+  } catch { return null; }
+}
+
+function pageExcerpt(html) {
+  const text = String(html || '')
+    .replace(/<(script|style|nav|footer|header|aside|form|svg|noscript)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ')
+    .replace(/<!--[^]*?-->/g, ' ')
+    .replace(/<\/(?:p|div|section|article|h[1-6]|li|br)>/gi, '\n')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&#(x[0-9a-f]+|\d+);/gi, (_, code) => {
+      const hex = code[0].toLowerCase() === 'x';
+      const number = Number.parseInt(hex ? code.slice(1) : code, hex ? 16 : 10);
+      return Number.isFinite(number) && number > 0 && number <= 0x10ffff ? String.fromCodePoint(number) : ' ';
+    })
+    .replace(/&([a-z]+);/gi, (match, name) => ENTITIES[name.toLowerCase()] || match)
+    .replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim();
+  return text.slice(0, 1400);
+}
+
+async function enrichResults(results, fetchImpl) {
+  const enriched = results.map((item) => ({ ...item }));
+  const candidates = enriched.slice(0, 10);
+  for (let offset = 0; offset < candidates.length; offset += 3) {
+    await Promise.all(candidates.slice(offset, offset + 3).map(async (item) => {
+      const url = publicPageUrl(item.url);
+      if (!url) return;
+      try {
+        const response = await fetchImpl(url, {
+          headers: { Accept: 'text/html', 'User-Agent': 'Mozilla/5.0 AI-Jena-WebSearch/1.0' },
+          redirect: 'error', signal: AbortSignal.timeout(6000),
+        });
+        if (!response.ok || !/text\/html/i.test(response.headers.get('content-type') || '')) return;
+        const reader = response.body && response.body.getReader ? response.body.getReader() : null;
+        let html = '';
+        if (reader) {
+          const decoder = new TextDecoder();
+          while (html.length < 160000) {
+            const chunk = await reader.read();
+            if (chunk.done) break;
+            html += decoder.decode(chunk.value, { stream: true });
+          }
+          await reader.cancel().catch(() => {});
+        } else {
+          html = String(await response.text()).slice(0, 160000);
+        }
+        const excerpt = pageExcerpt(html);
+        if (excerpt.length >= 120) item.content = excerpt;
+      } catch { /* Keep the search snippet when a page cannot be fetched. */ }
+    }));
+  }
+  return enriched;
+}
+
 export function createWebSearchMiddleware(options = {}) {
   const fetchImpl = typeof options === 'function' ? options : (options.fetchImpl || fetch);
   const googleApiKey = String(options.googleApiKey || '').trim();
@@ -79,7 +140,7 @@ export function createWebSearchMiddleware(options = {}) {
         if (engine === 'serpapi') {
           const upstream = new URL('https://serpapi.com/search.json');
           upstream.search = new URLSearchParams({ engine: 'google', q: query, api_key: requestSerpApiKey, hl: 'ko', gl: 'kr', num: String(Math.min(20, count)) });
-          const result = await fetchImpl(upstream, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(15000) });
+          const result = await fetchImpl(upstream, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(45000) });
           if (!result.ok) throw new Error(`SerpApi HTTP ${result.status}`);
           const payload = await result.json();
           if (payload.error) throw new Error(String(payload.error));
@@ -107,6 +168,7 @@ export function createWebSearchMiddleware(options = {}) {
           results = parseBingRss(await result.text(), count);
         }
         if (!results.length) throw new Error('검색 결과 없음');
+        results = await enrichResults(results, fetchImpl);
         return sendJson(response, 200, { ok: true, engine: results[0].engine, fallbackUsed: warnings.length > 0, fallbackMessage: warnings.length ? '이전 검색 공급자 실패 후 다음 공급자를 사용했습니다.' : '', query, warnings, results });
       } catch (error) { warnings.push(`${engine}: ${error && error.message ? error.message : error}`); }
     }
