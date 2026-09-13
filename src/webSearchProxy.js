@@ -67,8 +67,12 @@ function publicPageUrl(value) {
   } catch { return null; }
 }
 
-function pageExcerpt(html) {
-  const text = String(html || '')
+function pageText(html) {
+  const source = String(html || '');
+  const article = source.match(/<article\b[^>]*>[\s\S]*?<\/article\s*>/i);
+  const main = source.match(/<main\b[^>]*>[\s\S]*?<\/main\s*>/i);
+  const body = source.match(/<body\b[^>]*>[\s\S]*?<\/body\s*>/i);
+  const text = String((article || main || body || [source])[0])
     .replace(/<(script|style|nav|footer|header|aside|form|svg|noscript)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, ' ')
     .replace(/<!--[^]*?-->/g, ' ')
     .replace(/<\/(?:p|div|section|article|h[1-6]|li|br)>/gi, '\n')
@@ -80,7 +84,21 @@ function pageExcerpt(html) {
     })
     .replace(/&([a-z]+);/gi, (match, name) => ENTITIES[name.toLowerCase()] || match)
     .replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim();
-  return text.slice(0, 1400);
+  return text;
+}
+
+async function fetchPublicPage(url, fetchImpl) {
+  let current = url;
+  for (let redirects = 0; redirects < 3; redirects += 1) {
+    const response = await fetchImpl(current, {
+      headers: { Accept: 'text/html', 'User-Agent': 'Mozilla/5.0 AI-Jena-WebSearch/1.0' },
+      redirect: 'manual', signal: AbortSignal.timeout(8000),
+    });
+    if (![301, 302, 303, 307, 308].includes(response.status)) return response;
+    current = publicPageUrl(new URL(response.headers.get('location') || '', current).href);
+    if (!current) return null;
+  }
+  return null;
 }
 
 async function enrichResults(results, fetchImpl) {
@@ -91,26 +109,34 @@ async function enrichResults(results, fetchImpl) {
       const url = publicPageUrl(item.url);
       if (!url) return;
       try {
-        const response = await fetchImpl(url, {
-          headers: { Accept: 'text/html', 'User-Agent': 'Mozilla/5.0 AI-Jena-WebSearch/1.0' },
-          redirect: 'error', signal: AbortSignal.timeout(6000),
-        });
-        if (!response.ok || !/text\/html/i.test(response.headers.get('content-type') || '')) return;
+        const response = await fetchPublicPage(url, fetchImpl);
+        if (!response || !response.ok || !/text\/html/i.test(response.headers.get('content-type') || '')) return;
         const reader = response.body && response.body.getReader ? response.body.getReader() : null;
         let html = '';
+        let complete = true;
         if (reader) {
           const decoder = new TextDecoder();
-          while (html.length < 160000) {
+          while (html.length < 8000000) {
             const chunk = await reader.read();
             if (chunk.done) break;
             html += decoder.decode(chunk.value, { stream: true });
           }
-          await reader.cancel().catch(() => {});
+          if (html.length >= 8000000) {
+            complete = false;
+            await reader.cancel().catch(() => {});
+          } else html += decoder.decode();
         } else {
-          html = String(await response.text()).slice(0, 160000);
+          html = String(await response.text());
+          if (html.length > 8000000) {
+            html = html.slice(0, 8000000);
+            complete = false;
+          }
         }
-        const excerpt = pageExcerpt(html);
-        if (excerpt.length >= 120) item.content = excerpt;
+        const articleText = pageText(html);
+        if (articleText.length >= 120) {
+          item.content = articleText.slice(0, 200000);
+          item.contentComplete = complete && articleText.length <= 200000;
+        }
       } catch { /* Keep the search snippet when a page cannot be fetched. */ }
     }));
   }
