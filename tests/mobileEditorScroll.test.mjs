@@ -17,7 +17,14 @@ test('continuous CodeMirror editing has no inner scroll and requests sheet fitti
     assert.match(cm6Js, /#content-viewport\.long-document-active \.md-cm6-prototype \.cm-scroller\{overflow:visible;min-height:0\}/);
     assert.match(cm6Js, /#content-viewport\.long-document-active \.md-cm6-prototype\{overflow:visible\}/);
     assert.match(cm6Js, /update\.docChanged \|\| Math\.abs\(contentHeight - lastMeasuredContentHeight\) > 1[\s\S]*mdpro:editor-geometry-change/);
-    assert.match(appJs, /codeMirrorPrototype: '\.\/js\/editor\/codemirror-prototype\.mjs\?v=20260913-single-scroll-2'/);
+    assert.match(appJs, /codeMirrorPrototype: '\.\/js\/editor\/codemirror-prototype\.mjs\?v=20260915-gutter-strip-1'/);
+});
+
+test('CodeMirror image markers stay usable without a fixed gray gutter covering text', () => {
+    assert.match(cm6Js, /\.md-cm6-prototype \.cm-gutters\{[^}]*position:static!important;[^}]*width:0;[^}]*background:transparent;[^}]*border:0\}/);
+    assert.match(cm6Js, /\.md-cm6-prototype \.cm-data-image-gutter\{[^}]*width:0;[^}]*overflow:visible/);
+    assert.match(cm6Js, /\.md-cm6-prototype \.cm-data-image-gutter-marker\{[^}]*left:-22px;[^}]*cursor:pointer/);
+    assert.doesNotMatch(cm6Js, /html:not\(\.dark\) \.md-cm6-prototype \.cm-gutters\{[^}]*background:/);
 });
 
 test('mobile continuous editor expands the sheet and keeps scrolling outside the textarea', () => {
