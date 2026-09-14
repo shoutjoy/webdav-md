@@ -290,31 +290,25 @@
         line-height: 1.65 !important;
     }
 
-    /* A continuous document normally grows the textarea to its full content
-       height and scrolls #content-viewport. Mobile browsers keep a touch that
-       starts inside a textarea attached to that control, so the gesture never
-       reaches the outer viewport. Keep the editor at the available height on
-       mobile and make the textarea the native vertical scroll owner instead. */
+    /* The continuous sheet and its textarea grow to the complete document on
+       mobile as well. Touch scrolling is forwarded to the outer viewport by
+       a4-pages.js, so the textarea never needs its own scrollbar. */
     body.mobile-ui-active #content-viewport.long-document-active {
-        overflow-y: hidden !important;
-        align-items: stretch;
+        overflow-y: auto !important;
+        align-items: flex-start;
     }
 
     body.mobile-ui-active #content-viewport.long-document-active #editor-doc-wrap {
-        flex: 1 1 auto;
-        min-height: 0;
-        height: 100% !important;
-        aspect-ratio: auto;
-        overflow: hidden;
+        flex: 0 0 auto;
+        min-height: 320px;
+        height: max-content;
+        overflow: visible;
     }
 
     body.mobile-ui-active #content-viewport.long-document-active #viewer-edit-ta {
-        min-height: 0;
-        height: 100% !important;
-        overflow-y: auto;
-        overscroll-behavior-y: contain;
+        min-height: 320px;
+        overflow-y: hidden;
         touch-action: pan-y;
-        -webkit-overflow-scrolling: touch;
     }
 
     body.mobile-ui-active #editor-shift-float,

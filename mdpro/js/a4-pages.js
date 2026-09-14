@@ -40,6 +40,23 @@
         return viewing ? document.getElementById('viewer') : document.getElementById('editor-doc-wrap');
     }
 
+    function measureLongEditorContentHeight() {
+        const cmView = source.__mdCm6View;
+        if (cmView && cmView.dom?.isConnected) {
+            const scrollerStyle = getComputedStyle(cmView.scrollDOM);
+            const verticalPadding = parseFloat(scrollerStyle.paddingTop) + parseFloat(scrollerStyle.paddingBottom);
+            return Math.ceil(cmView.contentHeight + (Number.isFinite(verticalPadding) ? verticalPadding : 0) + 2);
+        }
+        const previousHeight = source.style.height;
+        const previousMinHeight = source.style.minHeight;
+        source.style.minHeight = '0px';
+        source.style.height = '1px';
+        const contentHeight = Math.ceil(source.scrollHeight + 2);
+        source.style.height = previousHeight;
+        source.style.minHeight = previousMinHeight;
+        return contentHeight;
+    }
+
     function fitLongEditorToContent() {
         if (orientation || !source.isConnected) return;
         const wrap = document.getElementById('editor-doc-wrap');
@@ -48,11 +65,24 @@
         // first empty/short sheet starts at the physical proportions of A4.
         // Longer content can still grow naturally below that first-page floor.
         const minimum = Math.max(longDocumentMinimumHeight(wrap), Number(wrap.dataset.longManualHeight) || 0);
-        source.style.height = '1px';
-        const contentHeight = Math.ceil(source.scrollHeight + 2);
-        const height = Math.max(minimum, contentHeight);
-        source.style.height = height + 'px';
+        const contentHeight = measureLongEditorContentHeight();
+        let height = Math.max(minimum, contentHeight);
+        // The textarea is a flex child of the sheet. Grow the sheet first;
+        // otherwise flex-shrink makes clientHeight stay at the old sheet size
+        // and each correction pass adds the whole document height again.
         wrap.style.height = height + 'px';
+        if (!source.__mdCm6View) source.style.height = height + 'px';
+        // Fractional line heights and changed font metrics can leave a few
+        // pixels of textarea overflow after the initial measurement.
+        for (let attempt = 0; !source.__mdCm6View && attempt < 3 && source.scrollHeight > source.clientHeight; attempt++) {
+            height += source.scrollHeight - source.clientHeight + 2;
+            wrap.style.height = height + 'px';
+            source.style.height = height + 'px';
+        }
+        // The continuous editor is expanded to its complete content. Leaving a
+        // stale inner scroll position behind creates a misleading second
+        // scrollbar and makes mode-position synchronization drift.
+        source.scrollTop = 0;
     }
 
     function fitLongViewerToContent() {
@@ -88,6 +118,17 @@
     function bindLongDocumentContentTracking() {
         const viewer = document.getElementById('viewer');
         if (!viewer || longContentObserver) return;
+        const wrap = document.getElementById('editor-doc-wrap');
+        if (wrap && typeof ResizeObserver === 'function') {
+            let previousWidth = 0;
+            new ResizeObserver(entries => {
+                const width = entries[0]?.contentRect.width || 0;
+                if (width > 0 && Math.abs(width - previousWidth) > 0.5) {
+                    previousWidth = width;
+                    scheduleLongDocumentFit();
+                }
+            }).observe(wrap);
+        }
         if (typeof MutationObserver === 'function') {
             longContentObserver = new MutationObserver(scheduleLongDocumentFit);
             longContentObserver.observe(viewer, {
@@ -156,12 +197,14 @@
             document.body.classList.add('long-document-resizing');
             const move = moveEvent => {
                 const requestedHeight = Math.round(start.height + moveEvent.clientY - startY);
-                const contentFloor = target.id === 'viewer' ? Math.ceil(target.scrollHeight || 0) : 0;
+                const contentFloor = target.id === 'viewer'
+                    ? Math.ceil(target.scrollHeight || 0)
+                    : measureLongEditorContentHeight();
                 const height = Math.max(320, contentFloor, requestedHeight);
                 target.style.height = height + 'px';
                 target.style.minHeight = height + 'px';
                 target.dataset.longManualHeight = String(height);
-                if (target.id === 'editor-doc-wrap') source.style.height = height + 'px';
+                if (target.id === 'editor-doc-wrap' && !source.__mdCm6View) source.style.height = height + 'px';
                 if (kind === 'corner') {
                     const available = Math.max(320, viewport.clientWidth - 32);
                     const width = Math.max(320, Math.min(available, Math.round(start.width + moveEvent.clientX - startX)));
@@ -202,6 +245,31 @@
             event.preventDefault();
             scrollTarget.scrollTop = next;
         }, { passive: false, capture: true });
+
+        // Mobile browsers may keep a gesture inside a focused textarea even
+        // though that textarea has no scroll range. Forward only actual drags;
+        // taps and caret placement do not need to be intercepted.
+        let touchY = null;
+        document.addEventListener('touchstart', event => {
+            const editingInput = (viewport.classList.contains('long-document-active') && event.target === source)
+                || (viewport.classList.contains('a4-active') && event.target?.matches?.('.a4-text'));
+            touchY = document.body.classList.contains('mobile-ui-active')
+                && editingInput && event.touches.length === 1
+                ? event.touches[0].clientY : null;
+        }, { passive: true, capture: true });
+        document.addEventListener('touchmove', event => {
+            if (touchY === null || event.touches.length !== 1) return;
+            const nextY = event.touches[0].clientY;
+            const delta = touchY - nextY;
+            touchY = nextY;
+            const maximum = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+            const next = Math.max(0, Math.min(maximum, viewport.scrollTop + delta));
+            if (next === viewport.scrollTop) return;
+            if (event.cancelable) event.preventDefault();
+            viewport.scrollTop = next;
+        }, { passive: false, capture: true });
+        document.addEventListener('touchend', () => { touchY = null; }, { capture: true });
+        document.addEventListener('touchcancel', () => { touchY = null; }, { capture: true });
     }
 
     function updateLayoutControlState() {
@@ -559,6 +627,7 @@
 
     source.addEventListener('input', () => sync(source.value));
     source.addEventListener('input', scheduleLongDocumentFit);
+    source.addEventListener('mdpro:editor-geometry-change', scheduleLongDocumentFit);
 
     async function renderView(target, text, renderHtml, isCurrent) {
         const enabled = HEADER.test(text);

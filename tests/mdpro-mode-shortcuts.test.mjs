@@ -37,8 +37,8 @@ test('mode button hints match shortcuts', () => {
     assert.match(html, /id="btn-view" title="Ctrl\+2" aria-keyshortcuts="Control\+2"/);
 });
 
-test('edit to view mode restores the editor viewport instead of the caret position', () => {
-    const toggleStart = source.indexOf('function toggleMode(mode)');
+test('edit and view modes prioritize the visible caret and fall back to the viewport', () => {
+    const toggleStart = source.indexOf('function toggleMode(mode, options)');
     const toggleEnd = source.indexOf('\nconst DEDICATED_LOCAL_VIEWER_EXTENSIONS', toggleStart);
     const toggleSource = source.slice(toggleStart, toggleEnd);
     const captureIndex = toggleSource.indexOf('const editScrollTarget = getActiveScrollTarget()');
@@ -46,9 +46,141 @@ test('edit to view mode restores the editor viewport instead of the caret positi
 
     assert.ok(captureIndex >= 0, 'editor scroll ratio should be captured');
     assert.ok(hideIndex > captureIndex, 'editor scroll ratio must be captured before the editor is hidden');
-    assert.match(toggleSource, /getScrollRatio\(editScrollTarget\)/);
-    assert.match(toggleSource, /setScrollRatio\(vc, editScrollRatio\)/);
-    assert.doesNotMatch(toggleSource, /setScrollRatio\(vc, ratioFromCaret\)/);
+    assert.match(toggleSource, /getMarkdownLineFromEditorViewport\(editScrollTarget\)/);
+    assert.match(toggleSource, /const visibleCaret = getVisibleEditorCaret\(editScrollTarget\)/);
+    assert.match(toggleSource, /scrollViewerToMarkdownLine\(vc, editLineIndex, visibleCaret\)/);
+    assert.match(toggleSource, /getMarkdownLineFromViewerViewport\(vc\)/);
+    assert.match(toggleSource, /scrollEditorToMarkdownLine\(mappedLine, 'auto'\)/);
+    assert.doesNotMatch(toggleSource, /restoreLastClickedTocPosition\(\)/);
+});
+
+test('CodeMirror caret is used only while it is visible in the editor viewport', () => {
+    const start = source.indexOf('function getVisibleEditorCaret(scrollTarget)');
+    const end = source.indexOf('\nfunction normalizeMarkdownLineForView(', start);
+    const view = {
+        state: { selection: { main: { head: 42 } } },
+        coordsAtPos() { return { top: 180, bottom: 200 }; }
+    };
+    const context = {
+        editorTextarea: { __mdCm6View: view },
+        document: {},
+        viewport: { getBoundingClientRect() { return { top: 100, bottom: 500 }; } }
+    };
+    vm.runInNewContext(`${source.slice(start, end)}; this.getCaret = getVisibleEditorCaret;`, context);
+    assert.deepEqual({ ...context.getCaret(context.viewport) }, { position: 42, viewportOffset: 80 });
+    view.coordsAtPos = () => ({ top: 900, bottom: 920 });
+    assert.equal(context.getCaret(context.viewport), null);
+});
+
+test('view mode aligns the rendered paragraph to the same screen offset as the edit caret', () => {
+    const matcherStart = source.indexOf('function normalizeMarkdownLineForView(line)');
+    const matcherEnd = source.indexOf('\nfunction getMarkdownLineFromViewerViewport(', matcherStart);
+    const scrollStart = source.indexOf('function scrollViewerToMarkdownLine(container, lineIndex, caret)');
+    const scrollEnd = source.indexOf('\nfunction clampViewCopyFabPosition(', scrollStart);
+    const paragraph = {
+        textContent: 'Target paragraph',
+        querySelectorAll() { return []; },
+        getBoundingClientRect() { return { top: 700 }; }
+    };
+    const context = {
+        viewer: { querySelectorAll() { return [paragraph]; } },
+        editorTextarea: { value: '# First\n\nTarget paragraph\n\n# Last' },
+        clamp01: value => Math.max(0, Math.min(1, value))
+    };
+    const container = {
+        scrollTop: 300, scrollHeight: 2000, clientHeight: 400,
+        getBoundingClientRect() { return { top: 100 }; }
+    };
+    vm.runInNewContext(`${source.slice(matcherStart, matcherEnd)}\n${source.slice(scrollStart, scrollEnd)}; this.scroll = scrollViewerToMarkdownLine;`, context);
+    context.scroll(container, 2, { position: 10, viewportOffset: 150 });
+    assert.equal(container.scrollTop, 750);
+});
+
+test('holding a document jump button for 1.5 seconds targets the current document', () => {
+    const bindStart = source.indexOf('function bindScrollJumpLongPress()');
+    const bindEnd = source.indexOf('\nfunction scrollToDocumentTop(', bindStart);
+    const bindSource = source.slice(bindStart, bindEnd);
+    const html = readFileSync(new URL('../mdpro/index.html', import.meta.url), 'utf8');
+
+    assert.match(bindSource, /setTimeout\(function \(\) \{/);
+    assert.match(bindSource, /}, 1500\)/);
+    assert.match(bindSource, /scrollCurrentDocumentBoundary\(button\.dataset\.scrollJump, 'instant'\)/);
+    assert.match(html, /data-scroll-jump="top"/);
+    assert.match(html, /data-scroll-jump="bottom"/);
+});
+
+test('click and hold move only the visible mode document without switching modes', () => {
+    const start = source.indexOf('function scrollCurrentDocumentBoundary(direction, behavior');
+    const end = source.indexOf('\nfunction bindScrollJumpLongPress()', start);
+    const editor = { scrollHeight: 1800, clientHeight: 600, scrollTop: 350, scrollTo({ top }) { this.scrollTop = top; } };
+    const viewer = { scrollHeight: 3000, clientHeight: 600, scrollTop: 250, scrollTo({ top }) { this.scrollTop = top; } };
+    let mode = 'view';
+    const context = {
+        getActiveScrollTarget() { return mode === 'edit' ? editor : viewer; }
+    };
+    vm.runInNewContext(`${source.slice(start, end)}; this.jump = scrollCurrentDocumentBoundary;`, context);
+
+    context.jump('bottom', 'instant');
+    assert.equal(viewer.scrollTop, 2400);
+    assert.equal(editor.scrollTop, 350, 'holding in View mode must not move Edit');
+    assert.equal(mode, 'view');
+    context.jump('top');
+    assert.equal(viewer.scrollTop, 0);
+    mode = 'edit';
+    context.jump('bottom', 'instant');
+    assert.equal(editor.scrollTop, 1200);
+    assert.equal(viewer.scrollTop, 0, 'holding in Edit mode must not move View');
+    context.jump('top');
+    assert.equal(editor.scrollTop, 0);
+});
+
+test('mouse hold fires after 1.5 seconds and suppresses its release click', () => {
+    const start = source.indexOf('function consumeScrollJumpLongPressClick(event)');
+    const end = source.indexOf('\nfunction scrollCurrentDocumentBoundary(', start);
+    const bindStart = source.indexOf('function bindScrollJumpLongPress()');
+    const bindEnd = source.indexOf('\nfunction scrollToDocumentTop(', bindStart);
+    const handlers = {};
+    const button = {
+        dataset: { scrollJump: 'bottom' },
+        addEventListener(name, listener) { handlers[name] = listener; }
+    };
+    let pending;
+    const jumps = [];
+    const context = {
+        document: { querySelectorAll() { return [button]; } },
+        window: {
+            setTimeout(callback, delay) { pending = { callback, delay }; return 1; },
+            clearTimeout() { pending = undefined; }
+        },
+        scrollCurrentDocumentBoundary(direction) { jumps.push(direction); }
+    };
+    vm.runInNewContext(`${source.slice(start, end)}\n${source.slice(bindStart, bindEnd)}; this.bind = bindScrollJumpLongPress; this.consume = consumeScrollJumpLongPressClick;`, context);
+    context.bind();
+    handlers.pointerdown({ button: 0 });
+    assert.equal(pending.delay, 1500);
+    handlers.pointerup();
+    assert.equal(pending, undefined);
+    assert.deepEqual(jumps, [], 'short click must not trigger editor jump');
+
+    handlers.pointerdown({ button: 0 });
+    pending.callback();
+    handlers.pointerup();
+    assert.deepEqual(jumps, ['bottom']);
+    let prevented = false;
+    assert.equal(context.consume({ currentTarget: button, preventDefault() { prevented = true; } }), true);
+    assert.equal(prevented, true);
+    assert.equal(context.consume({ currentTarget: button }), false, 'only the release click is suppressed');
+});
+
+test('document jump buttons use the editing viewport for continuous and A4 documents', () => {
+    const helperStart = source.indexOf('function getActiveScrollTarget()');
+    const helperEnd = source.indexOf('\nfunction scrollToDocumentTop(', helperStart);
+    const helperSource = source.slice(helperStart, helperEnd);
+
+    assert.match(helperSource, /syncEditModeStateFromDom\(\)/);
+    assert.match(helperSource, /if \(a4UsesViewport \|\| longDocumentUsesViewport\) return viewport;/);
+    assert.match(helperSource, /if \(viewerContainer\) return viewerContainer;/);
+    assert.match(helperSource, /const target = getActiveScrollTarget\(\);/);
 });
 
 test('heading shortcuts cover Ctrl+Alt+1 through Ctrl+Alt+5', () => {

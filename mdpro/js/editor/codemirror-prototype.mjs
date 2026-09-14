@@ -177,6 +177,9 @@ function ensureStyles() {
         .md-cm6-prototype .cm-editor{height:100%;font:inherit;background:transparent}
         .md-cm6-prototype .cm-scroller{overflow:auto;font-family:inherit;line-height:1.75;padding:20px 24px}
         .md-cm6-prototype .cm-content{min-height:100%;caret-color:#f8fafc}
+        #content-viewport.long-document-active .md-cm6-prototype{overflow:visible}
+        #content-viewport.long-document-active .md-cm6-prototype .cm-scroller{overflow:visible;min-height:0}
+        #content-viewport.long-document-active .md-cm6-prototype .cm-content{min-height:0}
         .md-cm6-prototype .cm-gutters{background:#0f172a;color:#64748b;border-right:1px solid #1e293b}
         .md-cm6-prototype .cm-activeLine,.md-cm6-prototype .cm-activeLineGutter{background:rgba(99,102,241,.08)}
         .md-cm6-prototype .cm-selectionBackground{background:rgba(99,102,241,.32)!important}
@@ -334,6 +337,7 @@ function mount(textarea, options = {}) {
     textarea.classList.add('md-cm6-source-hidden');
     let syncTimer = null;
     let lastFlushedValue = textarea.value;
+    let lastMeasuredContentHeight = 0;
     const flush = () => {
         if (!textarea.__mdCm6View) return;
         const value = textarea.__mdCm6View.state.doc.toString();
@@ -359,6 +363,11 @@ function mount(textarea, options = {}) {
                 EditorView.lineWrapping,
                 EditorView.updateListener.of(update => {
                     if (update.docChanged) scheduleFlush();
+                    const contentHeight = update.view.contentHeight;
+                    if (update.docChanged || Math.abs(contentHeight - lastMeasuredContentHeight) > 1) {
+                        lastMeasuredContentHeight = contentHeight;
+                        textarea.dispatchEvent(new Event('mdpro:editor-geometry-change'));
+                    }
                 }),
                 keymap.of([
                     { key: 'Mod-/', run: toggleComment },
@@ -372,6 +381,7 @@ function mount(textarea, options = {}) {
     });
     textarea.__mdCm6View = view;
     textarea.__mdCm6RemoveCompatibility = installTextareaCompatibility(textarea, view);
+    textarea.dispatchEvent(new Event('mdpro:editor-geometry-change'));
     view.focus();
     window.addEventListener('beforeunload', flush);
     mountBenchmarkControls(view);

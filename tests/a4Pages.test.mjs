@@ -3,6 +3,13 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 
+test('continuous editor expands its sheet before correcting textarea overflow', () => {
+    const source = readFileSync(new URL('../mdpro/js/a4-pages.js', import.meta.url), 'utf8');
+    const fit = source.slice(source.indexOf('function fitLongEditorToContent()'), source.indexOf('\n    function fitLongViewerToContent()'));
+    assert.ok(fit.indexOf("wrap.style.height = height + 'px'") < fit.indexOf("source.style.height = height + 'px'"));
+    assert.match(fit, /source\.scrollHeight > source\.clientHeight/);
+});
+
 // Deterministic layout model exercises real editor event handlers without a browser.
 function setup(createAllowed = true) {
     const elements = new Map();
@@ -66,7 +73,7 @@ function setup(createAllowed = true) {
     const viewer = new Element('div'); viewer.id = 'viewer'; viewer.style.width = '794px';
     const viewerContainer = new Element('div'); viewerContainer.id = 'viewer-container'; viewerContainer.append(viewer);
     const window = {};
-    const context = vm.createContext({ document, window, Event, setNewFileMenuVisible() {}, toggleMode() {},
+    const context = vm.createContext({ document, window, Event, getComputedStyle: () => ({ paddingTop: '20px', paddingBottom: '20px' }), setNewFileMenuVisible() {}, toggleMode() {},
         createNewFile() {
             if (!createAllowed) return false;
             source.value = ''; window.A4Pages.sync(''); return true;
@@ -87,6 +94,19 @@ test('blank continuous documents start at an A4 portrait height', () => {
     assert.equal(env.source.style.height, '1123px');
     assert.equal(env.viewer.style.minHeight, '1123px');
     assert.equal(env.viewer.style.height, 'auto');
+});
+
+test('continuous CodeMirror sheet fits the visible editor instead of its hidden textarea', () => {
+    const env = setup();
+    env.source.__mdCm6View = { dom: { isConnected: true }, scrollDOM: {}, contentHeight: 2400 };
+    env.source.scrollTop = 120;
+    env.window.A4Pages.fitLongDocumentToContent();
+    assert.equal(env.wrap.style.height, '2442px');
+    assert.equal(env.source.scrollTop, 0);
+
+    env.source.__mdCm6View.contentHeight = 64;
+    env.window.A4Pages.fitLongDocumentToContent();
+    assert.equal(env.wrap.style.height, '1123px', 'the sheet shrinks to its A4 floor with the document');
 });
 
 test('continuous view sheet follows rendered content height and can shrink again', () => {
