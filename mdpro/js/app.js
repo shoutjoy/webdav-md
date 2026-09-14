@@ -144,7 +144,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiChat: './AI_App/aiChat/ai-chat.js?v=20260914-full-article-text-4',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
-    codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260810-3'
+    codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260913-single-scroll-2'
 });
 const optionalScriptLoads = new Map();
 
@@ -2418,6 +2418,7 @@ window.onload = async () => {
         editorTextarea.addEventListener('mouseup', syncFindInputFromEditorSelectionIfNeeded);
         bindEditorListKeyBehavior();
     }
+    bindScrollJumpLongPress();
     bindWheelZoomShortcuts();
     document.addEventListener('paste', function (e) {
         const modal = document.getElementById('image-insert-modal');
@@ -3907,6 +3908,12 @@ function setScrollRatio(el, ratio) {
     el.scrollTop = Math.round(max * clamp01(ratio));
 }
 
+function setScrollContentRatio(el, ratio) {
+    if (!el) return;
+    const maximum = Math.max(0, el.scrollHeight - el.clientHeight);
+    el.scrollTop = Math.min(maximum, Math.round(el.scrollHeight * clamp01(ratio)));
+}
+
 function getMarkdownPositionFromRatio(ratio) {
     const text = String(editorTextarea ? editorTextarea.value : currentMarkdown ?? '');
     if (!text) return 0;
@@ -3932,6 +3939,166 @@ function getMarkdownRatioFromCharPos(pos) {
     if (lines.length <= 1) return 0;
     const lineIdx = getLineIndexFromCharPos(text, pos);
     return clamp01(lineIdx / (lines.length - 1));
+}
+
+function getMarkdownLineFromEditorViewport(scrollTarget) {
+    const text = String(editorTextarea ? editorTextarea.value : currentMarkdown ?? '');
+    const lineCount = Math.max(1, text.split('\n').length);
+    const visibleDocumentRatio = scrollTarget
+        ? clamp01(scrollTarget.scrollTop / Math.max(1, scrollTarget.scrollHeight))
+        : 0;
+    return Math.round((lineCount - 1) * visibleDocumentRatio);
+}
+
+function getVisibleEditorCaret(scrollTarget) {
+    if (!editorTextarea || !scrollTarget) return null;
+    const cmView = editorTextarea.__mdCm6View;
+    if (cmView) {
+        const position = cmView.state.selection.main.head;
+        const caretRect = cmView.coordsAtPos(position);
+        const viewportRect = scrollTarget.getBoundingClientRect();
+        if (!caretRect || caretRect.bottom < viewportRect.top || caretRect.top > viewportRect.bottom) return null;
+        return { position, viewportOffset: Math.max(24, caretRect.top - viewportRect.top) };
+    }
+    if (document.activeElement !== editorTextarea) return null;
+    return { position: editorTextarea.selectionEnd, viewportOffset: 24 };
+}
+
+function normalizeMarkdownLineForView(line) {
+    const sourceLine = String(line || '').trim();
+    if (!sourceLine || /^(?:`{3,}|~{3,}|-{3,}|\*{3,})\s*$/.test(sourceLine)) return '';
+    let text = sourceLine.replace(/^#{1,6}\s+/, '').replace(/^>\s?/, '')
+        .replace(/^(?:[-+*]|\d+[.)])\s+/, '')
+        .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        .replace(/<[^>]+>/g, '').replace(/[\*`_~]/g, '');
+    if (/^\|.*\|$/.test(sourceLine)) {
+        text = text.split('|').map(part => part.trim()).filter(Boolean).sort((a, b) => b.length - a.length)[0] || '';
+    }
+    return text.replace(/\s+/g, ' ').trim();
+}
+
+function findViewerBlockForMarkdownLine(markdown, lineIndex) {
+    if (!viewer) return null;
+    const lines = String(markdown || '').split('\n');
+    const safeLine = Math.max(0, Math.min(Math.floor(Number(lineIndex) || 0), lines.length - 1));
+    let probe = normalizeMarkdownLineForView(lines[safeLine]);
+    if (!probe) {
+        for (let distance = 1; distance <= 3 && !probe; distance += 1) {
+            probe = normalizeMarkdownLineForView(lines[safeLine + distance])
+                || normalizeMarkdownLineForView(lines[safeLine - distance]);
+        }
+    }
+    if (!probe) return null;
+    const blockSelector = 'h1, h2, h3, h4, h5, h6, p, li, td, th, pre, blockquote';
+    const blocks = Array.from(viewer.querySelectorAll(blockSelector));
+    const isLeafMatch = function (block, exact) {
+        const text = String(block.textContent || '').replace(/\s+/g, ' ').trim();
+        if (!(exact ? text === probe : text.includes(probe))) return false;
+        return !Array.from(block.querySelectorAll(blockSelector)).some(function (child) {
+            const childText = String(child.textContent || '').replace(/\s+/g, ' ').trim();
+            return exact ? childText === probe : childText.includes(probe);
+        });
+    };
+    const exactMatches = blocks.filter(block => isLeafMatch(block, true));
+    const matches = exactMatches.length ? exactMatches : blocks.filter(block => isLeafMatch(block, false));
+    if (!matches.length) return null;
+    const occurrence = lines.slice(0, safeLine).filter(line => normalizeMarkdownLineForView(line) === probe).length;
+    return matches[Math.min(occurrence, matches.length - 1)];
+}
+
+function getMarkdownLineFromViewerViewport(container) {
+    const markdown = String(editorTextarea ? editorTextarea.value : currentMarkdown ?? '');
+    const lines = markdown.split('\n');
+    const tocItems = parseTocItemsFromMarkdown(markdown);
+    const headers = viewer ? Array.from(viewer.querySelectorAll('h1, h2, h3, h4, h5, h6')) : [];
+    if (!container || !tocItems.length || !headers.length) {
+        const visibleDocumentRatio = container
+            ? clamp01((container.scrollTop + 24) / Math.max(1, container.scrollHeight))
+            : 0;
+        return Math.round((Math.max(1, lines.length) - 1) * visibleDocumentRatio);
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    const visibleTop = containerRect.top + 24;
+    let index = 0;
+    for (let i = 0; i < headers.length; i += 1) {
+        if (headers[i].getBoundingClientRect().top <= visibleTop) index = i;
+        else break;
+    }
+    index = Math.max(0, Math.min(index, tocItems.length - 1, headers.length - 1));
+    const startLine = Number(tocItems[index].lineIndex) || 0;
+    const nextLine = index + 1 < tocItems.length ? Number(tocItems[index + 1].lineIndex) : lines.length - 1;
+    const startTop = headers[index].getBoundingClientRect().top;
+    const nextTop = index + 1 < headers.length
+        ? headers[index + 1].getBoundingClientRect().top
+        : containerRect.bottom + Math.max(0, container.scrollHeight - container.scrollTop - container.clientHeight);
+    const progress = nextTop > startTop ? clamp01((visibleTop - startTop) / (nextTop - startTop)) : 0;
+    return Math.round(startLine + Math.max(0, nextLine - startLine) * progress);
+}
+
+function getMarkdownCharPositionForLine(text, lineIndex) {
+    const lines = String(text || '').split('\n');
+    const safeLine = Math.max(0, Math.min(Math.floor(Number(lineIndex) || 0), lines.length - 1));
+    let position = 0;
+    for (let i = 0; i < safeLine; i += 1) position += lines[i].length + 1;
+    return position;
+}
+
+function scrollEditorToMarkdownLine(lineIndex, behavior) {
+    const viewport = document.getElementById('content-viewport');
+    const desktopLongDocument = viewport
+        && viewport.classList.contains('long-document-active')
+        && !document.body.classList.contains('mobile-ui-active');
+    // During the first frame after leaving View mode the newly revealed
+    // viewport can briefly report no overflow. Select the known desktop long
+    // document owner directly so the position is not written to the hidden
+    // textarea and then cleared by its auto-fit pass.
+    const target = desktopLongDocument ? viewport : getActiveScrollTarget();
+    if (!target || !editorTextarea) return;
+    const text = String(editorTextarea.value || '');
+    const position = getMarkdownCharPositionForLine(text, lineIndex);
+    const lineHeight = parseFloat(getComputedStyle(editorTextarea).lineHeight) || 24;
+    const contentRatio = clamp01(position / Math.max(1, text.length));
+    const maximum = Math.max(0, target.scrollHeight - target.clientHeight);
+    const top = Math.min(maximum, Math.max(0, target.scrollHeight * contentRatio - lineHeight * 4));
+    target.scrollTo({ top: Math.round(top), behavior: behavior || 'auto' });
+}
+
+function scrollViewerToMarkdownLine(container, lineIndex, caret) {
+    const markdown = String(editorTextarea ? editorTextarea.value : currentMarkdown ?? '');
+    if (container && caret) {
+        const block = findViewerBlockForMarkdownLine(markdown, lineIndex);
+        if (block) {
+            const containerRect = container.getBoundingClientRect();
+            const blockTop = container.scrollTop + block.getBoundingClientRect().top - containerRect.top;
+            const maximum = Math.max(0, container.scrollHeight - container.clientHeight);
+            container.scrollTop = Math.max(0, Math.min(maximum, Math.round(blockTop - caret.viewportOffset)));
+            return;
+        }
+    }
+    const lines = markdown.split('\n');
+    const tocItems = parseTocItemsFromMarkdown(markdown);
+    const headers = viewer ? Array.from(viewer.querySelectorAll('h1, h2, h3, h4, h5, h6')) : [];
+    if (!container || !tocItems.length || !headers.length) {
+        setScrollContentRatio(container, clamp01((Number(lineIndex) || 0) / Math.max(1, lines.length - 1)));
+        return;
+    }
+    let index = 0;
+    for (let i = 0; i < tocItems.length; i += 1) {
+        if ((Number(tocItems[i].lineIndex) || 0) <= lineIndex) index = i;
+        else break;
+    }
+    index = Math.max(0, Math.min(index, headers.length - 1));
+    const startLine = Number(tocItems[index].lineIndex) || 0;
+    const nextLine = index + 1 < tocItems.length ? Number(tocItems[index + 1].lineIndex) : lines.length - 1;
+    const progress = nextLine > startLine ? clamp01((lineIndex - startLine) / (nextLine - startLine)) : 0;
+    const containerRect = container.getBoundingClientRect();
+    const startTop = container.scrollTop + headers[index].getBoundingClientRect().top - containerRect.top;
+    const nextTop = index + 1 < headers.length
+        ? container.scrollTop + headers[index + 1].getBoundingClientRect().top - containerRect.top
+        : container.scrollHeight;
+    container.scrollTop = Math.max(0, Math.round(startTop + Math.max(0, nextTop - startTop) * progress - 24));
 }
 
 function clampViewCopyFabPosition(button, left, top) {
@@ -4204,7 +4371,7 @@ function restoreLastClickedTocPosition() {
     return true;
 }
 
-function toggleMode(mode) {
+function toggleMode(mode, options) {
     const vc = document.getElementById('viewer-container');
     const ec = document.getElementById('content-viewport');
     const btnView = document.getElementById('btn-view');
@@ -4219,11 +4386,12 @@ function toggleMode(mode) {
         console.warn('toggleMode: viewer-container or content-viewport not found.', { vc: !!vc, ec: !!ec });
         return;
     }
-    document.body.classList.toggle('viewer-view-mode', mode !== 'edit');
-
     if (mode === 'edit') {
-        const viewRatio = getScrollRatio(vc);
-        const mappedPos = viewClickMappedCaretPos == null ? getMarkdownPositionFromRatio(viewRatio) : viewClickMappedCaretPos;
+        const mappedPos = viewClickMappedCaretPos == null
+            ? getMarkdownCharPositionForLine(String(editorTextarea ? editorTextarea.value : currentMarkdown || ''), getMarkdownLineFromViewerViewport(vc))
+            : viewClickMappedCaretPos;
+        const mappedLine = getLineIndexFromCharPos(String(editorTextarea ? editorTextarea.value : currentMarkdown || ''), mappedPos);
+        document.body.classList.remove('viewer-view-mode');
         isEditMode = true;
         vc.classList.add('hidden');
         ec.classList.remove('hidden');
@@ -4236,29 +4404,34 @@ function toggleMode(mode) {
         if (btnEdit) btnEdit.classList.add(...activeClasses);
         if (btnView) btnView.classList.remove(...activeClasses);
         applyEditorLightPreference();
-        if (editorTextarea) {
+        if (editorTextarea && !options?.skipScrollSync) {
             const text = String(editorTextarea.value ?? '');
             const safePos = Math.max(0, Math.min(mappedPos, text.length));
             editorTextarea.focus();
             editorTextarea.setSelectionRange(safePos, safePos);
-            const lineHeight = parseInt(getComputedStyle(editorTextarea).lineHeight, 10) || 28;
-            const lineIndex = getLineIndexFromCharPos(text, safePos);
-            editorTextarea.scrollTop = Math.max(0, lineIndex * lineHeight - editorTextarea.clientHeight * 0.35);
             lastEditCaretPos = safePos;
         }
         viewClickMappedCaretPos = null;
         applyMiniPreviewVisibility();
         requestAnimationFrame(function () {
-            if (isEditMode) restoreLastClickedTocPosition();
+            if (!isEditMode) return;
+            if (window.A4Pages && typeof window.A4Pages.fitLongDocumentToContent === 'function') {
+                window.A4Pages.fitLongDocumentToContent();
+            }
+            if (!options?.skipScrollSync) scrollEditorToMarkdownLine(mappedLine, 'auto');
         });
     } else {
         // Capture the editor viewport before hiding it. The caret can remain at
         // the end of the document after an edit command, so using only its
         // position can incorrectly send preview mode to the very bottom.
         const editScrollTarget = getActiveScrollTarget();
-        const editScrollRatio = editScrollTarget
-            ? getScrollRatio(editScrollTarget)
-            : getMarkdownRatioFromCharPos(lastEditCaretPos);
+        const visibleCaret = getVisibleEditorCaret(editScrollTarget);
+        const editLineIndex = visibleCaret
+            ? getLineIndexFromCharPos(String(editorTextarea.value || ''), visibleCaret.position)
+            : editScrollTarget
+            ? getMarkdownLineFromEditorViewport(editScrollTarget)
+            : getLineIndexFromCharPos(String(editorTextarea ? editorTextarea.value : currentMarkdown || ''), lastEditCaretPos);
+        document.body.classList.add('viewer-view-mode');
         if (editorTextarea) {
             lastEditCaretPos = Math.max(0, editorTextarea.selectionStart || 0);
         }
@@ -4307,8 +4480,22 @@ function toggleMode(mode) {
             }
             requestAnimationFrame(function () {
                 if (isEditMode) return;
-                if (restoreLastClickedTocPosition()) return;
-                setScrollRatio(vc, editScrollRatio);
+                const applySynchronizedViewPosition = function () {
+                    if (isEditMode) return;
+                    if (window.A4Pages && typeof window.A4Pages.fitLongDocumentToContent === 'function') {
+                        window.A4Pages.fitLongDocumentToContent();
+                    }
+                    scrollViewerToMarkdownLine(vc, editLineIndex, visibleCaret);
+                };
+                // Viewer typography, images, and the long-sheet minimum height
+                // can settle over subsequent layout frames. Reapply the same
+                // semantic line so an early, shorter scroll range cannot clamp
+                // the synchronized position above the intended item.
+                applySynchronizedViewPosition();
+                requestAnimationFrame(function () {
+                    applySynchronizedViewPosition();
+                    requestAnimationFrame(applySynchronizedViewPosition);
+                });
             });
         });
         applyMiniPreviewVisibility();
@@ -9397,38 +9584,74 @@ function showToast(msg, options) {
 }
 
 function getActiveScrollTarget() {
+    syncEditModeStateFromDom();
     if (isEditMode) {
         const viewport = document.getElementById('content-viewport');
-        const mobileContinuousEditor = viewport?.classList.contains('long-document-active')
-            && document.body.classList.contains('mobile-ui-active');
-        if (mobileContinuousEditor && editorTextarea) return editorTextarea;
-        const viewportOwnsScroll = viewport && viewport.scrollHeight > viewport.clientHeight + 1;
         const textareaOwnsScroll = editorTextarea && editorTextarea.scrollHeight > editorTextarea.clientHeight + 1;
-        const layoutUsesViewport = viewport
-            && (viewport.classList.contains('a4-active') || viewport.classList.contains('long-document-active'));
-        // Continuous editing can use either the outer viewport or the textarea,
-        // depending on responsive CSS and when its content height was measured.
-        // Target the element that actually owns the vertical overflow so the
-        // jump buttons do not scroll a non-scrollable viewport.
-        if (layoutUsesViewport && viewportOwnsScroll) return viewport;
+        const a4UsesViewport = viewport && viewport.classList.contains('a4-active');
+        const longDocumentUsesViewport = viewport && viewport.classList.contains('long-document-active');
+        // Continuous documents are fitted to their full content height. Only
+        // the outer editing viewport scrolls, including on mobile.
+        if (a4UsesViewport || longDocumentUsesViewport) return viewport;
         if (textareaOwnsScroll) return editorTextarea;
-        if (layoutUsesViewport) return viewport;
         if (editorTextarea) return editorTextarea;
     }
     if (viewerContainer) return viewerContainer;
     return null;
 }
 
-function scrollToDocumentTop() {
-    const target = getActiveScrollTarget();
-    if (!target) return;
-    target.scrollTo({ top: 0, behavior: 'smooth' });
+function consumeScrollJumpLongPressClick(event) {
+    const button = event && event.currentTarget;
+    if (!button || button.dataset.scrollJumpLongPressed !== '1') return false;
+    delete button.dataset.scrollJumpLongPressed;
+    event.preventDefault();
+    return true;
 }
 
-function scrollToDocumentBottom() {
+function scrollCurrentDocumentBoundary(direction, behavior = 'smooth') {
+    // Both a click and a hold act on the document that is visible now. In
+    // particular, a hold in View mode must never switch back to Edit mode.
     const target = getActiveScrollTarget();
     if (!target) return;
-    target.scrollTo({ top: target.scrollHeight, behavior: 'smooth' });
+    const top = direction === 'bottom'
+        ? Math.max(0, target.scrollHeight - target.clientHeight)
+        : 0;
+    target.scrollTo({ top, behavior });
+}
+
+function bindScrollJumpLongPress() {
+    document.querySelectorAll('#scroll-jump-rail [data-scroll-jump]').forEach(function (button) {
+        if (button.dataset.scrollJumpLongPressBound === '1') return;
+        button.dataset.scrollJumpLongPressBound = '1';
+        let timer = 0;
+        const cancel = function () {
+            if (timer) window.clearTimeout(timer);
+            timer = 0;
+        };
+        button.addEventListener('pointerdown', function (event) {
+            if (event.button !== undefined && event.button !== 0) return;
+            cancel();
+            delete button.dataset.scrollJumpLongPressed;
+            timer = window.setTimeout(function () {
+                timer = 0;
+                button.dataset.scrollJumpLongPressed = '1';
+                scrollCurrentDocumentBoundary(button.dataset.scrollJump, 'instant');
+            }, 1500);
+        });
+        button.addEventListener('pointerup', cancel);
+        button.addEventListener('pointercancel', cancel);
+        button.addEventListener('pointerleave', cancel);
+    });
+}
+
+function scrollToDocumentTop(event) {
+    if (consumeScrollJumpLongPressClick(event)) return;
+    scrollCurrentDocumentBoundary('top');
+}
+
+function scrollToDocumentBottom(event) {
+    if (consumeScrollJumpLongPressClick(event)) return;
+    scrollCurrentDocumentBoundary('bottom');
 }
 
 // --- Settings ---

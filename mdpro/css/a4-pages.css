@@ -24,8 +24,12 @@ body:not(.viewer-view-mode) #content-viewport.a4-active {
 }
 #content-viewport.long-document-active #viewer-edit-ta {
   min-height: 320px;
-  overflow-y: hidden;
+  overflow-y: hidden !important;
+  scrollbar-width: none;
   resize: none;
+}
+#content-viewport.long-document-active #viewer-edit-ta::-webkit-scrollbar {
+  display: none;
 }
 #viewer-container.long-document-active #viewer.long-document-sheet {
   position: relative;
