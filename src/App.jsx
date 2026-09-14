@@ -303,7 +303,7 @@ export default function App() {
     }).catch(error => console.warn('WebDAV 최근 작업 캐시를 저장하지 못했습니다:', error));
   };
 
-  const [url, setUrl] = useState('');
+  const [url, setUrl] = useState('https://webdav.freemath.synology.me');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [saveLoginInfo, setSaveLoginInfo] = useState(false);
@@ -1874,7 +1874,7 @@ export default function App() {
     }
 
     if (savedLogin?.url || savedLogin?.username) {
-      setUrl(savedLogin.url || '');
+      setUrl(savedLogin.url || 'https://webdav.freemath.synology.me');
       setUsername(savedLogin.username || '');
       setSaveLoginInfo(true);
     }

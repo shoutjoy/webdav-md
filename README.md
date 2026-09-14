@@ -1,5 +1,15 @@
 # React + Vite
 
+## Windows local app
+
+Download the repository source, install Node.js, then double-click `run-local.cmd`.
+The first run installs npm packages if needed. Each run builds the current files
+and serves them at `http://127.0.0.1:4173/mdpro/`; keep the command window open
+while using MDPRO. The server listens only on this PC and provides the same
+`/api/web-search` route used during development, so a saved SerpApi key can be
+checked and used locally. Search still requires Internet access from this PC.
+The GitHub Pages copy remains static and does not gain this local server.
+
 ## WebDAV connection
 
 Run the app with `bun run dev` (or `npm run dev`) and open the Vite URL. Requests to

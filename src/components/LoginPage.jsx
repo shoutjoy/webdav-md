@@ -23,6 +23,7 @@ export default function LoginPage({
       return 'dark';
     }
   });
+  const [showUrl, setShowUrl] = useState(false);
   const toggleTheme = () => {
     const nextTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(nextTheme);
@@ -54,15 +55,23 @@ export default function LoginPage({
 
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">서버 URL</label>
-            <input
-              type="url"
-              required
-              placeholder="https://example.com/webdav"
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
-              value={url}
-              onChange={(event) => onUrlChange(event.target.value)}
-            />
+            <button type="button" className="text-sm text-blue-600 hover:underline" onClick={() => setShowUrl((current) => !current)} aria-expanded={showUrl}>
+              {showUrl ? '서버 URL 숨기기' : '서버 URL 변경'}
+            </button>
+            {showUrl && (
+              <div className="mt-2">
+                <label htmlFor="login-server-url" className="block text-sm font-medium text-gray-700 mb-1">서버 URL</label>
+                <input
+                  id="login-server-url"
+                  type="url"
+                  required
+                  placeholder="https://example.com/webdav"
+                  className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none"
+                  value={url}
+                  onChange={(event) => onUrlChange(event.target.value)}
+                />
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">아이디</label>

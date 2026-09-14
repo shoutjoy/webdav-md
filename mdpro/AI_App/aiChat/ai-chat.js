@@ -4487,6 +4487,24 @@
     throw new Error('문서 삽입 모듈이 준비되지 않았습니다.');
   }
 
+  var AI_JENA_VIEW_WINDOW_NAME = 'ai-jena-answer-view';
+  var aiJenaViewWindow = null;
+
+  function showAnswerViewWindow(url) {
+    if (aiJenaViewWindow && !aiJenaViewWindow.closed) {
+      try {
+        aiJenaViewWindow.location.replace(url.href);
+        aiJenaViewWindow.focus();
+        return aiJenaViewWindow;
+      } catch (_) { aiJenaViewWindow = null; }
+    }
+    var viewWindow = root.open(url.href, AI_JENA_VIEW_WINDOW_NAME, 'popup=yes,width=940,height=820,resizable=yes,scrollbars=yes');
+    if (!viewWindow) throw new Error('팝업이 차단되었습니다.');
+    aiJenaViewWindow = viewWindow;
+    try { viewWindow.focus(); } catch (_) {}
+    return viewWindow;
+  }
+
   function openAnswerPreviewWindow(messageIndex, message) {
     var md = String(message && message.content || '').trim();
     if (!md) return setStatus('미리보기할 답변이 없습니다.', 'error');
@@ -4500,8 +4518,7 @@
       localStorage.setItem(payloadKey, JSON.stringify(payload));
       var url = new URL('./AI_App/aiChat/ai-chat-answer-view.html', root.location.href);
       url.searchParams.set('payload', payloadKey);
-      var answerWindow = root.open(url.href, 'ai-jena-answer-' + Date.now(), 'popup=yes,width=940,height=820,resizable=yes,scrollbars=yes');
-      if (!answerWindow) throw new Error('팝업이 차단되었습니다.');
+      showAnswerViewWindow(url);
       setStatus('AI Jena 답변 보기 창을 열었습니다.', 'ok');
     } catch (error) {
       setStatus(error && error.message ? error.message : '답변 보기 창을 열지 못했습니다.', 'error');
@@ -4524,8 +4541,7 @@
       localStorage.setItem(payloadKey, JSON.stringify(payload));
       var url = new URL('./AI_App/aiChat/ai-chat-answer-view.html', root.location.href);
       url.searchParams.set('payload', payloadKey);
-      var previewWindow = root.open(url.href, 'ai-jena-preview-' + Date.now(), 'popup=yes,width=940,height=820,resizable=yes,scrollbars=yes');
-      if (!previewWindow) throw new Error('팝업이 차단되었습니다.');
+      showAnswerViewWindow(url);
       setStatus(options.successMessage || '새 보기 창을 열었습니다.', 'ok');
     } catch (error) {
       setStatus(error && error.message ? error.message : (options.errorMessage || '보기 창을 열지 못했습니다.'), 'error');
@@ -4753,6 +4769,8 @@
         title: String(item && item.title || '제목 없음').slice(0, 500),
         url: url,
         snippet: String(item && item.snippet || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 3000),
+        content: String(item && item.content || '').replace(/<[^>]*>/g, ' ').replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim(),
+        contentComplete: item && item.contentComplete === true,
         date: String(item && item.date || '').slice(0, 80),
         source: String(item && item.source || '').slice(0, 200),
         engine: String(item && item.engine || '').slice(0, 100),
@@ -4766,6 +4784,7 @@
       return '[' + (index + 1) + '] ' + item.title + '\nURL: ' + item.url
         + '\n출처: ' + (item.source || '알 수 없음') + (item.date ? ' / 날짜: ' + item.date : '')
         + '\n요약: ' + (item.snippet || '검색 결과 요약 없음')
+        + (item.content ? '\n페이지 본문 일부: ' + item.content.slice(0, 1400) : '')
         + '\n엔진: ' + (item.engine || 'web') + ' / 채널: ' + (item.channel || 'general');
     }).join('\n\n');
   }
@@ -4785,6 +4804,7 @@
       if (source.engine) lines.push('- 검색 엔진: ' + escapeMarkdownText(source.engine));
       if (source.channel) lines.push('- 채널: ' + escapeMarkdownText(source.channel));
       lines.push('', source.snippet || '검색 결과 요약 없음', '');
+      if (source.content) lines.push(source.contentComplete ? '기사 본문:' : '가져온 본문(일부일 수 있음):', source.content, '');
     });
     return lines.join('\n').trim();
   }
@@ -4893,14 +4913,21 @@
       address.rel = 'noopener noreferrer';
       address.title = '근거 주소를 새 창에서 열기';
       item.appendChild(address);
-      if (source.snippet) {
+      if (source.snippet || source.content) {
         var details = document.createElement('details');
         var summary = document.createElement('summary');
-        summary.textContent = '요약 보기';
+        summary.textContent = source.content ? (source.contentComplete ? '기사 본문' : '가져온 본문(일부일 수 있음)') : '검색 요약만 제공됨';
+        details.open = true;
         var snippet = document.createElement('p');
         snippet.textContent = source.snippet;
         details.appendChild(summary);
         details.appendChild(snippet);
+        if (source.content) {
+          var content = document.createElement('p');
+          content.textContent = source.content;
+          content.style.whiteSpace = 'pre-wrap';
+          details.appendChild(content);
+        }
         item.appendChild(details);
       }
       list.appendChild(item);

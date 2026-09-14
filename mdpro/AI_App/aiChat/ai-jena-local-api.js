@@ -19,7 +19,11 @@
     var searchMode = mode === 'reasoning' ? 'reasoning' : 'quick';
     var params = new URLSearchParams({ q: value, count: String(limit), mode: searchMode, engine: 'auto' });
     var serpApiKey = '';
-    try { serpApiKey = String(localStorage.getItem('ss_serpapi_api_key') || '').trim(); } catch (_) {}
+    try {
+      var vault = root.MDPCredentialVault;
+      serpApiKey = String(localStorage.getItem('ss_serpapi_api_key') || '').trim();
+      if (!serpApiKey && vault && typeof vault.getSecret === 'function') serpApiKey = String(vault.getSecret('serpapi') || '').trim();
+    } catch (_) {}
     var request = { cache: 'no-store', signal: options && options.signal };
     var sameOriginRequest = { cache: 'no-store', signal: options && options.signal, headers: {} };
     if (serpApiKey) sameOriginRequest.headers['X-SerpApi-Key'] = serpApiKey;
