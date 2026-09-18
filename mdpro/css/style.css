@@ -34,6 +34,7 @@
         #viewer-edit-highlight {
             box-sizing: border-box;
             padding: var(--md-view-padding, 24px);
+            font-size: var(--md-app-font-size, 16px);
         }
         #viewer-container.html-document-active {
             padding: 0 !important;

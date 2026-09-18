@@ -144,7 +144,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiChat: './AI_App/aiChat/ai-chat.js?v=20260914-full-article-text-4',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
-    codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260913-single-scroll-2'
+    codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260918-gutter-remove-1'
 });
 const optionalScriptLoads = new Map();
 
@@ -9394,11 +9394,17 @@ function applyDocumentWidthScale() {
 }
 
 function adjustFontSize(delta) {
-    fontSize = Math.max(10, Math.min(48, fontSize + delta));
-    viewer.style.fontSize = `${fontSize}px`;
-    editorTextarea.style.fontSize = `${fontSize}px`;
+    const amount = Number(delta);
+    if (!Number.isFinite(amount) || amount === 0) return;
+    fontSize = Math.max(10, Math.min(48, fontSize + amount));
+    if (viewer) viewer.style.fontSize = `${fontSize}px`;
+    if (editorTextarea) editorTextarea.style.fontSize = `${fontSize}px`;
     document.documentElement.style.setProperty('--md-app-font-size', `${fontSize}px`);
-    document.getElementById('font-size-display').textContent = `${fontSize}px`;
+    const display = document.getElementById('font-size-display');
+    if (display) display.textContent = `${fontSize}px`;
+    window.dispatchEvent(new CustomEvent('mdpro:font-size-change', {
+        detail: { fontSize: fontSize }
+    }));
 }
 
 function adjustHeaderScale(delta) {
