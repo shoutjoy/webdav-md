@@ -2086,7 +2086,7 @@ export default function App() {
   // 메인 파일 매니저 렌더링
   return (
     <div className={`webdav-shell ${isDarkTheme ? 'dark bg-[#111827]' : 'bg-[#eef2f7]'} min-h-screen overflow-hidden p-4 text-slate-800 transition-colors dark:text-slate-100 sm:p-6`}>
-      <div className="mx-auto max-w-[min(1800px,98vw)]">
+      <div className="mx-auto max-w-[min(3600px,98vw)]">
         <MobileWdocButton open={isExplorerOpen} onToggle={toggleMobileWdoc} onPositionChange={setMobileWdocRect} />
         {recentOpen && <RecentWorkDialog items={recentItems} busy={editorLoading || loading} error={error}
           onClose={() => setRecentOpen(false)}

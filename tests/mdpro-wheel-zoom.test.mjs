@@ -4,6 +4,10 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
 const source = readFileSync(new URL('../mdpro/js/app.js', import.meta.url), 'utf8');
+const styleSource = readFileSync(new URL('../mdpro/css/style.css', import.meta.url), 'utf8');
+const a4StyleSource = readFileSync(new URL('../mdpro/css/a4-pages.css', import.meta.url), 'utf8');
+const a4Source = readFileSync(new URL('../mdpro/js/a4-pages.js', import.meta.url), 'utf8');
+const codeMirrorSource = readFileSync(new URL('../mdpro/js/editor/codemirror-prototype.mjs', import.meta.url), 'utf8');
 const binding = source.slice(
     source.indexOf('function bindWheelZoomShortcuts()'),
     source.indexOf('function insertLiteralAtCursor('),
@@ -55,4 +59,15 @@ test('wheel zoom shortcuts only run inside the document viewport', () => {
 test('Ctrl or Meta combinations remain available to the browser', () => {
     assert.deepEqual(bindAndDispatch({ ctrlKey: true }), []);
     assert.deepEqual(bindAndDispatch({ metaKey: true }), []);
+});
+
+test('every edit surface follows the shared document font-size variable', () => {
+    assert.match(styleSource, /#viewer-edit-ta,[\s\S]*font-size:\s*var\(--md-app-font-size, 16px\)/);
+    assert.match(a4StyleSource, /\.a4-text, #a4-measure \{[^}]*font-size:\s*var\(--md-app-font-size, 16px\)/);
+    assert.match(codeMirrorSource, /\.md-cm6-prototype\{[^}]*font-size:var\(--md-app-font-size,16px\)/);
+});
+
+test('A4 pagination is refreshed after a document font-size change', () => {
+    assert.match(source, /dispatchEvent\(new CustomEvent\('mdpro:font-size-change'/);
+    assert.match(a4Source, /addEventListener\?\.\('mdpro:font-size-change',[\s\S]*render\(caret\)/);
 });

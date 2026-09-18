@@ -1,5 +1,5 @@
 import { EditorState, EditorSelection, StateField } from 'https://esm.sh/@codemirror/state@6';
-import { EditorView, Decoration, WidgetType, GutterMarker, gutter, keymap } from 'https://esm.sh/@codemirror/view@6';
+import { EditorView, Decoration, WidgetType, keymap } from 'https://esm.sh/@codemirror/view@6';
 import { defaultKeymap, history, historyKeymap } from 'https://esm.sh/@codemirror/commands@6';
 import { searchKeymap, highlightSelectionMatches } from 'https://esm.sh/@codemirror/search@6';
 
@@ -45,39 +45,6 @@ class DataImageFoldWidget extends WidgetType {
 
     ignoreEvent() { return false; }
 }
-
-class DataImageGutterMarker extends GutterMarker {
-    toDOM() {
-        const marker = document.createElement('span');
-        marker.className = 'cm-data-image-gutter-marker';
-        marker.textContent = '\u25b8';
-        marker.title = '인라인 이미지 데이터 펼치기';
-        return marker;
-    }
-}
-
-const dataImageGutterMarker = new DataImageGutterMarker();
-const dataImageGutter = gutter({
-    class: 'cm-data-image-gutter',
-    lineMarker(view, line) {
-        const text = view.state.doc.sliceString(line.from, line.to);
-        DATA_IMAGE_URL_RE.lastIndex = 0;
-        const match = DATA_IMAGE_URL_RE.exec(text);
-        return match && match[0].length >= DATA_IMAGE_FOLD_MIN_LENGTH ? dataImageGutterMarker : null;
-    },
-    domEventHandlers: {
-        mousedown(view, line, event) {
-            const text = view.state.doc.sliceString(line.from, line.to);
-            DATA_IMAGE_URL_RE.lastIndex = 0;
-            const match = DATA_IMAGE_URL_RE.exec(text);
-            if (!match || match[0].length < DATA_IMAGE_FOLD_MIN_LENGTH) return false;
-            event.preventDefault();
-            view.dispatch({ selection: { anchor: line.from + match.index + 1 }, scrollIntoView: true });
-            view.focus();
-            return true;
-        }
-    }
-});
 
 function buildDataImageDecorations(state) {
     const source = state.doc.toString();
@@ -173,14 +140,13 @@ function ensureStyles() {
     const style = document.createElement('style');
     style.id = 'md-cm6-prototype-style';
     style.textContent = `
-        .md-cm6-prototype{position:absolute;inset:0;min-width:0;background:#020617;color:#e5e7eb;overflow:hidden}
+        .md-cm6-prototype{position:absolute;inset:0;min-width:0;background:#020617;color:#e5e7eb;overflow:hidden;font-size:var(--md-app-font-size,16px)}
         .md-cm6-prototype .cm-editor{height:100%;font:inherit;background:transparent}
         .md-cm6-prototype .cm-scroller{overflow:auto;font-family:inherit;line-height:1.75;padding:20px 24px 20px 34px}
         .md-cm6-prototype .cm-content{min-height:100%;caret-color:#f8fafc}
         #content-viewport.long-document-active .md-cm6-prototype{overflow:visible}
         #content-viewport.long-document-active .md-cm6-prototype .cm-scroller{overflow:visible;min-height:0}
         #content-viewport.long-document-active .md-cm6-prototype .cm-content{min-height:0}
-        .md-cm6-prototype .cm-gutters{position:static!important;flex:none;width:0;min-width:0;overflow:visible;background:transparent;color:#64748b;border:0}
         .md-cm6-prototype .cm-activeLine,.md-cm6-prototype .cm-activeLineGutter{background:rgba(99,102,241,.08)}
         .md-cm6-prototype .cm-selectionBackground{background:rgba(99,102,241,.32)!important}
         .md-cm6-prototype .cm-md-comment{color:#7dd3fc;background:rgba(14,116,144,.16);border-radius:3px}
@@ -189,18 +155,12 @@ function ensureStyles() {
         .md-cm6-prototype .cm-data-image-fold-prefix{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
         .md-cm6-prototype .cm-data-image-fold-ellipsis{color:#94a3b8}
         .md-cm6-prototype .cm-data-image-fold-badge{flex:0 0 auto;padding:0 5px;border-radius:4px;background:#312e81;color:#e0e7ff}
-        .md-cm6-prototype .cm-data-image-gutter{width:0;min-width:0;overflow:visible;background:transparent;border:0}
-        .md-cm6-prototype .cm-data-image-gutter-marker{position:relative;left:-22px;display:flex;width:20px;height:20px;align-items:center;justify-content:center;border:1px solid #475569;border-radius:5px;background:#111827;color:#a5b4fc;font:700 12px/1 sans-serif;cursor:pointer}
-        .md-cm6-prototype .cm-data-image-gutter-marker:hover{border-color:#818cf8;background:#312e81;color:#eef2ff}
         .md-cm6-source-hidden{display:none!important}
         html:not(.dark) .md-cm6-prototype{background:#fff;color:#1f2937}
         html:not(.dark) .md-cm6-prototype .cm-content{caret-color:#111827}
-        html:not(.dark) .md-cm6-prototype .cm-gutters{color:#64748b}
         html:not(.dark) .md-cm6-prototype .cm-data-image-fold{border-color:#cbd5e1;background:#f8fafc;color:#334155}
         html:not(.dark) .md-cm6-prototype .cm-data-image-fold:hover,html:not(.dark) .md-cm6-prototype .cm-data-image-fold:focus-visible{border-color:#6366f1;background:#eef2ff}
         html:not(.dark) .md-cm6-prototype .cm-data-image-fold-badge{background:#e0e7ff;color:#4338ca}
-        html:not(.dark) .md-cm6-prototype .cm-data-image-gutter-marker{border-color:#cbd5e1;background:#f8fafc;color:#4f46e5}
-        html:not(.dark) .md-cm6-prototype .cm-data-image-gutter-marker:hover{border-color:#6366f1;background:#eef2ff}
     `;
     document.head.appendChild(style);
 }
@@ -359,7 +319,6 @@ function mount(textarea, options = {}) {
                 highlightSelectionMatches(),
                 commentDecorations,
                 dataImageDecorations,
-                dataImageGutter,
                 EditorView.lineWrapping,
                 EditorView.updateListener.of(update => {
                     if (update.docChanged) scheduleFlush();

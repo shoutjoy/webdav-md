@@ -628,6 +628,22 @@
     source.addEventListener('input', () => sync(source.value));
     source.addEventListener('input', scheduleLongDocumentFit);
     source.addEventListener('mdpro:editor-geometry-change', scheduleLongDocumentFit);
+    window.addEventListener?.('mdpro:font-size-change', () => {
+        scheduleLongDocumentFit();
+        viewRevision = '';
+        if (!orientation) return;
+        const activePage = pages.find(page => page.input === document.activeElement);
+        const caret = activePage
+            ? { section: activePage.section, position: activePage.start + activePage.input.selectionStart }
+            : null;
+        render(caret);
+        const viewer = document.getElementById('viewer');
+        if (document.body.classList.contains('viewer-view-mode') && viewer?.classList.contains('a4-view') && typeof renderMarkdown === 'function') {
+            Promise.resolve(renderMarkdown({ force: true })).catch(error => {
+                console.warn('A4 font-size repagination failed:', error);
+            });
+        }
+    });
 
     async function renderView(target, text, renderHtml, isCurrent) {
         const enabled = HEADER.test(text);

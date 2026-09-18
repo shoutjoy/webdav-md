@@ -83,7 +83,7 @@ body.long-document-resizing .long-document-resize-corner { cursor: nwse-resize !
 #a4-pages { width: max-content; min-width: 100%; min-height: max-content; padding: 0 0 64px; }
 .a4-sheet { box-sizing: border-box; width: 210mm; height: 297mm; padding: 20mm; margin: 0 auto 24px; position: relative; background: var(--a4-paper, #fff); color: var(--a4-ink, #172033); box-shadow: 0 2px 12px #0005; }
 .a4-sheet[data-orientation="landscape"] { width: 297mm; height: 210mm; }
-.a4-text, #a4-measure { box-sizing: border-box; padding: 0; border: 0; font: 16px/26px Arial, sans-serif; letter-spacing: normal; tab-size: 4; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; }
+.a4-text, #a4-measure { box-sizing: border-box; padding: 0; border: 0; font-family: Arial, sans-serif; font-size: var(--md-app-font-size, 16px); line-height: calc(var(--md-app-font-size, 16px) * 1.625); letter-spacing: normal; tab-size: 4; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; }
 .a4-text { display: block; width: 100%; height: 100%; resize: none; outline: none; overflow: hidden; background: transparent; color: var(--a4-ink, #172033); }
 .a4-number { position: absolute; bottom: 7mm; left: 0; width: 100%; text-align: center; font: 12px/1.4 Arial, sans-serif; color: #64748b; pointer-events: none; }
 .a4-add { display: block; margin: 8px auto; padding: 10px 24px; border: 1px solid #94a3b8; border-radius: 8px; background: #fff; color: #172033; cursor: pointer; }
