@@ -722,6 +722,229 @@ function readImageFileForInsertModal(file) {
     reader.readAsDataURL(file);
 }
 
+function selectImageInsertCaptureArea(dataUrl) {
+    return new Promise(function (resolve, reject) {
+        const image = new Image();
+        image.onload = function () {
+            const overlay = document.createElement('div');
+            overlay.id = 'img-insert-capture-area-modal';
+            overlay.setAttribute('role', 'dialog');
+            overlay.setAttribute('aria-modal', 'true');
+            overlay.setAttribute('aria-labelledby', 'img-insert-capture-area-title');
+            Object.assign(overlay.style, {
+                position: 'fixed', inset: '0', zIndex: '2147483647', display: 'flex',
+                alignItems: 'center', justifyContent: 'center', padding: '16px',
+                background: 'rgba(2, 6, 23, .88)'
+            });
+
+            const panel = document.createElement('div');
+            Object.assign(panel.style, {
+                display: 'flex', flexDirection: 'column', gap: '10px', width: 'fit-content',
+                maxWidth: 'calc(100vw - 32px)', maxHeight: 'calc(100vh - 32px)', padding: '14px',
+                overflow: 'auto', border: '1px solid #64748b', borderRadius: '12px',
+                background: '#0f172a', color: '#e2e8f0', boxShadow: '0 24px 70px rgba(0,0,0,.5)'
+            });
+            const title = document.createElement('h3');
+            title.id = 'img-insert-capture-area-title';
+            title.textContent = '캡처 영역 선택';
+            Object.assign(title.style, { margin: '0', fontSize: '16px', fontWeight: '800' });
+            const help = document.createElement('p');
+            help.textContent = '가져올 영역을 마우스로 드래그하세요. 탭·창·전체 화면 모두 영역을 선택할 수 있습니다.';
+            Object.assign(help.style, { margin: '0', color: '#cbd5e1', fontSize: '12px' });
+
+            const stage = document.createElement('div');
+            Object.assign(stage.style, { position: 'relative', display: 'inline-block', alignSelf: 'center', lineHeight: '0', cursor: 'crosshair', userSelect: 'none' });
+            const canvas = document.createElement('canvas');
+            canvas.id = 'img-insert-capture-area-canvas';
+            canvas.width = image.naturalWidth;
+            canvas.height = image.naturalHeight;
+            Object.assign(canvas.style, { display: 'block', width: 'auto', height: 'auto', maxWidth: 'calc(100vw - 64px)', maxHeight: 'calc(100vh - 190px)', touchAction: 'none' });
+            canvas.getContext('2d').drawImage(image, 0, 0);
+            const selectionBox = document.createElement('div');
+            selectionBox.id = 'img-insert-capture-area-selection';
+            Object.assign(selectionBox.style, {
+                position: 'absolute', display: 'none', pointerEvents: 'none', boxSizing: 'border-box',
+                border: '2px solid #38bdf8', background: 'rgba(14, 165, 233, .18)',
+                boxShadow: '0 0 0 9999px rgba(2, 6, 23, .42)'
+            });
+            stage.append(canvas, selectionBox);
+
+            const selectionStatus = document.createElement('div');
+            selectionStatus.textContent = '영역을 드래그하거나 전체 이미지를 가져오세요.';
+            Object.assign(selectionStatus.style, { minHeight: '18px', color: '#bae6fd', fontSize: '12px' });
+            const actions = document.createElement('div');
+            Object.assign(actions.style, { display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '8px' });
+            const makeButton = function (label, background) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.textContent = label;
+                Object.assign(button.style, { padding: '8px 12px', border: '1px solid #64748b', borderRadius: '7px', background: background, color: '#fff', fontWeight: '700', cursor: 'pointer' });
+                return button;
+            };
+            const cancelButton = makeButton('취소', '#334155');
+            const fullButton = makeButton('전체 이미지 가져오기', '#475569');
+            const cropButton = makeButton('선택 영역 가져오기', '#0284c7');
+            cropButton.disabled = true;
+            cropButton.style.opacity = '.5';
+            actions.append(cancelButton, fullButton, cropButton);
+            panel.append(title, help, stage, selectionStatus, actions);
+            overlay.appendChild(panel);
+
+            let selection = null;
+            let startPoint = null;
+            let pointerId = null;
+            const getPoint = function (event) {
+                const rect = canvas.getBoundingClientRect();
+                return {
+                    x: Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
+                    y: Math.max(0, Math.min(rect.height, event.clientY - rect.top))
+                };
+            };
+            const updateSelection = function (point) {
+                const left = Math.min(startPoint.x, point.x);
+                const top = Math.min(startPoint.y, point.y);
+                const width = Math.abs(point.x - startPoint.x);
+                const height = Math.abs(point.y - startPoint.y);
+                selection = { left: left, top: top, width: width, height: height };
+                Object.assign(selectionBox.style, { display: 'block', left: left + 'px', top: top + 'px', width: width + 'px', height: height + 'px' });
+                const valid = width >= 3 && height >= 3;
+                cropButton.disabled = !valid;
+                cropButton.style.opacity = valid ? '1' : '.5';
+                const rect = canvas.getBoundingClientRect();
+                const naturalWidth = Math.round(width * canvas.width / rect.width);
+                const naturalHeight = Math.round(height * canvas.height / rect.height);
+                selectionStatus.textContent = valid ? ('선택 영역: ' + naturalWidth + ' × ' + naturalHeight + ' px') : '조금 더 넓은 영역을 선택하세요.';
+            };
+            canvas.addEventListener('pointerdown', function (event) {
+                if (event.button !== 0) return;
+                pointerId = event.pointerId;
+                startPoint = getPoint(event);
+                canvas.setPointerCapture(pointerId);
+                updateSelection(startPoint);
+                event.preventDefault();
+            });
+            canvas.addEventListener('pointermove', function (event) {
+                if (pointerId !== event.pointerId || !startPoint) return;
+                updateSelection(getPoint(event));
+            });
+            const finishPointer = function (event) {
+                if (pointerId !== event.pointerId) return;
+                updateSelection(getPoint(event));
+                pointerId = null;
+                startPoint = null;
+            };
+            canvas.addEventListener('pointerup', finishPointer);
+            canvas.addEventListener('pointercancel', function () { pointerId = null; startPoint = null; });
+
+            const cleanup = function () {
+                document.removeEventListener('keydown', onKeyDown);
+                overlay.remove();
+            };
+            const complete = function (result) { cleanup(); resolve(result); };
+            const onKeyDown = function (event) {
+                if (event.key === 'Escape') complete(null);
+            };
+            cancelButton.addEventListener('click', function () { complete(null); });
+            fullButton.addEventListener('click', function () { complete({ dataUrl: dataUrl, cropped: false }); });
+            cropButton.addEventListener('click', function () {
+                if (!selection || selection.width < 3 || selection.height < 3) return;
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                const sx = Math.max(0, Math.round(selection.left * scaleX));
+                const sy = Math.max(0, Math.round(selection.top * scaleY));
+                const sw = Math.max(1, Math.min(canvas.width - sx, Math.round(selection.width * scaleX)));
+                const sh = Math.max(1, Math.min(canvas.height - sy, Math.round(selection.height * scaleY)));
+                const croppedCanvas = document.createElement('canvas');
+                croppedCanvas.width = sw;
+                croppedCanvas.height = sh;
+                croppedCanvas.getContext('2d').drawImage(canvas, sx, sy, sw, sh, 0, 0, sw, sh);
+                complete({ dataUrl: croppedCanvas.toDataURL('image/png'), cropped: true });
+            });
+            document.addEventListener('keydown', onKeyDown);
+            document.body.appendChild(overlay);
+            canvas.focus();
+        };
+        image.onerror = function () { reject(new Error('캡처 이미지를 영역 선택 화면에 표시하지 못했습니다.')); };
+        image.src = dataUrl;
+    });
+}
+
+async function captureScreenForImageInsert() {
+    const captureButton = document.getElementById('img-insert-screen-capture');
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getDisplayMedia !== 'function') {
+        setImageInsertStatus('이 브라우저는 화면 캡처를 지원하지 않습니다. Windows에서 Win+Shift+S로 캡처한 뒤 Ctrl+V로 붙여넣어 주세요.', true);
+        return false;
+    }
+
+    let stream = null;
+    if (captureButton) {
+        captureButton.disabled = true;
+        captureButton.setAttribute('aria-busy', 'true');
+    }
+    setImageInsertStatus('부분 영역을 캡처할 탭, 창 또는 전체 화면을 먼저 선택하세요.', false);
+    try {
+        stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        const track = stream.getVideoTracks()[0];
+        if (!track) throw new Error('선택한 화면의 영상 정보를 가져오지 못했습니다.');
+
+        const video = document.createElement('video');
+        video.muted = true;
+        video.playsInline = true;
+        video.srcObject = stream;
+        await new Promise(function (resolve, reject) {
+            const timer = setTimeout(function () { reject(new Error('화면 준비 시간이 초과되었습니다.')); }, 10000);
+            video.onloadedmetadata = function () {
+                clearTimeout(timer);
+                Promise.resolve(video.play()).then(resolve, reject);
+            };
+            video.onerror = function () {
+                clearTimeout(timer);
+                reject(new Error('선택한 화면을 읽지 못했습니다.'));
+            };
+        });
+        await new Promise(function (resolve) {
+            requestAnimationFrame(function () { requestAnimationFrame(resolve); });
+        });
+
+        const settings = track.getSettings ? track.getSettings() : {};
+        const width = Math.max(1, video.videoWidth || Number(settings.width) || 1);
+        const height = Math.max(1, video.videoHeight || Number(settings.height) || 1);
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error('캡처 이미지를 만들 수 없습니다.');
+        context.drawImage(video, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/png');
+        stream.getTracks().forEach(function (track) { track.stop(); });
+        stream = null;
+        const selectedCapture = await selectImageInsertCaptureArea(dataUrl);
+        if (!selectedCapture) {
+            setImageInsertStatus('캡처 이미지의 영역 선택을 취소했습니다.', false);
+            return false;
+        }
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        applyImageInsertDataUrl(selectedCapture.dataUrl, 'screen-capture-' + timestamp + '.png');
+        setImageInsertStatus(selectedCapture.cropped
+            ? '선택한 캡처 영역을 가져왔습니다. 문서내부저장 또는 imgBB 업로드를 사용할 수 있습니다.'
+            : '전체 화면 캡처를 가져왔습니다. 자르기, 문서내부저장 또는 imgBB 업로드를 사용할 수 있습니다.', false);
+        return true;
+    } catch (error) {
+        const cancelled = error && (error.name === 'NotAllowedError' || error.name === 'AbortError');
+        setImageInsertStatus(cancelled
+            ? '화면 캡처가 취소되었습니다. Windows 캡처는 Win+Shift+S 후 Ctrl+V로 가져올 수 있습니다.'
+            : '화면 캡처 실패: ' + (error && error.message ? error.message : error), !cancelled);
+        return false;
+    } finally {
+        if (stream) stream.getTracks().forEach(function (track) { track.stop(); });
+        if (captureButton) {
+            captureButton.disabled = false;
+            captureButton.removeAttribute('aria-busy');
+        }
+    }
+}
+
 function onImageInsertUploadDragOver(event) {
     if (!event) return;
     event.preventDefault();
@@ -1000,6 +1223,7 @@ window.handleImageInsertFile = handleImageInsertFile;
 window.onImageInsertUploadDragOver = onImageInsertUploadDragOver;
 window.onImageInsertUploadDragLeave = onImageInsertUploadDragLeave;
 window.onImageInsertUploadDrop = onImageInsertUploadDrop;
+window.captureScreenForImageInsert = captureScreenForImageInsert;
 window.cropImageInsertCurrent = cropImageInsertCurrent;
 window.uploadImageInsertToImgbb = uploadImageInsertToImgbb;
 window.saveImageInsertToInternalDb = saveImageInsertToInternalDb;
