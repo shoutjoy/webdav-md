@@ -3690,7 +3690,10 @@ function hydrateCodeBlockCopyButtons(container) {
     let hydrated = 0;
     Array.from(container.querySelectorAll('pre > code')).forEach(function (code) {
         const pre = code.parentElement;
-        if (!pre || pre.querySelector(':scope > .md-code-copy-button')) return;
+        const alreadyHydrated = pre && Array.from(pre.children || []).some(function (child) {
+            return child.classList && child.classList.contains('md-code-copy-button');
+        });
+        if (!pre || alreadyHydrated) return;
         const doc = pre.ownerDocument || document;
         const button = doc.createElement('button');
         button.type = 'button';
@@ -3720,6 +3723,7 @@ function hydrateCodeBlockCopyButtons(container) {
 
 function hydrateEmbeddedHtmlPreviews(container) {
     if (!container || typeof container.querySelectorAll !== 'function') return 0;
+    hydrateCodeBlockCopyButtons(container);
     let hydrated = 0;
     Array.from(container.querySelectorAll('pre > code')).forEach(function (code) {
         const source = getEmbeddedHtmlDocumentCode(code);
@@ -3788,7 +3792,6 @@ function hydrateEmbeddedHtmlPreviews(container) {
         playButton.addEventListener('click', function () { setMode('play'); });
         hydrated += 1;
     });
-    hydrateCodeBlockCopyButtons(container);
     return hydrated;
 }
 
@@ -3892,8 +3895,9 @@ async function renderMarkdown(options) {
         } catch (e) {}
         try { scheduleUpdatePreviewPopupContent(120); } catch (e) {}
         try { scheduleMiniPreviewRender(120); } catch (e) {}
-        if (window.A4Pages) window.A4Pages.paginateView(viewer);
+        try { if (window.A4Pages) window.A4Pages.paginateView(viewer); } catch (e) {}
         try { hydrateEmbeddedHtmlPreviews(viewer); } catch (e) {}
+        try { hydrateCodeBlockCopyButtons(viewer); } catch (e) {}
     }
     revokeObjectUrls(viewerInternalImageObjectUrls);
 
