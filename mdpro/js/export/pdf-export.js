@@ -129,6 +129,7 @@
       '.pdf-page-content>.page-break{display:none!important}',
       '.pdf-page-content img,.pdf-page-content svg,.pdf-page-content canvas,.pdf-page-content video{max-width:100%!important}',
       '.pdf-page-content pre,.pdf-page-content table{max-width:100%;overflow-wrap:anywhere}',
+      '.pdf-page-content pre,.pdf-page-content pre code{overflow-x:visible!important;white-space:pre-wrap!important;overflow-wrap:anywhere!important;word-break:break-word!important}',
       '.pdf-page-number{position:absolute;right:8mm;bottom:5mm;color:#94a3b8;font-size:9px;line-height:1;pointer-events:none}',
       '.pdf-preview-page [data-pdf-source-index]{cursor:pointer;outline-offset:3px}',
       '.pdf-preview-page [data-pdf-source-index]:hover{outline:1px dashed #06b6d4}',

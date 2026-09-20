@@ -3657,6 +3657,67 @@ function getEmbeddedHtmlDocumentCode(codeElement) {
     return source;
 }
 
+function fallbackCopyCodeBlockText(text, ownerDocument) {
+    const doc = ownerDocument || document;
+    if (!doc || !doc.body || typeof doc.createElement !== 'function') return false;
+    const textarea = doc.createElement('textarea');
+    textarea.value = String(text || '');
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    textarea.style.top = '0';
+    doc.body.appendChild(textarea);
+    textarea.select();
+    let copied = false;
+    try { copied = !!doc.execCommand('copy'); } catch (_) { copied = false; }
+    textarea.remove();
+    return copied;
+}
+
+async function copyCodeBlockText(text, ownerDocument) {
+    const value = String(text == null ? '' : text);
+    try {
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            await navigator.clipboard.writeText(value);
+            return true;
+        }
+    } catch (_) {}
+    return fallbackCopyCodeBlockText(value, ownerDocument);
+}
+
+function hydrateCodeBlockCopyButtons(container) {
+    if (!container || typeof container.querySelectorAll !== 'function') return 0;
+    let hydrated = 0;
+    Array.from(container.querySelectorAll('pre > code')).forEach(function (code) {
+        const pre = code.parentElement;
+        if (!pre || pre.querySelector(':scope > .md-code-copy-button')) return;
+        const doc = pre.ownerDocument || document;
+        const button = doc.createElement('button');
+        button.type = 'button';
+        button.className = 'md-code-copy-button no-print';
+        button.setAttribute('data-copy-exclude', 'true');
+        button.setAttribute('data-label', '복사');
+        button.setAttribute('aria-label', '코드 복사');
+        button.title = '코드 복사';
+        button.addEventListener('click', async function () {
+            const copied = await copyCodeBlockText(code.textContent || '', doc);
+            button.setAttribute('data-state', copied ? 'copied' : 'error');
+            button.setAttribute('data-label', copied ? '복사됨' : '실패');
+            button.setAttribute('aria-label', copied ? '코드가 복사되었습니다' : '코드 복사 실패');
+            clearTimeout(button._mdCopyResetTimer);
+            button._mdCopyResetTimer = setTimeout(function () {
+                button.removeAttribute('data-state');
+                button.setAttribute('data-label', '복사');
+                button.setAttribute('aria-label', '코드 복사');
+            }, 1600);
+        });
+        pre.classList.add('md-code-copy-ready');
+        pre.appendChild(button);
+        hydrated += 1;
+    });
+    return hydrated;
+}
+
 function hydrateEmbeddedHtmlPreviews(container) {
     if (!container || typeof container.querySelectorAll !== 'function') return 0;
     let hydrated = 0;
@@ -3727,6 +3788,7 @@ function hydrateEmbeddedHtmlPreviews(container) {
         playButton.addEventListener('click', function () { setMode('play'); });
         hydrated += 1;
     });
+    hydrateCodeBlockCopyButtons(container);
     return hydrated;
 }
 
@@ -3734,6 +3796,9 @@ window.getRenderableHtmlDocument = getRenderableHtmlDocument;
 window.renderHtmlDocumentFrame = renderHtmlDocumentFrame;
 window.setHtmlDocumentMode = setHtmlDocumentMode;
 window.getEmbeddedHtmlDocumentCode = getEmbeddedHtmlDocumentCode;
+window.fallbackCopyCodeBlockText = fallbackCopyCodeBlockText;
+window.copyCodeBlockText = copyCodeBlockText;
+window.hydrateCodeBlockCopyButtons = hydrateCodeBlockCopyButtons;
 window.hydrateEmbeddedHtmlPreviews = hydrateEmbeddedHtmlPreviews;
 
 async function renderMarkdown(options) {
