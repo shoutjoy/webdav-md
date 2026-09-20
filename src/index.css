@@ -16,7 +16,7 @@ body { margin: 0; background: #e9edf3; }
 .share-markdown { width:min(900px,calc(100% - 32px)); min-height:calc(100vh - 96px); box-sizing:border-box; margin:22px auto; padding:clamp(24px,5vw,64px); border:1px solid #e2e8f0; border-radius:14px; background:#fff; box-shadow:0 12px 36px rgba(15,23,42,.09); font-family:system-ui,sans-serif; font-size:16px; line-height:1.75; }
 .share-markdown h1,.share-markdown h2,.share-markdown h3 { line-height:1.3; margin-top:1.5em; color:#0f172a; }
 .share-markdown h1:first-child { margin-top:0; }
-.share-markdown pre { overflow:auto; padding:16px; border-radius:9px; color:#e2e8f0; background:#0f172a; }
+.share-markdown pre { overflow-x:visible; white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; padding:16px; border-radius:9px; color:#e2e8f0; background:#0f172a; }
 .share-markdown code { padding:.15em .35em; border-radius:4px; background:#eef2f7; }
 .share-markdown pre code { padding:0; background:transparent; }
 .share-markdown img { max-width:100%; height:auto; }
@@ -323,7 +323,7 @@ button {
 .markdown-preview ol { @apply mb-4 list-decimal pl-6; }
 .markdown-preview li { @apply mb-1; }
 .markdown-preview blockquote { @apply mb-4 border-l-4 border-gray-300 pl-4 text-gray-600; }
-.markdown-preview pre { @apply mb-4 overflow-x-auto rounded-md bg-gray-900 p-4 text-sm text-gray-100; }
+.markdown-preview pre { @apply mb-4 rounded-md bg-gray-900 p-4 text-sm text-gray-100; overflow-x:visible; white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; }
 .markdown-preview code { @apply rounded bg-gray-100 px-1 py-0.5 font-mono text-[0.9em]; }
 .markdown-preview pre code { @apply bg-transparent p-0 text-inherit; }
 .markdown-preview table { @apply mb-4 w-full border-collapse text-sm; }
