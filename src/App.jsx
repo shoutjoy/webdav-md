@@ -899,11 +899,25 @@ export default function App() {
     localStorage.setItem('webdav-explorer-open', 'false');
   };
 
+  const revealDocumentInExplorer = () => {
+    if (window.matchMedia('(max-width: 767px)').matches) {
+      closeMobileWdocExplorer();
+      return;
+    }
+    setIsExplorerOpen(true);
+    setIsExplorerCompact(false);
+    localStorage.setItem('webdav-explorer-open', 'true');
+    localStorage.setItem(EXPLORER_COMPACT_KEY, 'false');
+  };
+
   const handleOpenFile = async (file) => {
     if (isJenaDataPath(file?.remotePath)) { setError('JENA_DATA는 AI 데이터센터에서 열어 주세요.'); return; }
     const currentPath = normalizeRemotePath(selectedFileRef.current?.remotePath || '/');
     const nextPath = normalizeRemotePath(file?.remotePath || '/');
-    if (selectedFileRef.current && currentPath === nextPath && !file.isArchiveEntry && lastOpenedRef.current?.remotePath === nextPath) return true;
+    if (selectedFileRef.current && currentPath === nextPath && !file.isArchiveEntry && lastOpenedRef.current?.remotePath === nextPath) {
+      revealDocumentInExplorer();
+      return true;
+    }
     if (!(await saveBeforeOpeningFile(file))) return;
     if (file.isArchiveEntry) return handleOpenDmergeEntry(file);
     const fmaImage = isFmaImageFile(file.name);
@@ -967,7 +981,7 @@ export default function App() {
         editorContentRef.current = text;
       }
       rememberWork(file);
-      closeMobileWdocExplorer();
+      revealDocumentInExplorer();
       return true;
     } catch (err) {
       if (!returnToLoginIfUnauthorized(err)) {
@@ -1181,7 +1195,7 @@ export default function App() {
       setSavedContent('');
       setEditorBinary(arrayBuffer);
       rememberWork(file);
-      closeMobileWdocExplorer();
+      revealDocumentInExplorer();
       return true;
     } catch (err) {
       setError(`묶음 문서 열기 실패: ${err.message}`);
@@ -2144,6 +2158,7 @@ export default function App() {
             <FileExplorer
               files={files}
               directoryTree={directoryTree}
+              activeFilePath={selectedFile?.remotePath || ''}
               loading={loading}
               moveProgress={moveProgress}
               editorLoading={editorLoading}

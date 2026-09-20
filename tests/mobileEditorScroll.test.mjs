@@ -17,7 +17,13 @@ test('continuous CodeMirror editing has no inner scroll and requests sheet fitti
     assert.match(cm6Js, /#content-viewport\.long-document-active \.md-cm6-prototype \.cm-scroller\{overflow:visible;min-height:0\}/);
     assert.match(cm6Js, /#content-viewport\.long-document-active \.md-cm6-prototype\{overflow:visible\}/);
     assert.match(cm6Js, /update\.docChanged \|\| Math\.abs\(contentHeight - lastMeasuredContentHeight\) > 1[\s\S]*mdpro:editor-geometry-change/);
-    assert.match(appJs, /codeMirrorPrototype: '\.\/js\/editor\/codemirror-prototype\.mjs\?v=20260918-gutter-remove-1'/);
+    assert.match(appJs, /codeMirrorPrototype: '\.\/js\/editor\/codemirror-prototype\.mjs\?v=20260920-placeholder-1'/);
+});
+
+test('empty editors show a non-persistent writing prompt in textarea and CodeMirror modes', () => {
+    const indexHtml = readFileSync(new URL('../mdpro/index.html', import.meta.url), 'utf8');
+    assert.match(indexHtml, /id="viewer-edit-ta"[\s\S]*placeholder="생각을 입력하세요"/);
+    assert.match(cm6Js, /editorPlaceholder\(textarea\.getAttribute\('placeholder'\) \|\| '생각을 입력하세요'\)/);
 });
 
 test('CodeMirror does not mount a gutter over the document and keeps inline image data expandable', () => {

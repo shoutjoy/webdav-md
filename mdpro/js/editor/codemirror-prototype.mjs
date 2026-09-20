@@ -1,5 +1,5 @@
 import { EditorState, EditorSelection, StateField } from 'https://esm.sh/@codemirror/state@6';
-import { EditorView, Decoration, WidgetType, keymap } from 'https://esm.sh/@codemirror/view@6';
+import { EditorView, Decoration, WidgetType, keymap, placeholder as editorPlaceholder } from 'https://esm.sh/@codemirror/view@6';
 import { defaultKeymap, history, historyKeymap } from 'https://esm.sh/@codemirror/commands@6';
 import { searchKeymap, highlightSelectionMatches } from 'https://esm.sh/@codemirror/search@6';
 
@@ -319,6 +319,7 @@ function mount(textarea, options = {}) {
                 highlightSelectionMatches(),
                 commentDecorations,
                 dataImageDecorations,
+                editorPlaceholder(textarea.getAttribute('placeholder') || '생각을 입력하세요'),
                 EditorView.lineWrapping,
                 EditorView.updateListener.of(update => {
                     if (update.docChanged) scheduleFlush();

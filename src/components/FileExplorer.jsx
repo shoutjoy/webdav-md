@@ -33,13 +33,13 @@ function collectDirectoryPaths(entries, paths = new Set()) {
   return paths;
 }
 
-function TreeItem({ item, depth, expandedPaths, selectedFolderPath, selectionMode, checkedPaths, fileToolsMode, loading, editorLoading, copiedKey, formatBytes, onToggleFolder, onToggleExpanded, onToggleChecked, onCopyUrl, onShareFile, onOpenFile, onDownload, onRename, onMove, onDelete, onCreateFile, onCreateFolder }) {
+function TreeItem({ item, depth, expandedPaths, selectedFolderPath, activeFilePath, selectionMode, checkedPaths, fileToolsMode, loading, editorLoading, copiedKey, formatBytes, onToggleFolder, onToggleExpanded, onToggleChecked, onCopyUrl, onShareFile, onOpenFile, onDownload, onRename, onMove, onDelete, onCreateFile, onCreateFolder }) {
   const expandable = item.isDirectory || item.isArchive;
   const expanded = expandable && expandedPaths.has(item.remotePath);
   const children = (item.entries || []).filter((child) => child.name !== '..');
   const itemKey = `tree-${item.remotePath}`;
   return <>
-    <div className={`group flex min-h-9 items-center border-b border-slate-100 pr-2 text-sm transition dark:border-slate-800 ${item.isDirectory && selectedFolderPath === item.remotePath ? 'bg-indigo-50 text-indigo-800 ring-1 ring-inset ring-indigo-300 dark:bg-indigo-950/50 dark:text-indigo-100 dark:ring-indigo-700' : 'hover:bg-slate-50 dark:hover:bg-slate-800/80'}`} style={{ paddingLeft: `${8 + depth * 18}px` }} role="treeitem" aria-expanded={expandable ? expanded : undefined} aria-selected={item.isDirectory ? selectedFolderPath === item.remotePath : undefined}>
+    <div data-remote-path={item.remotePath} className={`group flex min-h-9 items-center border-b border-slate-100 pr-2 text-sm transition dark:border-slate-800 ${item.isDirectory && selectedFolderPath === item.remotePath ? 'bg-indigo-50 text-indigo-800 ring-1 ring-inset ring-indigo-300 dark:bg-indigo-950/50 dark:text-indigo-100 dark:ring-indigo-700' : !item.isDirectory && activeFilePath === item.remotePath ? 'bg-blue-50 text-blue-800 ring-1 ring-inset ring-blue-300 dark:bg-blue-950/50 dark:text-blue-100 dark:ring-blue-700' : 'hover:bg-slate-50 dark:hover:bg-slate-800/80'}`} style={{ paddingLeft: `${8 + depth * 18}px` }} role="treeitem" aria-expanded={expandable ? expanded : undefined} aria-selected={item.isDirectory ? selectedFolderPath === item.remotePath : activeFilePath === item.remotePath}>
       {expandable ? <button type="button" onClick={() => selectionMode ? onToggleExpanded(item) : onToggleFolder(item)} className="grid h-8 w-5 shrink-0 place-items-center text-slate-400" aria-label={expanded ? `${item.name} 접기` : `${item.name} 펼치기`}>
         {expanded ? <ChevronDown size={14}/> : <ChevronRight size={14}/>}
       </button> : <span className="w-5 shrink-0"/>}
@@ -71,11 +71,11 @@ function TreeItem({ item, depth, expandedPaths, selectedFolderPath, selectionMod
         {!item.isArchiveEntry && <button type="button" onClick={(event) => { event.stopPropagation(); onDelete(item); }} disabled={loading} className="rounded p-1 text-slate-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40" title="삭제"><Trash2 size={14}/></button>}
       </div>}
     </div>
-    {expanded && children.map((child) => <TreeItem key={child.remotePath} item={child} depth={depth + 1} expandedPaths={expandedPaths} selectedFolderPath={selectedFolderPath} selectionMode={selectionMode} checkedPaths={checkedPaths} fileToolsMode={fileToolsMode} loading={loading} editorLoading={editorLoading} copiedKey={copiedKey} formatBytes={formatBytes} onToggleFolder={onToggleFolder} onToggleExpanded={onToggleExpanded} onToggleChecked={onToggleChecked} onCopyUrl={onCopyUrl} onShareFile={onShareFile} onOpenFile={onOpenFile} onDownload={onDownload} onRename={onRename} onMove={onMove} onDelete={onDelete} onCreateFile={onCreateFile} onCreateFolder={onCreateFolder}/>)}
+    {expanded && children.map((child) => <TreeItem key={child.remotePath} item={child} depth={depth + 1} expandedPaths={expandedPaths} selectedFolderPath={selectedFolderPath} activeFilePath={activeFilePath} selectionMode={selectionMode} checkedPaths={checkedPaths} fileToolsMode={fileToolsMode} loading={loading} editorLoading={editorLoading} copiedKey={copiedKey} formatBytes={formatBytes} onToggleFolder={onToggleFolder} onToggleExpanded={onToggleExpanded} onToggleChecked={onToggleChecked} onCopyUrl={onCopyUrl} onShareFile={onShareFile} onOpenFile={onOpenFile} onDownload={onDownload} onRename={onRename} onMove={onMove} onDelete={onDelete} onCreateFile={onCreateFile} onCreateFolder={onCreateFolder}/>)}
   </>;
 }
 
-export default function FileExplorer({ files, directoryTree, loading, moveProgress, editorLoading, copiedKey, isDragging, explorerWidth, compact, folderSelectionMode, formatBytes, onDragEnter, onDragLeave, onDragOver, onDrop, onOpenDirectory, onOpenArchive, onCopyUrl, onShareFile, onOpenFile, onDownload, onRename, onMove, onMoveSelected, onDelete, onCreateFile, onCreateFolder, onRequestCreateFile, onRequestCreateFolder, onToggleCompact, showHiddenItems, onShowHiddenItemsChange, defaultSharePassword, onDefaultSharePasswordChange, backupCredentials }) {
+export default function FileExplorer({ files, directoryTree, activeFilePath, loading, moveProgress, editorLoading, copiedKey, isDragging, explorerWidth, compact, folderSelectionMode, formatBytes, onDragEnter, onDragLeave, onDragOver, onDrop, onOpenDirectory, onOpenArchive, onCopyUrl, onShareFile, onOpenFile, onDownload, onRename, onMove, onMoveSelected, onDelete, onCreateFile, onCreateFolder, onRequestCreateFile, onRequestCreateFolder, onToggleCompact, showHiddenItems, onShowHiddenItemsChange, defaultSharePassword, onDefaultSharePasswordChange, backupCredentials }) {
   const [expandedPaths, setExpandedPaths] = useState(() => new Set(['/']));
   const [selectedFolderPath, setSelectedFolderPath] = useState('/');
   const [selectionMode, setSelectionMode] = useState(false);
@@ -94,6 +94,20 @@ export default function FileExplorer({ files, directoryTree, loading, moveProgre
   const toggleAllFolders = () => {
     setExpandedPaths(allFoldersExpanded ? new Set(['/']) : new Set(['/', ...directoryPaths]));
   };
+  useEffect(() => {
+    if (!activeFilePath) return;
+    const parts = String(activeFilePath).split('/').filter(Boolean);
+    parts.pop();
+    const folderPaths = parts.map((_, index) => `/${parts.slice(0, index + 1).join('/')}`);
+    setSelectedFolderPath(folderPaths.at(-1) || '/');
+    setExpandedPaths((paths) => new Set([...paths, '/', ...folderPaths]));
+    const frame = requestAnimationFrame(() => {
+      const activeRow = Array.from(document.querySelectorAll('#webdav-explorer-panel [data-remote-path]'))
+        .find((element) => element.dataset.remotePath === activeFilePath);
+      activeRow?.scrollIntoView({ block: 'nearest' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activeFilePath, directoryTree]);
   const toggleFolder = async (item) => {
     if (item.isDirectory) {
       setSelectedFolderPath(item.remotePath);
@@ -258,7 +272,7 @@ export default function FileExplorer({ files, directoryTree, loading, moveProgre
     </div>
     {isDragging && <div className="absolute inset-0 z-20 flex items-center justify-center border-2 border-dashed border-indigo-400 bg-indigo-50/90 text-indigo-600 pointer-events-none dark:bg-slate-900/90"><Upload size={20} className="mr-2"/>파일/폴더를 여기에 놓으세요</div>}
     {rootEntries.length === 0 && <div className="p-8 text-center text-sm text-slate-500 dark:text-slate-400">{loading ? 'WebDAV 파일 목록을 불러오는 중입니다…' : '폴더가 비어있습니다.'}</div>}
-    {rootEntries.map((item) => <TreeItem key={item.remotePath} item={item} depth={0} expandedPaths={expandedPaths} selectedFolderPath={selectedFolderPath} selectionMode={selectionMode} checkedPaths={checkedPaths} fileToolsMode={fileToolsMode} loading={loading} editorLoading={editorLoading} copiedKey={copiedKey} formatBytes={formatBytes} onToggleFolder={toggleFolder} onToggleExpanded={toggleExpandedOnly} onToggleChecked={toggleChecked} onCopyUrl={onCopyUrl} onShareFile={onShareFile} onOpenFile={onOpenFile} onDownload={onDownload} onRename={onRename} onMove={(item) => { setMoveActionError(''); setMoveRequest({ items: [item], bulk: false }); }} onDelete={onDelete} onCreateFile={onCreateFile} onCreateFolder={onCreateFolder}/>)}
+    {rootEntries.map((item) => <TreeItem key={item.remotePath} item={item} depth={0} expandedPaths={expandedPaths} selectedFolderPath={selectedFolderPath} activeFilePath={activeFilePath} selectionMode={selectionMode} checkedPaths={checkedPaths} fileToolsMode={fileToolsMode} loading={loading} editorLoading={editorLoading} copiedKey={copiedKey} formatBytes={formatBytes} onToggleFolder={toggleFolder} onToggleExpanded={toggleExpandedOnly} onToggleChecked={toggleChecked} onCopyUrl={onCopyUrl} onShareFile={onShareFile} onOpenFile={onOpenFile} onDownload={onDownload} onRename={onRename} onMove={(item) => { setMoveActionError(''); setMoveRequest({ items: [item], bulk: false }); }} onDelete={onDelete} onCreateFile={onCreateFile} onCreateFolder={onCreateFolder}/>)}
     {settingsOpen && <div
       ref={settingsWindowRef}
       className="webdav-settings-window w-full max-w-sm overflow-hidden rounded-xl border border-slate-300 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"

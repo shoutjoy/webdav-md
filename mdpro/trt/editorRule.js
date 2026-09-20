@@ -8,19 +8,39 @@
         if (start === end) return false;
 
         const replacement = String(opts.replacement || '');
+        const cmView = editorTextarea.__mdCm6View;
+        const selectWholeWrappedText = !!opts.selectWholeWrappedText;
+        const selectionStart = selectWholeWrappedText
+            ? start
+            : start + (opts.innerOffsetStart || 0);
+        const selectionEnd = selectWholeWrappedText
+            ? start + replacement.length
+            : selectionStart + (opts.innerLength || 0);
+
+        if (cmView && typeof cmView.dispatch === 'function') {
+            const scrollTop = cmView.scrollDOM ? cmView.scrollDOM.scrollTop : 0;
+            cmView.dispatch({
+                changes: { from: start, to: end, insert: replacement },
+                selection: { anchor: selectionStart, head: selectionEnd },
+                userEvent: 'input.selection-wrap'
+            });
+            if (cmView.scrollDOM) cmView.scrollDOM.scrollTop = scrollTop;
+            if (typeof cmView.focus === 'function') cmView.focus();
+            if (typeof opts.onAfterApply === 'function') opts.onAfterApply();
+            return true;
+        }
+
         const currentScrollTop = editorTextarea.scrollTop;
         editorTextarea.focus();
         editorTextarea.setSelectionRange(start, end);
-        document.execCommand('insertText', false, replacement);
+        if (typeof editorTextarea.setRangeText === 'function') {
+            editorTextarea.setRangeText(replacement, start, end, 'end');
+        } else {
+            document.execCommand('insertText', false, replacement);
+        }
         editorTextarea.scrollTop = currentScrollTop;
 
-        if (opts.selectWholeWrappedText) {
-            editorTextarea.setSelectionRange(start, start + replacement.length);
-        } else {
-            const innerStart = start + (opts.innerOffsetStart || 0);
-            const innerEnd = innerStart + (opts.innerLength || 0);
-            editorTextarea.setSelectionRange(innerStart, innerEnd);
-        }
+        editorTextarea.setSelectionRange(selectionStart, selectionEnd);
         if (typeof opts.onAfterApply === 'function') opts.onAfterApply();
         return true;
     }
@@ -53,7 +73,10 @@
         const editorTextarea = d.editorTextarea;
         if (!d.selectionWrapEnabled) return false;
         if (!d.isEditMode || !editorTextarea) return false;
-        if (document.activeElement !== editorTextarea) return false;
+        const cmView = editorTextarea.__mdCm6View;
+        const editorHasFocus = document.activeElement === editorTextarea
+            || !!(cmView && cmView.hasFocus);
+        if (!editorHasFocus) return false;
         if (e.ctrlKey || e.metaKey || e.altKey) return false;
         if (editorTextarea.selectionStart === editorTextarea.selectionEnd) return false;
 
