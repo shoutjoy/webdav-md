@@ -44,7 +44,18 @@ test('miniPV is fitted fully inside the visible viewport whenever it opens', () 
 
 test('miniPV renders the live editor value while edit mode is active', () => {
     assert.match(script, /function getMiniPreviewSourceMarkdown\(\)/);
+    assert.match(script, /editorTextarea && editorTextarea\.__mdCm6View/);
+    assert.match(script, /cmView\.state\.doc\.toString\(\)/);
     assert.match(script, /isEditMode && editorTextarea && typeof editorTextarea\.value === 'string'/);
     assert.match(script, /const raw = getMiniPreviewSourceMarkdown\(\);/);
     assert.match(script, /renderMiniPreviewToc\(getMiniPreviewSourceMarkdown\(\)\)/);
+});
+
+test('miniPV scroll sync follows the visible CodeMirror or document scroll root', () => {
+    assert.match(script, /function getMiniPreviewEditorScrollRoot\(\)/);
+    assert.match(script, /cmView\.scrollDOM/);
+    assert.match(script, /viewport\.classList\.contains\('long-document-active'\)/);
+    assert.match(script, /event\.target !== getMiniPreviewEditorScrollRoot\(\)/);
+    assert.match(script, /const editorRoot = getMiniPreviewEditorScrollRoot\(\);/);
+    assert.match(script, /editorRoot\.scrollTo\(\{ top: targetTop, behavior: 'auto' \}\)/);
 });
