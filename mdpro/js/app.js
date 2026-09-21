@@ -135,7 +135,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     pdfOpen: './js/extendFiles/pdf-open.js?v=20260815-editable-1',
     docxExport: './js/extendFiles/docx-export.js?v=20260816-merge-cover-toc-2',
     htmlExport: './js/export/html-export.js?v=20260805-image-1',
-    pdfExport: './js/export/pdf-export.js?v=20260813-merge-tool-1',
+    pdfExport: './js/export/pdf-export.js?v=20260922-print-layout-2',
     html2canvas: './vendor/html2canvas/html2canvas.min.js?v=1.4.1',
     jsPdf: './vendor/jspdf/jspdf.umd.min.js?v=4.2.1',
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
@@ -6045,14 +6045,35 @@ function printPage() {
         const printRoot = ensurePrintRootElement();
         await waitForPrintImages(convertPrintMermaidSvgsToImages(printRoot));
         document.body.classList.add('printing-active');
+        let cleanupTimer = 0;
+        const printMedia = typeof window.matchMedia === 'function' ? window.matchMedia('print') : null;
         const cleanup = function () {
             document.body.classList.remove('printing-active');
             clearPrintRoot();
             window.removeEventListener('afterprint', cleanup);
+            if (printMedia && typeof printMedia.removeEventListener === 'function') {
+                printMedia.removeEventListener('change', handlePrintMediaChange);
+            }
+            if (cleanupTimer) window.clearTimeout(cleanupTimer);
+        };
+        const handlePrintMediaChange = function (event) {
+            if (!event.matches) cleanup();
         };
         window.addEventListener('afterprint', cleanup, { once: true });
-        window.print();
-        setTimeout(cleanup, 1000);
+        if (printMedia && typeof printMedia.addEventListener === 'function') {
+            printMedia.addEventListener('change', handlePrintMediaChange);
+        }
+        // Mobile print/PDF dialogs may return from window.print() immediately.
+        // Keep the isolated print DOM alive until the browser reports that
+        // printing ended; the long fallback only protects browsers that emit
+        // neither afterprint nor matchMedia changes.
+        cleanupTimer = window.setTimeout(cleanup, 300000);
+        try {
+            window.print();
+        } catch (error) {
+            cleanup();
+            throw error;
+        }
     }, 120);
 }
 
