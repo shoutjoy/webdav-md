@@ -368,6 +368,12 @@ function getMiniPreviewSyncContext() {
 // edits made by editor integrations, IME input, or programmatic insertions.
 function getMiniPreviewSourceMarkdown() {
     try {
+        const cmView = editorTextarea && editorTextarea.__mdCm6View;
+        if (isEditMode && cmView && cmView.state && cmView.state.doc) {
+            return String(cmView.state.doc.toString() || '');
+        }
+    } catch (_) {}
+    try {
         if (isEditMode && editorTextarea && typeof editorTextarea.value === 'string') {
             return String(editorTextarea.value || '');
         }
@@ -458,6 +464,21 @@ function getMiniPreviewScrollRoot() {
         return doc.scrollingElement || doc.documentElement || doc.body;
     }
     return miniPreviewContent;
+}
+
+function getMiniPreviewEditorScrollRoot() {
+    if (!editorTextarea) return null;
+    const viewport = document.getElementById('content-viewport');
+    const viewportOwnsScroll = viewport && (
+        viewport.classList.contains('a4-active')
+        || viewport.classList.contains('long-document-active')
+    );
+    if (viewportOwnsScroll) return viewport;
+    const cmView = editorTextarea.__mdCm6View;
+    if (cmView && cmView.dom && cmView.dom.isConnected && cmView.scrollDOM) {
+        return cmView.scrollDOM;
+    }
+    return editorTextarea;
 }
 
 function getMiniPreviewHeaderNodes() {
@@ -564,15 +585,16 @@ function syncMiniPreviewScrollToEditor() {
         applyMiniPreviewLineSync();
         return;
     }
-    if (!editorTextarea) return;
+    const editorRoot = getMiniPreviewEditorScrollRoot();
+    if (!editorRoot) return;
     if (!miniPreviewContent || !miniPreviewPanel || miniPreviewPanel.classList.contains('hidden')) return;
 
     const miniRoot = getMiniPreviewScrollRoot();
     if (!miniRoot) return;
 
-    const editorMax = Math.max(0, editorTextarea.scrollHeight - editorTextarea.clientHeight);
+    const editorMax = Math.max(0, editorRoot.scrollHeight - editorRoot.clientHeight);
     const miniMax = Math.max(0, miniRoot.scrollHeight - miniRoot.clientHeight);
-    const ratio = editorMax > 0 ? editorTextarea.scrollTop / editorMax : 0;
+    const ratio = editorMax > 0 ? editorRoot.scrollTop / editorMax : 0;
     setMiniPreviewScrollRootTop(miniMax * clamp01(ratio));
 }
 
@@ -604,16 +626,19 @@ function toggleMiniPreviewEditorSync(force) {
 function syncEditorScrollToMiniPreview() {
     if (miniPreviewViewMode !== 'preview') return;
     if (!miniPreviewEnabled || !isEditMode) return;
-    if (!editorTextarea) return;
+    const editorRoot = getMiniPreviewEditorScrollRoot();
+    if (!editorRoot) return;
     if (!miniPreviewContent || !miniPreviewPanel || miniPreviewPanel.classList.contains('hidden')) return;
 
     const miniRoot = getMiniPreviewScrollRoot();
     if (!miniRoot) return;
 
     const miniMax = Math.max(0, miniRoot.scrollHeight - miniRoot.clientHeight);
-    const editorMax = Math.max(0, editorTextarea.scrollHeight - editorTextarea.clientHeight);
+    const editorMax = Math.max(0, editorRoot.scrollHeight - editorRoot.clientHeight);
     const ratio = miniMax > 0 ? miniRoot.scrollTop / miniMax : 0;
-    editorTextarea.scrollTop = Math.round(editorMax * Math.max(0, Math.min(1, ratio)));
+    const targetTop = Math.round(editorMax * Math.max(0, Math.min(1, ratio)));
+    if (typeof editorRoot.scrollTo === 'function') editorRoot.scrollTo({ top: targetTop, behavior: 'auto' });
+    else editorRoot.scrollTop = targetTop;
 }
 
 function updateMiniPreviewFullscreenUi() {
@@ -863,11 +888,10 @@ function bindMiniPreviewInteractions() {
         });
     });
 
-    if (editorTextarea) {
-        editorTextarea.addEventListener('scroll', function () {
-            scheduleMiniPreviewScrollSync(0);
-        }, { passive: true });
-    }
+    document.addEventListener('scroll', function (event) {
+        if (event.target !== getMiniPreviewEditorScrollRoot()) return;
+        scheduleMiniPreviewScrollSync(0);
+    }, { passive: true, capture: true });
 
     if (miniPreviewContent) {
         miniPreviewContent.addEventListener('load', function () {
