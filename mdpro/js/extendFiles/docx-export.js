@@ -616,13 +616,81 @@
     }).filter(Boolean);
   }
 
-  function markdownToDocxItems(markdown) {
+  function normalizeMermaidSource(value) {
+    return String(value == null ? '' : value).replace(/\r\n?/g, '\n').trim();
+  }
+
+  function svgElementToMermaidImage(svg, source) {
+    if (!svg) return null;
+    var clone = svg.cloneNode ? svg.cloneNode(true) : svg;
+    if (!clone || typeof clone.setAttribute !== 'function') return null;
+    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    clone.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    if (clone.style) {
+      clone.style.transform = 'none';
+      clone.style.transformOrigin = '0 0';
+      clone.style.backgroundColor = '#ffffff';
+    }
+
+    var viewBox = String(clone.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number);
+    var width = viewBox.length === 4 && Number.isFinite(viewBox[2]) && viewBox[2] > 0 ? viewBox[2] : 0;
+    var height = viewBox.length === 4 && Number.isFinite(viewBox[3]) && viewBox[3] > 0 ? viewBox[3] : 0;
+    width = width || readPositiveNumber(clone.getAttribute('width')) || 960;
+    height = height || readPositiveNumber(clone.getAttribute('height')) || 540;
+    clone.setAttribute('width', String(width));
+    clone.setAttribute('height', String(height));
+
+    var serialized = '';
+    try {
+      if (typeof global.XMLSerializer === 'function') {
+        serialized = new global.XMLSerializer().serializeToString(clone);
+      } else {
+        serialized = String(clone.outerHTML || '');
+      }
+    } catch (_) {
+      serialized = '';
+    }
+    if (!serialized) return null;
+    return {
+      type: 'image',
+      src: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(serialized),
+      alt: 'Mermaid diagram',
+      width: width,
+      height: height,
+      mermaidSource: normalizeMermaidSource(source)
+    };
+  }
+
+  function extractMermaidImagesFromHtml(html) {
+    if (typeof global.DOMParser !== 'function') return [];
+    try {
+      var documentNode = new global.DOMParser().parseFromString(String(html || ''), 'text/html');
+      var wrappers = documentNode && documentNode.querySelectorAll
+        ? Array.prototype.slice.call(documentNode.querySelectorAll('.trt-mermaid-wrapper'))
+        : [];
+      return wrappers.map(function (wrapper) {
+        var svg = wrapper.querySelector && wrapper.querySelector('svg');
+        var source = wrapper.getAttribute('data-mermaid-original-source') ||
+          wrapper.getAttribute('data-mermaid-source') || '';
+        return svgElementToMermaidImage(svg, source);
+      }).filter(Boolean);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function markdownToDocxItems(markdown, options) {
     var lines = String(markdown || '').replace(/\r\n?/g, '\n').split('\n');
     var items = [];
     var references = {};
     var inFence = false;
+    var fenceLanguage = '';
     var codeLines = [];
     var index = 0;
+    var mermaidImages = options && Array.isArray(options.mermaidImages)
+      ? options.mermaidImages.slice()
+      : [];
+    var usedMermaidImages = new Set();
 
     lines.forEach(function (line) {
       var definition = String(line || '').match(/^\s{0,3}\[([^\]]+)\]:\s*(?:<([^>]+)>|(\S+))(?:\s+.*)?$/);
@@ -632,14 +700,45 @@
 
     function flushCode() {
       if (!codeLines.length) return;
-      items.push({ type: 'code', text: codeLines.join('\n') });
+      var code = codeLines.join('\n');
+      if (fenceLanguage === 'mermaid') {
+        var normalizedCode = normalizeMermaidSource(code);
+        var imageIndex = -1;
+        for (var matchIndex = 0; matchIndex < mermaidImages.length; matchIndex += 1) {
+          if (usedMermaidImages.has(matchIndex)) continue;
+          if (normalizeMermaidSource(mermaidImages[matchIndex].mermaidSource) === normalizedCode) {
+            imageIndex = matchIndex;
+            break;
+          }
+        }
+        if (imageIndex < 0) {
+          imageIndex = mermaidImages.findIndex(function (image, candidateIndex) {
+            return !usedMermaidImages.has(candidateIndex) &&
+              !normalizeMermaidSource(image && image.mermaidSource);
+          });
+        }
+        if (imageIndex >= 0) {
+          usedMermaidImages.add(imageIndex);
+          items.push(Object.assign({}, mermaidImages[imageIndex], {
+            type: 'image',
+            alt: mermaidImages[imageIndex].alt || 'Mermaid diagram'
+          }));
+        }
+      }
+      items.push({ type: 'code', text: code });
       codeLines = [];
     }
 
     while (index < lines.length) {
       var line = String(lines[index] || '');
-      if (/^\s*```/.test(line)) {
-        if (inFence) flushCode();
+      var fence = line.match(/^\s*```\s*([^\s`]*)/);
+      if (fence) {
+        if (inFence) {
+          flushCode();
+          fenceLanguage = '';
+        } else {
+          fenceLanguage = String(fence[1] || '').trim().toLowerCase();
+        }
         inFence = !inFence;
         index += 1;
         continue;
@@ -1605,7 +1704,12 @@
     var html = String(data.html || '').trim();
     var useHtmlSource = /<(?:html|body|article|section|div|table|h[1-6]|p|ul|ol|blockquote|pre)\b/i.test(markdown) &&
       !/^(?:\s{0,3}#{1,6}\s|\s*[-*+]\s|\s*\d+[.)]\s)/m.test(markdown);
-    var items = useHtmlSource ? htmlToDocxItems(markdown) : markdownToDocxItems(markdown);
+    var mermaidImages = Array.isArray(data.mermaidImages)
+      ? data.mermaidImages.slice()
+      : extractMermaidImagesFromHtml(html);
+    var items = useHtmlSource
+      ? htmlToDocxItems(markdown)
+      : markdownToDocxItems(markdown, { mermaidImages: mermaidImages });
     if (!items.length && html && !extractedCovers.covers.length) items = htmlToDocxItems(html);
     items = extractedCovers.covers.map(function (config) {
       return { type: 'cover', config: config };

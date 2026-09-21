@@ -133,7 +133,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     docxImport: './js/extendFiles/docx-import.js?v=20260817-dark-table-contrast-1',
     pdfJs: './js/extendFiles/pdfjs-loader.mjs?v=20260815-editable-2',
     pdfOpen: './js/extendFiles/pdf-open.js?v=20260815-editable-1',
-    docxExport: './js/extendFiles/docx-export.js?v=20260816-merge-cover-toc-2',
+    docxExport: './js/extendFiles/docx-export.js?v=20260922-mermaid-image-code-1',
     htmlExport: './js/export/html-export.js?v=20260805-image-1',
     pdfExport: './js/export/pdf-export.js?v=20260922-print-layout-2',
     html2canvas: './vendor/html2canvas/html2canvas.min.js?v=1.4.1',
@@ -5355,6 +5355,14 @@ async function resolveDocxExportImage(src) {
 
 async function createCurrentDocumentDocxBlob() {
     syncCurrentMarkdownFromEditor();
+    await renderMarkdown({ force: true });
+    if (viewer && window.MermaidTRT && typeof window.MermaidTRT.renderIn === 'function') {
+        try {
+            await window.MermaidTRT.renderIn(viewer);
+        } catch (error) {
+            console.warn('Mermaid render before DOCX export failed:', error);
+        }
+    }
     await loadOptionalScript('docxExport', function () {
         return !!window.DocxExport && typeof window.DocxExport.createBlob === 'function';
     });
