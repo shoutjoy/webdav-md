@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 const script = readFileSync(new URL('../mdpro/js/UI_PV/minipv.js', import.meta.url), 'utf8');
+const appScript = readFileSync(new URL('../mdpro/js/app.js', import.meta.url), 'utf8');
 const markup = readFileSync(new URL('../mdpro/js/UI_PV/minipv.html', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../mdpro/css/style.css', import.meta.url), 'utf8');
 
@@ -58,4 +59,20 @@ test('miniPV scroll sync follows the visible CodeMirror or document scroll root'
     assert.match(script, /event\.target !== getMiniPreviewEditorScrollRoot\(\)/);
     assert.match(script, /const editorRoot = getMiniPreviewEditorScrollRoot\(\);/);
     assert.match(script, /editorRoot\.scrollTo\(\{ top: targetTop, behavior: 'auto' \}\)/);
+});
+
+test('miniPV ED sync off blocks live renders and cancels pending sync work', () => {
+    assert.match(appScript, /typeof window\.MiniPreviewUI\.isEditorSyncEnabled === 'function'/);
+    assert.match(appScript, /!window\.MiniPreviewUI\.isEditorSyncEnabled\(\)\) return;/);
+    assert.match(script, /renderCoordinator\.cancel\('mini-preview'\)/);
+    assert.match(script, /miniPreviewRenderToken \+= 1;/);
+    assert.match(script, /miniPreviewLineSyncToken \+= 1;/);
+});
+
+test('miniPV ED sync follows the current editor caret line', () => {
+    assert.match(script, /function getMiniPreviewEditorCaretLine\(ctx\)/);
+    assert.match(script, /cmView\.state\.selection\.main/);
+    assert.match(script, /offset = Number\(editor\.selectionStart\)/);
+    assert.match(script, /syncMiniPreviewToLine\(caretLine, syncContext, \{ keepPending: false \}\)/);
+    assert.match(script, /document\.addEventListener\('selectionchange'/);
 });

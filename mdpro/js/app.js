@@ -2705,7 +2705,7 @@ window.onload = async () => {
             return;
         }
         // Line Navigation & Modification
-        if (isEditMode && e.altKey) {
+        if (isEditMode && e.altKey && !e.defaultPrevented) {
             if (e.key === 'ArrowUp') {
                 e.preventDefault();
                 moveLineUp();
@@ -7024,21 +7024,39 @@ function scheduleRenderTOC(delayMs) {
 
 function scheduleMiniPreviewRender(delayMs) {
     if (!miniPreviewEnabled || !isEditMode) return;
+    if (window.MiniPreviewUI
+        && typeof window.MiniPreviewUI.isEditorSyncEnabled === 'function'
+        && !window.MiniPreviewUI.isEditorSyncEnabled()) return;
     const liveMarkdown = String(editorTextarea && typeof editorTextarea.value === 'string'
         ? editorTextarea.value
         : currentMarkdown ?? '');
     currentMarkdown = liveMarkdown;
     const revision = syncRenderSourceRevision(liveMarkdown);
     if (!renderCoordinator) {
-        setTimeout(function () { if (miniPreviewEnabled && isEditMode) renderMiniPreviewContent(); }, Math.max(80, Number(delayMs) || 0));
+        setTimeout(function () {
+            if (miniPreviewEnabled
+                && isEditMode
+                && (!window.MiniPreviewUI
+                    || typeof window.MiniPreviewUI.isEditorSyncEnabled !== 'function'
+                    || window.MiniPreviewUI.isEditorSyncEnabled())) renderMiniPreviewContent();
+        }, Math.max(80, Number(delayMs) || 0));
         return;
     }
     renderCoordinator.schedule('mini-preview', function () {
-        if (miniPreviewEnabled && isEditMode) renderMiniPreviewContent();
+        if (miniPreviewEnabled
+            && isEditMode
+            && (!window.MiniPreviewUI
+                || typeof window.MiniPreviewUI.isEditorSyncEnabled !== 'function'
+                || window.MiniPreviewUI.isEditorSyncEnabled())) renderMiniPreviewContent();
     }, {
         delayMs: Math.max(80, Number(delayMs) || 0),
         revision: revision,
-        isCurrent: function (candidate) { return candidate === renderSourceRevision; }
+        isCurrent: function (candidate) {
+            return candidate === renderSourceRevision
+                && (!window.MiniPreviewUI
+                    || typeof window.MiniPreviewUI.isEditorSyncEnabled !== 'function'
+                    || window.MiniPreviewUI.isEditorSyncEnabled());
+        }
     });
 }
 
@@ -8562,6 +8580,17 @@ function bindEditorListKeyBehavior() {
     };
     inputRoot.addEventListener('keydown', function (event) {
         if (!isEditorInput(event) || event.defaultPrevented || event.isComposing) return;
+        // Handle this before CodeMirror's own keymap. Its default keymap also
+        // implements Shift+Alt+ArrowDown, so letting the event reach both
+        // handlers can duplicate the block twice. Keeping the command here
+        // also gives the textarea and CodeMirror exactly the same semantics.
+        if (event.shiftKey && event.altKey && !event.ctrlKey && !event.metaKey
+            && (event.key === 'ArrowDown' || event.code === 'ArrowDown')) {
+            event.preventDefault();
+            event.stopPropagation();
+            copyLineDown();
+            return;
+        }
         if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && (event.key === 'Enter' || event.code === 'Enter')) {
             event.preventDefault();
             event.stopPropagation();
@@ -19991,23 +20020,50 @@ function moveLineDown() {
 }
 
 function copyLineDown() {
-    const start = editorTextarea.selectionStart;
-    const text = editorTextarea.value;
-    let lineStart = text.lastIndexOf('\n', start - 1) + 1;
-    let lineEnd = text.indexOf('\n', editorTextarea.selectionEnd);
-    if (lineEnd === -1) lineEnd = text.length;
+    if (!editorTextarea) return;
+    const edit = getCopyLineDownEdit(
+        editorTextarea.value,
+        editorTextarea.selectionStart,
+        editorTextarea.selectionEnd
+    );
+    const scrollTop = editorTextarea.scrollTop;
+    const scrollLeft = editorTextarea.scrollLeft;
 
-    let currentLineText = text.substring(lineStart, lineEnd);
-
-    editorTextarea.setSelectionRange(lineEnd, lineEnd);
-    replaceEditorSelectionText('\n' + currentLineText);
+    editorTextarea.setSelectionRange(edit.insertAt, edit.insertAt);
+    replaceEditorSelectionText(edit.insertText);
+    editorTextarea.setSelectionRange(edit.selectionStart, edit.selectionEnd);
+    editorTextarea.scrollTop = scrollTop;
+    editorTextarea.scrollLeft = scrollLeft;
 
     currentMarkdown = editorTextarea.value;
     performAutoSave();
     if (activeSidebarTab === 'toc') renderTOC();
+}
 
-    const newStart = lineEnd + 1;
-    editorTextarea.setSelectionRange(newStart, newStart + currentLineText.length);
+function getCopyLineDownEdit(value, rawSelectionStart, rawSelectionEnd) {
+    const text = String(value == null ? '' : value);
+    const clamp = position => Math.max(0, Math.min(Number(position) || 0, text.length));
+    const selectionStart = clamp(rawSelectionStart);
+    const selectionEnd = Math.max(selectionStart, clamp(rawSelectionEnd));
+    const lineStart = text.lastIndexOf('\n', selectionStart - 1) + 1;
+
+    // A selection ending at column zero belongs to the preceding selected
+    // line, just as it does in VS Code. Looking at end - 1 avoids pulling the
+    // following line (or a trailing empty line) into the duplicated block.
+    const lastSelectedPosition = selectionEnd > selectionStart
+        ? selectionEnd - 1
+        : selectionEnd;
+    const nextBreak = text.indexOf('\n', lastSelectedPosition);
+    const lineEnd = nextBreak === -1 ? text.length : nextBreak;
+    const block = text.slice(lineStart, lineEnd);
+    const duplicateStart = lineEnd + 1;
+
+    return {
+        insertAt: lineEnd,
+        insertText: '\n' + block,
+        selectionStart: duplicateStart + (selectionStart - lineStart),
+        selectionEnd: duplicateStart + (selectionEnd - lineStart)
+    };
 }
 
 window.openFindReplace = openFindReplace;
