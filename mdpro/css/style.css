@@ -193,16 +193,24 @@
         .markdown-body code { padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-family: 'JetBrains Mono', monospace; font-size: 0.9em; background-color: #e2e8f0; color: #1e293b; }
         .markdown-body pre {
             background-color: #e2e8f0;
-            color: #1e293b;
+            color: #0f172a;
             padding: 1rem;
             border-radius: 0.5rem;
             overflow-x: visible;
             white-space: pre-wrap;
             overflow-wrap: anywhere;
             word-break: break-word;
+            font-weight: 600 !important;
+            line-height: 1.65;
             margin-bottom: 1rem;
         }
-        .markdown-body pre code { background-color: transparent !important; padding: 0; color: inherit; }
+        .markdown-body pre code,
+        .markdown-body pre code * {
+            background-color: transparent !important;
+            padding: 0;
+            color: inherit !important;
+            font-weight: inherit !important;
+        }
         .markdown-body pre.md-code-copy-ready { position: relative; }
         .markdown-body .md-code-copy-button {
             position: absolute;
@@ -642,11 +650,20 @@
                 background: white !important;
             }
             #print-root .markdown-body {
-                width: auto !important;
+                display: block !important;
+                width: 100% !important;
                 max-width: none !important;
                 margin: 0 !important;
                 padding: 0 !important;
                 overflow: visible !important;
+                columns: auto !important;
+                column-count: 1 !important;
+                column-width: auto !important;
+                box-sizing: border-box !important;
+            }
+            #print-root .markdown-body > * {
+                max-width: 100% !important;
+                box-sizing: border-box !important;
             }
             #print-root pre,
             #print-root pre code {
@@ -657,11 +674,49 @@
                 word-break: break-word !important;
             }
             #print-root pre,
+            #print-root pre code,
+            #print-root pre code * {
+                color: #0f172a !important;
+                font-weight: 600 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            #print-root pre {
+                background: #f1f5f9 !important;
+                border: 1px solid #94a3b8 !important;
+            }
             #print-root blockquote,
-            #print-root table,
             #print-root img {
                 break-inside: avoid;
                 page-break-inside: avoid;
+            }
+            #print-root table {
+                width: 100% !important;
+                table-layout: auto;
+                break-inside: auto;
+                page-break-inside: auto;
+            }
+            #print-root tr,
+            #print-root h1,
+            #print-root h2,
+            #print-root h3,
+            #print-root h4 {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+            #print-root h1,
+            #print-root h2,
+            #print-root h3,
+            #print-root h4 {
+                break-after: avoid-page;
+                page-break-after: avoid;
+            }
+            #print-root .a4-sheet {
+                display: block !important;
+                float: none !important;
+                margin: 0 auto !important;
+                break-after: page;
+                page-break-after: always;
             }
             #print-root .print-mermaid-image {
                 display: block !important;

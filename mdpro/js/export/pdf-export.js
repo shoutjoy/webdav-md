@@ -90,6 +90,12 @@
     return name || 'document';
   }
 
+  function previewFitZoom(availableWidth) {
+    var pageWidthPx = A4_WIDTH_MM * 96 / 25.4;
+    var width = Math.max(0, Number(availableWidth) || 0);
+    return Math.max(0.35, Math.min(0.75, (width - 4) / pageWidthPx));
+  }
+
   function findWordBoundary(text, limit) {
     var source = String(text || '');
     var max = Math.max(1, Math.min(source.length - 1, Number(limit) || 1));
@@ -117,9 +123,10 @@
       '.pdf-preview-button-primary{border-color:#eab308;background:#a16207}.pdf-preview-button-primary:hover{background:#ca8a04}',
       '.pdf-preview-button-danger{border-color:#64748b;background:#334155}',
       '.pdf-preview-stage{position:relative;flex:1;min-height:0;overflow:auto;padding:34px 30px 70px;background:#374151}',
-      '.pdf-preview-pages{display:flex;flex-direction:column;align-items:center;gap:28px;transform:scale(var(--pdf-preview-zoom,1));transform-origin:top center;min-width:210mm}',
+      '.pdf-preview-pages{display:flex;flex-direction:column;align-items:center;gap:28px;width:210mm;min-width:210mm;margin:0 auto;zoom:var(--pdf-preview-zoom,1)}',
       '.pdf-preview-page{position:relative;width:' + A4_WIDTH_MM + 'mm;height:' + A4_HEIGHT_MM + 'mm;flex:0 0 auto;padding:var(--pdf-page-margin-mm,' + DEFAULT_MARGIN_MM + 'mm);overflow:hidden;background:#fff;color:#1e293b;box-shadow:0 18px 46px rgba(0,0,0,.38)}',
-      '.pdf-page-content{width:100%;height:100%;max-width:none!important;margin:0!important;padding:0!important;overflow:hidden;background:#fff!important;color:#1e293b!important}',
+      '.pdf-page-content{display:block!important;width:100%;height:100%;max-width:none!important;margin:0!important;padding:0!important;overflow:hidden;background:#fff!important;color:#1e293b!important;columns:auto!important;column-count:1!important;column-width:auto!important}',
+      '.pdf-page-content>*{max-width:100%!important;box-sizing:border-box!important;float:none}',
       '#' + PREVIEW_ID + ' .pdf-page-content h1{color:#1e3a8a!important;border-bottom-color:#bfdbfe!important;background:linear-gradient(90deg,rgba(219,234,254,.85),rgba(255,255,255,0))!important}',
       '#' + PREVIEW_ID + ' .pdf-page-content h2{color:#1d4ed8!important;border-bottom-color:#93c5fd!important;background:linear-gradient(90deg,rgba(219,234,254,.7),rgba(255,255,255,0))!important}',
       '#' + PREVIEW_ID + ' .pdf-page-content h3,#' + PREVIEW_ID + ' .pdf-page-content h4,#' + PREVIEW_ID + ' .pdf-page-content h5,#' + PREVIEW_ID + ' .pdf-page-content h6{color:#0369a1!important}',
@@ -129,7 +136,9 @@
       '.pdf-page-content>.page-break{display:none!important}',
       '.pdf-page-content img,.pdf-page-content svg,.pdf-page-content canvas,.pdf-page-content video{max-width:100%!important}',
       '.pdf-page-content pre,.pdf-page-content table{max-width:100%;overflow-wrap:anywhere}',
+      '.pdf-page-content pre{color:#0f172a!important;background:#f1f5f9!important;border:1px solid #94a3b8!important;font-weight:600!important;line-height:1.65!important}',
       '.pdf-page-content pre,.pdf-page-content pre code{overflow-x:visible!important;white-space:pre-wrap!important;overflow-wrap:anywhere!important;word-break:break-word!important}',
+      '.pdf-page-content pre code,.pdf-page-content pre code *{color:inherit!important;background:transparent!important;font-weight:inherit!important}',
       '.pdf-page-number{position:absolute;right:8mm;bottom:5mm;color:#94a3b8;font-size:9px;line-height:1;pointer-events:none}',
       '.pdf-preview-page [data-pdf-source-index]{cursor:pointer;outline-offset:3px}',
       '.pdf-preview-page [data-pdf-source-index]:hover{outline:1px dashed #06b6d4}',
@@ -143,7 +152,7 @@
       '.pdf-object-editor-panel h3{margin:0;font-size:16px}.pdf-object-editor-panel p{margin:0;color:#64748b;font-size:12px}',
       '.pdf-object-editor-surface{min-height:180px;max-height:60vh;overflow:auto;padding:18px;border:2px solid #38bdf8;border-radius:9px;background:#fff;color:#1e293b;line-height:1.6;outline:none}.pdf-object-editor-surface:focus{box-shadow:0 0 0 3px rgba(56,189,248,.22)}',
       '.pdf-object-editor-actions{display:flex;justify-content:flex-end;gap:8px}',
-      '@media(max-width:760px){.pdf-preview-toolbar{padding:8px}.pdf-preview-title{flex-basis:100%}.pdf-preview-stage{padding:20px 8px 60px}.pdf-preview-pages{transform-origin:top left}}'
+      '@media(max-width:760px){.pdf-preview-toolbar{padding:8px}.pdf-preview-title{flex-basis:100%}.pdf-preview-stage{padding:20px 8px 60px}.pdf-preview-pages{margin-left:0}}'
     ].join('\n');
     global.document.head.appendChild(style);
   }
@@ -163,6 +172,28 @@
   }
 
   function sourceUnits(root) {
+    var a4Sheets = root && root.querySelectorAll
+      ? Array.prototype.slice.call(root.querySelectorAll(':scope > .a4-sheet'))
+      : [];
+    if (a4Sheets.length) {
+      return a4Sheets.reduce(function (units, sheet, sheetIndex) {
+        if (sheetIndex > 0) {
+          var pageBreak = root.ownerDocument.createElement('div');
+          pageBreak.className = 'page-break';
+          units.push(pageBreak);
+        }
+        var pageContent = sheet.querySelector(':scope > .a4-view-content') || sheet;
+        Array.prototype.slice.call(pageContent.childNodes).forEach(function (node) {
+          if (node.nodeType === 1) units.push(node.cloneNode(true));
+          else if (node.nodeType === 3 && String(node.nodeValue || '').trim()) {
+            var paragraph = root.ownerDocument.createElement('p');
+            paragraph.textContent = node.nodeValue;
+            units.push(paragraph);
+          }
+        });
+        return units;
+      }, []);
+    }
     return Array.prototype.slice.call(root.childNodes).reduce(function (units, node) {
       if (node.nodeType === 1) {
         units.push(node.cloneNode(true));
@@ -313,7 +344,7 @@
         '<div class="pdf-preview-title"><strong>PDF 미리보기 · ' + escapeHtml(fileName) + '</strong><span data-pdf-status>A4 페이지를 구성하는 중입니다.</span><span class="pdf-preview-storage-status" data-pdf-storage-status data-state="loading">편집상태 inDB 확인 중…</span></div>' +
         '<label class="pdf-preview-control">여백 <select data-pdf-margin><option value="10">좁게 10 mm</option><option value="15" selected>보통 15 mm</option><option value="20">넓게 20 mm</option><option value="25">매우 넓게 25 mm</option></select></label>' +
         '<label class="pdf-preview-control">PDF 품질 <select data-pdf-quality><option value="compact">용량 절약</option><option value="standard">표준</option><option value="high">고품질</option></select></label>' +
-        '<label class="pdf-preview-control">확대 <select data-pdf-zoom><option value="0.6">60%</option><option value="0.75" selected>75%</option><option value="0.9">90%</option><option value="1">100%</option></select></label>' +
+        '<label class="pdf-preview-control">확대 <select data-pdf-zoom><option value="fit" selected>화면 맞춤</option><option value="0.5">50%</option><option value="0.6">60%</option><option value="0.75">75%</option><option value="0.9">90%</option><option value="1">100%</option></select></label>' +
         '<label class="pdf-preview-control">객체 줄간격 <select data-pdf-line-spacing disabled><option value="default">기본</option><option value="compact">좁게 1.2</option><option value="standard">보통 1.5</option><option value="relaxed">넓게 1.8</option><option value="wide">매우 넓게 2.0</option></select></label>' +
         '<button type="button" class="pdf-preview-button" data-pdf-edit disabled>선택 객체 수정</button>' +
         '<button type="button" class="pdf-preview-button" data-pdf-undo disabled title="수동 페이지 나눔 작업 실행 취소 (Ctrl+Z)">실행 취소</button>' +
@@ -882,10 +913,30 @@
     }
     overlay.querySelector('[data-pdf-margin]').value = String(state.margin);
 
+    var zoomSelect = overlay.querySelector('[data-pdf-zoom]');
+    var previewStage = overlay.querySelector('.pdf-preview-stage');
+    function applyPreviewZoom(value) {
+      var stageWidth = previewStage && previewStage.clientWidth;
+      if (value === 'fit' && previewStage && typeof global.getComputedStyle === 'function') {
+        var stageStyle = global.getComputedStyle(previewStage);
+        stageWidth -= (parseFloat(stageStyle.paddingLeft) || 0) + (parseFloat(stageStyle.paddingRight) || 0);
+      }
+      var zoom = value === 'fit'
+        ? previewFitZoom(stageWidth)
+        : (Number(value) || 0.75);
+      state.pagesRoot.style.setProperty('--pdf-preview-zoom', String(zoom));
+      return zoom;
+    }
+    function handlePreviewResize() {
+      if (zoomSelect && zoomSelect.value === 'fit') applyPreviewZoom('fit');
+    }
+    global.addEventListener('resize', handlePreviewResize);
+
     var result = new Promise(function (resolve) {
       async function close(value) {
         if (state.persistTimer) await flushPdfEditState();
         else await state.persistPromise.catch(function () { return false; });
+        global.removeEventListener('resize', handlePreviewResize);
         if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
         resolve(value == null ? state.downloaded : !!value);
       }
@@ -894,8 +945,8 @@
         var nextMargin = Number(event.target.value) || DEFAULT_MARGIN_MM;
         recordPaginationChange(function () { state.margin = nextMargin; });
       });
-      overlay.querySelector('[data-pdf-zoom]').addEventListener('change', function (event) {
-        state.pagesRoot.style.setProperty('--pdf-preview-zoom', String(Number(event.target.value) || 0.75));
+      zoomSelect.addEventListener('change', function (event) {
+        applyPreviewZoom(event.target.value);
       });
       overlay.querySelector('[data-pdf-quality]').addEventListener('change', function (event) {
         state.quality = storeQuality(event.target.value);
@@ -976,7 +1027,7 @@
       });
     });
 
-    state.pagesRoot.style.setProperty('--pdf-preview-zoom', '0.75');
+    applyPreviewZoom('fit');
     overlay.tabIndex = -1;
     overlay.focus();
     await waitForMedia(parsed.root);
@@ -998,7 +1049,8 @@
       LINE_SPACING_PRESETS: LINE_SPACING_PRESETS,
       A4_WIDTH_MM: A4_WIDTH_MM,
       A4_HEIGHT_MM: A4_HEIGHT_MM,
-      DEFAULT_MARGIN_MM: DEFAULT_MARGIN_MM
+      DEFAULT_MARGIN_MM: DEFAULT_MARGIN_MM,
+      previewFitZoom: previewFitZoom
     })
   });
   global.PdfExport = api;
