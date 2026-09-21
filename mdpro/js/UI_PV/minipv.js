@@ -456,6 +456,31 @@ function getMiniPreviewLineCount(markdownText) {
     return String(markdownText || '').split('\n').length;
 }
 
+function isMiniPreviewEditorSyncEnabled() {
+    return !!miniPreviewEditorSyncEnabled;
+}
+
+function getMiniPreviewEditorCaretLine(ctx) {
+    const context = ctx || getMiniPreviewSyncContext();
+    const markdownText = context && typeof context.markdown === 'string'
+        ? context.markdown
+        : getMiniPreviewSourceMarkdown();
+    let offset = null;
+    const editor = context && context.editor ? context.editor : editorTextarea;
+    try {
+        const cmView = editor && editor.__mdCm6View;
+        const mainSelection = cmView && cmView.state && cmView.state.selection && cmView.state.selection.main;
+        if (mainSelection && Number.isFinite(Number(mainSelection.head))) {
+            offset = Number(mainSelection.head);
+        } else if (editor && Number.isFinite(Number(editor.selectionStart))) {
+            offset = Number(editor.selectionStart);
+        }
+    } catch (_) {}
+    if (!Number.isFinite(offset)) return null;
+    const safeOffset = Math.max(0, Math.min(String(markdownText || '').length, offset));
+    return String(markdownText || '').slice(0, safeOffset).split('\n').length - 1;
+}
+
 function getMiniPreviewScrollRoot() {
     if (!miniPreviewContent) return null;
     const frame = miniPreviewContent.querySelector('iframe');
@@ -579,6 +604,12 @@ function syncMiniPreviewToLine(lineIndex, ctx, options) {
 function syncMiniPreviewScrollToEditor() {
     if (miniPreviewViewMode !== 'preview') return;
     if (!miniPreviewEditorSyncEnabled || !miniPreviewEnabled || !isEditMode) return;
+    const syncContext = getMiniPreviewSyncContext();
+    const caretLine = getMiniPreviewEditorCaretLine(syncContext);
+    if (Number.isFinite(caretLine)) {
+        syncMiniPreviewToLine(caretLine, syncContext, { keepPending: false });
+        return;
+    }
     const activeTocLine = getActiveTocSyncLine();
     if (activeTocLine !== null) {
         miniPreviewPendingLineSync = activeTocLine;
@@ -620,7 +651,23 @@ function toggleMiniPreviewEditorSync(force) {
     miniPreviewEditorSyncEnabled = typeof force === 'boolean' ? !!force : !miniPreviewEditorSyncEnabled;
     setMiniPreviewEditorSyncEnabledToLocal(miniPreviewEditorSyncEnabled);
     updateMiniPreviewSyncUi();
-    if (miniPreviewEditorSyncEnabled) scheduleMiniPreviewScrollSync(0);
+    if (miniPreviewEditorSyncEnabled) {
+        renderMiniPreviewContent();
+        return;
+    }
+    miniPreviewRenderToken += 1;
+    miniPreviewLineSyncToken += 1;
+    miniPreviewPendingLineSync = null;
+    miniPreviewLineSyncUntil = 0;
+    if (miniPreviewSyncTimer !== null) {
+        clearTimeout(miniPreviewSyncTimer);
+        miniPreviewSyncTimer = null;
+    }
+    try {
+        if (typeof renderCoordinator !== 'undefined' && renderCoordinator && typeof renderCoordinator.cancel === 'function') {
+            renderCoordinator.cancel('mini-preview');
+        }
+    } catch (_) {}
 }
 
 function syncEditorScrollToMiniPreview() {
@@ -893,6 +940,15 @@ function bindMiniPreviewInteractions() {
         scheduleMiniPreviewScrollSync(0);
     }, { passive: true, capture: true });
 
+    document.addEventListener('selectionchange', function () {
+        const editor = editorTextarea;
+        const cmView = editor && editor.__mdCm6View;
+        const editorHasFocus = !!(cmView && cmView.hasFocus)
+            || document.activeElement === editor;
+        if (!editorHasFocus) return;
+        scheduleMiniPreviewScrollSync(0);
+    });
+
     if (miniPreviewContent) {
         miniPreviewContent.addEventListener('load', function () {
             scheduleMiniPreviewScrollSync(0);
@@ -1050,3 +1106,5 @@ window.toggleMiniPreviewEditorSync = toggleMiniPreviewEditorSync;
 window.syncEditorScrollToMiniPreview = syncEditorScrollToMiniPreview;
 window.MiniPreviewUI.ensure = ensureMiniPreviewHtml;
 window.MiniPreviewUI.scrollToLine = syncMiniPreviewToLine;
+window.MiniPreviewUI.isEditorSyncEnabled = isMiniPreviewEditorSyncEnabled;
+window.MiniPreviewUI.getEditorCaretLine = getMiniPreviewEditorCaretLine;
