@@ -133,7 +133,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     docxImport: './js/extendFiles/docx-import.js?v=20260817-dark-table-contrast-1',
     pdfJs: './js/extendFiles/pdfjs-loader.mjs?v=20260815-editable-2',
     pdfOpen: './js/extendFiles/pdf-open.js?v=20260815-editable-1',
-    docxExport: './js/extendFiles/docx-export.js?v=20260922-mermaid-image-code-1',
+    docxExport: './js/extendFiles/docx-export.js?v=20260922-mermaid-live-image-2',
     htmlExport: './js/export/html-export.js?v=20260805-image-1',
     pdfExport: './js/export/pdf-export.js?v=20260922-print-layout-2',
     html2canvas: './vendor/html2canvas/html2canvas.min.js?v=1.4.1',
@@ -144,7 +144,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiChat: './AI_App/aiChat/ai-chat.js?v=20260914-full-article-text-4',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
-    codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260920-placeholder-1'
+    codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260925-nonprinting-3'
 });
 const optionalScriptLoads = new Map();
 
@@ -636,6 +636,7 @@ let viewClickMappedCaretPos = null;
 let lastEditCaretPos = 0;
 let viewerInternalImageObjectUrls = [];
 let previewInternalImageObjectUrls = [];
+let htmlPreviewLocalObjectUrls = [];
 const internalImageObjectUrlCache = new Map();
 let lastPersistedContent = '';
 let lastAutoSavedContent = '';
@@ -3614,6 +3615,16 @@ function getRenderableHtmlDocument(value, fileName) {
     return null;
 }
 
+function openRenderableHtmlDocumentInView(value, fileName) {
+    if (getRenderableHtmlDocument(value, fileName) === null) return false;
+    if (typeof toggleMode === 'function' && typeof isEditMode !== 'undefined' && isEditMode) {
+        toggleMode('view', { skipScrollSync: true });
+    } else if (typeof renderMarkdown === 'function') {
+        renderMarkdown({ force: true });
+    }
+    return true;
+}
+
 function setHtmlDocumentMode(container, enabled) {
     if (!container || !container.classList) return;
     container.classList.toggle('html-document-preview', !!enabled);
@@ -3647,6 +3658,199 @@ function renderHtmlDocumentFrame(container, html, options) {
     frame.srcdoc = String(html || '');
     container.appendChild(frame);
     return frame;
+}
+
+function isLocalHtmlAssetUrl(value) {
+    const url = String(value || '').trim();
+    return !!url && url.charAt(0) !== '#'
+        && !/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(url);
+}
+
+async function replaceAsync(value, pattern, replacer) {
+    const source = String(value || '');
+    const matches = Array.from(source.matchAll(pattern));
+    if (!matches.length) return source;
+    const replacements = await Promise.all(matches.map(function (match) { return replacer.apply(null, match); }));
+    let cursor = 0;
+    let output = '';
+    matches.forEach(function (match, index) {
+        output += source.slice(cursor, match.index) + replacements[index];
+        cursor = match.index + match[0].length;
+    });
+    return output + source.slice(cursor);
+}
+
+async function resolveLocalHtmlAsset(documentPath, requestUrl) {
+    if (!isLocalHtmlAssetUrl(requestUrl)
+        || !window.LocalFolderExplorer
+        || typeof window.LocalFolderExplorer.getProjectFile !== 'function') return null;
+    try {
+        return await window.LocalFolderExplorer.getProjectFile(documentPath, requestUrl);
+    } catch (_) {
+        return null;
+    }
+}
+
+function registerHtmlPreviewLocalObjectUrl(file) {
+    if (!file || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return '';
+    const url = URL.createObjectURL(file);
+    htmlPreviewLocalObjectUrls.push(url);
+    return url;
+}
+
+async function prepareLocalCssForHtmlPreview(cssText, stylesheetPath, depth, visited) {
+    const level = Number(depth || 0);
+    const seen = visited || new Set();
+    let css = String(cssText || '');
+    if (level < 8) {
+        css = await replaceAsync(
+            css,
+            /@import\s+(?:url\(\s*)?(['"])([^'"]+)\1\s*\)?\s*([^;]*);/gi,
+            async function (whole, quote, importUrl, mediaQuery) {
+                if (!isLocalHtmlAssetUrl(importUrl)) return whole;
+                const resolved = await resolveLocalHtmlAsset(stylesheetPath, importUrl);
+                if (!resolved || !resolved.file || seen.has(resolved.path)) return whole;
+                seen.add(resolved.path);
+                const imported = await prepareLocalCssForHtmlPreview(
+                    await resolved.file.text(), resolved.path, level + 1, seen
+                );
+                const media = String(mediaQuery || '').trim();
+                return media ? '@media ' + media + ' {\n' + imported + '\n}' : imported;
+            }
+        );
+    }
+    return replaceAsync(
+        css,
+        /url\(\s*(['"]?)([^'"\)]+)\1\s*\)/gi,
+        async function (whole, quote, assetUrl) {
+            if (!isLocalHtmlAssetUrl(assetUrl)) return whole;
+            const resolved = await resolveLocalHtmlAsset(stylesheetPath, assetUrl);
+            const objectUrl = resolved && resolved.file ? registerHtmlPreviewLocalObjectUrl(resolved.file) : '';
+            return objectUrl ? 'url("' + objectUrl + '")' : whole;
+        }
+    );
+}
+
+function makeLocalJavaScriptDataUrl(source) {
+    const encoded = encodeURIComponent(String(source || '')).replace(/[!'()*]/g, function (character) {
+        return '%' + character.charCodeAt(0).toString(16).toUpperCase();
+    });
+    return 'data:text/javascript;charset=utf-8,' + encoded;
+}
+
+function escapeInlineLocalScript(source) {
+    return String(source || '').replace(/<\/script/gi, '<\\/script');
+}
+
+async function prepareLocalJavaScriptModuleForPreview(source, modulePath, depth, visited) {
+    const level = Number(depth || 0);
+    if (level > 16) return String(source || '');
+    const seen = visited || new Set();
+    let code = String(source || '');
+
+    async function replaceModuleSpecifier(whole, prefix, quote, requestUrl, suffix) {
+        if (!isLocalHtmlAssetUrl(requestUrl)) return whole;
+        const resolved = await resolveLocalHtmlAsset(modulePath, requestUrl);
+        if (!resolved || !resolved.file || seen.has(resolved.path)) return whole;
+        const nextSeen = new Set(seen);
+        nextSeen.add(resolved.path);
+        const dependencySource = await resolved.file.text();
+        const preparedDependency = await prepareLocalJavaScriptModuleForPreview(
+            dependencySource,
+            resolved.path,
+            level + 1,
+            nextSeen
+        );
+        return prefix + quote + makeLocalJavaScriptDataUrl(
+            preparedDependency + '\n//# sourceURL=mdpro-local/' + resolved.path
+        ) + quote + (suffix || '');
+    }
+
+    code = await replaceAsync(
+        code,
+        /(\b(?:import|export)\s+(?:[^'";]*?\s+from\s*)?)(['"])([^'"]+)\2/g,
+        replaceModuleSpecifier
+    );
+    code = await replaceAsync(
+        code,
+        /(\bimport\s*\(\s*)(['"])([^'"]+)\2(\s*\))/g,
+        replaceModuleSpecifier
+    );
+    return code;
+}
+
+async function inlineLocalHtmlScript(script, documentPath) {
+    if (!script) return false;
+    const resolved = await resolveLocalHtmlAsset(documentPath, script.getAttribute('src'));
+    if (!resolved || !resolved.file) return false;
+    let source = await resolved.file.text();
+    const scriptType = String(script.getAttribute('type') || '').trim().toLowerCase();
+    const moveAfterDocument = scriptType !== 'module'
+        && (script.hasAttribute('defer') || script.hasAttribute('async'));
+    if (scriptType === 'module') {
+        source = await prepareLocalJavaScriptModuleForPreview(
+            source,
+            resolved.path,
+            0,
+            new Set([resolved.path])
+        );
+    }
+    script.removeAttribute('src');
+    script.removeAttribute('integrity');
+    script.removeAttribute('crossorigin');
+    script.removeAttribute('async');
+    script.removeAttribute('defer');
+    script.setAttribute('data-mdpro-local-source', resolved.path);
+    script.textContent = escapeInlineLocalScript(
+        source + '\n//# sourceURL=mdpro-local/' + resolved.path
+    );
+    if (moveAfterDocument && script.ownerDocument && script.ownerDocument.body) {
+        script.ownerDocument.body.appendChild(script);
+    }
+    return true;
+}
+
+async function prepareLocalHtmlDocumentForPreview(html, documentPath) {
+    const source = String(html || '');
+    if (!documentPath || typeof DOMParser === 'undefined') return source;
+    const parsed = new DOMParser().parseFromString(source, 'text/html');
+    if (!parsed || !parsed.documentElement) return source;
+
+    const stylesheets = Array.from(parsed.querySelectorAll('link[href]')).filter(function (link) {
+        return String(link.getAttribute('rel') || '').toLowerCase().split(/\s+/).includes('stylesheet');
+    });
+    for (const link of stylesheets) {
+        const resolved = await resolveLocalHtmlAsset(documentPath, link.getAttribute('href'));
+        if (!resolved || !resolved.file) continue;
+        const style = parsed.createElement('style');
+        const media = link.getAttribute('media');
+        if (media) style.setAttribute('media', media);
+        style.setAttribute('data-mdpro-local-source', resolved.path);
+        style.textContent = await prepareLocalCssForHtmlPreview(
+            await resolved.file.text(), resolved.path, 0, new Set([resolved.path])
+        );
+        link.replaceWith(style);
+    }
+
+    for (const script of Array.from(parsed.querySelectorAll('script[src]'))) {
+        await inlineLocalHtmlScript(script, documentPath);
+    }
+
+    const assetAttributes = [
+        ['img[src]', 'src'], ['audio[src]', 'src'], ['video[src]', 'src'],
+        ['source[src]', 'src'], ['track[src]', 'src'], ['input[type="image"][src]', 'src'],
+        ['link[rel~="icon"][href]', 'href'], ['meta[property="og:image"][content]', 'content']
+    ];
+    for (const entry of assetAttributes) {
+        for (const element of Array.from(parsed.querySelectorAll(entry[0]))) {
+            const resolved = await resolveLocalHtmlAsset(documentPath, element.getAttribute(entry[1]));
+            const objectUrl = resolved && resolved.file ? registerHtmlPreviewLocalObjectUrl(resolved.file) : '';
+            if (objectUrl) element.setAttribute(entry[1], objectUrl);
+        }
+    }
+
+    const doctypeMatch = source.match(/^\s*(<!doctype[^>]*>)/i);
+    return (doctypeMatch ? doctypeMatch[1] + '\n' : '<!doctype html>\n') + parsed.documentElement.outerHTML;
 }
 
 function getEmbeddedHtmlDocumentCode(codeElement) {
@@ -3796,7 +4000,9 @@ function hydrateEmbeddedHtmlPreviews(container) {
 }
 
 window.getRenderableHtmlDocument = getRenderableHtmlDocument;
+window.openRenderableHtmlDocumentInView = openRenderableHtmlDocumentInView;
 window.renderHtmlDocumentFrame = renderHtmlDocumentFrame;
+window.prepareLocalHtmlDocumentForPreview = prepareLocalHtmlDocumentForPreview;
 window.setHtmlDocumentMode = setHtmlDocumentMode;
 window.getEmbeddedHtmlDocumentCode = getEmbeddedHtmlDocumentCode;
 window.fallbackCopyCodeBlockText = fallbackCopyCodeBlockText;
@@ -3900,12 +4106,16 @@ async function renderMarkdown(options) {
         try { hydrateCodeBlockCopyButtons(viewer); } catch (e) {}
     }
     revokeObjectUrls(viewerInternalImageObjectUrls);
+    revokeObjectUrls(htmlPreviewLocalObjectUrls);
 
     try {
         const htmlDocument = getRenderableHtmlDocument(renderRaw);
         if (htmlDocument !== null) {
+            const preparedHtmlDocument = currentLocalFileRef
+                ? await prepareLocalHtmlDocumentForPreview(htmlDocument, currentLocalFileRef.path)
+                : htmlDocument;
             if (!isCurrentRender()) return;
-            renderHtmlDocumentFrame(viewer, htmlDocument, { title: currentFileName || 'HTML preview' });
+            renderHtmlDocumentFrame(viewer, preparedHtmlDocument, { title: currentFileName || 'HTML preview' });
             runPostRenderHooks();
             return;
         }
@@ -5366,9 +5576,13 @@ async function createCurrentDocumentDocxBlob() {
     await loadOptionalScript('docxExport', function () {
         return !!window.DocxExport && typeof window.DocxExport.createBlob === 'function';
     });
+    const mermaidImages = window.DocxExport && typeof window.DocxExport.collectMermaidImages === 'function'
+        ? window.DocxExport.collectMermaidImages(viewer)
+        : [];
     return window.DocxExport.createBlob({
         content: String(currentMarkdown || ''),
         html: getRenderedHtmlForDocxExport(),
+        mermaidImages,
         baseUrl: document.baseURI,
         resolveImage: resolveDocxExportImage
     });
@@ -5655,7 +5869,9 @@ async function readFile(file, options) {
             localFileHandle: opts.localFileHandle || null,
             localFolderPath: opts.localFolderPath || ''
         });
-        updateContent(parsed && typeof parsed.text === 'string' ? parsed.text : raw);
+        const openedText = parsed && typeof parsed.text === 'string' ? parsed.text : raw;
+        updateContent(openedText);
+        openRenderableHtmlDocumentInView(openedText, file.name);
         markPersistedState();
         showToast(opts.successMessage || "File loaded successfully.");
     };
@@ -7276,6 +7492,7 @@ async function clearUnusedCache() {
 
     try { revokeObjectUrls(viewerInternalImageObjectUrls); } catch (e) {}
     try { revokeObjectUrls(previewInternalImageObjectUrls); } catch (e) {}
+    try { revokeObjectUrls(htmlPreviewLocalObjectUrls); } catch (e) {}
     try {
         const preview = document.getElementById('img-insert-preview');
         if (preview) {
@@ -7319,6 +7536,11 @@ function loadFromExternalContent(content, title, opts) {
     } else {
         notebookLmEqualsHrPreprocess = false;
     }
+    if (title) {
+        currentFileName = String(title);
+        currentFilePath = null;
+        updateCurrentDocumentDisplay();
+    }
     if (content !== undefined && content !== null) {
         currentMarkdown = String(content);
         if (editorTextarea) editorTextarea.value = currentMarkdown;
@@ -7330,11 +7552,7 @@ function loadFromExternalContent(content, title, opts) {
         }
         renderMarkdown();
         renderTOC();
-    }
-    if (title) {
-        currentFileName = String(title);
-        currentFilePath = null;
-        updateCurrentDocumentDisplay();
+        openRenderableHtmlDocumentInView(currentMarkdown, currentFileName);
     }
     if (db) {
         const tx = db.transaction('autosave', 'readwrite');
@@ -8079,12 +8297,58 @@ function handleTableInsertion() {
     if (activeSidebarTab === 'toc') renderTOC();
 }
 
+function insertListIntoA4Editor(input, kind) {
+    if (!input || !input.isConnected) return false;
+    const start = input.selectionStart;
+    const end = input.selectionEnd;
+    const text = input.value;
+    const isNumbered = kind === 'number';
+    const bulletRe = /^(\s*)-\s+/;
+    const numberRe = /^(\s*)\d+\.\s+/;
+    const listPrefixRe = /^(\s*)(?:-\s+|\d+\.\s+)/;
+    const blockStart = text.lastIndexOf('\n', start - 1) + 1;
+    let blockEnd = text.indexOf('\n', end);
+    if (blockEnd === -1) blockEnd = text.length;
+    const blockText = text.substring(blockStart, blockEnd);
+    const lines = blockText.split('\n');
+    const nonEmptyLines = lines.filter(function (line) { return line.trim().length > 0; });
+    const allApplied = nonEmptyLines.length > 0 && nonEmptyLines.every(function (line) {
+        return isNumbered ? numberRe.test(line) : bulletRe.test(line);
+    });
+    let numberIndex = 1;
+    const replacement = lines.map(function (line) {
+        if (line.trim().length === 0) return line;
+        if (allApplied) return line.replace(isNumbered ? numberRe : bulletRe, '$1');
+        const cleaned = line.replace(listPrefixRe, '$1');
+        if (!isNumbered) return '- ' + cleaned;
+        return numberIndex++ + '. ' + cleaned;
+    }).join('\n');
+    const cursorOffset = Math.max(0, start - blockStart);
+    const nextStart = start === end
+        ? blockStart + Math.min(cursorOffset + (replacement.length - blockText.length), replacement.length)
+        : blockStart;
+    const nextEnd = start === end ? nextStart : blockStart + replacement.length;
+
+    input.focus();
+    input.setRangeText(replacement, blockStart, blockEnd, 'end');
+    input.setSelectionRange(nextStart, nextEnd);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    performAutoSave();
+    if (activeSidebarTab === 'toc') renderTOC();
+    return true;
+}
+
 function insertListAtSelection(kind) {
     syncEditModeStateFromDom();
     if (!isEditMode || !editorTextarea) {
         showToast('Use this in edit mode.');
         return;
     }
+
+    const a4Input = window.A4Pages && typeof window.A4Pages.getActiveInput === 'function'
+        ? window.A4Pages.getActiveInput()
+        : null;
+    if (a4Input) return insertListIntoA4Editor(a4Input, kind);
 
     const start = editorTextarea.selectionStart;
     const end = editorTextarea.selectionEnd;

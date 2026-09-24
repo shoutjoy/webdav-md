@@ -24,6 +24,7 @@
     let historyIndex = -1;
     let viewRevision = '';
     let viewPages = [];
+    let activeEditInput = null;
     let floatingPosition = null;
     let longResizeBound = false;
     let longResizeFrame = 0;
@@ -447,8 +448,16 @@
     }
 
     function selection(page, input) {
+        activeEditInput = input;
         const offset = sourceOffset(page);
         source.setSelectionRange(offset + input.selectionStart, offset + input.selectionEnd);
+    }
+
+    function getActiveInput() {
+        if (!orientation) return null;
+        if (activeEditInput && activeEditInput.isConnected) return activeEditInput;
+        const activePage = pages.find(page => page.input === document.activeElement);
+        return activePage?.input || pages[0]?.input || null;
     }
 
     function dimensions(direction) {
@@ -466,6 +475,47 @@
         return { width, height };
     }
 
+    function nonPrintingVisible() {
+        const button = document.getElementById('btn-toggle-nonprinting');
+        if (button) return button.getAttribute('aria-pressed') === 'true';
+        return !!(window.MDComment
+            && typeof window.MDComment.areNonPrintingCharactersVisible === 'function'
+            && window.MDComment.areNonPrintingCharactersVisible());
+    }
+
+    function escapeNonPrintingText(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
+    function createNonPrintingMarkup(value) {
+        if (window.MDComment && typeof window.MDComment.createHighlightMarkup === 'function') {
+            return window.MDComment.createHighlightMarkup(value, { showNonPrinting: true });
+        }
+        const sourceText = String(value == null ? '' : value);
+        let markup = escapeNonPrintingText(sourceText)
+            .replace(/ /g, '<span class="md-nonprinting-space"> </span>')
+            .replace(/\t/g, '<span class="md-nonprinting-tab">\t</span>')
+            .replace(/\n/g, '<span class="md-nonprinting-newline"></span>\n');
+        if (sourceText) markup += '<span class="md-nonprinting-newline"></span>';
+        return markup;
+    }
+
+    function refreshPageNonPrinting(page) {
+        if (!page || !page.input || !page.nonPrintingLayer) return;
+        const visible = nonPrintingVisible();
+        page.nonPrintingLayer.hidden = !visible;
+        page.input.classList.toggle('a4-nonprinting-input', visible);
+        if (visible) page.nonPrintingLayer.innerHTML = createNonPrintingMarkup(page.input.value);
+        else page.nonPrintingLayer.replaceChildren();
+    }
+
+    function refreshAllNonPrintingPages() {
+        pages.forEach(refreshPageNonPrinting);
+    }
+
     function render(caret) {
         // Keep the focused textarea alive: replacing it during input (especially
         // compositionend) interrupts the browser's next IME/input event.
@@ -480,6 +530,7 @@
                     const page = pages[index];
                     Object.assign(page, chunk);
                     if (page.input.value !== chunk.text) page.input.value = chunk.text;
+                    refreshPageNonPrinting(page);
                 });
                 const candidates = pages.filter(page => page.section === caret.section);
                 const active = candidates.find(page => caret.position < page.start + page.text.length) || candidates.at(-1);
@@ -511,6 +562,11 @@
                 input.placeholder = '이곳에 마크다운 내용을 입력하세요…';
                 input.setAttribute('aria-label', `A4 ${chunk.direction === 'portrait' ? '세로' : '가로'} ${pages.length + 1} 페이지`);
                 page.input = input;
+                const nonPrintingLayer = document.createElement('pre');
+                nonPrintingLayer.className = 'a4-nonprinting-layer';
+                nonPrintingLayer.setAttribute('aria-hidden', 'true');
+                page.nonPrintingLayer = nonPrintingLayer;
+                refreshPageNonPrinting(page);
                 input.addEventListener('select', () => selection(page, input));
                 input.addEventListener('keyup', () => selection(page, input));
                 input.addEventListener('click', () => selection(page, input));
@@ -575,7 +631,9 @@
                 const number = document.createElement('span');
                 number.className = 'a4-number';
                 number.textContent = `${pages.length + 1} · A4 ${chunk.direction === 'portrait' ? '세로' : '가로'}`;
-                sheet.append(input, number, controls(pages.length));
+                // Keep the editable textarea as the sheet's first child. Several
+                // pagination and focus paths intentionally treat it as primary.
+                sheet.append(input, nonPrintingLayer, number, controls(pages.length));
                 host.append(sheet);
                 pages.push(page);
             });
@@ -628,6 +686,7 @@
     source.addEventListener('input', () => sync(source.value));
     source.addEventListener('input', scheduleLongDocumentFit);
     source.addEventListener('mdpro:editor-geometry-change', scheduleLongDocumentFit);
+    window.addEventListener?.('mdpro:nonprinting-change', refreshAllNonPrintingPages);
     window.addEventListener?.('mdpro:font-size-change', () => {
         scheduleLongDocumentFit();
         viewRevision = '';
@@ -858,7 +917,7 @@
         if (navigateView(event.key === 'ArrowRight' ? 1 : -1)) { event.preventDefault(); event.stopImmediatePropagation(); }
     }, true);
 
-    window.A4Pages = { sync, changeDirection, convertLayout, addPage, renderView, paginateView, preview, navigateView, fitLongDocumentToContent };
+    window.A4Pages = { sync, changeDirection, convertLayout, addPage, renderView, paginateView, preview, navigateView, fitLongDocumentToContent, getActiveInput };
     window.addA4Page = function (event) {
         event?.stopPropagation();
         return addPage();

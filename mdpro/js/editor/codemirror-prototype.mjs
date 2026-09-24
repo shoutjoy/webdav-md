@@ -1,4 +1,4 @@
-import { EditorState, EditorSelection, StateField } from 'https://esm.sh/@codemirror/state@6';
+import { EditorState, EditorSelection, StateEffect, StateField } from 'https://esm.sh/@codemirror/state@6';
 import { EditorView, Decoration, WidgetType, keymap, placeholder as editorPlaceholder } from 'https://esm.sh/@codemirror/view@6';
 import { defaultKeymap, history, historyKeymap } from 'https://esm.sh/@codemirror/commands@6';
 import { searchKeymap, highlightSelectionMatches } from 'https://esm.sh/@codemirror/search@6';
@@ -7,6 +7,65 @@ const COMMENT_START = '<!--';
 const COMMENT_END = '-->';
 const DATA_IMAGE_URL_RE = /data:image\/([a-z0-9.+-]+);base64,[a-z0-9+/=]+/gi;
 const DATA_IMAGE_FOLD_MIN_LENGTH = 512;
+const setNonPrintingEffect = StateEffect.define();
+
+class NonPrintingNewlineWidget extends WidgetType {
+    toDOM() {
+        const marker = document.createElement('span');
+        marker.className = 'cm-nonprinting-newline';
+        marker.setAttribute('aria-hidden', 'true');
+        return marker;
+    }
+
+    eq() { return true; }
+}
+
+function isInitialNonPrintingVisible() {
+    return !!(window.MDComment
+        && typeof window.MDComment.areNonPrintingCharactersVisible === 'function'
+        && window.MDComment.areNonPrintingCharactersVisible());
+}
+
+function buildNonPrintingDecorations(state) {
+    const ranges = [];
+    const source = state.doc.toString();
+    for (let index = 0; index < source.length; index += 1) {
+        if (source[index] === ' ') {
+            ranges.push(Decoration.mark({ class: 'cm-nonprinting-space' }).range(index, index + 1));
+        } else if (source[index] === '\t') {
+            ranges.push(Decoration.mark({ class: 'cm-nonprinting-tab' }).range(index, index + 1));
+        }
+    }
+    for (let number = 1; number <= state.doc.lines; number += 1) {
+        ranges.push(Decoration.widget({
+            widget: new NonPrintingNewlineWidget(),
+            // Associate the marker with the text before the line break. A
+            // positive side can make an end-of-line widget render on the next
+            // visual line in CodeMirror.
+            side: -1
+        }).range(state.doc.line(number).to));
+    }
+    return Decoration.set(ranges, true);
+}
+
+const nonPrintingDecorations = StateField.define({
+    create(state) {
+        const enabled = isInitialNonPrintingVisible();
+        return { enabled, decorations: enabled ? buildNonPrintingDecorations(state) : Decoration.none };
+    },
+    update(value, transaction) {
+        let enabled = value.enabled;
+        for (const effect of transaction.effects) {
+            if (effect.is(setNonPrintingEffect)) enabled = !!effect.value;
+        }
+        if (!enabled) return { enabled: false, decorations: Decoration.none };
+        if (transaction.docChanged || enabled !== value.enabled) {
+            return { enabled: true, decorations: buildNonPrintingDecorations(transaction.state) };
+        }
+        return { enabled: true, decorations: value.decorations.map(transaction.changes) };
+    },
+    provide: field => EditorView.decorations.from(field, value => value.decorations)
+});
 
 function formatDataSize(base64Length) {
     const bytes = Math.max(0, Math.floor(base64Length * 3 / 4));
@@ -150,6 +209,12 @@ function ensureStyles() {
         .md-cm6-prototype .cm-activeLine,.md-cm6-prototype .cm-activeLineGutter{background:rgba(99,102,241,.08)}
         .md-cm6-prototype .cm-selectionBackground{background:rgba(99,102,241,.32)!important}
         .md-cm6-prototype .cm-md-comment{color:#7dd3fc;background:rgba(14,116,144,.16);border-radius:3px}
+        .md-cm6-prototype .cm-nonprinting-space,.md-cm6-prototype .cm-nonprinting-tab,.md-cm6-prototype .cm-nonprinting-newline{position:relative}
+        .md-cm6-prototype .cm-nonprinting-space::after,.md-cm6-prototype .cm-nonprinting-tab::after,.md-cm6-prototype .cm-nonprinting-newline::after{position:absolute;color:#93c5fd;font-weight:650;opacity:.74;pointer-events:none}
+        .md-cm6-prototype .cm-nonprinting-space::after{content:'\\00b7';inset:0;text-align:center}
+        .md-cm6-prototype .cm-nonprinting-tab::after{content:'\\2192';left:0;top:0}
+        .md-cm6-prototype .cm-nonprinting-newline{display:inline-block;width:0;height:1em;line-height:1em;vertical-align:baseline}
+        .md-cm6-prototype .cm-nonprinting-newline::after{content:'\\00b6';left:2px;top:50%;transform:translateY(-50%);font-size:1em}
         .md-cm6-prototype .cm-data-image-fold{display:inline-flex;align-items:center;gap:6px;max-width:100%;margin:0 2px;padding:2px 8px;border:1px solid #475569;border-radius:6px;background:#111827;color:#cbd5e1;font:600 .82em/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;vertical-align:baseline;cursor:pointer}
         .md-cm6-prototype .cm-data-image-fold:hover,.md-cm6-prototype .cm-data-image-fold:focus-visible{border-color:#818cf8;background:#1e1b4b;outline:none}
         .md-cm6-prototype .cm-data-image-fold-prefix{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -158,6 +223,7 @@ function ensureStyles() {
         .md-cm6-source-hidden{display:none!important}
         html:not(.dark) .md-cm6-prototype{background:#fff;color:#1f2937}
         html:not(.dark) .md-cm6-prototype .cm-content{caret-color:#111827}
+        html:not(.dark) .md-cm6-prototype .cm-nonprinting-space::after,html:not(.dark) .md-cm6-prototype .cm-nonprinting-tab::after,html:not(.dark) .md-cm6-prototype .cm-nonprinting-newline::after{color:#60a5fa}
         html:not(.dark) .md-cm6-prototype .cm-data-image-fold{border-color:#cbd5e1;background:#f8fafc;color:#334155}
         html:not(.dark) .md-cm6-prototype .cm-data-image-fold:hover,html:not(.dark) .md-cm6-prototype .cm-data-image-fold:focus-visible{border-color:#6366f1;background:#eef2ff}
         html:not(.dark) .md-cm6-prototype .cm-data-image-fold-badge{background:#e0e7ff;color:#4338ca}
@@ -319,6 +385,7 @@ function mount(textarea, options = {}) {
                 highlightSelectionMatches(),
                 commentDecorations,
                 dataImageDecorations,
+                nonPrintingDecorations,
                 editorPlaceholder(textarea.getAttribute('placeholder') || '생각을 입력하세요'),
                 EditorView.lineWrapping,
                 EditorView.updateListener.of(update => {
@@ -362,4 +429,17 @@ function destroy(textarea) {
     return true;
 }
 
-window.MDCm6Prototype = Object.freeze({ mount, destroy, toggleComment, runBenchmark });
+function setNonPrintingCharacters(textarea, visible) {
+    const view = textarea && textarea.__mdCm6View;
+    if (!view) return false;
+    view.dispatch({ effects: setNonPrintingEffect.of(!!visible) });
+    return true;
+}
+
+window.MDCm6Prototype = Object.freeze({
+    mount,
+    destroy,
+    toggleComment,
+    runBenchmark,
+    setNonPrintingCharacters
+});

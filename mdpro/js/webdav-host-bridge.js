@@ -159,7 +159,11 @@
             window.toggleSidebarVisibility();
         }
         const editButton = document.querySelector('[onclick*="toggleMode"][onclick*="edit"]');
-        if (editButton && editButton.getAttribute('aria-pressed') === 'false') editButton.click();
+        const hostDocument = window.__webdavHostDocument;
+        const rendersAsHtml = !!(hostDocument
+            && typeof window.getRenderableHtmlDocument === 'function'
+            && window.getRenderableHtmlDocument(currentDocumentText(), hostDocument.fileName) !== null);
+        if (!rendersAsHtml && editButton && editButton.getAttribute('aria-pressed') === 'false') editButton.click();
     }
 
     async function openImageInsertFromFma(image) {
