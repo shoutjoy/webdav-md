@@ -15512,6 +15512,51 @@ function renderSettingsLMStudioLoadedModels(models, errorMessage) {
     );
 }
 
+function renderSettingsLMStudioInstalledModels(models, errorMessage) {
+    const container = document.getElementById('settings-lmstudio-installed-models');
+    const detail = document.getElementById('settings-lmstudio-installed-models-detail');
+    const state = document.getElementById('settings-lmstudio-installed-state');
+    if (!container || !detail) return;
+    const installed = normalizeLMStudioLoadedModels(models);
+    container.replaceChildren();
+    if (errorMessage) {
+        container.textContent = '설치 모델 목록을 불러오지 못했습니다.';
+        container.className = 'mt-2 max-h-32 overflow-y-auto rounded border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-2 py-2 text-xs text-red-700 dark:text-red-300';
+        detail.textContent = errorMessage;
+        if (state) {
+            state.textContent = '조회 실패';
+            state.className = 'px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300 text-[10px]';
+        }
+        return;
+    }
+    container.className = 'mt-2 max-h-32 overflow-y-auto rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 px-2 py-2 text-xs text-slate-700 dark:text-slate-200';
+    if (!installed.length) {
+        container.textContent = '설치된 LLM 없음';
+        detail.textContent = 'LM Studio의 My Models에서 모델을 다운로드한 뒤 다시 불러오세요.';
+        if (state) {
+            state.textContent = '0개';
+            state.className = 'px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 text-[10px]';
+        }
+        return;
+    }
+    const list = document.createElement('ul');
+    list.className = 'space-y-1';
+    installed.forEach(function (model) {
+        const item = document.createElement('li');
+        item.className = 'break-all rounded bg-slate-50 dark:bg-slate-800 px-2 py-1.5';
+        item.textContent = model.displayName && model.displayName !== model.id
+            ? model.displayName + ' · ' + model.id
+            : model.id;
+        list.appendChild(item);
+    });
+    container.appendChild(list);
+    detail.textContent = 'LM Studio에 다운로드된 LLM ' + installed.length + '개를 확인했습니다.';
+    if (state) {
+        state.textContent = installed.length + '개';
+        state.className = 'px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[10px]';
+    }
+}
+
 function migrateLegacyScholarAIProviderSettings(legacySettings) {
     if (!window.LocalAI || localStorage.getItem(window.LocalAI.storageKey)) return;
     let legacy = legacySettings || {};
@@ -15566,6 +15611,7 @@ function loadScholarAIProviderSettingsUI(legacySettings) {
     renderSettingsLMStudioLoadedModels(readStoredModelList(SCHOLAR_AI_LM_MODELS_KEY));
     renderSettingsGeminiModels(readStoredModelList(SCHOLAR_AI_GEMINI_MODELS_KEY));
     setTimeout(function () { loadSettingsLMStudioModels({ silent: true }); }, 0);
+    setTimeout(function () { loadSettingsLMStudioInstalledModels({ silent: true }); }, 0);
 }
 
 function saveScholarAIProviderSettingsFromUI(showStatus) {
@@ -15604,6 +15650,97 @@ async function loadSettingsLMStudioModels(options) {
         if (!options.silent) setSettingsScholarAIStatus('LM Studio 로드 모델 확인 실패: ' + message, true);
     }
 }
+
+async function loadSettingsLMStudioInstalledModels(options) {
+    options = options || {};
+    const config = saveScholarAIProviderSettingsFromUI(false);
+    if (!config) return;
+    if (!options.silent) setSettingsScholarAIStatus('LM Studio 설치 모델 목록을 불러오는 중...', false);
+    try {
+        const models = await getScholarAIProviderRuntime().listLMStudioModels(config);
+        renderSettingsLMStudioInstalledModels(models);
+        if (!options.silent) setSettingsScholarAIStatus('LM Studio 설치 모델 ' + models.length + '개를 불러왔습니다.', false);
+    } catch (error) {
+        const message = error && error.message ? error.message : String(error);
+        renderSettingsLMStudioInstalledModels([], message);
+        if (!options.silent) setSettingsScholarAIStatus('LM Studio 설치 모델 조회 실패: ' + message, true);
+    }
+}
+window.loadSettingsLMStudioInstalledModels = loadSettingsLMStudioInstalledModels;
+
+function getSettingsLMStudioServerPort(config) {
+    try {
+        const parsed = new URL(String(config && config.baseUrl || 'http://127.0.0.1:5678/v1'));
+        return Number(parsed.port || (parsed.protocol === 'https:' ? 443 : 80));
+    } catch (_) {
+        return 5678;
+    }
+}
+
+async function copySettingsLMStudioServerCommand(command) {
+    try {
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            await navigator.clipboard.writeText(command);
+            return true;
+        }
+    } catch (_) {}
+    const textarea = document.createElement('textarea');
+    textarea.value = command;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.select();
+    let copied = false;
+    try { copied = document.execCommand('copy') === true; } catch (_) {}
+    textarea.remove();
+    return copied;
+}
+
+async function applySettingsLMStudioServerOptions() {
+    const config = saveScholarAIProviderSettingsFromUI(false);
+    if (!config) return;
+    const networkInput = document.getElementById('settings-lmstudio-serve-network');
+    const corsInput = document.getElementById('settings-lmstudio-enable-cors');
+    const button = document.getElementById('settings-lmstudio-apply-server-options');
+    const payload = {
+        port: getSettingsLMStudioServerPort(config),
+        serveOnLocalNetwork: !!(networkInput && networkInput.checked),
+        enableCors: !!(corsInput && corsInput.checked)
+    };
+    const args = ['lms server stop', 'lms server start --port ' + payload.port];
+    if (payload.serveOnLocalNetwork) args[1] += ' --bind 0.0.0.0';
+    if (payload.enableCors) args[1] += ' --cors';
+    const command = args.join('\n');
+    if (button) button.disabled = true;
+    setSettingsScholarAIStatus('LM Studio 서버 옵션을 적용하는 중...', false);
+    try {
+        const response = await fetch('/api/lmstudio-server/configure', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-MDPro-Local-Action': 'lmstudio-server' },
+            body: JSON.stringify(payload)
+        });
+        const result = await response.json().catch(function () { return {}; });
+        if (!response.ok || !result.ok) throw new Error(result.error || '로컬 서버 제어 기능을 사용할 수 없습니다.');
+        setSettingsScholarAIStatus('LM Studio 서버를 재시작했습니다 · 포트 ' + result.port + (payload.serveOnLocalNetwork ? ' · Local Network ON' : '') + (payload.enableCors ? ' · CORS ON' : ''), false);
+        setTimeout(function () {
+            loadSettingsLMStudioInstalledModels({ silent: true });
+            loadSettingsLMStudioModels({ silent: true });
+        }, 1200);
+    } catch (error) {
+        const copied = await copySettingsLMStudioServerCommand(command);
+        const reason = error && error.message ? error.message : String(error);
+        setSettingsScholarAIStatus(
+            copied
+                ? '자동 적용을 사용할 수 없어 실행 명령을 복사했습니다. 터미널에 붙여넣어 실행하세요. (' + reason + ')'
+                : '자동 적용 실패: ' + reason + ' · 터미널에서 다음 명령을 실행하세요: ' + command.replace(/\n/g, ' / '),
+            true
+        );
+    } finally {
+        if (button) button.disabled = false;
+    }
+}
+window.applySettingsLMStudioServerOptions = applySettingsLMStudioServerOptions;
 
 async function testSettingsLMStudioConnection() {
     const config = saveScholarAIProviderSettingsFromUI(false);
