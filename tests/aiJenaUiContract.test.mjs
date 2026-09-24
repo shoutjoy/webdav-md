@@ -9,6 +9,8 @@ const chatScript = readFileSync(resolve(repositoryRoot, 'mdpro/AI_App/aiChat/ai-
 const chatStyles = readFileSync(resolve(repositoryRoot, 'mdpro/AI_App/aiChat/ai-chat.css'), 'utf8');
 const appStyles = readFileSync(resolve(repositoryRoot, 'mdpro/css/style.css'), 'utf8');
 const markup = readFileSync(resolve(repositoryRoot, 'mdpro/index.html'), 'utf8');
+const lmStudioSettings = readFileSync(resolve(repositoryRoot, 'mdpro/AI_App/aiChat/lmstudio-settings.js'), 'utf8');
+const appScript = readFileSync(resolve(repositoryRoot, 'mdpro/js/app.js'), 'utf8');
 
 const requiredHeaderControls = [
   'ai-chat-history-toggle',
@@ -89,4 +91,15 @@ test('the AI Jena menu button toggles the panel closed in Alt+4 and every other 
   assert.match(chatScript, /menuButton\.setAttribute\('aria-pressed', state\.open \? 'true' : 'false'\)/);
   assert.match(markup, /id="btn-ai-jena-menu"[^>]*aria-pressed="false"/);
   assert.match(appStyles, /#btn-ai-jena-menu\.header-quick-tool-active/);
+});
+
+test('ENV keeps Gemini loading out of LM Studio and exposes local model and server controls', () => {
+  assert.doesNotMatch(lmStudioSettings, /loadSettingsGeminiModels\(\)/);
+  assert.match(lmStudioSettings, /id="settings-lmstudio-installed-models"/);
+  assert.match(lmStudioSettings, /loadSettingsLMStudioInstalledModels\(\)/);
+  assert.match(lmStudioSettings, /id="settings-lmstudio-serve-network"/);
+  assert.match(lmStudioSettings, /id="settings-lmstudio-enable-cors"/);
+  assert.match(lmStudioSettings, /applySettingsLMStudioServerOptions\(\)/);
+  assert.match(appScript, /listLMStudioModels\(config\)/);
+  assert.match(appScript, /\/api\/lmstudio-server\/configure/);
 });
