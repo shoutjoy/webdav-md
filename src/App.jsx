@@ -19,6 +19,9 @@ import { clearLoginSession, readLoginSession, writeLoginSession } from './loginS
 import ShareDialog from './components/ShareDialog.jsx';
 import usePanelWindows from './usePanelWindows.js';
 import { readCredentialVaultFromWebDav, writeCredentialVaultToWebDav } from './credentialVaultStorage.js';
+import { isSourceCodeFile } from './codeFileTypes.js';
+
+const CodeEditPage = React.lazy(() => import('./components/CodeEditPage.jsx'));
 
 const SAVED_LOGIN_KEY = 'webdav-viewer-login';
 const EXPLORER_WIDTH_KEY = 'webdav-explorer-width';
@@ -315,7 +318,7 @@ export default function App() {
   const [copiedKey, setCopiedKey] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [editorContent, setEditorContent] = useState('');
-  const [, setSavedContent] = useState('');
+  const [savedContent, setSavedContent] = useState('');
   const [editorDirty, setEditorDirty] = useState(false);
   const [mediaPreviewUrl, setMediaPreviewUrl] = useState('');
   const [editorLoading, setEditorLoading] = useState(false);
@@ -386,7 +389,7 @@ export default function App() {
   const resetDirectoryState = useDirectoryStore((state) => state.resetDirectoryState);
   const setFullDirectoryTree = useDirectoryStore((state) => state.setFullDirectoryTree);
 
-  const hasEditorChanges = selectedFile?.viewMode === 'text' && editorDirty;
+  const hasEditorChanges = ['text', 'code'].includes(selectedFile?.viewMode) && editorDirty;
 
   const createConfiguredWebDavClient = () => {
     const baseUrl = url.trim().replace(/\/$/, '');
@@ -868,6 +871,19 @@ export default function App() {
     setEditorDirty(Boolean(dirty));
   };
 
+  const handleCodeContentChange = (content) => {
+    const nextContent = String(content ?? '');
+    editorContentRef.current = nextContent;
+    setEditorContent(nextContent);
+    setEditorDirty(nextContent !== savedContent);
+  };
+
+  const handleCopyEditorContent = async () => {
+    const copied = await copyToClipboard(String(editorContentRef.current ?? ''));
+    if (copied) showToast('파일 내용을 복사했습니다.');
+    else setError('클립보드 복사에 실패했습니다.');
+  };
+
   const saveBeforeOpeningFile = async (file) => {
     if (!hasEditorChanges) return true;
     const currentFile = selectedFileRef.current;
@@ -936,7 +952,7 @@ export default function App() {
     if (!client) return;
 
     const remotePath = normalizeRemotePath(file.remotePath);
-    const nextViewMode = fmaImage ? 'fma' : mediaType ? 'media' : docxFile ? 'docx' : 'text';
+    const nextViewMode = fmaImage ? 'fma' : mediaType ? 'media' : docxFile ? 'docx' : isSourceCodeFile(file.name) ? 'code' : 'text';
     setEditorLoading(true);
     setError('');
     try {
@@ -971,7 +987,7 @@ export default function App() {
       } else {
         const data = await client.getFileContents(remotePath, { format: 'text' });
         const text = await textFromFileContents(data);
-        const nextFile = { ...file, remotePath, viewMode: 'text' };
+        const nextFile = { ...file, remotePath, viewMode: nextViewMode };
         selectedFileRef.current = nextFile;
         lastTextFileRef.current = nextFile;
         setSelectedFile(nextFile);
@@ -995,9 +1011,9 @@ export default function App() {
   const handleSaveFile = async (nextContent, sourcePath, options = {}) => {
     const client = clientRef.current;
     const selected = selectedFileRef.current;
-    const file = selected?.viewMode === 'text' ? selected : lastTextFileRef.current;
+    const file = ['text', 'code'].includes(selected?.viewMode) ? selected : lastTextFileRef.current;
     const content = typeof nextContent === 'string' ? nextContent : editorContentRef.current;
-    if (!client || !file || file.viewMode !== 'text') return false;
+    if (!client || !file || !['text', 'code'].includes(file.viewMode)) return false;
     if (sourcePath && normalizeRemotePath(sourcePath) !== normalizeRemotePath(file.remotePath)) return false;
 
     setEditorLoading(true);
@@ -1078,7 +1094,7 @@ export default function App() {
       const content = request.content;
       await saveFileVerified(client, targetPath, content, { overwrite: targetExists, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
       const name = targetPath.split('/').filter(Boolean).at(-1) || request.suggestedName;
-      const nextFile = { ...(selectedFileRef.current || {}), name, remotePath: targetPath, viewMode: 'text' };
+      const nextFile = { ...(selectedFileRef.current || {}), name, remotePath: targetPath, viewMode: isSourceCodeFile(name) ? 'code' : 'text' };
       setSelectedFile(nextFile);
       selectedFileRef.current = nextFile;
       rememberWork(nextFile);
@@ -2253,7 +2269,19 @@ export default function App() {
             aria-label="탐색기와 MDPRO 너비 조절"
             title="드래그 또는 방향키로 MDPRO 너비 조절 · 더블클릭으로 초기화"
           ><div className="split-resizer-grip" /></div>}
-          <MdproEditor
+          {selectedFile?.viewMode === 'code' ? <React.Suspense fallback={<div className="code-editor-loading">코드 편집기를 불러오는 중…</div>}>
+            <CodeEditPage
+              selectedFile={selectedFile}
+              editorContent={editorContent}
+              editorLoading={editorLoading || isWebDavSaving}
+              hasEditorChanges={hasEditorChanges}
+              explorerWidth={isExplorerOpen && !isExplorerCompact ? explorerWidth : 0}
+              onContentChange={handleCodeContentChange}
+              onCopy={handleCopyEditorContent}
+              onSave={() => handleSaveFile()}
+              onClose={handleCloseEditor}
+            />
+          </React.Suspense> : <MdproEditor
             onReadJenaRecords={() => readJenaRecords(clientRef.current)}
             onSaveJenaRecord={(record) => saveJenaRecord(clientRef.current, record)}
             onSaveSettingsMset={async (settingsText) => {
@@ -2295,7 +2323,7 @@ export default function App() {
             onRequestCreateFile={() => setCreateDestinationType('file')}
             onOpenTocPopup={openTocPopup}
             onThemeChange={setIsDarkTheme}
-          />
+          />}
         </div>
       </div>
 

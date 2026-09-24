@@ -661,19 +661,22 @@
     };
   }
 
+  function collectMermaidImages(root) {
+    if (!root || typeof root.querySelectorAll !== 'function') return [];
+    var wrappers = Array.prototype.slice.call(root.querySelectorAll('.trt-mermaid-wrapper'));
+    return wrappers.map(function (wrapper) {
+      var svg = wrapper.querySelector && wrapper.querySelector('svg');
+      var source = wrapper.getAttribute('data-mermaid-original-source') ||
+        wrapper.getAttribute('data-mermaid-source') || '';
+      return svgElementToMermaidImage(svg, source);
+    }).filter(Boolean);
+  }
+
   function extractMermaidImagesFromHtml(html) {
     if (typeof global.DOMParser !== 'function') return [];
     try {
       var documentNode = new global.DOMParser().parseFromString(String(html || ''), 'text/html');
-      var wrappers = documentNode && documentNode.querySelectorAll
-        ? Array.prototype.slice.call(documentNode.querySelectorAll('.trt-mermaid-wrapper'))
-        : [];
-      return wrappers.map(function (wrapper) {
-        var svg = wrapper.querySelector && wrapper.querySelector('svg');
-        var source = wrapper.getAttribute('data-mermaid-original-source') ||
-          wrapper.getAttribute('data-mermaid-source') || '';
-        return svgElementToMermaidImage(svg, source);
-      }).filter(Boolean);
+      return collectMermaidImages(documentNode);
     } catch (_) {
       return [];
     }
@@ -1843,6 +1846,7 @@
 
   global.DocxExport = Object.freeze({
     createBlob: createBlob,
+    collectMermaidImages: collectMermaidImages,
     extractNoteCoverBlocks: extractNoteCoverBlocks,
     mimeType: DOCX_MIME
   });

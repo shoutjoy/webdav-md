@@ -1,8 +1,23 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
 import CodeMirror from 'codemirror';
 import 'codemirror/lib/codemirror.css';
+import 'codemirror/mode/clike/clike.js';
+import 'codemirror/mode/css/css.js';
+import 'codemirror/mode/go/go.js';
+import 'codemirror/mode/htmlmixed/htmlmixed.js';
+import 'codemirror/mode/javascript/javascript.js';
+import 'codemirror/mode/php/php.js';
+import 'codemirror/mode/properties/properties.js';
+import 'codemirror/mode/python/python.js';
+import 'codemirror/mode/ruby/ruby.js';
+import 'codemirror/mode/rust/rust.js';
+import 'codemirror/mode/shell/shell.js';
+import 'codemirror/mode/sql/sql.js';
+import 'codemirror/mode/xml/xml.js';
+import 'codemirror/mode/yaml/yaml.js';
 import { Save, X, Copy, Eye, Pencil, ZoomIn, ZoomOut } from 'lucide-react';
 import MarkdownIt from 'markdown-it';
+import { getCodeMirrorMode } from '../codeFileTypes.js';
 
 const md = new MarkdownIt({
   html: true,
@@ -124,58 +139,56 @@ export default function CodeEditPage({
 }) {
   const editorContainerRef = useRef(null);
   const codeMirrorRef = useRef(null);
+  const onContentChangeRef = useRef(onContentChange);
+  const onSaveRef = useRef(onSave);
+  const editorContentRef = useRef(editorContent);
   const [markdownPreviewPath, setMarkdownPreviewPath] = useState('');
   const [zoomLevel, dispatch] = useReducer(zoomReducer, 1);
 
   const isMediaView = selectedFile?.viewMode === 'media';
-  const isMarkdownFile = !isMediaView && /\.md$/i.test(selectedFile?.remotePath || '');
-  const isMarkdownView = isMarkdownFile && markdownPreviewPath === selectedFile?.remotePath;
+  const selectedPath = selectedFile?.remotePath || '';
+  const selectedName = selectedFile?.name || selectedPath;
+  const isMarkdownFile = !isMediaView && /\.md$/i.test(selectedPath);
+  const isMarkdownView = isMarkdownFile && markdownPreviewPath === selectedPath;
+
+  useEffect(() => {
+    onContentChangeRef.current = onContentChange;
+  }, [onContentChange]);
+
+  useEffect(() => {
+    onSaveRef.current = onSave;
+  }, [onSave]);
+
+  useEffect(() => {
+    editorContentRef.current = editorContent;
+  }, [editorContent]);
 
   // Reset zoom level when selected file or view mode changes
   useEffect(() => {
     dispatch({ type: 'RESET' });
-  }, [selectedFile?.remotePath, isMediaView]);
-
-  // Default to markdown preview when opening a .md file
-  useEffect(() => {
-    if (!selectedFile) {
-      setMarkdownPreviewPath('');
-      return;
-    }
-
-    // If the current file is a media file, clear markdown preview
-    if (selectedFile.viewMode === 'media') {
-      setMarkdownPreviewPath('');
-      return;
-    }
-
-    // If this is a markdown file, default to preview mode when the file is opened
-    if (/\.md$/i.test(selectedFile.remotePath || '')) {
-      setMarkdownPreviewPath(selectedFile.remotePath);
-    } else {
-      setMarkdownPreviewPath('');
-    }
-  }, [selectedFile?.remotePath, selectedFile?.viewMode]);
+  }, [selectedPath, isMediaView]);
 
   useEffect(() => {
-    if (isMediaView || !selectedFile || !editorContainerRef.current) return;
+    if (isMediaView || !selectedPath || !editorContainerRef.current) return;
 
     editorContainerRef.current.innerHTML = '';
     const editor = CodeMirror(editorContainerRef.current, {
-      value: editorContent,
+      value: editorContentRef.current,
+      mode: getCodeMirrorMode(selectedName),
       lineNumbers: true,
-      lineWrapping: true,
+      lineWrapping: false,
       indentUnit: 2,
       tabSize: 2,
+      indentWithTabs: false,
       extraKeys: {
-        'Ctrl-S': () => onSave(),
-        'Cmd-S': () => onSave(),
+        'Ctrl-S': () => onSaveRef.current(),
+        'Cmd-S': () => onSaveRef.current(),
       },
     });
 
     editor.setSize('100%', '100%');
     editor.on('change', (instance) => {
-      onContentChange(instance.getValue());
+      onContentChangeRef.current(instance.getValue());
     });
     codeMirrorRef.current = editor;
 
@@ -183,7 +196,7 @@ export default function CodeEditPage({
     return () => {
       codeMirrorRef.current = null;
     };
-  }, [selectedFile?.remotePath, isMediaView]);
+  }, [selectedPath, selectedName, isMediaView]);
 
   useEffect(() => {
     const editor = codeMirrorRef.current;
@@ -252,7 +265,7 @@ export default function CodeEditPage({
 
   return (
     <div
-      className="flex min-h-0 max-h-[calc(100vh-180px)] min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
+      className="code-editor-stage flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
       style={{ flexBasis: `${100 - explorerWidth}%` }}
     >
       <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2">
@@ -266,7 +279,7 @@ export default function CodeEditPage({
           <button
             onClick={() => {
               setMarkdownPreviewPath((path) =>
-                path === selectedFile.remotePath ? '' : selectedFile.remotePath
+                path === selectedPath ? '' : selectedPath
               );
             }}
             className={`rounded p-1.5 ${

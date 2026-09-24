@@ -20,6 +20,7 @@
 })(typeof window !== 'undefined' ? window : null, function (root) {
     const OPEN = '<!--';
     const CLOSE = '-->';
+    const NONPRINTING_STORAGE_KEY = 'mdpro-show-nonprinting-characters';
     const DEFAULT_HIGHLIGHT_OPTIONS = Object.freeze({
         largeDocumentThreshold: 200000,
         plainTextThreshold: 300000,
@@ -30,6 +31,7 @@
         dark: '#facc15'
     });
     let activeEditorDebugState = null;
+    let activeNonPrintingVisible = false;
 
     function normalizePositiveNumber(value, fallback) {
         const parsed = Number(value);
@@ -64,9 +66,12 @@
         };
     }
 
-    function getHighlightMode(value, options) {
+    function getHighlightMode(value, options, showNonPrinting) {
         const source = String(value == null ? '' : value);
         const settings = options || DEFAULT_HIGHLIGHT_OPTIONS;
+        if (showNonPrinting) {
+            return source.length >= settings.largeDocumentThreshold ? 'mirror-large' : 'mirror';
+        }
         if (source.indexOf(OPEN) < 0) return 'native';
         if (source.length >= settings.plainTextThreshold) return 'plain-large';
         if (source.length >= settings.largeDocumentThreshold) return 'mirror-large';
@@ -80,6 +85,28 @@
             .replace(/>/g, '&gt;');
     }
 
+    function createTextMarkup(value, showNonPrinting) {
+        const source = String(value == null ? '' : value);
+        if (!showNonPrinting) return escapeHtml(source);
+        const parts = [];
+        let textStart = 0;
+        for (let index = 0; index < source.length; index += 1) {
+            const character = source[index];
+            if (character !== ' ' && character !== '\t' && character !== '\n') continue;
+            if (index > textStart) parts.push(escapeHtml(source.slice(textStart, index)));
+            if (character === ' ') {
+                parts.push('<span class="md-nonprinting-space"> </span>');
+            } else if (character === '\t') {
+                parts.push('<span class="md-nonprinting-tab">\t</span>');
+            } else {
+                parts.push('<span class="md-nonprinting-newline"></span>\n');
+            }
+            textStart = index + 1;
+        }
+        if (textStart < source.length) parts.push(escapeHtml(source.slice(textStart)));
+        return parts.join('');
+    }
+
     function stripForRender(value) {
         return String(value == null ? '' : value).replace(/<!--[\s\S]*?-->/g, function (comment) {
             // note-cover is application metadata that must reach NoteCoverRenderer.
@@ -88,24 +115,28 @@
         });
     }
 
-    function createHighlightMarkup(value) {
+    function createHighlightMarkup(value, options) {
         const source = String(value == null ? '' : value);
+        const showNonPrinting = !!(options && options.showNonPrinting);
         const parts = [];
         let cursor = 0;
 
         while (cursor < source.length) {
             const openAt = source.indexOf(OPEN, cursor);
             if (openAt < 0) {
-                parts.push(escapeHtml(source.slice(cursor)));
+                parts.push(createTextMarkup(source.slice(cursor), showNonPrinting));
                 break;
             }
-            parts.push(escapeHtml(source.slice(cursor, openAt)));
+            parts.push(createTextMarkup(source.slice(cursor, openAt), showNonPrinting));
             const closeAt = source.indexOf(CLOSE, openAt + OPEN.length);
             const commentEnd = closeAt < 0 ? source.length : closeAt + CLOSE.length;
-            parts.push('<span class="md-editor-comment">' + escapeHtml(source.slice(openAt, commentEnd)) + '</span>');
+            parts.push('<span class="md-editor-comment">' + createTextMarkup(source.slice(openAt, commentEnd), showNonPrinting) + '</span>');
             cursor = commentEnd;
         }
 
+        if (showNonPrinting && source.length > 0) {
+            parts.push('<span class="md-nonprinting-newline"></span>');
+        }
         if (source.endsWith('\n')) parts.push('\u200b');
         return parts.join('');
     }
@@ -141,6 +172,11 @@
         let lastMode = '';
         let lastGeometrySignature = '';
         let largeModeNoticeShown = false;
+        try {
+            activeNonPrintingVisible = root.localStorage.getItem(NONPRINTING_STORAGE_KEY) === 'true';
+        } catch (_) {
+            activeNonPrintingVisible = false;
+        }
         const debugState = {
             scheduleRequests: 0,
             refreshCount: 0,
@@ -216,11 +252,39 @@
             }
         }
 
+        function updateNonPrintingButton() {
+            const button = doc.getElementById('btn-toggle-nonprinting');
+            if (!button) return;
+            button.classList.toggle('is-active', activeNonPrintingVisible);
+            button.setAttribute('aria-pressed', activeNonPrintingVisible ? 'true' : 'false');
+            button.title = (activeNonPrintingVisible ? '인쇄 불가 문자 숨기기' : '인쇄 불가 문자 표시') + ' (Ctrl+Shift+P)';
+        }
+
+        function setNonPrintingCharactersVisible(visible, notify) {
+            activeNonPrintingVisible = !!visible;
+            wrapper.classList.toggle('show-nonprinting-characters', activeNonPrintingVisible);
+            updateNonPrintingButton();
+            try {
+                root.localStorage.setItem(NONPRINTING_STORAGE_KEY, activeNonPrintingVisible ? 'true' : 'false');
+            } catch (_) {}
+            if (root.MDCm6Prototype && typeof root.MDCm6Prototype.setNonPrintingCharacters === 'function') {
+                root.MDCm6Prototype.setNonPrintingCharacters(textarea, activeNonPrintingVisible);
+            }
+            root.dispatchEvent(new root.CustomEvent('mdpro:nonprinting-change', {
+                detail: { visible: activeNonPrintingVisible }
+            }));
+            scheduleHighlightRefresh({ force: true, geometry: true });
+            if (notify && typeof root.showToast === 'function') {
+                root.showToast(activeNonPrintingVisible ? '인쇄 불가 문자 표시를 켰습니다.' : '인쇄 불가 문자 표시를 껐습니다.');
+            }
+            return activeNonPrintingVisible;
+        }
+
         function refresh(force) {
             if (isComposing && !force) return false;
             const startedAt = getNow();
             const source = textarea.value;
-            const mode = getHighlightMode(source, highlightOptions);
+            const mode = getHighlightMode(source, highlightOptions, activeNonPrintingVisible);
             debugState.refreshCount += 1;
             debugState.lastChars = source.length;
             debugState.lastMode = mode;
@@ -234,7 +298,7 @@
 
             applyHighlightMode(mode);
             if (mode === 'mirror' || mode === 'mirror-large') {
-                const nextMarkup = createHighlightMarkup(source);
+                const nextMarkup = createHighlightMarkup(source, { showNonPrinting: activeNonPrintingVisible });
                 if (nextMarkup !== lastRenderedMarkup) {
                     mirror.innerHTML = nextMarkup;
                     lastRenderedMarkup = nextMarkup;
@@ -330,6 +394,19 @@
             return true;
         }
 
+        function handleNonPrintingShortcut(event) {
+            if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.altKey) return false;
+            if (event.code !== 'KeyP' && String(event.key || '').toLowerCase() !== 'p') return false;
+            const target = event.target;
+            if (target !== textarea && target && target.closest
+                && target.closest('input, textarea, select, [contenteditable="true"]:not(.cm-content)')) return false;
+            event.preventDefault();
+            event.stopPropagation();
+            if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+            setNonPrintingCharactersVisible(!activeNonPrintingVisible, true);
+            return true;
+        }
+
         textarea.addEventListener('input', function () {
             scheduleHighlightRefresh();
         });
@@ -345,6 +422,7 @@
             scheduleHighlightRefresh({ geometry: true });
         });
         root.addEventListener('keydown', toggleSelectedComment, true);
+        root.addEventListener('keydown', handleNonPrintingShortcut, true);
 
         const valueDescriptor = Object.getOwnPropertyDescriptor(root.HTMLTextAreaElement.prototype, 'value');
         if (valueDescriptor && valueDescriptor.get && valueDescriptor.set) {
@@ -379,6 +457,13 @@
         root.getMarkdownCommentPerformanceState = function () {
             return Object.assign({}, debugState);
         };
+        root.setNonPrintingCharactersVisible = function (visible) {
+            return setNonPrintingCharactersVisible(visible, false);
+        };
+        root.toggleNonPrintingCharacters = function () {
+            return setNonPrintingCharactersVisible(!activeNonPrintingVisible, true);
+        };
+        updateNonPrintingButton();
         scheduleHighlightRefresh({ force: true, geometry: true });
         return true;
     }
@@ -386,9 +471,11 @@
     return {
         stripForRender: stripForRender,
         createHighlightMarkup: createHighlightMarkup,
+        createTextMarkup: createTextMarkup,
         getToggleReplacement: getToggleReplacement,
         getHighlightMode: getHighlightMode,
         normalizeEditorCommentColor: normalizeEditorCommentColor,
+        areNonPrintingCharactersVisible: function () { return activeNonPrintingVisible; },
         getEditorDebugState: function () {
             return activeEditorDebugState ? Object.assign({}, activeEditorDebugState) : null;
         },

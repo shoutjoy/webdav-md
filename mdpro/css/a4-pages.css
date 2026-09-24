@@ -83,8 +83,22 @@ body.long-document-resizing .long-document-resize-corner { cursor: nwse-resize !
 #a4-pages { width: max-content; min-width: 100%; min-height: max-content; padding: 0 0 64px; }
 .a4-sheet { box-sizing: border-box; width: 210mm; height: 297mm; padding: 20mm; margin: 0 auto 24px; position: relative; background: var(--a4-paper, #fff); color: var(--a4-ink, #172033); box-shadow: 0 2px 12px #0005; }
 .a4-sheet[data-orientation="landscape"] { width: 297mm; height: 210mm; }
-.a4-text, #a4-measure { box-sizing: border-box; padding: 0; border: 0; font-family: Arial, sans-serif; font-size: var(--md-app-font-size, 16px); line-height: calc(var(--md-app-font-size, 16px) * 1.625); letter-spacing: normal; tab-size: 4; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; }
-.a4-text { display: block; width: 100%; height: 100%; resize: none; outline: none; overflow: hidden; background: transparent; color: var(--a4-ink, #172033); }
+.a4-text, .a4-nonprinting-layer, #a4-measure { box-sizing: border-box; padding: 0; border: 0; font-family: Arial, sans-serif; font-size: var(--md-app-font-size, 16px); line-height: calc(var(--md-app-font-size, 16px) * 1.625); letter-spacing: normal; tab-size: 4; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; }
+.a4-text { position: relative; z-index: 1; display: block; width: 100%; height: 100%; resize: none; outline: none; overflow: hidden; background: transparent; color: var(--a4-ink, #172033); }
+.a4-nonprinting-layer { position: absolute; z-index: 0; inset: 20mm; width: auto; height: auto; margin: 0; overflow: hidden; pointer-events: none; color: transparent; background: transparent; }
+.a4-nonprinting-layer .md-nonprinting-space,
+.a4-nonprinting-layer .md-nonprinting-tab,
+.a4-nonprinting-layer .md-nonprinting-newline { position: relative; }
+.a4-nonprinting-layer .md-nonprinting-space::after,
+.a4-nonprinting-layer .md-nonprinting-tab::after,
+.a4-nonprinting-layer .md-nonprinting-newline::after { position: absolute; color: #60a5fa; font-weight: 650; opacity: .74; pointer-events: none; }
+.a4-nonprinting-layer .md-nonprinting-space::after { content: '\00b7'; inset: 0; text-align: center; }
+.a4-nonprinting-layer .md-nonprinting-tab::after { content: '\2192'; left: 0; top: 0; }
+.a4-nonprinting-layer .md-nonprinting-newline { display: inline-block; width: 0; height: 1em; line-height: 1em; vertical-align: baseline; }
+.a4-nonprinting-layer .md-nonprinting-newline::after { content: '\00b6'; left: 2px; top: 50%; transform: translateY(-50%); font-size: 1em; }
+#drop-zone.document-dark-mode .a4-nonprinting-layer .md-nonprinting-space::after,
+#drop-zone.document-dark-mode .a4-nonprinting-layer .md-nonprinting-tab::after,
+#drop-zone.document-dark-mode .a4-nonprinting-layer .md-nonprinting-newline::after { color: #93c5fd; }
 .a4-number { position: absolute; bottom: 7mm; left: 0; width: 100%; text-align: center; font: 12px/1.4 Arial, sans-serif; color: #64748b; pointer-events: none; }
 .a4-add { display: block; margin: 8px auto; padding: 10px 24px; border: 1px solid #94a3b8; border-radius: 8px; background: #fff; color: #172033; cursor: pointer; }
 #a4-measure { position: fixed; left: -100000px; top: 0; visibility: hidden; height: auto; pointer-events: none; }

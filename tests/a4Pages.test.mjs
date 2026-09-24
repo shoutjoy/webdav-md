@@ -131,6 +131,14 @@ test('A4 is opt-in and original blank documents retain the original editor', () 
     assert.equal(env.host.hidden, true);
 });
 
+test('A4 exposes the focused page editor for toolbar formatting commands', () => {
+    const env = setup();
+    env.window.createA4File('portrait');
+    const input = env.inputs()[0];
+    input.focus();
+    assert.equal(env.window.A4Pages.getActiveInput(), input);
+});
+
 test('canceling new A4 creation preserves the current document', () => {
     const env = setup(false);
     env.source.value = 'keep this document';

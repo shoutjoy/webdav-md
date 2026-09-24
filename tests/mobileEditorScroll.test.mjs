@@ -17,7 +17,7 @@ test('continuous CodeMirror editing has no inner scroll and requests sheet fitti
     assert.match(cm6Js, /#content-viewport\.long-document-active \.md-cm6-prototype \.cm-scroller\{overflow:visible;min-height:0\}/);
     assert.match(cm6Js, /#content-viewport\.long-document-active \.md-cm6-prototype\{overflow:visible\}/);
     assert.match(cm6Js, /update\.docChanged \|\| Math\.abs\(contentHeight - lastMeasuredContentHeight\) > 1[\s\S]*mdpro:editor-geometry-change/);
-    assert.match(appJs, /codeMirrorPrototype: '\.\/js\/editor\/codemirror-prototype\.mjs\?v=20260920-placeholder-1'/);
+    assert.match(appJs, /codeMirrorPrototype: '\.\/js\/editor\/codemirror-prototype\.mjs\?v=20260925-nonprinting-3'/);
 });
 
 test('empty editors show a non-persistent writing prompt in textarea and CodeMirror modes', () => {

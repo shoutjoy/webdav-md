@@ -12,6 +12,7 @@
     let fallbackMode = false;
     let restorePromise = null;
     let searchWasTruncated = false;
+    let selectedDirectoryPath = '';
 
     function notify(message) {
         if (typeof window.showToast === 'function') window.showToast(message);
@@ -127,6 +128,7 @@
         fallbackMode = false;
         rootNode = makeNode(handle.name || '로컬 폴더', 'directory', handle, null, null);
         rootNode.expanded = true;
+        selectedDirectoryPath = rootNode.path;
         await readChildren(rootNode);
     }
 
@@ -188,6 +190,7 @@
         rootNode = makeNode(rootName, 'directory', null, null, null);
         rootNode.loaded = true;
         rootNode.expanded = true;
+        selectedDirectoryPath = rootNode.path;
 
         files.forEach(function (file) {
             const fullParts = String(file.webkitRelativePath || file.name || '').split('/').filter(Boolean);
@@ -318,11 +321,185 @@
         }
     }
 
+    function resolveProjectFilePath(documentPath, requestUrl) {
+        if (!rootNode) return null;
+        const rawUrl = String(requestUrl || '').trim();
+        if (!rawUrl
+            || rawUrl.charAt(0) === '#'
+            || /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(rawUrl)) return null;
+
+        let assetPath = rawUrl.split('#')[0].split('?')[0];
+        try { assetPath = decodeURIComponent(assetPath); } catch (_) {}
+        assetPath = assetPath.replace(/\\/g, '/');
+
+        const rootName = String(rootNode.name || '');
+        let documentParts = String(documentPath || '').replace(/\\/g, '/').split('/').filter(Boolean);
+        if (documentParts[0] === rootName) documentParts = documentParts.slice(1);
+        const parts = assetPath.charAt(0) === '/' ? [] : documentParts.slice(0, -1);
+
+        const requestedParts = assetPath.split('/');
+        for (let i = 0; i < requestedParts.length; i += 1) {
+            const part = requestedParts[i];
+            if (!part || part === '.') continue;
+            if (part === '..') {
+                if (!parts.length) return null;
+                parts.pop();
+                continue;
+            }
+            parts.push(part);
+        }
+        if (!parts.length) return null;
+        return {
+            parts: parts,
+            path: (rootName ? rootName + '/' : '') + parts.join('/')
+        };
+    }
+
+    async function getProjectFile(documentPath, requestUrl) {
+        await ensureRestored(false);
+        const resolved = resolveProjectFilePath(documentPath, requestUrl);
+        if (!resolved || !rootNode) return null;
+
+        if (rootHandle) {
+            try {
+                let directoryHandle = rootHandle;
+                for (let i = 0; i < resolved.parts.length - 1; i += 1) {
+                    directoryHandle = await directoryHandle.getDirectoryHandle(resolved.parts[i]);
+                }
+                const handle = await directoryHandle.getFileHandle(resolved.parts[resolved.parts.length - 1]);
+                return { file: await handle.getFile(), handle: handle, path: resolved.path };
+            } catch (_) {
+                return null;
+            }
+        }
+
+        let node = rootNode;
+        for (let i = 0; i < resolved.parts.length; i += 1) {
+            await readChildren(node);
+            node = node.children.find(function (child) { return child.name === resolved.parts[i]; });
+            if (!node) return null;
+            if (i < resolved.parts.length - 1 && node.kind !== 'directory') return null;
+        }
+        if (!node || node.kind !== 'file') return null;
+        const file = node.file || (node.handle && await node.handle.getFile());
+        return file ? { file: file, handle: node.handle || null, path: resolved.path } : null;
+    }
+
     function makeIcon(name, className) {
         const icon = document.createElement('i');
         icon.setAttribute('data-lucide', name);
         icon.className = className || 'h-4 w-4 shrink-0';
         return icon;
+    }
+
+    function findDirectoryByPath(node, path) {
+        if (!node || node.kind !== 'directory') return null;
+        if (node.path === path) return node;
+        for (let i = 0; i < node.children.length; i += 1) {
+            const found = findDirectoryByPath(node.children[i], path);
+            if (found) return found;
+        }
+        return null;
+    }
+
+    function getSelectedDirectory() {
+        return findDirectoryByPath(rootNode, selectedDirectoryPath) || rootNode;
+    }
+
+    function selectDirectory(node) {
+        if (!node || node.kind !== 'directory') return;
+        selectedDirectoryPath = node.path;
+        requestRender();
+    }
+
+    function normalizeEntryName(value, kind) {
+        let name = String(value == null ? '' : value).trim();
+        if (!name) return '';
+        if (kind === 'file' && !/\.[^./\\]+$/.test(name)) name += '.md';
+        if (name === '.' || name === '..'
+            || /[<>:"/\\|?*\u0000-\u001f]/.test(name)
+            || /[. ]$/.test(name)
+            || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name)) {
+            throw new Error('이름에 사용할 수 없는 문자 또는 형식이 포함되어 있습니다.');
+        }
+        return name;
+    }
+
+    async function ensureDirectoryWriteAccess(node) {
+        if (!node || !node.handle || fallbackMode) {
+            throw new Error('이 브라우저에서는 선택한 폴더를 읽기만 할 수 있습니다. Chrome 또는 Edge에서 폴더를 다시 선택해 주세요.');
+        }
+        const permission = await getPermission(node.handle, true, 'readwrite');
+        if (permission !== 'granted') throw new Error('파일과 폴더를 만들려면 쓰기 권한이 필요합니다.');
+    }
+
+    async function entryExists(directoryHandle, name) {
+        const normalizedName = String(name || '').toLocaleLowerCase();
+        for await (const entry of directoryHandle.values()) {
+            if (String(entry.name || '').toLocaleLowerCase() === normalizedName) return true;
+        }
+        return false;
+    }
+
+    async function reloadDirectory(node) {
+        node.loaded = false;
+        node.children = [];
+        node.expanded = true;
+        await readChildren(node);
+        requestRender();
+    }
+
+    async function createFile(node) {
+        const directory = node && node.kind === 'directory' ? node : getSelectedDirectory();
+        if (!directory) {
+            notify('먼저 로컬 폴더를 선택해 주세요.');
+            return false;
+        }
+        const input = window.prompt('새 파일 이름 (.md 자동 추가)', 'untitled.md');
+        if (input == null) return false;
+        try {
+            const name = normalizeEntryName(input, 'file');
+            if (!name) return false;
+            await ensureDirectoryWriteAccess(directory);
+            if (await entryExists(directory.handle, name)) throw new Error('같은 이름의 파일 또는 폴더가 이미 있습니다.');
+            const fileHandle = await directory.handle.getFileHandle(name, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write('');
+            await writable.close();
+            await reloadDirectory(directory);
+            const createdNode = directory.children.find(function (child) {
+                return child.kind === 'file' && child.name === name;
+            });
+            notify('파일을 만들었습니다: ' + name);
+            if (createdNode) await openNodeFile(createdNode, null);
+            return true;
+        } catch (error) {
+            notify('파일을 만들 수 없습니다: ' + (error && error.message ? error.message : error));
+            return false;
+        }
+    }
+
+    async function createFolder(node) {
+        const directory = node && node.kind === 'directory' ? node : getSelectedDirectory();
+        if (!directory) {
+            notify('먼저 로컬 폴더를 선택해 주세요.');
+            return false;
+        }
+        const input = window.prompt('새 폴더 이름', '새 폴더');
+        if (input == null) return false;
+        try {
+            const name = normalizeEntryName(input, 'directory');
+            if (!name) return false;
+            await ensureDirectoryWriteAccess(directory);
+            if (await entryExists(directory.handle, name)) throw new Error('같은 이름의 파일 또는 폴더가 이미 있습니다.');
+            await directory.handle.getDirectoryHandle(name, { create: true });
+            await reloadDirectory(directory);
+            notify('폴더를 만들었습니다: ' + name);
+            return true;
+        } catch (error) {
+            notify('폴더를 만들 수 없습니다: ' + (error && error.message ? error.message : error));
+            return false;
+        }
     }
 
     function renderTreeNode(node, depth, container, query) {
@@ -333,6 +510,9 @@
         row.dataset.localFolderPath = node.path;
 
         if (node.kind === 'directory') {
+            if (node.path === selectedDirectoryPath) {
+                row.classList.add('bg-indigo-100', 'text-indigo-800', 'dark:bg-indigo-950/60', 'dark:text-indigo-200');
+            }
             const toggle = document.createElement('button');
             toggle.type = 'button';
             toggle.className = 'inline-flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-slate-300 dark:hover:bg-slate-700';
@@ -350,6 +530,16 @@
             label.className = 'min-w-0 flex-1 truncate font-semibold';
             label.textContent = node.name;
             label.title = node.path;
+            label.setAttribute('role', 'button');
+            label.setAttribute('tabindex', '0');
+            label.setAttribute('aria-pressed', node.path === selectedDirectoryPath ? 'true' : 'false');
+            label.onclick = function () { selectDirectory(node); };
+            label.onkeydown = function (event) {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    selectDirectory(node);
+                }
+            };
             label.ondblclick = function () { toggle.click(); };
             row.appendChild(label);
             container.appendChild(row);
@@ -427,8 +617,41 @@
         const title = document.createElement('strong');
         title.className = 'min-w-0 flex-1 truncate text-xs text-slate-700 dark:text-slate-200';
         title.textContent = rootNode.name;
-        title.title = rootNode.name;
+        const selectedDirectory = getSelectedDirectory();
+        title.title = '생성 위치: ' + (selectedDirectory ? selectedDirectory.path : rootNode.name);
+        title.setAttribute('role', 'button');
+        title.setAttribute('tabindex', '0');
+        title.setAttribute('aria-label', '루트 폴더를 생성 위치로 선택');
+        title.onclick = function () { selectDirectory(rootNode); };
+        title.onkeydown = function (event) {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                selectDirectory(rootNode);
+            }
+        };
         header.appendChild(title);
+
+        const createFileButton = document.createElement('button');
+        createFileButton.type = 'button';
+        createFileButton.id = 'local-folder-new-file';
+        createFileButton.className = 'inline-flex h-7 w-7 items-center justify-center rounded hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-slate-700';
+        createFileButton.title = fallbackMode ? '읽기 전용 모드에서는 파일을 만들 수 없습니다.' : '선택한 폴더에 새 파일 만들기';
+        createFileButton.setAttribute('aria-label', '선택한 폴더에 새 파일 만들기');
+        createFileButton.disabled = fallbackMode;
+        createFileButton.appendChild(makeIcon('file-plus-2', 'h-3.5 w-3.5'));
+        createFileButton.onclick = function () { createFile(); };
+        header.appendChild(createFileButton);
+
+        const createFolderButton = document.createElement('button');
+        createFolderButton.type = 'button';
+        createFolderButton.id = 'local-folder-new-folder';
+        createFolderButton.className = 'inline-flex h-7 w-7 items-center justify-center rounded hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-slate-700';
+        createFolderButton.title = fallbackMode ? '읽기 전용 모드에서는 폴더를 만들 수 없습니다.' : '선택한 폴더에 새 폴더 만들기';
+        createFolderButton.setAttribute('aria-label', '선택한 폴더에 새 폴더 만들기');
+        createFolderButton.disabled = fallbackMode;
+        createFolderButton.appendChild(makeIcon('folder-plus', 'h-3.5 w-3.5'));
+        createFolderButton.onclick = function () { createFolder(); };
+        header.appendChild(createFolderButton);
 
         const refreshButton = document.createElement('button');
         refreshButton.type = 'button';
@@ -471,6 +694,10 @@
         chooseFolder: chooseFolder,
         refresh: refresh,
         render: render,
+        createFile: createFile,
+        createFolder: createFolder,
+        getProjectFile: getProjectFile,
+        resolveProjectFilePath: resolveProjectFilePath,
         getRootName: function () { return rootNode ? rootNode.name : ''; },
         getRootHandle: function () { return rootHandle || null; },
         hasFolder: function () { return !!rootNode; }

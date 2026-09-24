@@ -73,3 +73,45 @@ test('DOCX export places a rendered Mermaid image before its original code', asy
   );
   assert.ok(files.has('word/media/image1.png'));
 });
+
+test('DOCX export collects rendered Mermaid SVGs from the live preview', () => {
+  const { api } = loadDocxExport();
+  const attributes = new Map([
+    ['viewBox', '0 0 800 400']
+  ]);
+  const svg = {
+    style: {},
+    cloneNode() {
+      return this;
+    },
+    getAttribute(name) {
+      return attributes.get(name) || '';
+    },
+    setAttribute(name, value) {
+      attributes.set(name, String(value));
+    },
+    get outerHTML() {
+      return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" width="800" height="400"><text>diagram</text></svg>';
+    }
+  };
+  const wrapper = {
+    querySelector(selector) {
+      return selector === 'svg' ? svg : null;
+    },
+    getAttribute(name) {
+      return name === 'data-mermaid-original-source' ? 'flowchart LR\nA --> B' : '';
+    }
+  };
+  const root = {
+    querySelectorAll(selector) {
+      return selector === '.trt-mermaid-wrapper' ? [wrapper] : [];
+    }
+  };
+
+  const images = api.collectMermaidImages(root);
+  assert.equal(images.length, 1);
+  assert.equal(images[0].mermaidSource, 'flowchart LR\nA --> B');
+  assert.equal(images[0].width, 800);
+  assert.equal(images[0].height, 400);
+  assert.match(images[0].src, /^data:image\/svg\+xml/);
+});

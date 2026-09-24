@@ -170,6 +170,20 @@ body { margin: 0; background: #e9edf3; }
 .webdav-compact-label { writing-mode: vertical-rl; text-orientation: mixed; font-size: 11px; letter-spacing: .12em; }
 .mdpro-workspace { display:flex; width:100%; height:calc(100% - 38px); min-width:0; overflow:hidden; }
 .mdpro-frame { width:100%; min-width:0; height:100%; border:0; display:block; flex:1 1 auto; background:white; }
+.code-editor-stage { height:calc(100vh - 2rem); max-height:none; }
+.code-editor-loading { display:grid; min-width:0; flex:1; height:calc(100vh - 2rem); place-items:center; color:#64748b; background:#f8fafc; }
+.dark .code-editor-loading { color:#94a3b8; background:#0f172a; }
+.code-editor-stage .CodeMirror { height:100%; color:#172033; background:#fff; font-family:"Cascadia Code","JetBrains Mono",Consolas,monospace; font-size:14px; line-height:1.6; }
+.code-editor-stage .CodeMirror-gutters { border-right:1px solid #dbe3ee; background:#f4f7fb; }
+.code-editor-stage .CodeMirror-linenumber { color:#8391a5; }
+.code-editor-stage .CodeMirror-selected { background:#cfe3ff !important; }
+.dark .code-editor-stage { border-color:#334155; background:#0b111b; }
+.dark .code-editor-stage > div:first-child { border-color:#334155; background:#151d2a; }
+.dark .code-editor-stage .CodeMirror { color:#dbeafe; background:#0b111b; }
+.dark .code-editor-stage .CodeMirror-gutters { border-right-color:#273449; background:#111827; }
+.dark .code-editor-stage .CodeMirror-linenumber { color:#64748b; }
+.dark .code-editor-stage .CodeMirror-cursor { border-left-color:#f8fafc; }
+.dark .code-editor-stage .CodeMirror-selected { background:#1e3a5f !important; }
 .fma-dock { min-width:0; height:100%; display:flex; flex:0 0 auto; flex-direction:column; overflow:hidden; border-left:1px solid #334155; background:#080d16; }
 .fma-dock-bar { height:32px; display:flex; flex:0 0 32px; align-items:center; gap:8px; padding:0 8px; color:#dbeafe; background:#111827; border-bottom:1px solid #334155; font-size:11px; }
 .fma-dock-bar span { min-width:0; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#94a3b8; }
@@ -253,6 +267,7 @@ body { margin: 0; background: #e9edf3; }
     }
     .split-resizer-grip { height:96px; background:#6366f1; }
     .mdpro-stage { width:100%; height:100%; min-height:0; flex-basis:100% !important; border-radius:0; }
+    .code-editor-stage { width:100%; height:100%; min-height:0; flex-basis:100% !important; border-radius:0; }
     .mdpro-stage-bar { display:none; }
     .mdpro-workspace { height:100%; }
     .mdpro-frame,
