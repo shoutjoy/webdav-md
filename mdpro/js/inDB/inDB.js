@@ -1,8 +1,8 @@
 // MarkdownProDB(inDB) initialization, saving, feature synchronization, and storage UI.
 // Loaded after app.js so editor globals remain available while this concern stays isolated.
 const DB_NAME = "MarkdownProDB";
-const DB_VERSION = 9;
-const FEATURE_DATA_STORE_NAMES = ['fonts', 'ai_chat', 'scholar_ai', 'ssp_image_ai', 'highlights', 'genslides', 'mermaid_refs'];
+const DB_VERSION = 10;
+const FEATURE_DATA_STORE_NAMES = ['fonts', 'ai_chat', 'scholar_ai', 'ssp_image_ai', 'highlights', 'genslides', 'mermaid_refs', 'writing_style_refs'];
 const INDB_ENABLED_SETTING_KEY = 'md_viewer_indb_enabled';
 
 function isInDbStorageEnabled() {
@@ -61,6 +61,9 @@ function initDB() {
         request.onerror = (e) => reject("DB Open Error");
         request.onsuccess = (e) => {
             db = e.target.result;
+            if (typeof window.loadAIWritingStyleReferencesFromInDb === 'function') {
+                window.loadAIWritingStyleReferencesFromInDb().catch(function () {});
+            }
             resolve(db);
         };
         request.onupgradeneeded = (e) => {
@@ -156,7 +159,8 @@ const INDB_STATUS_STORE_ORDER = [
     'scholar_ai',
     'ssp_image_ai',
     'highlights',
-    'genslides'
+    'genslides',
+    'writing_style_refs'
 ];
 const INDB_STATUS_STORE_LABELS = Object.freeze({
     documents: '문서',
@@ -171,7 +175,8 @@ const INDB_STATUS_STORE_LABELS = Object.freeze({
     scholar_ai: 'ScholarAI',
     ssp_image_ai: '이미지 AI',
     highlights: '하이라이트',
-    genslides: 'GenSlide'
+    genslides: 'GenSlide',
+    writing_style_refs: '문체 자료 파일'
 });
 let featureDataSyncPromise = null;
 let inDbStatusObjectUrls = new Set();

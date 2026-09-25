@@ -125,7 +125,7 @@
       '.pdf-preview-stage{position:relative;flex:1;min-height:0;overflow:auto;padding:34px 30px 70px;background:#374151}',
       '.pdf-preview-pages{display:flex;flex-direction:column;align-items:center;gap:28px;width:210mm;min-width:210mm;margin:0 auto;zoom:var(--pdf-preview-zoom,1)}',
       '.pdf-preview-page{position:relative;width:' + A4_WIDTH_MM + 'mm;height:' + A4_HEIGHT_MM + 'mm;flex:0 0 auto;padding:var(--pdf-page-margin-mm,' + DEFAULT_MARGIN_MM + 'mm);overflow:hidden;background:#fff;color:#1e293b;box-shadow:0 18px 46px rgba(0,0,0,.38)}',
-      '.pdf-page-content{display:block!important;width:100%;height:100%;max-width:none!important;margin:0!important;padding:0!important;overflow:hidden;background:#fff!important;color:#1e293b!important;columns:auto!important;column-count:1!important;column-width:auto!important}',
+      '.pdf-page-content{display:block!important;width:100%;height:100%;max-width:none!important;margin:0!important;padding:0!important;overflow:hidden;background:#fff!important;color:#1e293b!important;columns:auto!important;column-count:auto!important;column-width:auto!important}',
       '.pdf-page-content>*{max-width:100%!important;box-sizing:border-box!important;float:none}',
       '#' + PREVIEW_ID + ' .pdf-page-content h1{color:#1e3a8a!important;border-bottom-color:#bfdbfe!important;background:linear-gradient(90deg,rgba(219,234,254,.85),rgba(255,255,255,0))!important}',
       '#' + PREVIEW_ID + ' .pdf-page-content h2{color:#1d4ed8!important;border-bottom-color:#93c5fd!important;background:linear-gradient(90deg,rgba(219,234,254,.7),rgba(255,255,255,0))!important}',
@@ -139,6 +139,7 @@
       '.pdf-page-content pre{color:#0f172a!important;background:#f1f5f9!important;border:1px solid #94a3b8!important;font-weight:600!important;line-height:1.65!important}',
       '.pdf-page-content pre,.pdf-page-content pre code{overflow-x:visible!important;white-space:pre-wrap!important;overflow-wrap:anywhere!important;word-break:break-word!important}',
       '.pdf-page-content pre code,.pdf-page-content pre code *{color:inherit!important;background:transparent!important;font-weight:inherit!important}',
+      '.pdf-page-content .a4-atomic-content{max-height:none!important;height:auto!important;overflow:visible!important}',
       '.pdf-page-number{position:absolute;right:8mm;bottom:5mm;color:#94a3b8;font-size:9px;line-height:1;pointer-events:none}',
       '.pdf-preview-page [data-pdf-source-index]{cursor:pointer;outline-offset:3px}',
       '.pdf-preview-page [data-pdf-source-index]:hover{outline:1px dashed #06b6d4}',
@@ -172,6 +173,26 @@
   }
 
   function sourceUnits(root) {
+    function appendNode(units, node) {
+      if (node.nodeType === 1) {
+        // The A4 screen renderer uses this wrapper as a last-resort viewport
+        // for an oversized object. Keeping its max-height/overflow rules here
+        // makes the PDF measurer believe clipped content fits on one page.
+        // Unwrap it so tables and other children can be paginated normally.
+        if (node.classList && node.classList.contains('a4-atomic-content')) {
+          Array.prototype.slice.call(node.childNodes).forEach(function (child) {
+            appendNode(units, child);
+          });
+          return;
+        }
+        units.push(node.cloneNode(true));
+      } else if (node.nodeType === 3 && String(node.nodeValue || '').trim()) {
+        var paragraph = root.ownerDocument.createElement('p');
+        paragraph.textContent = node.nodeValue;
+        units.push(paragraph);
+      }
+    }
+
     var a4Sheets = root && root.querySelectorAll
       ? Array.prototype.slice.call(root.querySelectorAll(':scope > .a4-sheet'))
       : [];
@@ -184,24 +205,13 @@
         }
         var pageContent = sheet.querySelector(':scope > .a4-view-content') || sheet;
         Array.prototype.slice.call(pageContent.childNodes).forEach(function (node) {
-          if (node.nodeType === 1) units.push(node.cloneNode(true));
-          else if (node.nodeType === 3 && String(node.nodeValue || '').trim()) {
-            var paragraph = root.ownerDocument.createElement('p');
-            paragraph.textContent = node.nodeValue;
-            units.push(paragraph);
-          }
+          appendNode(units, node);
         });
         return units;
       }, []);
     }
     return Array.prototype.slice.call(root.childNodes).reduce(function (units, node) {
-      if (node.nodeType === 1) {
-        units.push(node.cloneNode(true));
-      } else if (node.nodeType === 3 && String(node.nodeValue || '').trim()) {
-        var paragraph = root.ownerDocument.createElement('p');
-        paragraph.textContent = node.nodeValue;
-        units.push(paragraph);
-      }
+      appendNode(units, node);
       return units;
     }, []);
   }
