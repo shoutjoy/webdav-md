@@ -628,6 +628,7 @@
         }
 
         @media print {
+            @page { size: A4 portrait; margin: 15mm; }
             .no-print { display: none !important; }
             html, body {
                 height: auto !important;
@@ -657,7 +658,7 @@
                 padding: 0 !important;
                 overflow: visible !important;
                 columns: auto !important;
-                column-count: 1 !important;
+                column-count: auto !important;
                 column-width: auto !important;
                 box-sizing: border-box !important;
             }
@@ -714,10 +715,39 @@
             #print-root .a4-sheet {
                 display: block !important;
                 float: none !important;
-                margin: 0 auto !important;
+                position: relative !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                height: auto !important;
+                min-height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: visible !important;
+                box-shadow: none !important;
+                columns: auto !important;
+                column-count: auto !important;
+                column-width: auto !important;
+                box-sizing: border-box !important;
                 break-after: page;
                 page-break-after: always;
             }
+            #print-root .a4-view-content {
+                display: block !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                height: auto !important;
+                min-height: 0 !important;
+                overflow: visible !important;
+                columns: auto !important;
+                column-count: auto !important;
+                column-width: auto !important;
+                box-sizing: border-box !important;
+            }
+            #print-root .a4-sheet:last-child {
+                break-after: auto;
+                page-break-after: auto;
+            }
+            #print-root .a4-number { display: none !important; }
             #print-root .print-mermaid-image {
                 display: block !important;
                 width: 100% !important;
