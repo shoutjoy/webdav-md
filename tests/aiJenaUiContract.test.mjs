@@ -41,24 +41,36 @@ test('AI Jena keeps the Alt+4 movement and compact real-time behavior', () => {
   assert.match(chatScript, /setFloatingExpanded\(false\);[\s\S]*schedule\(positionFloatingCompactAtBottom\)/);
 });
 
-test('mobile Alt+4 exposes four edge resize handles and a southeast corner handle', () => {
+test('Alt+4 exposes four edge resize handles and a southeast corner handle without expanding compact mode', () => {
   for (const direction of ['n', 'e', 's', 'w', 'se']) {
     assert.match(chatScript, new RegExp(`data-ai-chat-floating-resize=["']${direction}["']`));
   }
-  assert.match(chatScript, /function setupFloatingResize\(panel\)[\s\S]*state\.layout !== 'floating'[\s\S]*max-width: 760px/);
-  assert.match(chatScript, /panel\.classList\.contains\('floating-compact'\)\) setFloatingExpanded\(true\)/);
-  assert.match(chatScript, /saveFloatingPosition\(\);[\s\S]*saveFloatingSize\(\);/);
-  assert.match(chatStyles, /@media \(max-width: 760px\)[\s\S]*\.ai-chat-panel\.layout-floating \.ai-chat-floating-resizer \{ display: block; \}/);
+  assert.match(chatScript, /function setupFloatingResize\(panel\)[\s\S]*state\.layout !== 'floating'/);
+  assert.doesNotMatch(chatScript, /panel\.classList\.contains\('floating-compact'\)\) setFloatingExpanded\(true\)/);
+  assert.match(chatScript, /if \(isCompact\) saveFloatingCompactSize\(\);[\s\S]*else saveFloatingSize\(\);/);
+  assert.match(chatStyles, /\.ai-chat-panel\.layout-floating \.ai-chat-floating-resizer \{ display: block; \}/);
   assert.match(chatStyles, /\.ai-chat-floating-resizer\.is-se[\s\S]*cursor:\s*nwse-resize/);
 });
 
 test('Alt+4 settings expand upward and provide a floating-only close control', () => {
   assert.match(chatScript, /id=["']ai-chat-floating-close["']/);
+  assert.match(chatScript, /id=["']ai-chat-floating-compact-close["']/);
+  assert.match(chatScript, /getElementById\('ai-chat-floating-compact-close'\)\.addEventListener\('click',[\s\S]*setOpen\(false\)/);
   assert.match(chatScript, /floatingBottom = panel\.getBoundingClientRect\(\)\.bottom/);
   assert.match(chatScript, /floatingBottom - height/);
   assert.match(chatStyles, /\.ai-chat-icon-action:not\(#ai-chat-new\):not\(#ai-chat-copy-all\):not\(#ai-chat-save-all\):not\(#ai-chat-floating-close\)/);
   assert.match(chatStyles, /\.ai-chat-panel\.layout-floating:not\(\.floating-compact\) #ai-chat-floating-close\s*\{\s*display:\s*inline-flex\s*!important;/);
+  assert.match(chatStyles, /\.ai-chat-panel\.layout-floating\.floating-compact #ai-chat-floating-compact-close\s*\{\s*display:\s*inline-flex\s*!important;/);
   assert.match(chatStyles, /@media \(max-width: 760px\)[\s\S]*floating-settings-open[\s\S]*min-height:\s*72px/);
+});
+
+test('Alt+4 uses recognizable compact action icons', () => {
+  assert.match(chatStyles, /#ai-chat-attach::before\s*\{\s*content:\s*"⇩"/);
+  assert.match(chatStyles, /#ai-chat-import-selection::before\s*\{\s*content:\s*"🍴"/);
+  assert.match(chatStyles, /#ai-chat-realtime-doc-toggle::before\s*\{\s*content:\s*"✎"/);
+  assert.match(chatStyles, /#ai-chat-realtime-target-toggle::before\s*\{\s*content:\s*"←"/);
+  assert.match(chatStyles, /#ai-chat-realtime-sentence-toggle::before\s*\{\s*content:\s*"문"/);
+  assert.match(chatStyles, /#ai-chat-floating-compact-close::before\s*\{\s*content:\s*"🚪"/);
 });
 
 test('Alt+4 settings stay inside the visible browser viewport', () => {

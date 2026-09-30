@@ -54,3 +54,32 @@ test('PDF preview fits an A4 page to narrow screens', () => {
   assert.match(pdfSource, /<option value="fit" selected>화면 맞춤<\/option>/);
   assert.match(pdfSource, /zoom:var\(--pdf-preview-zoom,1\)/);
 });
+
+test('PDF canvas clone converts Mermaid HTML labels to native SVG text', () => {
+  const foreignObject = {
+    textContent: 'fallback',
+    querySelectorAll(selector) {
+      assert.equal(selector, 'p');
+      return [{ textContent: '  First node  ' }, { textContent: '' }, { textContent: 'Second node' }];
+    }
+  };
+  assert.deepEqual(pdfExport.__test.mermaidLabelLines(foreignObject), ['First node', 'Second node']);
+  assert.match(pdfSource, /querySelectorAll\('\.trt-mermaid-wrapper svg foreignObject'\)/);
+  assert.match(pdfSource, /createElementNS\('http:\/\/www\.w3\.org\/2000\/svg', 'text'\)/);
+  assert.match(pdfSource, /replaceMermaidForeignObjectsWithSvgText\(clonedPreview\)/);
+});
+
+test('PDF save confirms, reports progress, and supports cancellation', () => {
+  assert.equal(pdfExport.__test.clampPdfProgress(-20), 0);
+  assert.equal(pdfExport.__test.clampPdfProgress(51.6), 52);
+  assert.equal(pdfExport.__test.clampPdfProgress(140), 100);
+  assert.match(pdfSource, /data-pdf-confirm hidden role="dialog"/);
+  assert.match(pdfSource, /id="pdf-export-confirm-title">PDF로 변환하겠습니다\.<\/h3>/);
+  assert.match(pdfSource, /data-pdf-confirm-ok>확인<\/button>/);
+  assert.match(pdfSource, /data-pdf-progress-track[^>]*role="progressbar"/);
+  assert.match(pdfSource, /data-pdf-progress-value>0%/);
+  assert.match(pdfSource, /data-pdf-cancel>중지<\/button>/);
+  assert.match(pdfSource, /state\.exportJob\.cancelled = true/);
+  assert.match(pdfSource, /throwIfPdfCancelled\(job\)/);
+  assert.match(pdfSource, /updatePdfProgress\(state, 100, 'PDF 파일을 저장하고 있습니다…'\)/);
+});

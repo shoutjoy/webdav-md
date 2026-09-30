@@ -147,7 +147,19 @@
       '.pdf-preview-page [data-pdf-line-spacing],.pdf-preview-page [data-pdf-line-spacing] *{line-height:var(--pdf-object-line-spacing)!important}',
       '.pdf-forced-fit{max-height:100%!important;overflow:hidden!important}.pdf-forced-fit>img,.pdf-forced-fit>svg,.pdf-forced-fit>canvas{max-height:100%!important;object-fit:contain!important}',
       '.pdf-preview-help{position:sticky;left:16px;bottom:-48px;align-self:flex-start;max-width:560px;margin-top:6px;padding:9px 12px;border:1px solid #475569;border-radius:9px;background:rgba(15,23,42,.94);color:#cbd5e1;font-size:11px;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.24)}',
-      '.pdf-preview-busy{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.72);color:#fff;font-size:14px;font-weight:800;z-index:3}',
+      '.pdf-preview-busy{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.72);color:#fff;font-size:14px;font-weight:800;z-index:3}',
+      '.pdf-preview-progress-card{width:min(520px,92%);padding:20px;border:1px solid rgba(148,163,184,.72);border-radius:14px;background:rgba(15,23,42,.96);box-shadow:0 22px 60px rgba(0,0,0,.38)}',
+      '.pdf-preview-progress-message{font-size:15px;line-height:1.5;text-align:center}',
+      '.pdf-preview-progress-panel{margin-top:16px}.pdf-preview-progress-panel[hidden]{display:none}',
+      '.pdf-preview-progress-track{height:14px;overflow:hidden;border:1px solid #64748b;border-radius:999px;background:#1e293b}',
+      '.pdf-preview-progress-bar{display:block;width:0;height:100%;border-radius:inherit;background:linear-gradient(90deg,#38bdf8,#22c55e);transition:width .18s ease}',
+      '.pdf-preview-progress-meta{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px}',
+      '.pdf-preview-progress-value{min-width:48px;color:#f8fafc;font-size:17px;font-variant-numeric:tabular-nums}',
+      '.pdf-preview-cancel{height:34px;padding:0 14px;border:1px solid #f87171;border-radius:8px;background:#b91c1c;color:#fff;font-size:12px;font-weight:800;cursor:pointer}.pdf-preview-cancel:hover{background:#dc2626}.pdf-preview-cancel:disabled{opacity:.55;cursor:wait}',
+      '.pdf-export-confirm{position:absolute;inset:0;z-index:7;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.72)}.pdf-export-confirm[hidden]{display:none}',
+      '.pdf-export-confirm-card{width:min(430px,92%);padding:22px;border:1px solid #64748b;border-radius:14px;background:#f8fafc;color:#1e293b;box-shadow:0 24px 70px rgba(0,0,0,.42)}',
+      '.pdf-export-confirm-card h3{margin:0;font-size:17px}.pdf-export-confirm-card p{margin:10px 0 0;color:#475569;font-size:13px;line-height:1.6}',
+      '.pdf-export-confirm-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}',
       '.pdf-object-editor{position:absolute;inset:0;z-index:6;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.72)}.pdf-object-editor[hidden]{display:none}',
       '.pdf-object-editor-panel{width:min(880px,96vw);max-height:86vh;display:flex;flex-direction:column;gap:12px;padding:18px;border:1px solid #64748b;border-radius:12px;background:#f8fafc;color:#1e293b;box-shadow:0 24px 70px rgba(0,0,0,.45)}',
       '.pdf-object-editor-panel h3{margin:0;font-size:16px}.pdf-object-editor-panel p{margin:0;color:#64748b;font-size:12px}',
@@ -365,7 +377,8 @@
         '<button type="button" class="pdf-preview-button pdf-preview-button-primary" data-pdf-download>PDF 파일 저장</button>' +
         '<button type="button" class="pdf-preview-button pdf-preview-button-danger" data-pdf-close>닫기</button>' +
       '</div>' +
-      '<div class="pdf-preview-stage"><div class="pdf-preview-pages" data-pdf-pages></div><div class="pdf-preview-busy" data-pdf-busy>페이지를 나누는 중…</div><div class="pdf-preview-help">객체를 선택해 <b>선택 객체 수정</b>으로 PDF에 들어갈 내용을 직접 고치고 줄간격·나누기·붙이기를 조정할 수 있습니다. 모든 편집 작업은 <b>Ctrl+Z</b>로 되돌리고 문서별로 inDB에 자동 저장합니다.</div>' +
+      '<div class="pdf-preview-stage"><div class="pdf-preview-pages" data-pdf-pages></div><div class="pdf-preview-busy" data-pdf-busy><div class="pdf-preview-progress-card"><div class="pdf-preview-progress-message" data-pdf-busy-text>페이지를 나누는 중…</div><div class="pdf-preview-progress-panel" data-pdf-progress-panel hidden><div class="pdf-preview-progress-track" data-pdf-progress-track role="progressbar" aria-label="PDF 변환 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="pdf-preview-progress-bar" data-pdf-progress-bar></span></div><div class="pdf-preview-progress-meta"><strong class="pdf-preview-progress-value" data-pdf-progress-value>0%</strong><button type="button" class="pdf-preview-cancel" data-pdf-cancel>중지</button></div></div></div></div><div class="pdf-preview-help">객체를 선택해 <b>선택 객체 수정</b>으로 PDF에 들어갈 내용을 직접 고치고 줄간격·나누기·붙이기를 조정할 수 있습니다. 모든 편집 작업은 <b>Ctrl+Z</b>로 되돌리고 문서별로 inDB에 자동 저장합니다.</div>' +
+        '<div class="pdf-export-confirm" data-pdf-confirm hidden role="dialog" aria-modal="true" aria-labelledby="pdf-export-confirm-title"><section class="pdf-export-confirm-card"><h3 id="pdf-export-confirm-title">PDF로 변환하겠습니다.</h3><p>A4 ' + escapeHtml('페이지를 백그라운드에서 순서대로 렌더링합니다. 변환 중에는 진행률을 확인하거나 언제든 중지할 수 있습니다.') + '</p><div class="pdf-export-confirm-actions"><button type="button" class="pdf-preview-button" data-pdf-confirm-cancel>취소</button><button type="button" class="pdf-preview-button pdf-preview-button-primary" data-pdf-confirm-ok>확인</button></div></section></div>' +
         '<div class="pdf-object-editor" data-pdf-object-editor hidden><section class="pdf-object-editor-panel" role="dialog" aria-modal="true" aria-labelledby="pdf-object-editor-title"><h3 id="pdf-object-editor-title">선택 객체 수정</h3><p>이 수정은 원본 Markdown이 아니라 PDF 내보내기용 편집 상태에 저장됩니다. 표·목록 구조를 유지하면서 글자를 직접 고칠 수 있습니다.</p><div class="pdf-object-editor-surface markdown-body" data-pdf-edit-surface contenteditable="true" spellcheck="true"></div><div class="pdf-object-editor-actions"><button type="button" class="pdf-preview-button" data-pdf-edit-cancel>취소</button><button type="button" class="pdf-preview-button pdf-preview-button-primary" data-pdf-edit-apply>수정 적용</button></div></section></div>' +
       '</div>';
     global.document.body.appendChild(overlay);
@@ -644,7 +657,122 @@
     });
   }
 
-  async function generatePdf(state) {
+  function clampPdfProgress(value) {
+    return Math.max(0, Math.min(100, Math.round(Number(value) || 0)));
+  }
+
+  function showPdfBusy(state, options) {
+    var settings = options || {};
+    if (!state || !state.busy) return;
+    state.busy.style.display = settings.visible === false ? 'none' : 'flex';
+    if (state.busyText && settings.message != null) state.busyText.textContent = String(settings.message);
+    if (state.progressPanel) state.progressPanel.hidden = settings.progress !== true;
+    if (state.cancelButton) {
+      state.cancelButton.hidden = settings.cancellable !== true;
+      state.cancelButton.disabled = false;
+    }
+    if (settings.progress === true) updatePdfProgress(state, settings.percent || 0, settings.message);
+  }
+
+  function updatePdfProgress(state, percent, message) {
+    var normalized = clampPdfProgress(percent);
+    if (state.busyText && message != null) state.busyText.textContent = String(message);
+    if (state.progressPanel) state.progressPanel.hidden = false;
+    if (state.progressTrack) state.progressTrack.setAttribute('aria-valuenow', String(normalized));
+    if (state.progressBar) state.progressBar.style.width = normalized + '%';
+    if (state.progressValue) state.progressValue.textContent = normalized + '%';
+    return normalized;
+  }
+
+  function yieldForPdfUi() {
+    return new Promise(function (resolve) {
+      if (typeof global.requestAnimationFrame === 'function') {
+        global.requestAnimationFrame(function () { global.setTimeout(resolve, 0); });
+      } else {
+        global.setTimeout(resolve, 0);
+      }
+    });
+  }
+
+  function createPdfCancelledError() {
+    var error = new Error('PDF 변환이 중지되었습니다.');
+    error.name = 'PdfExportCancelledError';
+    return error;
+  }
+
+  function throwIfPdfCancelled(job) {
+    if (job && job.cancelled) throw createPdfCancelledError();
+  }
+
+  function mermaidLabelLines(foreignObject) {
+    if (!foreignObject) return [];
+    var paragraphs = typeof foreignObject.querySelectorAll === 'function'
+      ? Array.prototype.slice.call(foreignObject.querySelectorAll('p'))
+      : [];
+    var lines = paragraphs.length
+      ? paragraphs.map(function (paragraph) { return String(paragraph.textContent || '').trim(); })
+      : String(foreignObject.textContent || '').split(/\r?\n/).map(function (line) { return line.trim(); });
+    return lines.filter(Boolean);
+  }
+
+  function replaceMermaidForeignObjectsWithSvgText(root) {
+    if (!root || typeof root.querySelectorAll !== 'function') return 0;
+    var foreignObjects = Array.prototype.slice.call(
+      root.querySelectorAll('.trt-mermaid-wrapper svg foreignObject')
+    );
+    var replaced = 0;
+
+    foreignObjects.forEach(function (foreignObject) {
+      var lines = mermaidLabelLines(foreignObject);
+      if (!lines.length) {
+        foreignObject.remove();
+        return;
+      }
+
+      var ownerDocument = foreignObject.ownerDocument;
+      if (!ownerDocument || typeof ownerDocument.createElementNS !== 'function') return;
+      var labelElement = foreignObject.querySelector('.nodeLabel,.edgeLabel,.label,div,span,p') || foreignObject;
+      var view = ownerDocument.defaultView || global;
+      var labelStyle = view && typeof view.getComputedStyle === 'function'
+        ? view.getComputedStyle(labelElement)
+        : null;
+      var x = parseFloat(foreignObject.getAttribute('x')) || 0;
+      var y = parseFloat(foreignObject.getAttribute('y')) || 0;
+      var width = parseFloat(foreignObject.getAttribute('width')) || 0;
+      var height = parseFloat(foreignObject.getAttribute('height')) || 0;
+      var centerX = x + (width / 2);
+      var centerY = y + (height / 2);
+      var text = ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('x', String(centerX));
+      text.setAttribute('y', String(centerY));
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('fill', labelStyle && labelStyle.color || '#334155');
+      text.setAttribute('font-family', labelStyle && labelStyle.fontFamily || 'Arial, sans-serif');
+      text.setAttribute('font-size', labelStyle && labelStyle.fontSize || '15px');
+      text.setAttribute('font-weight', labelStyle && labelStyle.fontWeight || '600');
+      text.setAttribute('xml:space', 'preserve');
+      text.setAttribute('data-pdf-mermaid-label', '1');
+      ['transform', 'opacity', 'direction'].forEach(function (attribute) {
+        var value = foreignObject.getAttribute(attribute);
+        if (value != null && value !== '') text.setAttribute(attribute, value);
+      });
+
+      lines.forEach(function (line, lineIndex) {
+        var tspan = ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+        tspan.setAttribute('x', String(centerX));
+        tspan.setAttribute('dy', lineIndex === 0
+          ? String(0.35 - ((lines.length - 1) * 0.6)) + 'em'
+          : '1.2em');
+        tspan.textContent = line;
+        text.appendChild(tspan);
+      });
+      foreignObject.replaceWith(text);
+      replaced += 1;
+    });
+    return replaced;
+  }
+
+  async function generatePdf(state, job) {
     var JsPdf = getJsPdfConstructor();
     if (typeof global.html2canvas !== 'function' || !JsPdf) {
       throw new Error('PDF 변환 라이브러리를 불러오지 못했습니다. 페이지를 새로고침한 뒤 다시 시도하세요.');
@@ -658,10 +786,17 @@
     clearPdfSelection(state.pagesRoot);
 
     try {
+      updatePdfProgress(state, 0, 'PDF 변환을 준비하고 있습니다…');
+      await yieldForPdfUi();
       for (var index = 0; index < state.pages.length; index += 1) {
-        state.busy.textContent = 'PDF 생성 중… ' + (index + 1) + ' / ' + state.pages.length;
+        throwIfPdfCancelled(job);
+        var pageStart = (index / state.pages.length) * 100;
+        var pageLabel = 'PDF 페이지를 렌더링하고 있습니다… ' + (index + 1) + ' / ' + state.pages.length;
+        updatePdfProgress(state, pageStart, pageLabel);
+        await yieldForPdfUi();
         var pageElement = state.pages[index].page;
         await waitForMedia(pageElement);
+        throwIfPdfCancelled(job);
         var canvas = await global.html2canvas(pageElement, {
           backgroundColor: '#ffffff',
           scale: preset.scale,
@@ -676,16 +811,31 @@
             var clonedPages = clonedPreview.querySelector('[data-pdf-pages]');
             if (clonedPages) clonedPages.style.setProperty('--pdf-preview-zoom', '1');
             clearPdfSelection(clonedPreview);
+            // Mermaid 11 renders many labels as HTML inside SVG foreignObject.
+            // Chromium can omit those labels when html2canvas serializes the SVG,
+            // leaving only node shapes in the saved PDF. Convert only the export
+            // clone to native SVG text so the live preview remains untouched.
+            replaceMermaidForeignObjectsWithSvgText(clonedPreview);
           }
         });
+        throwIfPdfCancelled(job);
+        updatePdfProgress(state, ((index + 0.72) / state.pages.length) * 100, 'PDF 페이지 이미지를 처리하고 있습니다… ' + (index + 1) + ' / ' + state.pages.length);
+        await yieldForPdfUi();
         var jpegBytes = await canvasToJpegBytes(canvas, preset.jpegQuality);
+        throwIfPdfCancelled(job);
         if (index > 0) pdf.addPage('a4', 'portrait');
         pdf.addImage(jpegBytes, 'JPEG', 0, 0, A4_WIDTH_MM, A4_HEIGHT_MM, undefined, preset.compression);
         canvas.width = 1;
         canvas.height = 1;
-        await new Promise(function (resolve) { global.setTimeout(resolve, 0); });
+        updatePdfProgress(state, ((index + 1) / state.pages.length) * 100, 'PDF 페이지 변환 완료… ' + (index + 1) + ' / ' + state.pages.length);
+        await yieldForPdfUi();
       }
+      throwIfPdfCancelled(job);
+      updatePdfProgress(state, 100, 'PDF 파일을 저장하고 있습니다…');
+      await yieldForPdfUi();
+      throwIfPdfCancelled(job);
       var blob = pdf.output('blob');
+      throwIfPdfCancelled(job);
       downloadPdfBlob(blob, state.fileName);
       state.downloaded = true;
       state.status.textContent = state.fileName + ' 다운로드 완료 · A4 ' + state.pages.length + '쪽 · PDF 품질 ' + preset.label;
@@ -696,7 +846,7 @@
   }
 
   function schedulePaginate(state) {
-    state.busy.style.display = 'flex';
+    showPdfBusy(state, { message: '페이지를 나누는 중…', progress: false, cancellable: false });
     global.requestAnimationFrame(function () {
       global.requestAnimationFrame(function () { paginate(state); });
     });
@@ -737,6 +887,15 @@
       status: overlay.querySelector('[data-pdf-status]'),
       storageStatus: overlay.querySelector('[data-pdf-storage-status]'),
       busy: overlay.querySelector('[data-pdf-busy]'),
+      busyText: overlay.querySelector('[data-pdf-busy-text]'),
+      progressPanel: overlay.querySelector('[data-pdf-progress-panel]'),
+      progressTrack: overlay.querySelector('[data-pdf-progress-track]'),
+      progressBar: overlay.querySelector('[data-pdf-progress-bar]'),
+      progressValue: overlay.querySelector('[data-pdf-progress-value]'),
+      cancelButton: overlay.querySelector('[data-pdf-cancel]'),
+      confirmDialog: overlay.querySelector('[data-pdf-confirm]'),
+      confirmOkButton: overlay.querySelector('[data-pdf-confirm-ok]'),
+      confirmCancelButton: overlay.querySelector('[data-pdf-confirm-cancel]'),
       undoButton: overlay.querySelector('[data-pdf-undo]'),
       breakButton: overlay.querySelector('[data-pdf-break]'),
       joinButton: overlay.querySelector('[data-pdf-join]'),
@@ -749,7 +908,8 @@
       persistTimer: null,
       persistPromise: Promise.resolve(true),
       persistedCreatedAt: null,
-      downloaded: false
+      downloaded: false,
+      exportJob: null
     };
     state.restoreSelection = restoreSelection;
 
@@ -1007,24 +1167,60 @@
         state.selectedIndex = Number(target.getAttribute('data-pdf-source-index'));
         restoreSelection();
       });
-      state.downloadButton.addEventListener('click', async function () {
+      state.cancelButton.addEventListener('click', function () {
+        if (!state.exportJob || state.exportJob.finished) return;
+        state.exportJob.cancelled = true;
+        state.cancelButton.disabled = true;
+        if (state.busyText) state.busyText.textContent = 'PDF 변환을 중지하고 있습니다…';
+        state.status.textContent = 'PDF 변환 중지 요청됨 · 현재 처리 단계를 정리하고 있습니다.';
+      });
+
+      function closePdfConfirmation() {
+        state.confirmDialog.hidden = true;
+        try { state.downloadButton.focus(); } catch (_) {}
+      }
+
+      async function startPdfExport() {
+        if (state.exportJob && !state.exportJob.finished) return;
+        state.confirmDialog.hidden = true;
+        var exportJob = { cancelled: false, finished: false };
+        state.exportJob = exportJob;
         state.downloadButton.disabled = true;
-        state.busy.style.display = 'flex';
+        showPdfBusy(state, {
+          message: 'PDF 변환을 준비하고 있습니다…',
+          progress: true,
+          percent: 0,
+          cancellable: true
+        });
         try {
-          await generatePdf(state);
+          await generatePdf(state, exportJob);
         } catch (error) {
+          if (error && error.name === 'PdfExportCancelledError') {
+            state.status.textContent = 'PDF 변환이 중지되었습니다.';
+            return;
+          }
           var message = error && error.message ? error.message : String(error);
           state.status.textContent = 'PDF 생성 실패: ' + message;
           if (typeof global.alert === 'function') global.alert('PDF 생성에 실패했습니다.\n' + message);
         } finally {
-          state.busy.textContent = '페이지를 나누는 중…';
-          state.busy.style.display = 'none';
+          exportJob.finished = true;
+          if (state.exportJob === exportJob) state.exportJob = null;
+          showPdfBusy(state, { visible: false, message: '페이지를 나누는 중…', progress: false, cancellable: false });
           state.downloadButton.disabled = false;
         }
+      }
+
+      state.downloadButton.addEventListener('click', function () {
+        if (state.exportJob && !state.exportJob.finished) return;
+        state.confirmDialog.hidden = false;
+        try { state.confirmOkButton.focus(); } catch (_) {}
       });
+      state.confirmCancelButton.addEventListener('click', closePdfConfirmation);
+      state.confirmOkButton.addEventListener('click', startPdfExport);
       overlay.addEventListener('keydown', function (event) {
         if (event.key === 'Escape') {
-          if (!state.objectEditor.hidden) closeObjectEditor();
+          if (!state.confirmDialog.hidden) closePdfConfirmation();
+          else if (!state.objectEditor.hidden) closeObjectEditor();
           else close();
           return;
         }
@@ -1060,7 +1256,10 @@
       A4_WIDTH_MM: A4_WIDTH_MM,
       A4_HEIGHT_MM: A4_HEIGHT_MM,
       DEFAULT_MARGIN_MM: DEFAULT_MARGIN_MM,
-      previewFitZoom: previewFitZoom
+      previewFitZoom: previewFitZoom,
+      clampPdfProgress: clampPdfProgress,
+      mermaidLabelLines: mermaidLabelLines,
+      replaceMermaidForeignObjectsWithSvgText: replaceMermaidForeignObjectsWithSvgText
     })
   });
   global.PdfExport = api;
