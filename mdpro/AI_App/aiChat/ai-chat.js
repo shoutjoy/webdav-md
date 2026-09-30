@@ -110,6 +110,7 @@
   var POPUP_RECT_KEY = 'ss_ai_chat_popup_rect';
   var FLOATING_POSITION_KEY = 'ss_ai_chat_floating_position';
   var FLOATING_SIZE_KEY = 'ss_ai_chat_floating_size';
+  var FLOATING_COMPACT_SIZE_KEY = 'ss_ai_chat_floating_compact_size';
   var POPUP_SIZE_REVISION_KEY = 'ss_ai_chat_popup_size_revision';
   var DOCK_WIDTH_KEY = 'ss_ai_chat_dock_width';
   var LAUNCHER_POSITION_KEY = 'ss_ai_chat_launcher_position';
@@ -845,6 +846,7 @@
       + '            <span class="ai-chat-rt-sentence-text">문장</span>'
       + '          </button>'
       + '        </div>'
+      + '        <button type="button" id="ai-chat-floating-compact-close" class="ai-chat-floating-compact-close" title="AI Jena 닫기" aria-label="AI Jena 닫기">닫기</button>'
       + '        <button type="button" id="ai-chat-stop" class="ai-chat-stop" disabled>중지</button>'
       + '        <button type="button" id="ai-chat-send" class="ai-chat-send">전송</button>'
       + '      </div>'
@@ -885,6 +887,7 @@
     document.getElementById('ai-chat-close').addEventListener('click', function () { setOpen(false); });
     document.getElementById('ai-chat-history-toggle').addEventListener('click', toggleHistorySidebar);
     document.getElementById('ai-chat-floating-close').addEventListener('click', function () { setOpen(false); });
+    document.getElementById('ai-chat-floating-compact-close').addEventListener('click', function () { setOpen(false); });
     document.getElementById('ai-chat-new').addEventListener('click', startNewChat);
     document.getElementById('ai-chat-history-new').addEventListener('click', startNewChat);
     document.getElementById('ai-chat-history-close').addEventListener('click', closeHistorySidebar);
@@ -1390,6 +1393,13 @@
     } catch (_) { return null; }
   }
 
+  function readFloatingCompactSize() {
+    try {
+      var value = JSON.parse(storageGet(FLOATING_COMPACT_SIZE_KEY, 'null'));
+      return value && Number.isFinite(value.width) && Number.isFinite(value.height) ? value : null;
+    } catch (_) { return null; }
+  }
+
   function saveFloatingSize() {
     var panel = document.getElementById('ai-chat-panel');
     if (!panel || state.layout !== 'floating' || panel.classList.contains('floating-compact')) return;
@@ -1398,6 +1408,27 @@
       width: Math.round(rect.width),
       height: Math.round(rect.height)
     }));
+  }
+
+  function saveFloatingCompactSize() {
+    var panel = document.getElementById('ai-chat-panel');
+    if (!panel || state.layout !== 'floating' || !panel.classList.contains('floating-compact')) return;
+    var rect = panel.getBoundingClientRect();
+    storageSet(FLOATING_COMPACT_SIZE_KEY, JSON.stringify({
+      width: Math.round(rect.width),
+      height: Math.round(rect.height)
+    }));
+  }
+
+  function applyFloatingCompactSize() {
+    var panel = document.getElementById('ai-chat-panel');
+    var saved = readFloatingCompactSize();
+    if (!panel || state.layout !== 'floating' || !panel.classList.contains('floating-compact') || !saved) return;
+    var viewport = getFloatingViewportBounds();
+    var minWidth = Math.min(360, viewport.width - 8);
+    var minHeight = Math.min(132, viewport.height - 8);
+    panel.style.width = Math.max(minWidth, Math.min(saved.width, viewport.width - 8)) + 'px';
+    panel.style.height = Math.max(minHeight, Math.min(saved.height, viewport.height - 8)) + 'px';
   }
 
   function applyFloatingSize() {
@@ -1525,6 +1556,7 @@
           // compact bar must be measured from its own CSS size before clamping.
           panel.style.width = '';
           panel.style.height = '';
+          applyFloatingCompactSize();
         }
         var currentRect = panel.getBoundingClientRect();
         var target = floatingCompactReturnPosition
@@ -1955,11 +1987,10 @@
     var handles = panel.querySelectorAll('[data-ai-chat-floating-resize]');
     for (var i = 0; i < handles.length; i++) {
       handles[i].addEventListener('pointerdown', function (event) {
-        if (state.layout !== 'floating' || !root.matchMedia('(max-width: 760px)').matches
-          || (event.pointerType === 'mouse' && event.button !== 0)) return;
+        if (state.layout !== 'floating' || (event.pointerType === 'mouse' && event.button !== 0)) return;
         var handle = event.currentTarget;
         var direction = handle.getAttribute('data-ai-chat-floating-resize') || '';
-        if (panel.classList.contains('floating-compact')) setFloatingExpanded(true);
+        var isCompact = panel.classList.contains('floating-compact');
         var startRect = panel.getBoundingClientRect();
         var startX = event.clientX;
         var startY = event.clientY;
@@ -1978,8 +2009,8 @@
           var viewport = getFloatingViewportBounds();
           var dx = moveEvent.clientX - startX;
           var dy = moveEvent.clientY - startY;
-          var minWidth = Math.min(280, viewport.width - 8);
-          var minHeight = Math.min(260, viewport.height - 8);
+          var minWidth = Math.min(isCompact ? 360 : 280, viewport.width - 8);
+          var minHeight = Math.min(isCompact ? 132 : 260, viewport.height - 8);
           var left = startRect.left;
           var top = startRect.top;
           var right = startRect.right;
@@ -2003,7 +2034,8 @@
           handle.removeEventListener('pointercancel', finish);
           panel.classList.remove('resizing');
           saveFloatingPosition();
-          saveFloatingSize();
+          if (isCompact) saveFloatingCompactSize();
+          else saveFloatingSize();
         }
 
         handle.addEventListener('pointermove', move);
