@@ -745,7 +745,7 @@
       + '    <button type="button" id="ai-chat-history-toggle" class="ai-chat-icon-action" title="왼쪽 대화 기록 열기" aria-label="왼쪽 대화 기록 열기" aria-expanded="false">'
       + '      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M5.5 8h1M5.5 12h1M5.5 16h1"/></svg><span class="ai-chat-action-label">기록</span>'
       + '    </button>'
-      + '    <button type="button" id="ai-chat-floating-close" class="ai-chat-icon-action" title="플로팅 닫기" aria-label="AI Jena 플로팅 닫기">×</button>'
+      + '    <button type="button" id="ai-chat-floating-close" class="ai-chat-icon-action" title="입력창만 보기" aria-label="AI Jena 확장 메뉴 접기" aria-expanded="true">☰</button>'
       + '    <button type="button" id="ai-chat-new" class="ai-chat-icon-action" title="새 대화" aria-label="새 대화">'
       + '      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="ai-chat-action-label">새 대화</span>'
       + '    </button>'
@@ -886,7 +886,7 @@
     setupLauncherDrag(launcher);
     document.getElementById('ai-chat-close').addEventListener('click', function () { setOpen(false); });
     document.getElementById('ai-chat-history-toggle').addEventListener('click', toggleHistorySidebar);
-    document.getElementById('ai-chat-floating-close').addEventListener('click', function () { setOpen(false); });
+    document.getElementById('ai-chat-floating-close').addEventListener('click', function () { setFloatingExpanded(false); });
     document.getElementById('ai-chat-floating-compact-close').addEventListener('click', function () { setOpen(false); });
     document.getElementById('ai-chat-new').addEventListener('click', startNewChat);
     document.getElementById('ai-chat-history-new').addEventListener('click', startNewChat);
@@ -1533,6 +1533,7 @@
   function setFloatingExpanded(expanded) {
     var panel = document.getElementById('ai-chat-panel');
     var button = document.getElementById('ai-chat-floating-toggle');
+    var headerButton = document.getElementById('ai-chat-floating-close');
     if (!panel) return;
     var isExpanded = !!expanded;
     var wasCompact = panel.classList.contains('floating-compact');
@@ -1547,6 +1548,11 @@
       button.setAttribute('aria-label', isExpanded ? '입력창만 보기' : '대화창 펼치기');
       button.title = isExpanded ? '입력창만 보기' : '대화창 펼치기';
       button.textContent = isExpanded ? '⌄' : '☰';
+    }
+    if (headerButton) {
+      headerButton.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+      headerButton.setAttribute('aria-label', isExpanded ? 'AI Jena 확장 메뉴 접기' : 'AI Jena 확장 메뉴 펼치기');
+      headerButton.title = isExpanded ? '입력창만 보기' : '대화창 펼치기';
     }
     if (state.layout === 'floating') {
       var schedule = root.requestAnimationFrame || function (callback) { return setTimeout(callback, 16); };
@@ -6278,7 +6284,14 @@
     if (!panel) return false;
     var isVisible = !!enabled;
     panel.classList.toggle('ai-chat-header-utilities-visible', isVisible);
-    ['ai-chat-new', 'ai-chat-copy-all', 'ai-chat-save-all'].forEach(function (id) {
+    var newChatButton = document.getElementById('ai-chat-new');
+    if (newChatButton) {
+      newChatButton.hidden = false;
+      newChatButton.setAttribute('aria-hidden', 'false');
+      newChatButton.style.removeProperty('display');
+      newChatButton.removeAttribute('tabindex');
+    }
+    ['ai-chat-copy-all', 'ai-chat-save-all'].forEach(function (id) {
       var button = document.getElementById(id);
       if (!button) return;
       button.hidden = !isVisible;
@@ -6288,7 +6301,7 @@
         button.removeAttribute('tabindex');
       } else {
         // An inline !important guard keeps older cached layout CSS from
-        // exposing these controls until the ENV checkbox is enabled.
+        // exposing copy/save until the ENV checkbox is enabled.
         button.style.setProperty('display', 'none', 'important');
         button.setAttribute('tabindex', '-1');
       }

@@ -11987,22 +11987,32 @@ async function generateImg2Math() {
     const status = document.getElementById('img2math-status');
     const button = document.getElementById('img2math-generate');
     const prompt = document.getElementById('img2math-prompt');
+    const sourceTextInput = document.getElementById('img2math-source-text');
     const output = document.getElementById('img2math-result');
-    if (!img2MathImage) { if (status) status.textContent = '먼저 수식 이미지를 추가해 주세요.'; return; }
+    const sourceText = String(sourceTextInput && sourceTextInput.value || '').trim();
+    if (!img2MathImage && !sourceText) { if (status) status.textContent = '수식 이미지 또는 수식화할 텍스트를 추가해 주세요.'; return; }
     try {
         button.disabled = true;
         button.textContent = 'AI Jena가 수식을 인식하고 있습니다…';
-        if (status) status.textContent = 'AI Jena 연결과 이미지 인식 모델을 확인하고 있습니다.';
+        if (status) status.textContent = 'AI Jena 연결과 수식 인식 모델을 확인하고 있습니다.';
         if (!window.AIChatBridge || typeof window.AIChatBridge.complete !== 'function') throw new Error('AI Jena 연결 모듈이 준비되지 않았습니다.');
         const selected = getImg2MathProviderSelection();
         updateImg2MathAiModelStatus(selected);
-        if (status) status.textContent = formatImg2MathAiModel(selected) + ' 모델이 이미지의 기호와 수식 구조를 분석하고 있습니다.';
+        const inputDescription = img2MathImage && sourceText ? '이미지와 텍스트' : (img2MathImage ? '이미지' : '텍스트');
+        if (status) status.textContent = formatImg2MathAiModel(selected) + ' 모델이 ' + inputDescription + '의 수식 구조를 분석하고 있습니다.';
+        const userInstructions = String(prompt.value || '').trim();
+        const messageContent = [
+            userInstructions,
+            sourceText ? '다음 텍스트를 수학적 의미에 맞는 LaTeX 수식으로 변환하세요. 텍스트가 설명형 문장이거나 유니코드/선형 수식 표기여도 의도를 해석하세요.\n\n변환할 텍스트:\n' + sourceText : '',
+            img2MathImage && sourceText ? '첨부 이미지와 입력 텍스트가 같은 수식을 설명한다면 두 입력을 함께 참고해 가장 정확한 하나의 수식으로 만드세요.' : ''
+        ].filter(Boolean).join('\n\n');
+        const attachments = img2MathImage ? [{ kind: 'image', name: img2MathImage.name, type: img2MathImage.type, size: img2MathImage.size, dataUrl: img2MathImage.dataUrl }] : [];
         const response = await window.AIChatBridge.complete({
             provider: selected.provider,
             model: selected.model,
             mode: 'quick',
-            messages: [{ role: 'user', content: String(prompt.value || '').trim(), attachments: [{ kind: 'image', name: img2MathImage.name, type: img2MathImage.type, size: img2MathImage.size, dataUrl: img2MathImage.dataUrl }] }],
-            systemInstruction: 'You are a mathematical OCR engine. Read every visible formula precisely. Return only the raw LaTeX body, without dollar signs, code fences, JSON, prose, or explanation. Preserve fractions, roots, matrices, cases, accents, Greek letters, superscripts, subscripts, and delimiters.'
+            messages: [{ role: 'user', content: messageContent, attachments: attachments }],
+            systemInstruction: 'You are a mathematical OCR and formula normalization engine. Convert formulas from attached images, supplied text, or both into one accurate LaTeX expression. Interpret natural-language math, Unicode math, and linear notation according to their mathematical meaning. Return only the raw LaTeX body, without dollar signs, code fences, JSON, prose, or explanation. Preserve fractions, roots, matrices, cases, accents, Greek letters, superscripts, subscripts, and delimiters.'
         });
         const latex = cleanImg2MathLatex(response && response.text);
         if (!latex) throw new Error('AI 응답에서 수식을 찾지 못했습니다.');
@@ -12055,10 +12065,10 @@ function updateImg2MathAiModelStatus(selection) {
     try {
         const current = selection || getImg2MathProviderSelection();
         const parts = formatImg2MathAiModel(current).split(' · ');
-        target.textContent = 'AI Jena · ' + (parts[0] || '이미지 인식');
+        target.textContent = 'AI Jena · ' + (parts[0] || '수식 인식');
         target.classList.remove('is-error');
     } catch (error) {
-        target.textContent = 'AI Jena 이미지 모델 설정 필요';
+        target.textContent = 'AI Jena 수식 모델 설정 필요';
         target.classList.add('is-error');
     }
 }
@@ -12081,7 +12091,7 @@ async function populateImg2MathModelSelect() {
             models = models.concat(Array.isArray(result) ? result : (Array.isArray(result && result.models) ? result.models : []));
         }
         models = Array.from(new Set(models.map(function (model) { return String(model || '').trim(); }).filter(Boolean)));
-        if (!models.length) throw new Error('선택 가능한 이미지 인식 모델이 없습니다.');
+        if (!models.length) throw new Error('선택 가능한 수식 인식 모델이 없습니다.');
         select.replaceChildren();
         models.forEach(function (model) {
             const option = document.createElement('option');
@@ -12125,7 +12135,7 @@ function captureImg2MathDocumentSelection() {
 }
 
 function importSelectedTextIntoImg2Math() {
-    const result = document.getElementById('img2math-result');
+    const sourceTextInput = document.getElementById('img2math-source-text');
     const status = document.getElementById('img2math-status');
     const selected = getImg2MathSelectedDocumentText();
     if (!selected) {
@@ -12133,9 +12143,11 @@ function importSelectedTextIntoImg2Math() {
         return;
     }
     img2MathLastDocumentSelection = selected;
-    if (result) result.value = selected;
-    renderImg2MathPreview();
-    if (status) status.textContent = '선택한 텍스트를 인식된 LaTeX 입력창으로 가져왔습니다.';
+    if (sourceTextInput) {
+        sourceTextInput.value = selected;
+        sourceTextInput.focus();
+    }
+    if (status) status.textContent = '선택한 텍스트를 수식화할 입력으로 가져왔습니다. 인식 실행을 눌러 LaTeX로 변환하세요.';
 }
 
 function insertImg2MathResult() {

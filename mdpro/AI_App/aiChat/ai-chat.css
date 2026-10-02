@@ -2197,7 +2197,7 @@ body.theme-light .ai-chat-panel.layout-floating.floating-compact {
 .ai-chat-panel.layout-floating.floating-compact .ai-chat-storage-note { display: none !important; }
 .ai-chat-panel.layout-floating.floating-compact .ai-chat-shell,
 .ai-chat-panel.layout-floating.floating-compact .ai-chat-main { overflow: visible; }
-.ai-chat-panel.layout-floating .ai-chat-floating-toggle {
+.ai-chat-panel.layout-floating.floating-compact .ai-chat-floating-toggle {
   display: inline-grid;
   place-items: center;
 }
@@ -2255,7 +2255,6 @@ body.theme-light .ai-chat-panel.layout-floating.floating-compact {
 .ai-chat-panel.layout-floating #ai-chat-academic-toggle::before { content: "🎓"; }
 .ai-chat-panel.layout-floating #ai-chat-internet-toggle::before { content: "🌐"; }
 .ai-chat-panel.layout-floating #ai-chat-floating-toggle::before { content: "☰"; }
-.ai-chat-panel.layout-floating:not(.floating-compact) #ai-chat-floating-toggle::before { content: "⌄"; }
 .ai-chat-panel.layout-floating #ai-chat-attach::before { content: "⇩"; }
 .ai-chat-panel.layout-floating #ai-chat-import-selection::before { content: "🍴"; }
 .ai-chat-panel.layout-floating #ai-chat-realtime-doc-toggle::before,
@@ -2446,12 +2445,11 @@ body.theme-light .ai-chat-panel.layout-floating.floating-compact {
   visibility: visible !important;
   opacity: 1 !important;
 }
-.ai-chat-panel #ai-chat-new,
 .ai-chat-panel #ai-chat-copy-all,
 .ai-chat-panel #ai-chat-save-all {
   display: none !important;
 }
-.ai-chat-panel.ai-chat-header-utilities-visible #ai-chat-new,
+.ai-chat-panel #ai-chat-new,
 .ai-chat-panel.ai-chat-header-utilities-visible #ai-chat-copy-all,
 .ai-chat-panel.ai-chat-header-utilities-visible #ai-chat-save-all {
   display: inline-flex !important;
