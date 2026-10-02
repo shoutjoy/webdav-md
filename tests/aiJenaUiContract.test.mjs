@@ -52,14 +52,17 @@ test('Alt+4 exposes four edge resize handles and a southeast corner handle witho
   assert.match(chatStyles, /\.ai-chat-floating-resizer\.is-se[\s\S]*cursor:\s*nwse-resize/);
 });
 
-test('Alt+4 settings expand upward and provide a floating-only close control', () => {
+test('Alt+4 uses one menu toggle in compact and expanded states while keeping the main close control', () => {
   assert.match(chatScript, /id=["']ai-chat-floating-close["']/);
   assert.match(chatScript, /id=["']ai-chat-floating-compact-close["']/);
+  assert.match(chatScript, /id=["']ai-chat-floating-close["'][^>]*aria-expanded=["']true["'][^>]*>☰<\/button>/);
+  assert.match(chatScript, /getElementById\('ai-chat-floating-close'\)\.addEventListener\('click',[\s\S]*setFloatingExpanded\(false\)/);
   assert.match(chatScript, /getElementById\('ai-chat-floating-compact-close'\)\.addEventListener\('click',[\s\S]*setOpen\(false\)/);
   assert.match(chatScript, /floatingBottom = panel\.getBoundingClientRect\(\)\.bottom/);
   assert.match(chatScript, /floatingBottom - height/);
   assert.match(chatStyles, /\.ai-chat-icon-action:not\(#ai-chat-new\):not\(#ai-chat-copy-all\):not\(#ai-chat-save-all\):not\(#ai-chat-floating-close\)/);
   assert.match(chatStyles, /\.ai-chat-panel\.layout-floating:not\(\.floating-compact\) #ai-chat-floating-close\s*\{\s*display:\s*inline-flex\s*!important;/);
+  assert.match(chatStyles, /\.ai-chat-panel\.layout-floating\.floating-compact \.ai-chat-floating-toggle\s*\{[^}]*display:\s*inline-grid/s);
   assert.match(chatStyles, /\.ai-chat-panel\.layout-floating\.floating-compact #ai-chat-floating-compact-close\s*\{\s*display:\s*inline-flex\s*!important;/);
   assert.match(chatStyles, /@media \(max-width: 760px\)[\s\S]*floating-settings-open[\s\S]*min-height:\s*72px/);
 });
@@ -91,10 +94,11 @@ test('expanded AI Jena layouts keep the header actions available', () => {
   assert.match(chatStyles, /\.ai-chat-header-actions[^}]*visibility:\s*visible\s*!important/s);
 });
 
-test('new, copy, and save header controls are hidden by default and enabled from ENV settings', () => {
+test('new chat stays visible while copy and save remain controlled by ENV settings', () => {
   assert.match(markup, /id="ai-chat-header-utilities-enabled"[^>]*onchange="setAiJenaHeaderUtilitiesVisible\(this\.checked\)"/);
-  assert.match(chatStyles, /\.ai-chat-panel #ai-chat-new,[\s\S]*#ai-chat-copy-all,[\s\S]*#ai-chat-save-all\s*\{\s*display:\s*none\s*!important;/);
-  assert.match(chatStyles, /\.ai-chat-panel\.ai-chat-header-utilities-visible #ai-chat-new,[\s\S]*display:\s*inline-flex\s*!important;/);
+  assert.match(chatStyles, /\.ai-chat-panel #ai-chat-copy-all,[\s\S]*#ai-chat-save-all\s*\{\s*display:\s*none\s*!important;/);
+  assert.match(chatStyles, /\.ai-chat-panel #ai-chat-new,[\s\S]*display:\s*inline-flex\s*!important;/);
+  assert.match(chatScript, /newChatButton\.hidden = false;[\s\S]*newChatButton\.removeAttribute\('tabindex'\)/);
   assert.match(chatScript, /setHeaderUtilitiesVisible\(storageGet\(HEADER_UTILITIES_KEY, '0'\) === '1'\)/);
   assert.match(chatScript, /button\.style\.setProperty\('display', 'none', 'important'\)/);
   assert.match(chatScript, /button\.style\.removeProperty\('display'\)/);

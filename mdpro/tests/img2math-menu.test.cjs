@@ -18,11 +18,12 @@ test('MATH menu exposes the img2Math workflow', () => {
     assert.match(html, /id="img2math-ai-model"/);
     assert.match(html, /id="img2math-model-select"[^>]+aria-label="Img2Math 인공지능 모델 선택"/);
     assert.match(html, /id="img2math-import-selection"[^>]+>선택 텍스트 가져오기<\/button>/);
+    assert.match(html, /id="img2math-source-text"[^>]+placeholder="예: x의 제곱/);
     assert.match(html, /id="img2math-result"/);
     assert.match(html, /문서 커서 위치에 삽입/);
 });
 
-test('img2Math sends an image to the existing AI bridge and inserts display LaTeX', () => {
+test('img2Math sends an image or source text to the existing AI bridge and inserts display LaTeX', () => {
     assert.match(app, /function generateImg2Math\(\)/);
     assert.match(app, /getMermaidVisionProviderSelection\(\)/);
     assert.match(app, /function populateImg2MathModelSelect\(\)/);
@@ -33,12 +34,16 @@ test('img2Math sends an image to the existing AI bridge and inserts display LaTe
     assert.match(app, /getCachedOpenAIModels/);
     assert.match(app, /IMG2MATH_MODEL_SELECTION_KEY/);
     assert.match(app, /AIChatBridge\.complete/);
-    assert.match(app, /attachments:\s*\[\{ kind: 'image'/);
+    assert.match(app, /const sourceText = String\(sourceTextInput/);
+    assert.match(app, /if \(!img2MathImage && !sourceText\)/);
+    assert.match(app, /const attachments = img2MathImage \? \[\{ kind: 'image'/);
+    assert.match(app, /변환할 텍스트:\\n/);
     assert.match(app, /function cleanImg2MathLatex\(value\)/);
     assert.match(app, /function clearImg2MathImage\(\)/);
     assert.match(app, /function bindImg2MathFloatingWindow\(\)/);
     assert.match(app, /function constrainImg2MathFloatingWindow\(initialize\)/);
     assert.match(app, /function importSelectedTextIntoImg2Math\(\)/);
+    assert.match(app, /sourceTextInput\.value = selected/);
     assert.match(app, /clearButton\.classList\.remove\('hidden'\)/);
     assert.match(app, /const block = '\$\$\\n' \+ latex \+ '\\n\$\$'/);
     assert.match(app, /ensureMdMathEngineLoaded\(\)/);
