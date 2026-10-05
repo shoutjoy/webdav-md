@@ -80,13 +80,21 @@
         return (hash >>> 0).toString(36);
     }
 
-    function getMermaidCacheKey(source) {
-        const value = String(source || '');
-        return (isDarkTheme() ? 'dark:' : 'light:') + value.length + ':' + hashMermaidSource(value);
+    function getMermaidTheme(target) {
+        const wrapper = target && target.closest ? target.closest('.trt-mermaid-wrapper') : target;
+        const override = wrapper && wrapper.getAttribute ? wrapper.getAttribute('data-mermaid-theme') : '';
+        if (override === 'dark' || override === 'light') return override;
+        return isDarkTheme() ? 'dark' : 'light';
     }
 
-    function readMermaidSvgCache(source) {
-        const key = getMermaidCacheKey(source);
+    function getMermaidCacheKey(source, theme) {
+        const value = String(source || '');
+        const resolvedTheme = theme === 'dark' || theme === 'light' ? theme : getMermaidTheme(null);
+        return resolvedTheme + ':' + value.length + ':' + hashMermaidSource(value);
+    }
+
+    function readMermaidSvgCache(source, theme) {
+        const key = getMermaidCacheKey(source, theme);
         const cached = mermaidSvgCache.get(key);
         if (!cached || cached.source !== source) {
             mermaidCacheStats.misses += 1;
@@ -98,8 +106,8 @@
         return cached.html;
     }
 
-    function writeMermaidSvgCache(source, html) {
-        const key = getMermaidCacheKey(source);
+    function writeMermaidSvgCache(source, html, theme) {
+        const key = getMermaidCacheKey(source, theme);
         mermaidSvgCache.delete(key);
         mermaidSvgCache.set(key, { source: source, html: String(html || '') });
         mermaidCacheStats.writes += 1;
@@ -116,8 +124,9 @@
         const style = d.createElement('style');
         style.id = 'mdv-mermaid-controls-style';
         style.textContent = [
-            '.trt-mermaid-wrapper{position:relative;display:block;box-sizing:border-box;overflow:hidden;border:1px solid rgba(148,163,184,.35);border-radius:8px;background:#fff;min-width:180px;min-height:140px;height:450px;padding-right:118px;}',
-            '.dark .trt-mermaid-wrapper{background:#0f172a;border-color:#475569;}',
+            '.trt-mermaid-wrapper{position:relative;display:block;box-sizing:border-box;overflow:hidden;border:1px solid rgba(148,163,184,.35);border-radius:8px;background:#fff;min-width:180px;min-height:140px;height:450px;padding-right:158px;}',
+            '.dark .trt-mermaid-wrapper,.trt-mermaid-wrapper[data-mermaid-theme="dark"]{background:#0f172a;border-color:#475569;}',
+            '.dark .trt-mermaid-wrapper[data-mermaid-theme="light"],.trt-mermaid-wrapper[data-mermaid-theme="light"]{background:#fff;border-color:rgba(148,163,184,.35);}',
             '.trt-mermaid-viewport{position:relative;overflow:hidden;min-height:0;cursor:grab;touch-action:none;height:100%;}',
             '.trt-mermaid-viewport.dragging{cursor:grabbing;}',
             '.trt-mermaid-canvas{transform-origin:0 0;padding:24px;min-width:max-content;min-height:160px;overflow:visible;}',
@@ -129,17 +138,21 @@
             '.trt-mermaid-fixed-controls{position:absolute;top:10px;right:12px;z-index:22;display:flex;align-items:center;gap:5px;}',
             '.trt-mermaid-fixed-controls .trt-mermaid-btn{width:30px;height:30px;border-radius:6px;}',
             '.trt-mermaid-fixed-controls .trt-mermaid-fixed-fit{width:auto;min-width:42px;padding:0 8px;font-size:12px;}',
+            '.trt-mermaid-theme-toggle{font-size:16px;font-weight:700;}',
             '.trt-mermaid-fixed-scale{min-width:46px;text-align:center;color:#475569;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;}',
-            '.dark .trt-mermaid-fixed-scale{color:#cbd5e1;}',
+            '.dark .trt-mermaid-fixed-scale,.trt-mermaid-wrapper[data-mermaid-theme="dark"] .trt-mermaid-fixed-scale{color:#cbd5e1;}',
+            '.dark .trt-mermaid-wrapper[data-mermaid-theme="light"] .trt-mermaid-fixed-scale,.trt-mermaid-wrapper[data-mermaid-theme="light"] .trt-mermaid-fixed-scale{color:#475569;}',
             '.trt-mermaid-control-top,.trt-mermaid-control-pad{position:absolute;right:12px;display:grid;gap:5px;z-index:20;}',
-            '.trt-mermaid-control-top{top:12px;grid-template-columns:repeat(2,34px);}',
+            '.trt-mermaid-control-top{top:12px;grid-template-columns:repeat(3,34px);}',
             '.trt-mermaid-control-pad{top:62px;grid-template-columns:repeat(3,34px);}',
             '.trt-mermaid-btn{width:34px;height:34px;border:1px solid #cbd5e1;border-radius:7px;background:#f8fafc;color:#334155;font-size:14px;font-weight:800;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 1px 2px rgba(15,23,42,.08);font-family:Arial,sans-serif;}',
             '.trt-mermaid-btn:hover{background:#eef2ff;border-color:#a5b4fc;color:#3730a3;}',
-            '.dark .trt-mermaid-btn{background:#1e293b;border-color:#64748b;color:#e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.35);}',
-            '.dark .trt-mermaid-btn:hover{background:#312e81;border-color:#818cf8;color:#eef2ff;}',
+            '.dark .trt-mermaid-btn,.trt-mermaid-wrapper[data-mermaid-theme="dark"] .trt-mermaid-btn{background:#1e293b;border-color:#64748b;color:#e2e8f0;box-shadow:0 1px 2px rgba(0,0,0,.35);}',
+            '.dark .trt-mermaid-btn:hover,.trt-mermaid-wrapper[data-mermaid-theme="dark"] .trt-mermaid-btn:hover{background:#312e81;border-color:#818cf8;color:#eef2ff;}',
+            '.dark .trt-mermaid-wrapper[data-mermaid-theme="light"] .trt-mermaid-btn,.trt-mermaid-wrapper[data-mermaid-theme="light"] .trt-mermaid-btn{background:#f8fafc;border-color:#cbd5e1;color:#334155;box-shadow:0 1px 2px rgba(15,23,42,.08);}',
+            '.dark .trt-mermaid-wrapper[data-mermaid-theme="light"] .trt-mermaid-btn:hover,.trt-mermaid-wrapper[data-mermaid-theme="light"] .trt-mermaid-btn:hover{background:#eef2ff;border-color:#a5b4fc;color:#3730a3;}',
             '.trt-mermaid-pad-spacer{visibility:hidden;}',
-            '.trt-mermaid-controls-toggle{position:absolute;top:12px;right:90px;z-index:22;width:auto;min-width:48px;padding:0 7px;font-size:11px;}',
+            '.trt-mermaid-controls-toggle{position:absolute;top:12px;right:129px;z-index:22;width:auto;min-width:48px;padding:0 7px;font-size:11px;}',
             '.trt-mermaid-controls-collapsed{padding-right:18px;}',
             '.trt-mermaid-controls-collapsed .trt-mermaid-control-top,.trt-mermaid-controls-collapsed .trt-mermaid-control-pad{display:none;}',
             '.trt-mermaid-controls-collapsed .trt-mermaid-controls-toggle{right:12px;}',
@@ -172,9 +185,9 @@
         return document.documentElement.classList.contains('dark');
     }
 
-    function configureMermaid() {
+    function configureMermaid(theme) {
         if (!global.mermaid || typeof global.mermaid.initialize !== 'function') return;
-        const dark = isDarkTheme();
+        const dark = theme === 'dark' || (theme !== 'light' && isDarkTheme());
         global.mermaid.initialize({
             startOnLoad: false,
             suppressErrorRendering: true,
@@ -267,6 +280,10 @@
         wrapper.setAttribute('data-mermaid-source', source);
         wrapper.setAttribute('data-mermaid-original-source', rawText);
         wrapper.setAttribute('data-mermaid-mode', getMermaidDisplayMode());
+        const themeOverride = String(codeEl.getAttribute('data-mermaid-theme') || '');
+        if (themeOverride === 'dark' || themeOverride === 'light') {
+            wrapper.setAttribute('data-mermaid-theme', themeOverride);
+        }
         if (prepared && prepared.labelMap && Object.keys(prepared.labelMap).length) {
             wrapper.setAttribute('data-sankey-label-map', JSON.stringify(prepared.labelMap));
         }
@@ -275,7 +292,7 @@
         viewport.className = 'trt-mermaid-viewport';
         const block = document.createElement('div');
         block.className = 'mermaid trt-mermaid-canvas';
-        const cachedHtml = readMermaidSvgCache(source);
+        const cachedHtml = readMermaidSvgCache(source, getMermaidTheme(wrapper));
         if (cachedHtml) {
             block.innerHTML = cachedHtml;
             block.setAttribute('data-mermaid-cache-hit', '1');
@@ -453,12 +470,12 @@
         }
     }
 
-    function polishMermaidSvg(node) {
+    function polishMermaidSvg(node, theme) {
         var svg = node && node.querySelector ? node.querySelector('svg') : null;
         if (!svg) return;
         expandMermaidSvgBounds(svg);
         if (svg.querySelector('style[data-mdv-mermaid-polish="1"]')) return;
-        var dark = isDarkTheme();
+        var dark = theme === 'dark' || (theme !== 'light' && getMermaidTheme(node) === 'dark');
         var lineColor = dark ? '#94a3b8' : '#64748b';
         var textColor = dark ? '#e2e8f0' : '#334155';
         var shadowColor = dark ? 'rgba(0,0,0,.28)' : 'rgba(15,23,42,.10)';
@@ -608,6 +625,58 @@
         wrapper.__mdvFixedResizeObserver = observer;
     }
 
+    function updateMermaidThemeButton(wrapper) {
+        if (!wrapper || !wrapper.querySelector) return;
+        const button = wrapper.querySelector('.trt-mermaid-theme-toggle');
+        if (!button) return;
+        const currentTheme = getMermaidTheme(wrapper);
+        const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        button.textContent = nextTheme === 'light' ? '☀' : '☾';
+        button.title = 'Mermaid를 ' + (nextTheme === 'light' ? '라이트' : '다크') + ' 테마로 보기';
+        button.setAttribute('aria-label', button.title);
+        button.setAttribute('aria-pressed', currentTheme === 'dark' ? 'true' : 'false');
+    }
+
+    async function setMermaidBlockTheme(wrapper, theme) {
+        if (!wrapper || !wrapper.querySelector) return false;
+        const nextTheme = theme === 'dark' ? 'dark' : 'light';
+        const source = String(wrapper.getAttribute('data-mermaid-source') || '');
+        const canvas = wrapper.querySelector('.trt-mermaid-canvas');
+        if (!source || !canvas) return false;
+        const button = wrapper.querySelector('.trt-mermaid-theme-toggle');
+        if (button) button.disabled = true;
+        wrapper.setAttribute('aria-busy', 'true');
+        try {
+            await loadMermaid();
+            await waitForMermaidFonts();
+            wrapper.setAttribute('data-mermaid-theme', nextTheme);
+            canvas.removeAttribute('data-processed');
+            canvas.removeAttribute('data-mermaid-cache-hit');
+            canvas.textContent = source;
+            configureMermaid(nextTheme);
+            await global.mermaid.run({ nodes: [canvas] });
+            restoreSankeyKoreanLabels(canvas);
+            polishMermaidSvg(canvas, nextTheme);
+            if (canvas.innerHTML) writeMermaidSvgCache(source, canvas.innerHTML, nextTheme);
+            updateMermaidThemeButton(wrapper);
+            if (wrapper.getAttribute('data-mermaid-mode') === 'fixed') applyFixedMermaidSize(wrapper);
+            else applyMermaidTransform(wrapper);
+            return true;
+        } finally {
+            configureMermaid();
+            wrapper.removeAttribute('aria-busy');
+            if (button) button.disabled = false;
+        }
+    }
+
+    function toggleMermaidBlockTheme(wrapper) {
+        const nextTheme = getMermaidTheme(wrapper) === 'dark' ? 'light' : 'dark';
+        return setMermaidBlockTheme(wrapper, nextTheme).catch(function (error) {
+            console.warn('Mermaid block theme change skipped:', error && error.message ? error.message : error);
+            return false;
+        });
+    }
+
     function addFixedMermaidControls(node) {
         const wrapper = node && node.closest ? node.closest('.trt-mermaid-wrapper') : null;
         if (!wrapper || wrapper.getAttribute('data-mermaid-mode') !== 'fixed') return;
@@ -645,8 +714,12 @@
             controls.appendChild(button('맞춤', '문서 너비에 맞는 기본 크기', function () {
                 applyFixedMermaidSize(wrapper, 1);
             }, 'trt-mermaid-fixed-fit'));
+            controls.appendChild(button('', '', function () {
+                toggleMermaidBlockTheme(wrapper);
+            }, 'trt-mermaid-theme-toggle'));
             wrapper.appendChild(controls);
         }
+        updateMermaidThemeButton(wrapper);
         bindFixedMermaidResize(wrapper);
         setTimeout(function () { applyFixedMermaidSize(wrapper); }, 0);
     }
@@ -802,6 +875,9 @@
         }
 
         top.appendChild(btn('<>', '가로 맞춤', function () { fitMermaidView(wrapper); }));
+        top.appendChild(btn('', '', function () {
+            toggleMermaidBlockTheme(wrapper);
+        }, 'trt-mermaid-theme-toggle'));
         top.appendChild(btn('[]', 'Mermaid 코드 복사', function () { copyMermaidSource(wrapper); }));
         pad.appendChild(document.createElement('span')).className = 'trt-mermaid-pad-spacer';
         pad.appendChild(btn('^', '위로 이동', function () { adjustMermaidView(wrapper, 0, -28, 0); }));
@@ -823,6 +899,7 @@
         wrapper.appendChild(top);
         wrapper.appendChild(pad);
         wrapper.appendChild(toggle);
+        updateMermaidThemeButton(wrapper);
 
         const resizeW = document.createElement('div');
         resizeW.className = 'trt-mermaid-resize-handle trt-mermaid-resize-w';
@@ -924,14 +1001,16 @@
         for (let i = 0; i < mermaidNodes.length; i++) {
             const n = mermaidNodes[i];
             try {
+                const renderTheme = getMermaidTheme(n);
+                configureMermaid(renderTheme);
                 await global.mermaid.run({ nodes: [n] });
                 restoreSankeyKoreanLabels(n);
-                polishMermaidSvg(n);
+                polishMermaidSvg(n, renderTheme);
                 const wrapper = n && n.closest ? n.closest('.trt-mermaid-wrapper') : null;
                 const renderedSource = wrapper
                     ? String(wrapper.getAttribute('data-mermaid-source') || '')
                     : '';
-                if (renderedSource && n.innerHTML) writeMermaidSvgCache(renderedSource, n.innerHTML);
+                if (renderedSource && n.innerHTML) writeMermaidSvgCache(renderedSource, n.innerHTML, renderTheme);
                 if (wrapper && wrapper.getAttribute('data-mermaid-mode') === 'fixed') addFixedMermaidControls(n);
                 else addMermaidControls(n);
                 changedCount += 1;
@@ -948,6 +1027,8 @@
                 parent.appendChild(pre);
             }
         }
+
+        configureMermaid();
 
         enhanceExistingMermaidWrappers(target);
 
@@ -975,6 +1056,10 @@
             const code = document.createElement('code');
             code.className = 'language-mermaid';
             code.textContent = source;
+            const themeOverride = String(wrapper.getAttribute('data-mermaid-theme') || '');
+            if (themeOverride === 'dark' || themeOverride === 'light') {
+                code.setAttribute('data-mermaid-theme', themeOverride);
+            }
             pre.appendChild(code);
             wrapper.replaceWith(pre);
         }
@@ -1039,6 +1124,7 @@
         refresh: refresh,
         setDisplayMode: setDisplayMode,
         getDisplayMode: getMermaidDisplayMode,
+        setBlockTheme: setMermaidBlockTheme,
         getCacheStats: function () {
             return Object.assign({}, mermaidCacheStats, { size: mermaidSvgCache.size });
         },

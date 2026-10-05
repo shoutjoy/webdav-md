@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>문서 일괄 시각화 스튜디오 (ImgBB 연동)</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- JSZip -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- Mammoth (Docx parser) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+  <!-- PptxGenJS (PPTX Maker) Bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+  
+  <!-- 페이지 단위 명시적 분할을 위한 라이브러리 교체 (html2canvas + jsPDF) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50: '#f0f7ff', 500: '#3b82f6', 600: '#2563eb' },
+            dark: { bg: '#0a0e17', surface: '#111827', card: '#161f30', border: '#223049', input: '#0d131f' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500;600&display=swap');
+    body { font-family: 'Pretendard', sans-serif; }
+    .font-mono { font-family: 'Fira Code', monospace; }
+    .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+    .dark .custom-scroll::-webkit-scrollbar-thumb { background: #2a3b5c; border-radius: 4px; }
+    .dark .custom-scroll::-webkit-scrollbar-thumb:hover { background: #3b507d; }
+    @keyframes pulse-subtle { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .animate-pulse-subtle { animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    .progress-bar-fill { transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+    .drop-zone-active { border-color: #3b82f6 !important; background-color: rgba(59, 130, 246, 0.1) !important; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-[#0a0e17] dark:text-slate-100 min-h-screen flex flex-col antialiased transition-colors duration-200">
+
+  <!-- Header -->
+  <header class="bg-white/90 dark:bg-[#111827]/90 backdrop-blur-md border-b border-slate-200 dark:border-[#223049] sticky top-0 z-40 shadow-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-500 text-white flex items-center justify-center shadow-lg">
+          <i class="fa-solid fa-layer-group text-lg"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-base sm:text-lg text-slate-900 dark:text-white flex items-center gap-2">
+            <span>문서 일괄 시각화 & ImgBB 스튜디오</span>
+            <span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300 font-semibold border border-blue-200 dark:border-blue-800/60">Batch & Upload</span>
+          </h1>
+          <p class="text-xs text-slate-500 hidden sm:block">문서 파싱 ➔ 프롬프트 편집 ➔ 일괄 생성 ➔ ImgBB 업로드 ➔ 마크다운 완성</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <button id="btnThemeToggle" class="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-amber-300 hover:scale-105 transition">
+          <i id="themeIcon" class="fa-solid fa-moon text-sm"></i>
+        </button>
+        <button id="btnOpenHistoryDrawer" class="text-xs font-medium px-3 py-2 rounded-xl bg-slate-900 dark:bg-slate-800 text-white flex items-center gap-1.5 shadow-sm transition">
+          <i class="fa-solid fa-clock-rotate-left"></i> 보관함 <span id="historyCountBadge" class="bg-blue-500 text-white text-[10px] px-1.5 rounded-full font-bold">0</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6">
+    
+    <!-- LEFT PANEL (Controls) -->
+    <div class="lg:col-span-4 xl:col-span-3 flex flex-col gap-4">
+      
+      <!-- Step 1: Document Upload & Parse -->
+      <div class="bg-white dark:bg-[#161f30] p-4 rounded-2xl border border-slate-200 dark:border-[#223049] shadow-sm flex flex-col gap-3">
+        <label class="text-sm font-bold flex items-center gap-2">
+          <span class="w-5 h-5 rounded-full bg-blue-100 text-blue-600 font-bold text-xs flex items-center justify-center">1</span> 원고 업로드 및 파싱
+        </label>
+        
+        <div id="fileDropZone" class="w-full border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-4 flex flex-col items-center justify-center bg-slate-50 dark:bg-[#0d131f] hover:border-blue-500 cursor-pointer transition group">
+          <i class="fa-solid fa-file-arrow-up text-2xl text-slate-400 group-hover:text-blue-500 mb-1 transition"></i>
+          <p class="text-xs font-bold text-slate-600 dark:text-slate-300">클릭 또는 파일 드래그</p>
+          <p class="text-[10px] text-slate-400">지원: txt, md, docx</p>
+          <input type="file" id="fileInput" class="hidden" accept=".txt,.md,.docx" />
+        </div>
+
+        <textarea id="articleInput" rows="4" class="w-full text-xs p-2.5 border border-slate-200 dark:border-[#223049] rounded-xl outline-none custom-scroll bg-slate-50 dark:bg-[#0d131f] text-slate-900 dark:text-slate-100 placeholder-slate-400" placeholder="여기에 직접 텍스트를 붙여넣어도 됩니다."></textarea>
+        
+        <button id="btnParseDocument" class="w-full py-2 rounded-xl bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white font-bold text-xs transition shadow-md flex items-center justify-center gap-2">
+          <i class="fa-solid fa-microscope"></i> 슬라이드 분리 및 추출
+        </button>
+        <button id="btnFormatContent" class="w-full py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-bold text-xs transition shadow-sm flex items-center justify-center gap-2">
+          <i class="fa-solid fa-list-ul"></i> 문서 본문 항목화 (마침표 기준)
+        </button>
+      </div>
+
+      <!-- Step 2: Gen Options -->
+      <div class="bg-white dark:bg-[#161f30] p-4 rounded-2xl border border-slate-200 dark:border-[#223049] shadow-sm flex flex-col gap-3">
+        <label class="text-sm font-bold flex items-center gap-2">
+          <span class="w-5 h-5 rounded-full bg-indigo-100 text-indigo-600 font-bold text-xs flex items-center justify-center">2</span> 일괄 생성 설정
+        </label>
+        
+        <!-- 전체 스타일 프롬프트 설정 -->
+        <div class="flex flex-col gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+          <label class="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block">전체 슬라이드 공통 스타일 지정</label>
+          
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5" id="stylePresets">
+            <button data-preset="academic" class="preset-btn active px-2 py-1.5 rounded-lg text-[10px] font-bold border transition bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800">
+              🎓 학술/전문 보고서
+            </button>
+            <button data-preset="vector_info" class="preset-btn px-2 py-1.5 rounded-lg text-[10px] font-medium border transition bg-slate-50 text-slate-600 border-slate-200 dark:bg-[#0d131f] dark:text-slate-400 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">
+              📊 플랫/구조화 인포
+            </button>
+            <button data-preset="cartoon" class="preset-btn px-2 py-1.5 rounded-lg text-[10px] font-medium border transition bg-slate-50 text-slate-600 border-slate-200 dark:bg-[#0d131f] dark:text-slate-400 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">
+              💬 코믹/만화 툰
+            </button>
+            <button data-preset="modern" class="preset-btn px-2 py-1.5 rounded-lg text-[10px] font-medium border transition bg-slate-50 text-slate-600 border-slate-200 dark:bg-[#0d131f] dark:text-slate-400 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">
+              🏢 모던/IT 비즈니스
+            </button>
+            <button data-preset="emotional" class="preset-btn px-2 py-1.5 rounded-lg text-[10px] font-medium border transition bg-slate-50 text-slate-600 border-slate-200 dark:bg-[#0d131f] dark:text-slate-400 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">
+              🎨 감성/에세이
+            </button>
+            <button data-preset="marketing" class="preset-btn px-2 py-1.5 rounded-lg text-[10px] font-medium border transition bg-slate-50 text-slate-600 border-slate-200 dark:bg-[#0d131f] dark:text-slate-400 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">
+              📢 팝아트/마케팅
+            </button>
+            <button data-preset="custom" class="preset-btn px-2 py-1.5 rounded-lg text-[10px] font-medium border transition bg-slate-50 text-slate-600 border-slate-200 dark:bg-[#0d131f] dark:text-slate-400 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">
+              ✨ 커스텀 (빈칸)
+            </button>
+          </div>
+          
+          <div class="relative flex flex-col gap-1.5">
+            <textarea id="globalStylePrompt" rows="3" class="w-full text-[11px] p-2 border border-slate-200 dark:border-[#223049] rounded-lg outline-none focus:border-indigo-400 custom-scroll bg-slate-50 dark:bg-[#0d131f] text-slate-800 dark:text-slate-200 placeholder-slate-400" placeholder="전체 슬라이드에 적용할 공통 스타일을 입력하세요."></textarea>
+            
+            <div class="flex items-center justify-between">
+              <div id="userSavedStylesContainer" class="flex flex-wrap gap-1.5 flex-1">
+                <!-- User saved styles -->
+              </div>
+              <button id="btnSaveCustomStyle" class="shrink-0 px-2.5 py-1.5 rounded-lg bg-indigo-100 hover:bg-indigo-200 text-indigo-700 dark:bg-indigo-900/50 dark:hover:bg-indigo-800/60 dark:text-indigo-300 font-bold text-[10px] transition shadow-sm border border-indigo-200 dark:border-indigo-800 flex items-center gap-1">
+                <i class="fa-solid fa-floppy-disk"></i> 현재 프롬프트 저장
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label class="text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">비율 선택</label>
+          <div class="flex gap-1" id="ratioOptions">
+             <button data-ratio="16:9" class="ratio-btn active flex-1 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white border border-indigo-500">16:9</button>
+             <button data-ratio="1:1" class="ratio-btn flex-1 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-[#0d131f] text-slate-600 border border-slate-200 dark:border-slate-700">1:1</button>
+             <button data-ratio="4:3" class="ratio-btn flex-1 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-[#0d131f] text-slate-600 border border-slate-200 dark:border-slate-700">4:3</button>
+          </div>
+        </div>
+        
+        <div class="p-3 bg-slate-50 dark:bg-[#0d131f] rounded-xl border border-slate-200 dark:border-slate-700/80 flex flex-col gap-2">
+          <div class="flex items-center justify-between text-xs">
+            <span class="font-bold"><i class="fa-solid fa-gears"></i> 생성 큐 제어</span>
+            <input type="number" id="batchSizeInput" value="3" min="1" class="w-12 px-1 py-0.5 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-[#161f30] text-center" title="한 번에 생성할 개수" />
+          </div>
+          <div class="flex gap-1.5 mt-1">
+            <button id="btnGenerateNextBatch" disabled class="flex-1 py-2 rounded-lg bg-blue-600 disabled:opacity-50 text-white font-bold text-[11px] transition shadow-sm">
+               지정 개수 생성
+            </button>
+            <button id="btnGenerateAll" disabled class="flex-1 py-2 rounded-lg bg-indigo-600 disabled:opacity-50 text-white font-bold text-[11px] transition shadow-sm">
+               전체 생성
+            </button>
+          </div>
+          <button id="btnStopGeneration" class="hidden w-full py-2 rounded-lg bg-rose-600 text-white font-bold text-[11px] transition shadow-sm">
+            <i class="fa-solid fa-stop"></i> 중지
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 3: ImgBB & Export -->
+      <div class="bg-white dark:bg-[#161f30] p-4 rounded-2xl border border-slate-200 dark:border-[#223049] shadow-sm flex flex-col gap-3">
+        <label class="text-sm font-bold flex items-center gap-2">
+          <span class="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 font-bold text-xs flex items-center justify-center">3</span> ImgBB 및 일괄 다운로드
+        </label>
+        
+        <div>
+          <label class="text-[10px] font-bold text-slate-500 mb-1 block">ImgBB API 키 (마크다운 이미지 링크용)</label>
+          <div class="flex gap-1.5">
+            <input type="password" id="imgbbApiKeyInput" class="flex-1 text-xs p-2 border border-slate-200 dark:border-[#223049] rounded-lg bg-slate-50 dark:bg-[#0d131f] outline-none focus:border-emerald-500" placeholder="ImgBB API Key 입력" />
+            <button id="btnSaveImgbbKey" class="px-3 py-2 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-700 dark:bg-emerald-900/50 dark:hover:bg-emerald-800/60 dark:text-emerald-300 font-bold text-xs transition shadow-sm border border-emerald-200 dark:border-emerald-800 whitespace-nowrap">
+              저장
+            </button>
+          </div>
+        </div>
+
+        <button id="btnBatchUploadImgbb" class="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition shadow-sm flex items-center justify-center gap-1.5 mt-1">
+          <i class="fa-solid fa-cloud-arrow-up"></i> 전체 이미지 ImgBB 업로드
+        </button>
+        
+        <div class="mt-2 border-t border-slate-200 dark:border-slate-700 pt-3 flex flex-col gap-2">
+          <span class="text-xs font-bold text-slate-800 dark:text-white flex items-center gap-1 mb-1">
+            <i class="fa-solid fa-download text-blue-500"></i> 내보내기 & 다운로드 옵션
+          </span>
+
+          <!-- Markdown Download Option -->
+          <div class="p-2.5 bg-slate-50 dark:bg-[#0d131f] rounded-lg border border-slate-200 dark:border-slate-700/80 flex flex-col gap-2">
+            <span class="text-[10px] font-bold text-slate-500 block">1. 마크다운(MD) 문서 추출</span>
+            <label class="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300 cursor-pointer">
+              <input type="checkbox" id="chkFormatBullets" class="w-3.5 h-3.5 rounded text-blue-600 bg-white border-slate-300" checked />
+              상세해설 항목정리 (마침표 기준 '-' 목록화)
+            </label>
+            <label class="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300 cursor-pointer">
+              <input type="checkbox" id="chkRemoveVisualPrompt" class="w-3.5 h-3.5 rounded text-blue-600 bg-white border-slate-300" checked />
+              시각화 지시문 삭제 (ImgBB 링크로 대체)
+            </label>
+            <button id="btnDownloadFinalDoc" class="w-full py-2 mt-1 rounded-lg bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white font-bold text-[11px] transition shadow-sm flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-file-markdown"></i> MD 문서 다운로드
+            </button>
+          </div>
+
+          <!-- ZIP & PPTX Download Option -->
+          <div class="flex gap-1.5">
+            <button id="btnDownloadZipOnly" class="flex-1 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-[11px] transition shadow-sm flex items-center justify-center gap-1">
+              <i class="fa-solid fa-file-zipper"></i> 이미지만 ZIP
+            </button>
+            <button id="btnDownloadPptx" class="flex-1 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-bold text-[11px] transition shadow-sm flex items-center justify-center gap-1">
+              <i class="fa-solid fa-file-powerpoint"></i> PPTX 다운로드
+            </button>
+          </div>
+
+          <!-- PDF Download Option -->
+          <div class="p-2.5 bg-slate-50 dark:bg-[#0d131f] rounded-lg border border-slate-200 dark:border-slate-700/80 flex flex-col gap-2">
+            <span class="text-[10px] font-bold text-slate-500 block">2. PDF 문서 생성 (원고 & 이미지)</span>
+            <label class="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300 cursor-pointer">
+              <input type="radio" name="pdfMode" value="image_only_landscape" class="w-3.5 h-3.5 text-rose-600" checked />
+              이미지만 페이지별 생성 (가로형)
+            </label>
+            <label class="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300 cursor-pointer">
+              <input type="radio" name="pdfMode" value="image_only_portrait" class="w-3.5 h-3.5 text-rose-600" />
+              이미지만 페이지별 생성 (세로형)
+            </label>
+            <label class="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300 cursor-pointer">
+              <input type="radio" name="pdfMode" value="text_image_combined" class="w-3.5 h-3.5 text-rose-600" />
+              원고 + 이미지 한 페이지 통합
+            </label>
+            <label class="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300 cursor-pointer">
+              <input type="radio" name="pdfMode" value="text_image_separate" class="w-3.5 h-3.5 text-rose-600" />
+              원고 따로, 이미지 따로 (가로형)
+            </label>
+            <button id="btnDownloadPdf" class="w-full py-2 mt-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] transition shadow-sm flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-file-pdf"></i> PDF 다운로드
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- RIGHT PANEL (Parsed List & Progress) -->
+    <div class="lg:col-span-8 xl:col-span-9 flex flex-col gap-4 h-[calc(100vh-100px)] relative">
+      
+      <!-- Detailed Progress Bar -->
+      <div id="progressContainer" class="bg-white dark:bg-[#161f30] p-4 rounded-2xl border border-blue-200 dark:border-blue-800/60 shadow-lg hidden flex-col gap-2 relative overflow-hidden">
+         <div class="flex justify-between items-end">
+           <div>
+             <h3 class="text-sm font-bold text-blue-600 dark:text-blue-400 flex items-center gap-2">
+               <i class="fa-solid fa-wand-magic-sparkles animate-bounce"></i> 
+               <span id="progressTitle">생성 작업 진행 중...</span>
+             </h3>
+             <p id="progressCurrentStatus" class="text-[11px] text-slate-500 font-medium mt-1">대기 중...</p>
+           </div>
+           <div class="text-right">
+             <span id="progressPercent" class="text-xl font-extrabold text-blue-600">0%</span>
+             <p id="progressCount" class="text-[10px] text-slate-500 font-mono mt-0.5">0 / 0</p>
+           </div>
+         </div>
+         <div class="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden mt-1">
+           <div id="progressBarFill" class="progress-bar-fill h-full bg-gradient-to-r from-blue-500 to-indigo-500 w-0"></div>
+         </div>
+      </div>
+
+      <!-- Parsed Slides List -->
+      <div class="bg-white dark:bg-[#161f30] rounded-2xl border border-slate-200 dark:border-[#223049] shadow-sm flex flex-col flex-1 overflow-hidden">
+        <div class="p-3 border-b border-slate-200 dark:border-[#223049] flex justify-between items-center bg-slate-50 dark:bg-[#0d131f]">
+          <h2 class="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+            <i class="fa-solid fa-list-check text-indigo-500"></i> 파싱된 슬라이드 및 작업 큐
+          </h2>
+          <span id="parsedSummaryBadge" class="text-[10px] bg-slate-200 dark:bg-slate-700 px-2 py-1 rounded font-bold">0개 대기중</span>
+        </div>
+        
+        <div id="parsedListContainer" class="flex-1 overflow-y-auto p-4 custom-scroll grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4 content-start bg-slate-50/50 dark:bg-[#0a0e17]/50 relative">
+          <!-- Empty State -->
+          <div id="parsedEmptyState" class="absolute inset-0 flex flex-col items-center justify-center text-center text-slate-400 pointer-events-none">
+            <i class="fa-regular fa-folder-open text-4xl mb-3"></i>
+            <p class="text-sm font-bold">원고를 업로드하고 파싱을 진행하세요.</p>
+            <p class="text-[11px] mt-1 max-w-sm">"#### **Slide 1.**" 와 "[시각적 요소...]" 패턴을 인식하여 편집 가능한 목록을 생성합니다.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Fullscreen Image Modal -->
+  <div id="imageModal" class="fixed inset-0 z-[100] bg-black/90 flex flex-col justify-center items-center p-4 hidden backdrop-blur-sm transition-opacity">
+    <div class="absolute top-4 right-4 flex gap-2">
+      <button id="btnModalDownload" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1">
+        <i class="fa-solid fa-download"></i> 다운로드
+      </button>
+      <button id="btnCloseModal" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-bold transition">
+        닫기 <i class="fa-solid fa-xmark ml-1"></i>
+      </button>
+    </div>
+    <img id="modalImg" class="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl bg-white border-4 border-white" />
+  </div>
+
+  <!-- History Drawer -->
+  <div id="historyDrawer" class="fixed inset-0 z-50 overflow-hidden hidden">
+    <div id="drawerBackdrop" class="absolute inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity opacity-0"></div>
+    <div class="fixed inset-y-0 right-0 max-w-full flex pl-10">
+      <div id="drawerPanel" class="w-screen max-w-lg bg-white dark:bg-[#111827] border-l border-slate-200 dark:border-[#223049] shadow-2xl flex flex-col transform translate-x-full transition-transform duration-300">
+        
+        <div class="p-4 border-b border-slate-200 dark:border-[#223049] flex items-center justify-between">
+          <h3 class="font-bold text-sm flex items-center gap-2"><i class="fa-solid fa-images text-blue-500"></i> 생성 보관함</h3>
+          <button id="btnCloseDrawer" class="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="p-3 bg-blue-50 dark:bg-blue-950/30 border-b border-blue-100 dark:border-blue-900/40 flex justify-end gap-2">
+          <button id="btnBatchDownloadZip" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-xs flex items-center gap-1.5 transition">
+            <i class="fa-solid fa-file-zipper"></i> ZIP 일괄 다운
+          </button>
+        </div>
+
+        <div id="historyListContainer" class="flex-1 overflow-y-auto p-4 grid grid-cols-2 gap-4 place-content-start custom-scroll">
+          <div id="emptyHistoryMsg" class="col-span-2 text-center py-10 text-slate-400 text-xs">보관된 이미지가 없습니다.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-[150] flex flex-col gap-2 pointer-events-none"></div>
+
+  <script>
+    const state = {
+      apiKey: "", // API key parameter required but passed empty so system handles it
+      imgbbApiKey: localStorage.getItem('imgbbApiKey') || "",
+      theme: "dark",
+      aspectRatio: "16:9",
+      parsedSlides: [],
+      history: [], 
+      isGenerating: false,
+      isUploading: false,
+      stopRequested: false,
+      totalToProcess: 0,
+      processedCount: 0
+    };
+
+    const els = {
+      articleInput: document.getElementById('articleInput'),
+      fileInput: document.getElementById('fileInput'),
+      fileDropZone: document.getElementById('fileDropZone'),
+      btnParseDocument: document.getElementById('btnParseDocument'),
+      btnFormatContent: document.getElementById('btnFormatContent'),
+      parsedListContainer: document.getElementById('parsedListContainer'),
+      parsedEmptyState: document.getElementById('parsedEmptyState'),
+      parsedSummaryBadge: document.getElementById('parsedSummaryBadge'),
+      
+      globalStylePrompt: document.getElementById('globalStylePrompt'),
+      
+      batchSizeInput: document.getElementById('batchSizeInput'),
+      btnGenerateNextBatch: document.getElementById('btnGenerateNextBatch'),
+      btnGenerateAll: document.getElementById('btnGenerateAll'),
+      btnStopGeneration: document.getElementById('btnStopGeneration'),
+      
+      imgbbApiKeyInput: document.getElementById('imgbbApiKeyInput'),
+      btnSaveImgbbKey: document.getElementById('btnSaveImgbbKey'),
+      btnBatchUploadImgbb: document.getElementById('btnBatchUploadImgbb'),
+      btnDownloadFinalDoc: document.getElementById('btnDownloadFinalDoc'),
+      btnDownloadZipOnly: document.getElementById('btnDownloadZipOnly'),
+      btnDownloadPptx: document.getElementById('btnDownloadPptx'),
+      btnDownloadPdf: document.getElementById('btnDownloadPdf'),
+      
+      progressContainer: document.getElementById('progressContainer'),
+      progressBarFill: document.getElementById('progressBarFill'),
+      progressPercent: document.getElementById('progressPercent'),
+      progressCount: document.getElementById('progressCount'),
+      progressCurrentStatus: document.getElementById('progressCurrentStatus'),
+      progressTitle: document.getElementById('progressTitle'),
+
+      imageModal: document.getElementById('imageModal'),
+      modalImg: document.getElementById('modalImg'),
+      btnCloseModal: document.getElementById('btnCloseModal'),
+      btnModalDownload: document.getElementById('btnModalDownload'),
+      
+      historyDrawer: document.getElementById('historyDrawer'),
+      drawerBackdrop: document.getElementById('drawerBackdrop'),
+      drawerPanel: document.getElementById('drawerPanel'),
+      historyListContainer: document.getElementById('historyListContainer'),
+      historyCountBadge: document.getElementById('historyCountBadge')
+    };
+
+    let activeModalItem = null;
+
+    document.addEventListener("DOMContentLoaded", () => {
+      initTheme();
+      setupFileDrop();
+      setupRatioSelectors();
+      setupStylePresets();
+      setupModals();
+
+      if (state.imgbbApiKey) els.imgbbApiKeyInput.value = state.imgbbApiKey;
+      els.imgbbApiKeyInput.addEventListener('change', (e) => {
+        state.imgbbApiKey = e.target.value.trim();
+        localStorage.setItem('imgbbApiKey', state.imgbbApiKey);
+      });
+
+      els.btnFormatContent.addEventListener('click', formatInputText);
+      els.btnSaveImgbbKey.addEventListener('click', () => {
+        state.imgbbApiKey = els.imgbbApiKeyInput.value.trim();
+        localStorage.setItem('imgbbApiKey', state.imgbbApiKey);
+        showToast("ImgBB API 키가 성공적으로 저장되었습니다.", "info");
+      });
+
+      els.btnParseDocument.addEventListener('click', parseDocument);
+      els.btnGenerateNextBatch.addEventListener('click', () => startBatchGeneration(false));
+      els.btnGenerateAll.addEventListener('click', () => startBatchGeneration(true));
+      
+      els.btnStopGeneration.addEventListener('click', () => { 
+        state.stopRequested = true; 
+        updateProgressUI(null, null, null, `<i class="fa-solid fa-circle-stop text-rose-500"></i> 중지 요청됨. 현재 작업 후 멈춥니다.`);
+      });
+
+      els.btnBatchUploadImgbb.addEventListener('click', batchUploadToImgbb);
+      els.btnDownloadFinalDoc.addEventListener('click', downloadFinalDocument);
+      els.btnDownloadZipOnly.addEventListener('click', downloadZipOnly);
+      els.btnDownloadPptx.addEventListener('click', downloadPptx);
+      els.btnDownloadPdf.addEventListener('click', downloadPdf);
+    });
+
+    function initTheme() {
+      document.getElementById('btnThemeToggle').addEventListener('click', () => {
+        state.theme = state.theme === 'dark' ? 'light' : 'dark';
+        document.documentElement.classList.toggle('dark', state.theme === 'dark');
+        document.getElementById('themeIcon').className = state.theme === 'dark' ? 'fa-solid fa-moon text-amber-300' : 'fa-solid fa-sun text-amber-500';
+        updateRatioStyles();
+      });
+    }
+
+    function setupRatioSelectors() {
+      document.querySelectorAll('#ratioOptions .ratio-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          state.aspectRatio = e.target.dataset.ratio;
+          updateRatioStyles();
+        });
+      });
+    }
+
+    function setupStylePresets() {
+      const presets = {
+        academic: "학술 논문 및 전문 보고서용 스타일. 하얀색(Pure White) 배경 필수. 깔끔하고 정제된 벡터 2D 인포그래픽 그래픽. 차분한 블루/그레이 톤 사용. 신뢰감을 주는 구조적이고 학술적인 다이어그램 형식.",
+        vector_info: "구조화된 플랫(Flat) 2D 벡터 인포그래픽 디자인. 하얀색(Pure White) 배경. 표(Table)나 트리(Tree) 구조의 다이어그램 레이아웃. 청록색(Teal), 에메랄드 그린, 따뜻한 오렌지/옐로우 포인트 컬러. 톱니바퀴, 전구, 책 등 직관적이고 미니멀한 플랫 아이콘과 연결선 활용. 비즈니스 및 교육용 프레젠테이션 슬라이드.",
+        cartoon: "밝고 경쾌한 2D 컬러 웹툰/만화(Comic) 스타일. 뚜렷하고 깔끔한 검은색 외곽선(Bold outlines). 생동감 있고 다채로운 팝 컬러. 캐릭터와 말풍선, 감정 표현이 들어간 카툰 렌더링. 친근하고 캐주얼한 일러스트.",
+        modern: "세련된 현대적 IT/테크 비즈니스 스타일. 미니멀한 화이트 배경에 네온(블루/퍼플) 포인트 컬러 활용. 3D 느낌의 세련된 아이콘과 기하학적 요소, 깔끔한 플랫 디자인 위주.",
+        emotional: "따뜻하고 감성적인 블로그 포스팅 스타일. 파스텔 톤 색감, 부드러운 수채화 또는 손그림 일러스트 느낌. 아기자기하고 친근하며 부드러운 분위기 연출.",
+        marketing: "시선을 사로잡는 강렬한 마케팅/포스터 스타일. 뚜렷한 원색(레드/옐로우 등) 및 대비가 강한 색상 활용. 굵고 명확한 선, 다이내믹한 구도, 팝아트적 요소.",
+        custom: ""
+      };
+
+      if(!els.globalStylePrompt.value) els.globalStylePrompt.value = presets.academic;
+
+      document.querySelectorAll('#stylePresets .preset-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const presetKey = e.currentTarget.dataset.preset;
+          els.globalStylePrompt.value = presets[presetKey];
+          updatePresetButtonStyles(presetKey);
+        });
+      });
+
+      renderUserSavedStyles();
+
+      document.getElementById('btnSaveCustomStyle').addEventListener('click', () => {
+        const currentPrompt = els.globalStylePrompt.value.trim();
+        if (!currentPrompt) return showToast("저장할 프롬프트 내용이 없습니다.", "warning");
+
+        const styleName = prompt("저장할 스타일의 이름을 입력하세요 (예: 내 블로그 톤):");
+        if (!styleName) return;
+
+        let userStyles = JSON.parse(localStorage.getItem('userCustomStyles') || '[]');
+        userStyles.push({ id: 'style_' + Date.now(), name: styleName, prompt: currentPrompt });
+        localStorage.setItem('userCustomStyles', JSON.stringify(userStyles));
+        
+        showToast(`'${styleName}' 스타일이 저장되었습니다.`);
+        renderUserSavedStyles();
+        updatePresetButtonStyles('custom');
+      });
+    }
+
+    function updatePresetButtonStyles(activeKey) {
+      document.querySelectorAll('#stylePresets .preset-btn').forEach(b => {
+        const isActive = b.dataset.preset === activeKey;
+        b.className = isActive 
+          ? 'preset-btn active px-2 py-1.5 rounded-lg text-[10px] font-bold border transition bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800'
+          : 'preset-btn px-2 py-1.5 rounded-lg text-[10px] font-medium border transition bg-slate-50 text-slate-600 border-slate-200 dark:bg-[#0d131f] dark:text-slate-400 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800';
+      });
+
+      document.querySelectorAll('.user-style-btn').forEach(b => {
+        const isActive = b.dataset.preset === activeKey;
+        if(isActive) {
+            b.classList.remove('bg-slate-100', 'dark:bg-slate-800', 'text-slate-700', 'dark:text-slate-300');
+            b.classList.add('bg-indigo-100', 'dark:bg-indigo-900', 'text-indigo-700', 'dark:text-indigo-300', 'font-bold');
+        } else {
+            b.classList.add('bg-slate-100', 'dark:bg-slate-800', 'text-slate-700', 'dark:text-slate-300');
+            b.classList.remove('bg-indigo-100', 'dark:bg-indigo-900', 'text-indigo-700', 'dark:text-indigo-300', 'font-bold');
+        }
+      });
+    }
+
+    function renderUserSavedStyles() {
+      const container = document.getElementById('userSavedStylesContainer');
+      if (!container) return;
+      
+      let userStyles = JSON.parse(localStorage.getItem('userCustomStyles') || '[]');
+      container.innerHTML = '';
+      
+      userStyles.forEach(style => {
+        const btnGroup = document.createElement('div');
+        btnGroup.className = 'flex items-center rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden text-[10px] shadow-sm';
+        
+        btnGroup.innerHTML = `
+          <button type="button" class="user-style-btn px-2 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition" data-preset="${style.id}">
+            ⭐ ${style.name}
+          </button>
+          <button type="button" class="px-1.5 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-rose-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition border-l border-slate-200 dark:border-slate-700" onclick="deleteUserStyle('${style.id}')" title="삭제">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        `;
+        
+        btnGroup.querySelector('.user-style-btn').addEventListener('click', () => {
+            els.globalStylePrompt.value = style.prompt;
+            updatePresetButtonStyles(style.id);
+        });
+
+        container.appendChild(btnGroup);
+      });
+    }
+
+    window.deleteUserStyle = function(id) {
+        if(confirm("저장된 스타일을 삭제하시겠습니까?")) {
+            let userStyles = JSON.parse(localStorage.getItem('userCustomStyles') || '[]');
+            userStyles = userStyles.filter(s => s.id !== id);
+            localStorage.setItem('userCustomStyles', JSON.stringify(userStyles));
+            renderUserSavedStyles();
+            showToast("스타일이 삭제되었습니다.");
+            document.querySelector('[data-preset="academic"]').click();
+        }
+    };
+
+    function updateRatioStyles() {
+      document.querySelectorAll('#ratioOptions .ratio-btn').forEach(btn => {
+        const isActive = btn.dataset.ratio === state.aspectRatio;
+        btn.className = isActive 
+          ? 'ratio-btn active flex-1 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white border border-indigo-500'
+          : 'ratio-btn flex-1 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-[#0d131f] text-slate-600 border border-slate-200 dark:border-slate-700';
+      });
+    }
+
+    function setupFileDrop() {
+      els.fileDropZone.addEventListener('click', (e) => {
+        if (e.target.id !== 'fileInput') els.fileInput.click();
+      });
+      els.fileDropZone.addEventListener('dragenter', (e) => { e.preventDefault(); e.stopPropagation(); els.fileDropZone.classList.add('drop-zone-active'); });
+      els.fileDropZone.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); els.fileDropZone.classList.add('drop-zone-active'); });
+      els.fileDropZone.addEventListener('dragleave', (e) => { e.preventDefault(); e.stopPropagation(); els.fileDropZone.classList.remove('drop-zone-active'); });
+      els.fileDropZone.addEventListener('drop', (e) => {
+        e.preventDefault(); 
+        e.stopPropagation();
+        els.fileDropZone.classList.remove('drop-zone-active');
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          handleFile(e.dataTransfer.files[0]);
+        }
+      });
+      els.fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files.length > 0) handleFile(e.target.files[0]);
+        e.target.value = ''; 
+      });
+    }
+
+    function formatInputText() {
+      let text = els.articleInput.value;
+      if(!text.trim()) return showToast("텍스트가 없습니다.", "error");
+
+      const chunks = text.split(/(?=####\s*\**Slide)/i);
+      for (let i = 0; i < chunks.length; i++) {
+        let lines = chunks[i].split('\n');
+        let inDescription = false;
+        
+        for (let j = 0; j < lines.length; j++) {
+          let line = lines[j];
+          if (line.includes('상세 해설') || line.includes('설명내용') || line.includes('상세해설')) {
+            inDescription = true; continue;
+          }
+          if (line.match(/\[\s*(?:시각적|시각화)\s*(?:요소|지시문)/)) inDescription = false;
+
+          if (inDescription && line.trim().length > 0 && !line.trim().startsWith('*') && !line.trim().startsWith('-')) {
+            let formatted = line.replace(/(\.\[\^\d+\]|\.)\s+(?=[A-Z0-9가-힣'"])/g, '$1\n- ');
+            if(!formatted.trim().startsWith('-')) formatted = "- " + formatted.trim();
+            lines[j] = formatted;
+          }
+        }
+        chunks[i] = lines.join('\n');
+      }
+      els.articleInput.value = chunks.join('');
+      showToast("본문 내용이 마침표 기준으로 항목화되었습니다.");
+      
+      if(state.parsedSlides.length > 0) parseDocument();
+    }
+
+    async function handleFile(file) {
+      showToast(`${file.name} 읽는 중...`);
+      const ext = file.name.split('.').pop().toLowerCase();
+      try {
+        if (ext === 'txt' || ext === 'md') {
+          els.articleInput.value = await file.text();
+          showToast("문서 로드 완료!");
+        } else if (ext === 'docx') {
+          const arrayBuffer = await file.arrayBuffer();
+          const result = await mammoth.extractRawText({ arrayBuffer });
+          els.articleInput.value = result.value;
+          showToast("Word 텍스트 추출 완료!");
+        } else {
+          showToast("지원하지 않는 포맷입니다.", "error");
+        }
+      } catch (err) {
+        showToast("파일 읽기 오류: " + err.message, "error");
+      }
+    }
+
+    function parseDocument() {
+      const text = els.articleInput.value.trim();
+      if (!text) return showToast("분석할 텍스트가 없습니다.", "error");
+
+      state.parsedSlides = [];
+      const chunks = text.split(/(?=####\s*\**Slide\s*\d+|####\s*Slide\s*\d+)/i);
+      
+      chunks.forEach((chunk, index) => {
+        if (!chunk.trim()) return;
+        const titleMatch = chunk.match(/####\s*\**Slide\s*(\d+)[^A-Za-z0-9가-힣]*([^\n\*]+)\**\n?/i);
+        let slideNum = titleMatch ? titleMatch[1] : (index + 1).toString();
+        let slideTitle = titleMatch ? titleMatch[2].trim() : `섹션 ${index + 1}`;
+
+        // 다양한 시각화 키워드 인식 (예: [시각적 요소 설계], [시각적 요소 복원 및 구성], [시각화 지시문] 등)
+        const visualRegex = /\[\s*(?:시각적|시각화)\s*(?:요소|지시문)[^\]]*\]/i;
+        const visualMatch = chunk.match(visualRegex);
+        let bodyContent = chunk;
+        let visualInstruction = "시각화 정보 자동 추출 안됨 (직접 입력 요망)";
+        
+        if (visualMatch) {
+            const matchIndex = visualMatch.index;
+            bodyContent = chunk.substring(0, matchIndex);
+            
+            // 키워드 이후의 텍스트를 추출하되, 시작 부분의 특수문자나 공백, 콜론(:) 등을 깔끔하게 제거
+            let afterKeyword = chunk.substring(matchIndex + visualMatch[0].length);
+            visualInstruction = afterKeyword.replace(/^[^a-zA-Z0-9가-힣]*:?\s*/, '').trim();
+        }
+
+        if (titleMatch) bodyContent = bodyContent.replace(titleMatch[0], '');
+        bodyContent = bodyContent.replace(/\n\s*\*\s*\*?\*?\s*$/, '').trim();
+
+        if (titleMatch || chunks.length === 1) {
+          state.parsedSlides.push({
+            id: `slide_${slideNum}_${Date.now()}`,
+            slideNum, title: slideTitle,
+            originalInstruction: "",
+            instruction: visualInstruction,
+            bodyContent: bodyContent,
+            status: 'pending',
+            imageUrl: null, rawBase64: null, imgbbUrl: null
+          });
+        }
+      });
+
+      if (state.parsedSlides.length > 0) {
+        showToast(`총 ${state.parsedSlides.length}개의 슬라이드 정보가 추출되었습니다.`);
+      } else {
+        showToast("슬라이드 마커를 찾지 못했습니다.", "warning");
+      }
+      
+      renderParsedList();
+      updateBatchControls();
+    }
+
+    window.updateSlideInstruction = function(id, val) {
+      const slide = state.parsedSlides.find(s => s.id === id);
+      if(slide) slide.instruction = val;
+    };
+
+    window.updateSlideContent = function(id, val) {
+      const slide = state.parsedSlides.find(s => s.id === id);
+      if(slide) slide.bodyContent = val;
+    };
+
+    function renderParsedList() {
+      els.parsedListContainer.innerHTML = '';
+      if (state.parsedSlides.length === 0) {
+        els.parsedEmptyState.style.display = 'flex';
+        els.parsedSummaryBadge.innerText = "0개 대기중";
+        return;
+      }
+      
+      els.parsedEmptyState.style.display = 'none';
+      const pendingCount = state.parsedSlides.filter(s => s.status === 'pending' || s.status === 'error').length;
+      els.parsedSummaryBadge.innerText = `${pendingCount}개 대기중 / 총 ${state.parsedSlides.length}`;
+
+      state.parsedSlides.forEach((slide, index) => {
+        const card = document.createElement('div');
+        let statusColor = 'border-slate-200 dark:border-[#223049] bg-white dark:bg-[#161f30]';
+        let statusBadge = '<span class="text-[10px] text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">대기중</span>';
+        
+        if (slide.status === 'generating') {
+          statusColor = 'border-blue-500 bg-blue-50 dark:bg-blue-900/20';
+          statusBadge = '<span class="text-[10px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded animate-pulse">생성중...</span>';
+        } else if (slide.status === 'done') {
+          statusColor = 'border-emerald-300 bg-emerald-50/30 dark:bg-emerald-950/20';
+          statusBadge = '<span class="text-[10px] text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded">완료</span>';
+        } else if (slide.status === 'error') {
+          statusColor = 'border-rose-300 bg-rose-50/50 dark:bg-rose-950/20';
+          statusBadge = '<span class="text-[10px] text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded">오류</span>';
+        }
+
+        const hasImgbb = slide.imgbbUrl ? `<a href="${slide.imgbbUrl}" target="_blank" class="text-blue-500 hover:underline"><i class="fa-solid fa-link"></i> 링크</a>` : '';
+
+        card.className = `p-3 rounded-xl border transition-all ${statusColor} flex flex-col justify-between gap-2 shadow-sm relative group`;
+        
+        const header = `
+          <div class="flex justify-between items-center">
+            <h4 class="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+              <span class="bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded text-[10px]">#${slide.slideNum}</span>
+              ${slide.title}
+            </h4>
+            <div class="flex gap-2 items-center">
+              ${hasImgbb}
+              ${statusBadge}
+            </div>
+          </div>
+        `;
+
+        const editor = `
+          <div class="flex flex-col gap-2 mt-1">
+            <div class="relative group">
+              <span class="absolute top-1 right-2 text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 transition"><i class="fa-solid fa-pen"></i> 시각화 지시문</span>
+              <textarea class="w-full text-[11px] p-2 bg-indigo-50/50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800/60 rounded-lg outline-none focus:border-indigo-400 text-slate-700 dark:text-slate-300 custom-scroll resize-y" rows="2" onchange="updateSlideInstruction('${slide.id}', this.value)" placeholder="시각화 지시문">${slide.instruction}</textarea>
+            </div>
+            <div class="relative group">
+              <span class="absolute top-1 right-2 text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 transition"><i class="fa-solid fa-pen"></i> 본문 내용 (항목화)</span>
+              <textarea class="w-full text-[11px] p-2 bg-slate-50 dark:bg-[#0d131f] border border-slate-200 dark:border-[#223049] rounded-lg outline-none focus:border-blue-400 text-slate-600 dark:text-slate-400 custom-scroll resize-y" rows="3" onchange="updateSlideContent('${slide.id}', this.value)" placeholder="슬라이드 본문">${slide.bodyContent}</textarea>
+            </div>
+          </div>
+        `;
+
+        let imageSection = '';
+        if (slide.imageUrl) {
+          imageSection = `
+            <div class="flex gap-3 mt-1 items-start">
+              <img src="${slide.imageUrl}" class="w-24 h-24 object-contain rounded-lg border border-slate-200 dark:border-slate-700 bg-white cursor-pointer hover:scale-105 transition btn-view-image" data-id="${slide.id}" />
+              <div class="flex flex-col gap-1.5 flex-1 justify-center">
+                <button class="btn-indiv-gen text-[10px] bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 py-1 rounded transition" data-index="${index}"><i class="fa-solid fa-rotate-right"></i> 다시 생성</button>
+                <button class="btn-indiv-dl text-[10px] bg-blue-50 dark:bg-blue-900/50 hover:bg-blue-100 text-blue-700 dark:text-blue-300 py-1 rounded transition" data-id="${slide.id}"><i class="fa-solid fa-download"></i> 다운로드</button>
+                <button class="btn-indiv-imgbb text-[10px] bg-emerald-50 dark:bg-emerald-900/50 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 py-1 rounded transition ${slide.imgbbUrl ? 'opacity-50' : ''}" data-index="${index}"><i class="fa-solid fa-cloud-arrow-up"></i> ImgBB 업로드</button>
+              </div>
+            </div>
+          `;
+        } else {
+           imageSection = `
+             <div class="flex justify-end mt-1">
+               <button class="btn-indiv-gen text-[10px] bg-indigo-50 dark:bg-indigo-900/50 hover:bg-indigo-100 text-indigo-700 dark:text-indigo-300 px-3 py-1.5 rounded-lg transition font-bold" data-index="${index}"><i class="fa-solid fa-paintbrush"></i> 개별 생성</button>
+             </div>
+           `;
+        }
+
+        card.innerHTML = header + editor + imageSection;
+        
+        if(slide.imageUrl) {
+          card.querySelector('.btn-view-image').addEventListener('click', () => openModal(slide));
+          card.querySelector('.btn-indiv-dl').addEventListener('click', () => downloadImage(slide.imageUrl, `Slide_${slide.slideNum}.png`));
+          card.querySelector('.btn-indiv-imgbb').addEventListener('click', (e) => uploadSingleToImgbb(e.target.dataset.index));
+        }
+        card.querySelector('.btn-indiv-gen').addEventListener('click', (e) => generateSingleSlide(e.target.dataset.index));
+
+        els.parsedListContainer.appendChild(card);
+      });
+    }
+
+    function updateBatchControls() {
+      const pendingCount = state.parsedSlides.filter(s => s.status === 'pending' || s.status === 'error').length;
+      const canGenerate = pendingCount > 0 && !state.isGenerating;
+      
+      els.btnGenerateNextBatch.disabled = !canGenerate;
+      els.btnGenerateAll.disabled = !canGenerate;
+      
+      if (state.isGenerating) {
+        els.btnGenerateNextBatch.classList.add('hidden');
+        els.btnGenerateAll.classList.add('hidden');
+        els.btnStopGeneration.classList.remove('hidden');
+        els.progressContainer.classList.remove('hidden');
+      } else {
+        els.btnGenerateNextBatch.classList.remove('hidden');
+        els.btnGenerateAll.classList.remove('hidden');
+        els.btnStopGeneration.classList.add('hidden');
+      }
+    }
+
+    async function startBatchGeneration(generateAll) {
+      state.isGenerating = true;
+      state.stopRequested = false;
+      updateBatchControls();
+
+      const batchSize = generateAll ? state.parsedSlides.length : parseInt(els.batchSizeInput.value, 10);
+      const indicesToProcess = [];
+      for (let i = 0; i < state.parsedSlides.length; i++) {
+        if (state.parsedSlides[i].status === 'pending' || state.parsedSlides[i].status === 'error') {
+          indicesToProcess.push(i);
+          if (indicesToProcess.length >= batchSize) break;
+        }
+      }
+
+      state.totalToProcess = indicesToProcess.length;
+      state.processedCount = 0;
+      els.progressTitle.innerHTML = `<i class="fa-solid fa-paintbrush animate-bounce"></i> 인포그래픽 대량 생성 중...`;
+
+      for (let i = 0; i < indicesToProcess.length; i++) {
+        if (state.stopRequested) break;
+        await executeGenerationForIndex(indicesToProcess[i], i);
+      }
+
+      state.isGenerating = false;
+      updateBatchControls();
+      if(state.processedCount > 0) {
+        els.progressTitle.innerHTML = `<i class="fa-solid fa-check-circle text-emerald-500"></i> 생성 작업 완료`;
+        updateProgressUI(100, state.processedCount, state.totalToProcess, `성공적으로 ${state.processedCount}개의 이미지를 생성했습니다.`);
+      }
+    }
+
+    async function generateSingleSlide(index) {
+      const slide = state.parsedSlides[index];
+      if (slide.status === 'generating') return showToast("해당 슬라이드는 이미 생성 중입니다.", "warning");
+      
+      showToast(`Slide ${slide.slideNum} 백그라운드 생성 요청됨 (다중 실행 가능)`);
+      slide.status = 'generating';
+      renderParsedList(); 
+
+      try {
+        const globalStyle = els.globalStylePrompt.value.trim() || "Clean vector tech infographic, white background.";
+        const prompt = `A professional presentation slide infographic.
+TITLE: "${slide.title}"
+INSTRUCTIONS: ${slide.instruction}
+OVERALL STYLE & THEME: ${globalStyle}
+ASPECT RATIO: ${state.aspectRatio}.
+All text inside the image MUST be written in clear KOREAN (한글).`;
+
+        const payload = {
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: state.aspectRatio } }
+        };
+
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent?key=${state.apiKey}`;
+        const response = await fetchWithRetry(apiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        const result = await response.json();
+        const base64Data = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+        
+        if (!base64Data) throw new Error("이미지 데이터 응답 없음");
+
+        slide.imageUrl = `data:image/png;base64,${base64Data}`;
+        slide.rawBase64 = base64Data;
+        slide.status = 'done';
+        slide.imgbbUrl = null; 
+        
+        addToHistory(slide);
+        showToast(`Slide ${slide.slideNum} 개별 생성이 완료되었습니다!`);
+      } catch (err) {
+        slide.status = 'error';
+        showToast(`Slide ${slide.slideNum} 개별 생성 오류: ${err.message}`, "error");
+      }
+      renderParsedList(); 
+    }
+
+    async function executeGenerationForIndex(slideIndex, queueIndex) {
+      const slide = state.parsedSlides[slideIndex];
+      slide.status = 'generating';
+      renderParsedList();
+      
+      const currentPercent = Math.round((queueIndex / state.totalToProcess) * 100);
+      updateProgressUI(currentPercent, queueIndex + 1, state.totalToProcess, `AI 통신 중: Slide ${slide.slideNum} 렌더링... (비율: ${state.aspectRatio})`);
+
+      try {
+        const globalStyle = els.globalStylePrompt.value.trim() || "Clean vector tech infographic, white background.";
+        const prompt = `A professional presentation slide infographic.
+TITLE: "${slide.title}"
+INSTRUCTIONS: ${slide.instruction}
+OVERALL STYLE & THEME: ${globalStyle}
+ASPECT RATIO: ${state.aspectRatio}.
+All text inside the image MUST be written in clear KOREAN (한글).`;
+
+        const payload = {
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: state.aspectRatio } }
+        };
+
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent?key=${state.apiKey}`;
+        const response = await fetchWithRetry(apiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        const result = await response.json();
+        const base64Data = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
+        
+        if (!base64Data) throw new Error("이미지 데이터 응답 없음");
+
+        slide.imageUrl = `data:image/png;base64,${base64Data}`;
+        slide.rawBase64 = base64Data;
+        slide.status = 'done';
+        slide.imgbbUrl = null; 
+        
+        addToHistory(slide);
+        state.processedCount++;
+        
+        updateProgressUI(Math.round((state.processedCount / state.totalToProcess) * 100), state.processedCount, state.totalToProcess, `완료: Slide ${slide.slideNum}`);
+
+        if (queueIndex < state.totalToProcess - 1 && !state.stopRequested) {
+          updateProgressUI(currentPercent, state.processedCount, state.totalToProcess, `속도 조절 대기 중... (2.5초)`);
+          await new Promise(r => setTimeout(r, 2500));
+        }
+      } catch (err) {
+        slide.status = 'error';
+        updateProgressUI(currentPercent, queueIndex + 1, state.totalToProcess, `<span class="text-rose-500">오류: ${err.message}</span>`);
+        await new Promise(r => setTimeout(r, 2000));
+      }
+      renderParsedList();
+    }
+
+    function updateProgressUI(percent, current, total, statusMsg) {
+      if(percent !== null) {
+        els.progressBarFill.style.width = `${percent}%`;
+        els.progressPercent.innerText = `${percent}%`;
+      }
+      if(current !== null && total !== null) els.progressCount.innerText = `${current} / ${total}`;
+      if(statusMsg) els.progressCurrentStatus.innerHTML = statusMsg;
+    }
+
+    async function uploadSingleToImgbb(index) {
+      const slide = state.parsedSlides[index];
+      if(!slide.rawBase64) return showToast("업로드할 이미지가 없습니다.", "error");
+      if(!state.imgbbApiKey) return showToast("ImgBB API 키를 우측 3단계 패널에 입력해주세요.", "warning");
+
+      showToast(`Slide ${slide.slideNum} ImgBB 업로드 중...`);
+      try {
+        const formData = new FormData();
+        formData.append('image', slide.rawBase64);
+        const res = await fetch(`https://api.imgbb.com/1/upload?key=${state.imgbbApiKey}`, { method: 'POST', body: formData });
+        const data = await res.json();
+        
+        if(data.success) {
+          slide.imgbbUrl = data.data.url;
+          showToast(`업로드 성공! 링크가 생성되었습니다.`);
+          renderParsedList();
+        } else {
+          throw new Error(data.error.message || "Unknown ImgBB Error");
+        }
+      } catch (err) {
+        showToast("ImgBB 업로드 실패: " + err.message, "error");
+      }
+    }
+
+    async function batchUploadToImgbb() {
+      if(!state.imgbbApiKey) return showToast("ImgBB API 키를 먼저 입력해주세요.", "warning");
+      
+      const toUpload = state.parsedSlides.filter(s => s.status === 'done' && s.rawBase64 && !s.imgbbUrl);
+      if(toUpload.length === 0) return showToast("새로 업로드할 완료된 이미지가 없습니다.", "info");
+
+      els.progressContainer.classList.remove('hidden');
+      els.progressTitle.innerHTML = `<i class="fa-solid fa-cloud-arrow-up animate-bounce"></i> ImgBB 일괄 업로드 중...`;
+      
+      let successCount = 0;
+      for(let i=0; i<toUpload.length; i++) {
+        const slide = toUpload[i];
+        updateProgressUI(Math.round((i/toUpload.length)*100), i+1, toUpload.length, `업로드 중: Slide ${slide.slideNum}...`);
+        
+        try {
+          const formData = new FormData();
+          formData.append('image', slide.rawBase64);
+          const res = await fetch(`https://api.imgbb.com/1/upload?key=${state.imgbbApiKey}`, { method: 'POST', body: formData });
+          const data = await res.json();
+          if(data.success) {
+            slide.imgbbUrl = data.data.url;
+            successCount++;
+          }
+          await new Promise(r => setTimeout(r, 500));
+        } catch (e) {
+          console.error("Upload error on slide", slide.slideNum, e);
+        }
+        renderParsedList();
+      }
+      
+      updateProgressUI(100, successCount, toUpload.length, `업로드 완료! (${successCount}개 성공)`);
+      setTimeout(() => els.progressContainer.classList.add('hidden'), 3000);
+    }
+
+    function downloadFinalDocument() {
+      if(state.parsedSlides.length === 0) return showToast("다운로드할 분석된 슬라이드가 없습니다.", "error");
+
+      const formatBullets = document.getElementById('chkFormatBullets').checked;
+      const removeVisualPrompt = document.getElementById('chkRemoveVisualPrompt').checked;
+
+      let finalDoc = "";
+      let appendCount = 0;
+
+      let prefixMatch = els.articleInput.value.match(/^([\s\S]*?)(?=####\s*\**Slide)/i);
+      if (prefixMatch && prefixMatch[1].trim()) finalDoc = prefixMatch[1].trim() + "\n\n";
+
+      state.parsedSlides.forEach(slide => {
+        finalDoc += `#### **Slide ${slide.slideNum}. ${slide.title}**\n\n`;
+        
+        let content = slide.bodyContent;
+        if (formatBullets && content) {
+          let lines = content.split('\n');
+          for (let j = 0; j < lines.length; j++) {
+            let line = lines[j];
+            if (line.trim().length > 0 && !line.trim().startsWith('*') && !line.trim().startsWith('-') && !line.trim().startsWith('#')) {
+              let formatted = line.replace(/(\.\[\^\d+\]|\.)\s+(?=[A-Z0-9가-힣'"])/g, '$1\n- ');
+              if (!formatted.trim().startsWith('-')) formatted = "- " + formatted.trim();
+              lines[j] = formatted;
+            }
+          }
+          content = lines.join('\n');
+        }
+        
+        finalDoc += content + "\n\n";
+
+        if (!removeVisualPrompt) finalDoc += `* **[시각적 요소 복원 및 구성]:** ${slide.instruction}\n\n`;
+        
+        if (slide.imgbbUrl) {
+          finalDoc += `![Slide ${slide.slideNum} 인포그래픽](${slide.imgbbUrl})\n\n`;
+          appendCount++;
+        }
+        
+        finalDoc += "---\n\n";
+      });
+
+      if(appendCount === 0) showToast("ImgBB에 업로드된 이미지가 없어 추가된 링크가 없습니다.", "warning");
+
+      const blob = new Blob([finalDoc], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Finalized_Slides_${Date.now()}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(`문서 다운로드 완료! (${appendCount}개의 이미지 링크 반영됨)`);
+    }
+
+    async function downloadZipOnly() {
+      const validSlides = state.parsedSlides.filter(s => s.rawBase64);
+      if(validSlides.length === 0) return showToast("다운로드할 이미지가 없습니다.", "error");
+      
+      showToast("ZIP 파일 압축 중...", "info");
+      const zip = new JSZip();
+      validSlides.forEach(item => {
+        zip.file(`Slide_${item.slideNum}_${item.title.substring(0,15)}.png`, item.rawBase64, { base64: true });
+      });
+      const blob = await zip.generateAsync({ type: "blob" });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `Infographics_ImagesOnly_${Date.now()}.zip`;
+      a.click();
+      showToast("이미지 ZIP 파일 다운로드 완료!");
+    }
+
+    async function downloadPptx() {
+      const validSlides = state.parsedSlides.filter(s => s.imageUrl);
+      if(validSlides.length === 0) return showToast("다운로드할 이미지가 없습니다.", "error");
+
+      showToast("파워포인트(PPTX) 파일을 구성 중입니다...");
+      try {
+        let pres = new PptxGenJS();
+        pres.layout = state.aspectRatio === "4:3" ? 'LAYOUT_4x3' : 'LAYOUT_16x9';
+
+        validSlides.forEach((slide) => {
+          let pptSlide = pres.addSlide();
+          let base64Data = slide.imageUrl;
+          if(base64Data.startsWith('data:image')) {
+            pptSlide.addImage({ data: base64Data, x: 0, y: 0, w: '100%', h: '100%', sizing: { type: 'contain', w: '100%', h: '100%' } });
+          }
+        });
+
+        await pres.writeFile({ fileName: `Infographics_Slides_${Date.now()}.pptx` });
+        showToast("PPTX 파일이 성공적으로 다운로드되었습니다.");
+      } catch (e) {
+        showToast("PPTX 생성 중 오류: " + e.message, "error");
+      }
+    }
+
+    // 새롭게 추가된 강력한 PDF 페이지 단위 분할 로직 (빈 페이지 버그 완벽 차단)
+    async function downloadPdf() {
+      const mode = document.querySelector('input[name="pdfMode"]:checked').value;
+      const validSlides = state.parsedSlides.filter(s => s.imageUrl);
+      const formatBullets = document.getElementById('chkFormatBullets').checked;
+
+      if(validSlides.length === 0) return showToast("다운로드할 이미지가 없습니다.", "error");
+      showToast("PDF 문서를 생성 중입니다. 잠시만 기다려주세요...", "info");
+
+      // jsPDF 인스턴스 초기화
+      const { jsPDF } = window.jspdf;
+      const isLandscape = (mode === 'image_only_landscape' || mode === 'text_image_separate');
+      const pdf = new jsPDF({
+        orientation: isLandscape ? 'landscape' : 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pdfWidth = isLandscape ? 297 : 210;
+      const pdfHeight = isLandscape ? 210 : 297;
+
+      // 보이지 않는 화면 바깥의 컨테이너를 생성하여 html2canvas가 정확히 사이즈를 인식하게 함
+      const staging = document.createElement('div');
+      staging.style.position = 'absolute';
+      staging.style.left = '-9999px'; // 화면에서 숨김
+      staging.style.top = '0';
+      staging.style.width = isLandscape ? '297mm' : '210mm';
+      staging.style.backgroundColor = '#ffffff';
+      document.body.appendChild(staging);
+
+      let pageCount = 0;
+
+      for (let i = 0; i < validSlides.length; i++) {
+        const slide = validSlides[i];
+        let contentHTML = slide.bodyContent || "";
+        
+        // 포맷팅 로직 적용
+        if (formatBullets && contentHTML) {
+          let lines = contentHTML.split('\n');
+          for (let j = 0; j < lines.length; j++) {
+            let line = lines[j];
+            if (line.trim().length > 0 && !line.trim().startsWith('*') && !line.trim().startsWith('-') && !line.trim().startsWith('#')) {
+              let formatted = line.replace(/(\.\[\^\d+\]|\.)\s+(?=[A-Z0-9가-힣'"])/g, '$1\n- ');
+              if (!formatted.trim().startsWith('-')) formatted = "- " + formatted.trim();
+              lines[j] = formatted;
+            }
+          }
+          contentHTML = lines.join('\n');
+        }
+
+        // 기본 마크다운 스타일링 (볼드체 등)
+        contentHTML = contentHTML.replace(/\*\*(.*?)\*\*/g, '<strong style="color: #0f172a; font-weight: 800;">$1</strong>');
+        contentHTML = contentHTML.replace(/`(.*?)`/g, '<code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-family: monospace; color: #2563eb;">$1</code>');
+        contentHTML = contentHTML.replace(/\n/g, '<br>');
+
+        // 공통 페이지 추가 헬퍼 함수
+        const addPageToPdf = async (htmlContent) => {
+          staging.innerHTML = htmlContent;
+          
+          // 이미지가 포함된 경우 렌더링 전 완전히 불러와질 때까지 대기
+          const imgs = staging.querySelectorAll('img');
+          await Promise.all(Array.from(imgs).map(img => {
+            if (img.complete) return Promise.resolve();
+            return new Promise(resolve => { img.onload = resolve; img.onerror = resolve; });
+          }));
+
+          // 영역 캡처
+          const canvas = await html2canvas(staging, { 
+             scale: 2, 
+             useCORS: true, 
+             backgroundColor: '#ffffff',
+             logging: false 
+          });
+          
+          const imgData = canvas.toDataURL('image/jpeg', 0.98);
+
+          if (pageCount > 0) pdf.addPage();
+          
+          // A4 비율에 맞춰 삽입 (잘림이나 빈 페이지 방지)
+          pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+          pageCount++;
+        };
+
+        // 모드에 따라 페이지 레이아웃 다르게 구성
+        if (mode.startsWith('image_only')) {
+           const imgHeight = isLandscape ? '190mm' : '270mm';
+           const pageH = isLandscape ? '210mm' : '297mm';
+           await addPageToPdf(`
+             <div style="text-align: center; padding: 10px; box-sizing: border-box; width: 100%; height: ${pageH}; display: flex; align-items: center; justify-content: center; background: white;">
+               <img src="${slide.imageUrl}" style="max-width: 100%; max-height: ${imgHeight}; object-fit: contain;" />
+             </div>
+           `);
+           
+        } else if (mode === 'text_image_combined') {
+           await addPageToPdf(`
+             <div style="padding: 30px; box-sizing: border-box; width: 100%; height: 297mm; display: flex; flex-direction: column; background: white; font-family: sans-serif;">
+               <h2 style="font-size: 22px; color: #1e3a8a; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 12px; font-weight: bold; flex-shrink: 0;">Slide ${slide.slideNum}. ${slide.title}</h2>
+               <div style="font-size: 14px; line-height: 1.6; margin-bottom: 15px; flex-shrink: 0; max-height: 35%; overflow: hidden; display: block; color: #475569;">
+                  ${contentHTML}
+               </div>
+               <div style="flex: 1; display: flex; justify-content: center; align-items: flex-start; overflow: hidden; min-height: 0;">
+                  <img src="${slide.imageUrl}" style="max-width: 100%; max-height: 100%; object-fit: contain; border: 1px solid #cbd5e1; border-radius: 8px; padding: 5px; box-sizing: border-box; background: #fff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);" />
+               </div>
+             </div>
+           `);
+           
+        } else if (mode === 'text_image_separate') {
+           // 1. 텍스트 전용 페이지
+           await addPageToPdf(`
+             <div style="padding: 40px 50px; box-sizing: border-box; width: 100%; height: 210mm; display: flex; flex-direction: column; overflow: hidden; background: white; font-family: sans-serif;">
+               <h2 style="font-size: 26px; color: #1e3a8a; border-bottom: 3px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 25px; font-weight: bold; flex-shrink: 0;">Slide ${slide.slideNum}. ${slide.title}</h2>
+               <div style="font-size: 16px; line-height: 1.8; color: #334155; flex-grow: 1; overflow: hidden;">
+                  ${contentHTML}
+               </div>
+             </div>
+           `);
+           // 2. 이미지 전용 페이지
+           await addPageToPdf(`
+             <div style="text-align: center; padding: 20px; box-sizing: border-box; width: 100%; height: 210mm; display: flex; align-items: center; justify-content: center; background: white;">
+               <img src="${slide.imageUrl}" style="max-width: 100%; max-height: 190mm; object-fit: contain; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); border-radius: 12px;" />
+             </div>
+           `);
+        }
+      }
+
+      // 작업 완료 후 숨겨진 컨테이너 제거 및 저장
+      document.body.removeChild(staging);
+      pdf.save(`Infographic_Doc_${Date.now()}.pdf`);
+      showToast("PDF 문서 생성이 완료되었습니다!");
+    }
+
+    function setupModals() {
+      const { imageModal, btnCloseModal, btnModalDownload, modalImg, drawerBackdrop, historyDrawer, drawerPanel } = els;
+      
+      window.openModal = function(slide) {
+        activeModalItem = slide;
+        modalImg.src = slide.imageUrl;
+        imageModal.classList.remove('hidden');
+      };
+      
+      btnCloseModal.addEventListener('click', () => { imageModal.classList.add('hidden'); activeModalItem = null; });
+      els.btnModalDownload.addEventListener('click', () => {
+        if(activeModalItem) downloadImage(activeModalItem.imageUrl, `Slide_${activeModalItem.slideNum}_Full.png`);
+      });
+
+      document.getElementById('btnOpenHistoryDrawer').addEventListener('click', () => {
+        historyDrawer.classList.remove('hidden');
+        setTimeout(() => {
+          drawerBackdrop.classList.remove('opacity-0');
+          drawerPanel.classList.remove('translate-x-full');
+        }, 10);
+      });
+
+      const closeDrawer = () => {
+        drawerBackdrop.classList.add('opacity-0');
+        drawerPanel.classList.add('translate-x-full');
+        setTimeout(() => historyDrawer.classList.add('hidden'), 300);
+      };
+      document.getElementById('btnCloseDrawer').addEventListener('click', closeDrawer);
+      drawerBackdrop.addEventListener('click', closeDrawer);
+
+      document.getElementById('btnBatchDownloadZip').addEventListener('click', async () => {
+        if(state.history.length === 0) return showToast("다운로드할 이미지가 없습니다.", "warning");
+        showToast("ZIP 압축 중...", "info");
+        const zip = new JSZip();
+        state.history.forEach(item => {
+          zip.file(`Slide_${item.slideNum}_${item.title.substring(0,15)}.png`, item.rawBase64, { base64: true });
+        });
+        const blob = await zip.generateAsync({ type: "blob" });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `Infographics_History_${Date.now()}.zip`;
+        a.click();
+        showToast("ZIP 다운로드 완료!");
+      });
+    }
+
+    function addToHistory(slide) {
+      state.history.unshift(slide);
+      els.historyCountBadge.innerText = state.history.length;
+      
+      const list = els.historyListContainer;
+      if(state.history.length === 1) list.innerHTML = ''; 
+      
+      const div = document.createElement('div');
+      div.className = "relative group rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 aspect-square bg-slate-100 dark:bg-slate-900";
+      div.innerHTML = `
+        <img src="${slide.imageUrl}" class="w-full h-full object-cover group-hover:scale-105 transition cursor-pointer" onclick="openModal({imageUrl: '${slide.imageUrl}', slideNum: '${slide.slideNum}'})" />
+        <div class="absolute bottom-0 inset-x-0 bg-black/60 p-2 transform translate-y-full group-hover:translate-y-0 transition flex justify-between items-center">
+           <span class="text-[10px] text-white truncate font-bold">#${slide.slideNum}</span>
+           <button class="text-[10px] bg-blue-600 text-white px-2 py-1 rounded btn-hist-dl">다운</button>
+        </div>
+      `;
+      div.querySelector('.btn-hist-dl').addEventListener('click', () => downloadImage(slide.imageUrl, `History_Slide_${slide.slideNum}.png`));
+      list.prepend(div);
+    }
+
+    function downloadImage(dataUrl, filename) {
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = filename;
+      a.click();
+    }
+
+    async function fetchWithRetry(url, options, retries = 3) {
+      for (let i = 0; i < retries; i++) {
+        const res = await fetch(url, options);
+        if (res.ok) return res;
+        if (res.status === 429) { await new Promise(r => setTimeout(r, 3000 * (i + 1))); continue; }
+        throw new Error(`HTTP ${res.status}`);
+      }
+      throw new Error("서버 통신 실패 (재시도 한도 초과)");
+    }
+
+    function showToast(msg, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `px-4 py-3 rounded-xl text-xs font-bold text-white shadow-xl transition transform translate-y-4 opacity-0 flex items-center gap-2 ${type === 'error' ? 'bg-rose-600' : type === 'warning' ? 'bg-amber-600' : 'bg-slate-800'}`;
+      toast.innerHTML = `<i class="fa-solid ${type === 'error' ? 'fa-xmark' : 'fa-info'}"></i> <span>${msg}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => toast.classList.remove('translate-y-4', 'opacity-0'), 10);
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-x-4');
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+  </script>
+</body>
+</html>
