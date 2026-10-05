@@ -46,6 +46,7 @@ const FIRST_RUN_AI_SETTINGS_DEFAULTS = Object.freeze({
     templateNewFileVisible: true,
     noteCoverInsertVisible: true,
     pdfMergeVisible: false,
+    infographicAutoVisible: false,
     recentWorkVisible: true,
     chromeSplitTabVisible: false,
     html2pptVisible: true,
@@ -12562,6 +12563,17 @@ function getPdfMergeVisibleFromSettings(settings) {
     return settings.pdfMergeVisible === true;
 }
 
+function getInfographicAutoVisibleFromSettings(settings) {
+    return !!(settings && settings.infographicAutoVisible === true);
+}
+
+function getInfographicGeminiVisibleFromSettings(settings) {
+    if (!settings) return false;
+    if (typeof settings.infographicGeminiVisible === 'boolean') return settings.infographicGeminiVisible;
+    // Migrate the previously combined infographic switch to both independent buttons.
+    return getInfographicAutoVisibleFromSettings(settings);
+}
+
 function getChromeSplitTabVisibleFromSettings(settings) {
     return !!(settings && settings.chromeSplitTabVisible === true);
 }
@@ -12626,6 +12638,194 @@ async function togglePdfMergeVisibilitySection() {
     applyPdfMergeVisibility({ pdfMergeVisible: enabled });
     try { await setAiSettings({ pdfMergeVisible: enabled }); } catch (e) { console.error(e); }
 }
+
+function applyInfographicGeminiVisibility(settings) {
+    const enabled = getInfographicGeminiVisibleFromSettings(settings || {});
+    const button = document.getElementById('btn-infographic-gemini');
+    if (button) button.classList.toggle('hidden', !enabled);
+    if (!enabled) closeInfographicSinglePanel();
+    syncHeaderFeatureToolsVisibility();
+}
+
+async function toggleInfographicGeminiVisibilitySection() {
+    const check = document.getElementById('infographic-gemini-visible');
+    const enabled = !!(check && check.checked);
+    applyInfographicGeminiVisibility({ infographicGeminiVisible: enabled });
+    try { await setAiSettings({ infographicGeminiVisible: enabled }); } catch (e) { console.error(e); }
+}
+
+function openInfographicGeminiApp() {
+    openInfographicSinglePanel();
+}
+
+function openInfographicSinglePanel() {
+    const panel = document.getElementById('infographic-single-panel');
+    const frame = document.getElementById('infographic-single-frame');
+    if (!panel || !frame) return;
+    closeInfographicAutoPanel();
+    ensureLazyFrameLoaded(frame);
+    panel.classList.remove('hidden');
+    panel.classList.add('flex');
+    if (frame.contentWindow) postInfographicAutoContext(frame.contentWindow, false);
+}
+
+function closeInfographicSinglePanel() {
+    const panel = document.getElementById('infographic-single-panel');
+    if (!panel) return;
+    panel.classList.add('hidden');
+    panel.classList.remove('flex');
+}
+
+function applyInfographicAutoVisibility(settings) {
+    const enabled = getInfographicAutoVisibleFromSettings(settings || {});
+    const button = document.getElementById('btn-infographic-auto');
+    if (button) button.classList.toggle('hidden', !enabled);
+    if (!enabled) closeInfographicAutoPanel();
+    syncHeaderFeatureToolsVisibility();
+}
+
+async function toggleInfographicAutoVisibilitySection() {
+    const check = document.getElementById('infographic-auto-visible');
+    const enabled = !!(check && check.checked);
+    applyInfographicAutoVisibility({ infographicAutoVisible: enabled });
+    try { await setAiSettings({ infographicAutoVisible: enabled }); } catch (e) { console.error(e); }
+}
+
+function getInfographicAutoContext(includeDocument) {
+    const payload = {
+        type: 'mdpro-infographic-context',
+        apiKey: String(getProtectedAiCredential('gemini', 'ss_gemini_api_key') || ''),
+        imgbbApiKey: String(getProtectedAiCredential('imgbb', 'ss_imgbb_api_key') || '')
+    };
+    if (includeDocument) {
+        payload.fileName = String(currentFileName || 'untitled.md');
+        payload.markdown = String(editorTextarea && typeof editorTextarea.value === 'string'
+            ? editorTextarea.value
+            : (currentMarkdown || ''));
+    }
+    return payload;
+}
+
+function postInfographicAutoContext(targetWindow, includeDocument) {
+    if (!targetWindow) return;
+    const payload = getInfographicAutoContext(includeDocument);
+    targetWindow.postMessage(payload, '*');
+}
+
+async function importInfographicMarkdownToMdpro(markdownInput, fileNameInput) {
+    const markdown = String(markdownInput || '');
+    if (!markdown.trim()) throw new Error('MDPro로 보낼 마크다운 내용이 없습니다.');
+    const created = await createNewFile();
+    if (!created) return { cancelled: true };
+    const safeBaseName = String(fileNameInput || 'Infographic_Slides')
+        .replace(/[\\/:*?"<>|]+/g, '_')
+        .replace(/\.md$/i, '')
+        .trim() || 'Infographic_Slides';
+    setCurrentDocumentInfo(safeBaseName + '.md', null, { createdAt: new Date(), dateLabel: '생성일' });
+    updateContent(markdown);
+    currentMarkdown = editorTextarea ? editorTextarea.value : markdown;
+    performAutoSave();
+    showToast('인포그래픽 마크다운을 MDPro 새 문서로 가져왔습니다.');
+    return { cancelled: false, fileName: safeBaseName + '.md' };
+}
+
+window.MDProInfographicBridge = {
+    getContext: function (includeDocument) {
+        return getInfographicAutoContext(includeDocument === true);
+    },
+    saveImgbbKey: async function (key) {
+        const saved = await saveImgbbApiKey(key);
+        showToast(saved ? '인포그래픽 앱의 imgBB API 키를 ENV에 저장했습니다.' : 'ENV의 imgBB API 키를 삭제했습니다.');
+        return getInfographicAutoContext(false);
+    },
+    exportMarkdown: function (markdown, fileName) {
+        return importInfographicMarkdownToMdpro(markdown, fileName);
+    }
+};
+
+document.addEventListener('mdpro-infographic-request-context', function (event) {
+    if (!event || !event.detail) return;
+    event.detail.response = getInfographicAutoContext(event.detail.includeDocument === true);
+});
+
+document.addEventListener('mdpro-infographic-save-imgbb-key', function (event) {
+    if (!event || !event.detail) return;
+    event.detail.responsePromise = window.MDProInfographicBridge.saveImgbbKey(event.detail.imgbbApiKey);
+});
+
+document.addEventListener('mdpro-infographic-export-markdown', function (event) {
+    if (!event || !event.detail) return;
+    event.detail.responsePromise = importInfographicMarkdownToMdpro(event.detail.markdown, event.detail.fileName);
+});
+
+function openInfographicAutoPanel() {
+    const panel = document.getElementById('infographic-auto-panel');
+    const frame = document.getElementById('infographic-auto-frame');
+    if (!panel || !frame) return;
+    closeInfographicSinglePanel();
+    ensureLazyFrameLoaded('infographic-auto-frame');
+    panel.classList.remove('hidden');
+    panel.classList.add('flex');
+    if (frame.contentWindow) postInfographicAutoContext(frame.contentWindow, false);
+}
+
+function closeInfographicAutoPanel() {
+    const panel = document.getElementById('infographic-auto-panel');
+    if (!panel) return;
+    panel.classList.add('hidden');
+    panel.classList.remove('flex');
+}
+
+function toggleInfographicAutoPanel() {
+    const panel = document.getElementById('infographic-auto-panel');
+    if (!panel || panel.classList.contains('hidden')) openInfographicAutoPanel();
+    else closeInfographicAutoPanel();
+}
+
+window.addEventListener('message', async function (event) {
+    const autoFrame = document.getElementById('infographic-auto-frame');
+    const singleFrame = document.getElementById('infographic-single-frame');
+    const isInfographicFrame = (autoFrame && event.source === autoFrame.contentWindow)
+        || (singleFrame && event.source === singleFrame.contentWindow);
+    if (!isInfographicFrame) return;
+    const data = event && event.data && typeof event.data === 'object' ? event.data : null;
+    if (!data) return;
+
+    if (data.type === 'infographic-request-context') {
+        postInfographicAutoContext(event.source, data.includeDocument === true);
+        return;
+    }
+
+    if (data.type === 'infographic-save-imgbb-key') {
+        try {
+            const saved = await saveImgbbApiKey(data.imgbbApiKey);
+            postInfographicAutoContext(event.source, false);
+            showToast(saved ? '인포그래픽 앱의 imgBB API 키를 ENV에 저장했습니다.' : 'ENV의 imgBB API 키를 삭제했습니다.');
+        } catch (error) {
+            event.source.postMessage({
+                type: 'mdpro-infographic-error',
+                message: error && error.message ? error.message : String(error)
+            }, '*');
+        }
+        return;
+    }
+
+    if (data.type === 'infographic-export-to-mdpro') {
+        try {
+            const result = await importInfographicMarkdownToMdpro(data.markdown, data.fileName);
+            if (result.cancelled) {
+                event.source.postMessage({ type: 'mdpro-infographic-export-cancelled' }, '*');
+                return;
+            }
+            event.source.postMessage({ type: 'mdpro-infographic-exported', fileName: result.fileName }, '*');
+        } catch (error) {
+            event.source.postMessage({
+                type: 'mdpro-infographic-error',
+                message: error && error.message ? error.message : String(error)
+            }, '*');
+        }
+    }
+});
 
 function applyNoteCoverInsertVisibility(settings) {
     const enabled = getNoteCoverInsertVisibleFromSettings(settings || {});
@@ -12879,11 +13079,15 @@ function syncHeaderFeatureToolsVisibility() {
     const pdfMergeBtn = document.getElementById('btn-pdf-merge');
     const sitesBtn = document.getElementById('btn-sites-panel');
     const templateBtn = document.getElementById('btn-template-panel');
+    const infographicGeminiBtn = document.getElementById('btn-infographic-gemini');
+    const infographicAutoBtn = document.getElementById('btn-infographic-auto');
     const scholarEnabled = !!(scholarBtn && !scholarBtn.classList.contains('hidden'));
     const pdfMergeEnabled = !!(pdfMergeBtn && !pdfMergeBtn.classList.contains('hidden'));
     const sitesEnabled = !!(sitesBtn && !sitesBtn.classList.contains('hidden'));
     const templateEnabled = !!(templateBtn && !templateBtn.classList.contains('hidden'));
-    if (scholarEnabled || pdfMergeEnabled || sitesEnabled || templateEnabled) {
+    const infographicGeminiEnabled = !!(infographicGeminiBtn && !infographicGeminiBtn.classList.contains('hidden'));
+    const infographicAutoEnabled = !!(infographicAutoBtn && !infographicAutoBtn.classList.contains('hidden'));
+    if (scholarEnabled || pdfMergeEnabled || sitesEnabled || templateEnabled || infographicGeminiEnabled || infographicAutoEnabled) {
         wrap.classList.remove('hidden');
         wrap.classList.add('flex');
         wrap.style.display = 'flex';
@@ -14423,6 +14627,10 @@ async function persistAiSettingsFromModal() {
     const noteCoverInsertVisible = !!(noteCoverInsertVisibleEl && noteCoverInsertVisibleEl.checked);
     const pdfMergeVisibleEl = document.getElementById('pdf-merge-visible');
     const pdfMergeVisible = !!(pdfMergeVisibleEl && pdfMergeVisibleEl.checked);
+    const infographicGeminiVisibleEl = document.getElementById('infographic-gemini-visible');
+    const infographicGeminiVisible = !!(infographicGeminiVisibleEl && infographicGeminiVisibleEl.checked);
+    const infographicAutoVisibleEl = document.getElementById('infographic-auto-visible');
+    const infographicAutoVisible = !!(infographicAutoVisibleEl && infographicAutoVisibleEl.checked);
     const recentWorkVisibleEl = document.getElementById('recent-work-visible');
     const recentWorkVisible = !(recentWorkVisibleEl && recentWorkVisibleEl.checked === false);
     const chromeSplitTabVisibleEl = document.getElementById('chrome-split-tab-visible');
@@ -14458,6 +14666,8 @@ async function persistAiSettingsFromModal() {
         templateNewFileVisible: templateNewFileVisible,
         noteCoverInsertVisible: noteCoverInsertVisible,
         pdfMergeVisible: pdfMergeVisible,
+        infographicGeminiVisible: infographicGeminiVisible,
+        infographicAutoVisible: infographicAutoVisible,
         recentWorkVisible: recentWorkVisible,
         chromeSplitTabVisible: chromeSplitTabVisible,
         templateCustomList: normalizeTemplateCustomList(templateCustomList).map(function (item) {
@@ -18663,6 +18873,10 @@ function restoreFeatureSettings(settings) {
     if (noteCoverInsertCheck) noteCoverInsertCheck.checked = settings.noteCoverInsertVisible === true;
     const pdfMergeCheck = document.getElementById('pdf-merge-visible');
     if (pdfMergeCheck) pdfMergeCheck.checked = settings.pdfMergeVisible === true;
+    const infographicGeminiCheck = document.getElementById('infographic-gemini-visible');
+    if (infographicGeminiCheck) infographicGeminiCheck.checked = getInfographicGeminiVisibleFromSettings(settings);
+    const infographicAutoCheck = document.getElementById('infographic-auto-visible');
+    if (infographicAutoCheck) infographicAutoCheck.checked = getInfographicAutoVisibleFromSettings(settings);
     const recentWorkCheck = document.getElementById('recent-work-visible');
     if (recentWorkCheck) recentWorkCheck.checked = getRecentWorkVisibleFromSettings(settings);
     const chromeSplitTabCheck = document.getElementById('chrome-split-tab-visible');
@@ -18747,6 +18961,10 @@ async function loadAiSettingsToUI() {
         if (noteCoverInsertCheckEmpty) noteCoverInsertCheckEmpty.checked = false;
         const pdfMergeCheckEmpty = document.getElementById('pdf-merge-visible');
         if (pdfMergeCheckEmpty) pdfMergeCheckEmpty.checked = false;
+        const infographicGeminiCheckEmpty = document.getElementById('infographic-gemini-visible');
+        if (infographicGeminiCheckEmpty) infographicGeminiCheckEmpty.checked = false;
+        const infographicAutoCheckEmpty = document.getElementById('infographic-auto-visible');
+        if (infographicAutoCheckEmpty) infographicAutoCheckEmpty.checked = false;
         const recentWorkCheckEmpty = document.getElementById('recent-work-visible');
         if (recentWorkCheckEmpty) recentWorkCheckEmpty.checked = true;
         const chromeSplitTabCheckEmpty = document.getElementById('chrome-split-tab-visible');
@@ -18817,6 +19035,8 @@ async function loadAiSettingsToUI() {
         applyTemplateVisibility({ templateVisible: false });
         applyNoteCoverInsertVisibility({ noteCoverInsertVisible: false });
         applyPdfMergeVisibility({ pdfMergeVisible: false });
+        applyInfographicGeminiVisibility({ infographicGeminiVisible: false });
+        applyInfographicAutoVisibility({ infographicAutoVisible: false });
         applyRecentWorkVisibility({ recentWorkVisible: true });
         applyChromeSplitTabVisibility({ chromeSplitTabVisible: false });
     applyHtml2pptVisibility({ html2pptVisible: false, html2pptNameVisible: false });
@@ -18953,6 +19173,8 @@ async function loadAiSettingsToUI() {
     applyTemplateVisibility(settings);
     applyNoteCoverInsertVisibility(settings);
     applyPdfMergeVisibility(settings);
+    applyInfographicGeminiVisibility(settings);
+    applyInfographicAutoVisibility(settings);
     applyHtml2pptVisibility(settings);
     applyFmaViewerVisibility(settings);
     applyAiUseFold(getAiUseFoldedFromLocal());
@@ -19010,6 +19232,8 @@ async function initAiVisibility() {
     applyTemplateVisibility(settings || { templateVisible: false });
     applyNoteCoverInsertVisibility(settings || { noteCoverInsertVisible: false });
     applyPdfMergeVisibility(settings || { pdfMergeVisible: false });
+    applyInfographicGeminiVisibility(settings || { infographicGeminiVisible: false });
+    applyInfographicAutoVisibility(settings || { infographicAutoVisible: false });
     applyRecentWorkVisibility(settings || { recentWorkVisible: true });
     applyChromeSplitTabVisibility(settings || { chromeSplitTabVisible: false });
     applyHtml2pptVisibility(settings || { html2pptVisible: false, html2pptNameVisible: false });
@@ -20202,6 +20426,14 @@ window.insertSelectedTemplateToDocument = insertSelectedTemplateToDocument;
 window.insertSelectedTemplateAsNewFile = insertSelectedTemplateAsNewFile;
 window.toggleTemplateSection = toggleTemplateSection;
 window.toggleNoteCoverInsertSection = toggleNoteCoverInsertSection;
+window.toggleInfographicAutoVisibilitySection = toggleInfographicAutoVisibilitySection;
+window.toggleInfographicAutoPanel = toggleInfographicAutoPanel;
+window.toggleInfographicGeminiVisibilitySection = toggleInfographicGeminiVisibilitySection;
+window.openInfographicGeminiApp = openInfographicGeminiApp;
+window.openInfographicSinglePanel = openInfographicSinglePanel;
+window.closeInfographicSinglePanel = closeInfographicSinglePanel;
+window.openInfographicAutoPanel = openInfographicAutoPanel;
+window.closeInfographicAutoPanel = closeInfographicAutoPanel;
 window.insertDefaultNoteCover = insertDefaultNoteCover;
 window.removeNoteCover = removeNoteCover;
 window.toggleNoteCoverMenu = toggleNoteCoverMenu;

@@ -33,6 +33,7 @@
         { name: 'colab.new', url: 'http://colab.new' },
         { name: '이미지확장앱', url: 'https://gemini.google.com/share/d1591e765dfd?skid=c20dbc64-20bb-4bcc-a772-24cf6a3ac2ea' },
         { name: '인포그래픽앱', url: 'https://gemini.google.com/share/cf9601ca8bb0?skid=c485f35a-a1b3-421d-a5bd-7841cb209643' },
+        { name: '인포그래픽 일괄작업', url: 'https://gemini.google.com/share/c008bb3f4c51?skid=e25dc382-4e43-465e-b0e1-49ff3353204b' },
         { name: '인포그래픽생성앱kYLE', url: 'https://share.gemini.google/2wY4mVdEy7RB' }
     ];
 
