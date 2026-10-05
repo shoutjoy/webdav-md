@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>문서 일괄 시각화 스튜디오 (ImgBB 연동)</title>
+  <title>문서일괄시각화</title>
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -46,6 +46,12 @@
     .animate-pulse-subtle { animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
     .progress-bar-fill { transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
     .drop-zone-active { border-color: #3b82f6 !important; background-color: rgba(59, 130, 246, 0.1) !important; }
+    .parsed-content-textarea {
+      field-sizing: content;
+      min-height: 4.75rem;
+      overflow-y: hidden;
+    }
+    .parsed-content-textarea[data-content-kind="body"] { min-height: 7rem; }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-800 dark:bg-[#0a0e17] dark:text-slate-100 min-h-screen flex flex-col antialiased transition-colors duration-200">
@@ -59,7 +65,7 @@
         </div>
         <div>
           <h1 class="font-bold text-base sm:text-lg text-slate-900 dark:text-white flex items-center gap-2">
-            <span>문서 일괄 시각화 & ImgBB 스튜디오</span>
+            <span>문서일괄시각화</span>
             <span class="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950/80 dark:text-blue-300 font-semibold border border-blue-200 dark:border-blue-800/60">Batch & Upload</span>
           </h1>
           <p class="text-xs text-slate-500 hidden sm:block">문서 파싱 ➔ 프롬프트 편집 ➔ 일괄 생성 ➔ ImgBB 업로드 ➔ 마크다운 완성</p>
@@ -95,6 +101,10 @@
           <input type="file" id="fileInput" class="hidden" accept=".txt,.md,.docx" />
         </div>
 
+        <button id="btnImportMdproDocument" class="w-full py-2 rounded-xl bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-bold text-xs transition shadow-sm flex items-center justify-center gap-2">
+          <i class="fa-solid fa-file-import"></i> MDPro 현재 문서 가져오기
+        </button>
+
         <textarea id="articleInput" rows="4" class="w-full text-xs p-2.5 border border-slate-200 dark:border-[#223049] rounded-xl outline-none custom-scroll bg-slate-50 dark:bg-[#0d131f] text-slate-900 dark:text-slate-100 placeholder-slate-400" placeholder="여기에 직접 텍스트를 붙여넣어도 됩니다."></textarea>
         
         <button id="btnParseDocument" class="w-full py-2 rounded-xl bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white font-bold text-xs transition shadow-md flex items-center justify-center gap-2">
@@ -113,7 +123,7 @@
         
         <!-- 전체 스타일 프롬프트 설정 -->
         <div class="flex flex-col gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
-          <label class="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block">전체 슬라이드 공통 스타일 지정</label>
+          <label class="text-[11px] font-semibold text-slate-600 dark:text-slate-400 block">일괄 생성 공통 프롬프트</label>
           
           <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5" id="stylePresets">
             <button data-preset="academic" class="preset-btn active px-2 py-1.5 rounded-lg text-[10px] font-bold border transition bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300 dark:border-indigo-800">
@@ -142,15 +152,43 @@
           <div class="relative flex flex-col gap-1.5">
             <textarea id="globalStylePrompt" rows="3" class="w-full text-[11px] p-2 border border-slate-200 dark:border-[#223049] rounded-lg outline-none focus:border-indigo-400 custom-scroll bg-slate-50 dark:bg-[#0d131f] text-slate-800 dark:text-slate-200 placeholder-slate-400" placeholder="전체 슬라이드에 적용할 공통 스타일을 입력하세요."></textarea>
             
-            <div class="flex items-center justify-between">
+            <div class="flex items-center justify-between gap-2 flex-wrap">
               <div id="userSavedStylesContainer" class="flex flex-wrap gap-1.5 flex-1">
                 <!-- User saved styles -->
               </div>
-              <button id="btnSaveCustomStyle" class="shrink-0 px-2.5 py-1.5 rounded-lg bg-indigo-100 hover:bg-indigo-200 text-indigo-700 dark:bg-indigo-900/50 dark:hover:bg-indigo-800/60 dark:text-indigo-300 font-bold text-[10px] transition shadow-sm border border-indigo-200 dark:border-indigo-800 flex items-center gap-1">
-                <i class="fa-solid fa-floppy-disk"></i> 현재 프롬프트 저장
-              </button>
+              <div class="flex items-center gap-1.5 flex-wrap justify-end">
+                <button id="btnSaveBatchPrompt" type="button" class="shrink-0 px-2.5 py-1.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-700 dark:bg-emerald-900/50 dark:hover:bg-emerald-800/60 dark:text-emerald-300 font-bold text-[10px] transition shadow-sm border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                  <i class="fa-solid fa-floppy-disk"></i> 기본 프롬프트 저장
+                </button>
+                <button id="btnDownloadBatchPromptMd" type="button" class="shrink-0 px-2.5 py-1.5 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-700 dark:bg-blue-900/50 dark:hover:bg-blue-800/60 dark:text-blue-300 font-bold text-[10px] transition shadow-sm border border-blue-200 dark:border-blue-800 flex items-center gap-1">
+                  <i class="fa-solid fa-file-arrow-down"></i> 프롬프트 MD 저장
+                </button>
+                <button id="btnUploadBatchPromptMd" type="button" class="shrink-0 px-2.5 py-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-700 dark:bg-amber-900/50 dark:hover:bg-amber-800/60 dark:text-amber-300 font-bold text-[10px] transition shadow-sm border border-amber-200 dark:border-amber-800 flex items-center gap-1">
+                  <i class="fa-solid fa-file-arrow-up"></i> 프롬프트 MD 불러오기
+                </button>
+                <input id="batchPromptFileInput" type="file" accept=".md,.markdown,text/markdown,text/plain" class="hidden" />
+                <button id="btnSaveCustomStyle" type="button" class="shrink-0 px-2.5 py-1.5 rounded-lg bg-indigo-100 hover:bg-indigo-200 text-indigo-700 dark:bg-indigo-900/50 dark:hover:bg-indigo-800/60 dark:text-indigo-300 font-bold text-[10px] transition shadow-sm border border-indigo-200 dark:border-indigo-800 flex items-center gap-1">
+                  <i class="fa-solid fa-star"></i> 이름 붙여 저장
+                </button>
+              </div>
             </div>
           </div>
+        </div>
+
+        <div>
+          <label for="imageModelSelect" class="text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">AI Studio 이미지 생성 모델</label>
+          <div class="flex items-center gap-1.5">
+            <select id="imageModelSelect" class="min-w-0 flex-1 px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-[#0d131f] text-xs text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-400">
+              <option value="gemini-3.1-flash-lite-image">Gemini 3.1 Flash Lite Image · 빠른 일괄 생성 (기본)</option>
+              <option value="gemini-3.1-flash-image">Gemini 3.1 Flash Image · Nano Banana 2</option>
+              <option value="gemini-3-pro-image">Gemini 3 Pro Image · 고품질/복합 지시</option>
+              <option value="gemini-2.5-flash-image">Gemini 2.5 Flash Image · 레거시</option>
+            </select>
+            <button id="btnLoadNanoBananaModels" type="button" class="shrink-0 px-2.5 py-2 rounded-lg border border-indigo-300 dark:border-indigo-700 text-[10px] font-bold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/30">
+              <i class="fa-solid fa-rotate"></i> Nano Banana 모델 불러오기
+            </button>
+          </div>
+          <p id="nanoBananaModelStatus" class="mt-1 text-[10px] text-slate-400">기본 모델 목록 · ENV의 AI Studio 키로 계정 모델을 불러올 수 있습니다.</p>
         </div>
 
         <div>
@@ -195,6 +233,7 @@
               저장
             </button>
           </div>
+          <p id="sharedKeyStatus" class="text-[10px] text-slate-500 dark:text-slate-400">ENV 설정 키를 확인하는 중...</p>
         </div>
 
         <button id="btnBatchUploadImgbb" class="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition shadow-sm flex items-center justify-center gap-1.5 mt-1">
@@ -217,9 +256,14 @@
               <input type="checkbox" id="chkRemoveVisualPrompt" class="w-3.5 h-3.5 rounded text-blue-600 bg-white border-slate-300" checked />
               시각화 지시문 삭제 (ImgBB 링크로 대체)
             </label>
-            <button id="btnDownloadFinalDoc" class="w-full py-2 mt-1 rounded-lg bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white font-bold text-[11px] transition shadow-sm flex items-center justify-center gap-1.5">
-              <i class="fa-solid fa-file-markdown"></i> MD 문서 다운로드
-            </button>
+            <div class="grid grid-cols-2 gap-1.5 mt-1">
+              <button id="btnDownloadFinalDoc" class="w-full py-2 rounded-lg bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white font-bold text-[11px] transition shadow-sm flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-download"></i> 로컬에 MD 저장
+              </button>
+              <button id="btnSendFinalDocToMdpro" class="w-full py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] transition shadow-sm flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-file-export"></i> MDPro로 보내기
+              </button>
+            </div>
           </div>
 
           <!-- ZIP & PPTX Download Option -->
@@ -262,7 +306,7 @@
     </div>
 
     <!-- RIGHT PANEL (Parsed List & Progress) -->
-    <div class="lg:col-span-8 xl:col-span-9 flex flex-col gap-4 h-[calc(100vh-100px)] relative">
+    <div id="parsedResultsPanel" class="lg:col-span-8 xl:col-span-9 flex flex-col gap-4 min-h-[calc(100vh-100px)] self-start relative">
       
       <!-- Detailed Progress Bar -->
       <div id="progressContainer" class="bg-white dark:bg-[#161f30] p-4 rounded-2xl border border-blue-200 dark:border-blue-800/60 shadow-lg hidden flex-col gap-2 relative overflow-hidden">
@@ -293,7 +337,7 @@
           <span id="parsedSummaryBadge" class="text-[10px] bg-slate-200 dark:bg-slate-700 px-2 py-1 rounded font-bold">0개 대기중</span>
         </div>
         
-        <div id="parsedListContainer" class="flex-1 overflow-y-auto p-4 custom-scroll grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4 content-start bg-slate-50/50 dark:bg-[#0a0e17]/50 relative">
+        <div id="parsedListContainer" class="flex-1 p-4 grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-4 content-start bg-slate-50/50 dark:bg-[#0a0e17]/50 relative">
           <!-- Empty State -->
           <div id="parsedEmptyState" class="absolute inset-0 flex flex-col items-center justify-center text-center text-slate-400 pointer-events-none">
             <i class="fa-regular fa-folder-open text-4xl mb-3"></i>
@@ -346,12 +390,19 @@
   <div id="toastContainer" class="fixed bottom-5 right-5 z-[150] flex flex-col gap-2 pointer-events-none"></div>
 
   <script>
+    const DEFAULT_IMAGE_MODEL = 'gemini-3.1-flash-lite-image';
+    const AUTO_IMAGE_MODEL_STORAGE_KEY = 'mdpro_infographic_auto_image_model';
+    const BATCH_PROMPT_STORAGE_KEY = 'mdpro_infographic_auto_batch_prompt';
+
     const state = {
-      apiKey: "", // API key parameter required but passed empty so system handles it
-      imgbbApiKey: localStorage.getItem('imgbbApiKey') || "",
+      apiKey: localStorage.getItem('ss_gemini_api_key') || "",
+      imgbbApiKey: localStorage.getItem('ss_imgbb_api_key') || localStorage.getItem('imgbbApiKey') || "",
+      imageModel: localStorage.getItem(AUTO_IMAGE_MODEL_STORAGE_KEY) || DEFAULT_IMAGE_MODEL,
+      sourceFileName: "Infographic_Slides.md",
       theme: "dark",
       aspectRatio: "16:9",
       parsedSlides: [],
+      annotationContent: "",
       history: [], 
       isGenerating: false,
       isUploading: false,
@@ -364,6 +415,7 @@
       articleInput: document.getElementById('articleInput'),
       fileInput: document.getElementById('fileInput'),
       fileDropZone: document.getElementById('fileDropZone'),
+      btnImportMdproDocument: document.getElementById('btnImportMdproDocument'),
       btnParseDocument: document.getElementById('btnParseDocument'),
       btnFormatContent: document.getElementById('btnFormatContent'),
       parsedListContainer: document.getElementById('parsedListContainer'),
@@ -371,6 +423,13 @@
       parsedSummaryBadge: document.getElementById('parsedSummaryBadge'),
       
       globalStylePrompt: document.getElementById('globalStylePrompt'),
+      imageModelSelect: document.getElementById('imageModelSelect'),
+      btnLoadNanoBananaModels: document.getElementById('btnLoadNanoBananaModels'),
+      nanoBananaModelStatus: document.getElementById('nanoBananaModelStatus'),
+      btnSaveBatchPrompt: document.getElementById('btnSaveBatchPrompt'),
+      btnDownloadBatchPromptMd: document.getElementById('btnDownloadBatchPromptMd'),
+      btnUploadBatchPromptMd: document.getElementById('btnUploadBatchPromptMd'),
+      batchPromptFileInput: document.getElementById('batchPromptFileInput'),
       
       batchSizeInput: document.getElementById('batchSizeInput'),
       btnGenerateNextBatch: document.getElementById('btnGenerateNextBatch'),
@@ -381,6 +440,7 @@
       btnSaveImgbbKey: document.getElementById('btnSaveImgbbKey'),
       btnBatchUploadImgbb: document.getElementById('btnBatchUploadImgbb'),
       btnDownloadFinalDoc: document.getElementById('btnDownloadFinalDoc'),
+      btnSendFinalDocToMdpro: document.getElementById('btnSendFinalDocToMdpro'),
       btnDownloadZipOnly: document.getElementById('btnDownloadZipOnly'),
       btnDownloadPptx: document.getElementById('btnDownloadPptx'),
       btnDownloadPdf: document.getElementById('btnDownloadPdf'),
@@ -401,7 +461,8 @@
       drawerBackdrop: document.getElementById('drawerBackdrop'),
       drawerPanel: document.getElementById('drawerPanel'),
       historyListContainer: document.getElementById('historyListContainer'),
-      historyCountBadge: document.getElementById('historyCountBadge')
+      historyCountBadge: document.getElementById('historyCountBadge'),
+      sharedKeyStatus: document.getElementById('sharedKeyStatus')
     };
 
     let activeModalItem = null;
@@ -412,20 +473,70 @@
       setupRatioSelectors();
       setupStylePresets();
       setupModals();
+      requestMdproContext(false);
+
+      if (els.imageModelSelect) {
+        if (state.imageModel && !Array.from(els.imageModelSelect.options).some(option => option.value === state.imageModel)) {
+          const savedOption = document.createElement('option');
+          savedOption.value = state.imageModel;
+          savedOption.textContent = `저장된 Nano Banana 모델 · ${state.imageModel}`;
+          savedOption.dataset.savedNanoBanana = 'true';
+          els.imageModelSelect.appendChild(savedOption);
+        }
+        els.imageModelSelect.value = state.imageModel;
+        if (!els.imageModelSelect.value) {
+          state.imageModel = DEFAULT_IMAGE_MODEL;
+          els.imageModelSelect.value = DEFAULT_IMAGE_MODEL;
+        }
+        els.imageModelSelect.addEventListener('change', () => {
+          state.imageModel = els.imageModelSelect.value || DEFAULT_IMAGE_MODEL;
+          localStorage.setItem(AUTO_IMAGE_MODEL_STORAGE_KEY, state.imageModel);
+          showToast('이미지 생성 모델을 ' + els.imageModelSelect.options[els.imageModelSelect.selectedIndex].text + '로 저장했습니다.');
+        });
+      }
+
+      els.btnSaveBatchPrompt?.addEventListener('click', saveBatchPromptSetting);
+      els.btnDownloadBatchPromptMd?.addEventListener('click', downloadBatchPromptMarkdown);
+      els.btnUploadBatchPromptMd?.addEventListener('click', () => els.batchPromptFileInput?.click());
+      els.batchPromptFileInput?.addEventListener('change', importBatchPromptMarkdown);
+      els.btnLoadNanoBananaModels?.addEventListener('click', loadNanoBananaModels);
 
       if (state.imgbbApiKey) els.imgbbApiKeyInput.value = state.imgbbApiKey;
       els.imgbbApiKeyInput.addEventListener('change', (e) => {
         state.imgbbApiKey = e.target.value.trim();
         localStorage.setItem('imgbbApiKey', state.imgbbApiKey);
+        if (state.imgbbApiKey) localStorage.setItem('ss_imgbb_api_key', state.imgbbApiKey);
+        else localStorage.removeItem('ss_imgbb_api_key');
       });
 
       els.btnFormatContent.addEventListener('click', formatInputText);
-      els.btnSaveImgbbKey.addEventListener('click', () => {
+      els.btnSaveImgbbKey.addEventListener('click', async () => {
         state.imgbbApiKey = els.imgbbApiKeyInput.value.trim();
         localStorage.setItem('imgbbApiKey', state.imgbbApiKey);
-        showToast("ImgBB API 키가 성공적으로 저장되었습니다.", "info");
+        if (state.imgbbApiKey) localStorage.setItem('ss_imgbb_api_key', state.imgbbApiKey);
+        else localStorage.removeItem('ss_imgbb_api_key');
+        const eventResult = dispatchMdproBridgeEvent('mdpro-infographic-save-imgbb-key', { imgbbApiKey: state.imgbbApiKey });
+        const bridge = getMdproBridge();
+        if (eventResult && eventResult.responsePromise) {
+          try {
+            applyMdproContext(await eventResult.responsePromise);
+          } catch (error) {
+            return showToast("ImgBB API 키 저장 실패: " + error.message, "error");
+          }
+        } else if (bridge && typeof bridge.saveImgbbKey === 'function') {
+          try {
+            applyMdproContext(await bridge.saveImgbbKey(state.imgbbApiKey));
+          } catch (error) {
+            return showToast("ImgBB API 키 저장 실패: " + error.message, "error");
+          }
+        } else if (window.parent !== window) {
+          window.parent.postMessage({ type: 'infographic-save-imgbb-key', imgbbApiKey: state.imgbbApiKey }, '*');
+        }
+        updateSharedKeyStatus();
+        showToast("ImgBB API 키가 ENV 설정과 이 앱에 저장되었습니다.", "info");
       });
 
+      els.btnImportMdproDocument.addEventListener('click', () => requestMdproContext(true));
       els.btnParseDocument.addEventListener('click', parseDocument);
       els.btnGenerateNextBatch.addEventListener('click', () => startBatchGeneration(false));
       els.btnGenerateAll.addEventListener('click', () => startBatchGeneration(true));
@@ -437,9 +548,114 @@
 
       els.btnBatchUploadImgbb.addEventListener('click', batchUploadToImgbb);
       els.btnDownloadFinalDoc.addEventListener('click', downloadFinalDocument);
+      els.btnSendFinalDocToMdpro.addEventListener('click', sendFinalDocumentToMdpro);
       els.btnDownloadZipOnly.addEventListener('click', downloadZipOnly);
       els.btnDownloadPptx.addEventListener('click', downloadPptx);
       els.btnDownloadPdf.addEventListener('click', downloadPdf);
+      updateSharedKeyStatus();
+    });
+
+    function requestMdproContext(includeDocument) {
+      if (includeDocument === true && window.parent !== window) {
+        try {
+          const parentEditor = window.parent.document.getElementById('viewer-edit-ta');
+          if (parentEditor && typeof parentEditor.value === 'string') {
+            applyMdproContext({
+              apiKey: state.apiKey,
+              imgbbApiKey: state.imgbbApiKey,
+              fileName: 'MDPro_Document.md',
+              markdown: parentEditor.value
+            });
+            return;
+          }
+        } catch (_) {}
+      }
+      const eventResult = dispatchMdproBridgeEvent('mdpro-infographic-request-context', { includeDocument: includeDocument === true });
+      if (eventResult && eventResult.response) {
+        applyMdproContext(eventResult.response);
+        return;
+      }
+      const bridge = getMdproBridge();
+      if (bridge && typeof bridge.getContext === 'function') {
+        applyMdproContext(bridge.getContext(includeDocument === true));
+        return;
+      }
+      if (window.parent === window) {
+        if (includeDocument) showToast("MDPro 안에서 열면 현재 문서를 가져올 수 있습니다.", "warning");
+        updateSharedKeyStatus();
+        return;
+      }
+      window.parent.postMessage({ type: 'infographic-request-context', includeDocument: includeDocument === true }, '*');
+    }
+
+    function dispatchMdproBridgeEvent(type, detail) {
+      try {
+        if (window.parent === window || !window.parent.document || typeof window.parent.CustomEvent !== 'function') return null;
+        const payload = detail && typeof detail === 'object' ? detail : {};
+        window.parent.document.dispatchEvent(new window.parent.CustomEvent(type, { detail: payload }));
+        return payload;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function getMdproBridge() {
+      try {
+        return window.parent !== window && window.parent.MDProInfographicBridge
+          ? window.parent.MDProInfographicBridge
+          : null;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function applyMdproContext(data) {
+      if (!data || typeof data !== 'object') return;
+      state.apiKey = String(data.apiKey || localStorage.getItem('ss_gemini_api_key') || '').trim();
+      state.imgbbApiKey = String(data.imgbbApiKey || localStorage.getItem('ss_imgbb_api_key') || '').trim();
+      if (state.apiKey) localStorage.setItem('ss_gemini_api_key', state.apiKey);
+      if (state.imgbbApiKey) {
+        localStorage.setItem('ss_imgbb_api_key', state.imgbbApiKey);
+        localStorage.setItem('imgbbApiKey', state.imgbbApiKey);
+      }
+      if (els.imgbbApiKeyInput) els.imgbbApiKeyInput.value = state.imgbbApiKey;
+      updateSharedKeyStatus();
+      if (typeof data.markdown === 'string') {
+        els.articleInput.value = data.markdown;
+        state.sourceFileName = String(data.fileName || 'MDPro_Document.md');
+        showToast(state.sourceFileName + " 문서를 MDPro에서 가져왔습니다.");
+      }
+    }
+
+    function updateSharedKeyStatus() {
+      if (!els.sharedKeyStatus) return;
+      const aiStatus = state.apiKey ? 'AI Studio 연결됨' : 'AI Studio 키 없음';
+      const imgbbStatus = state.imgbbApiKey ? 'imgBB 연결됨' : 'imgBB 키 없음';
+      els.sharedKeyStatus.textContent = aiStatus + ' · ' + imgbbStatus;
+      els.sharedKeyStatus.className = state.apiKey
+        ? 'text-[10px] text-emerald-600 dark:text-emerald-400'
+        : 'text-[10px] text-amber-600 dark:text-amber-400';
+    }
+
+    window.addEventListener('message', (event) => {
+      if (event.source !== window.parent) return;
+      const data = event && event.data && typeof event.data === 'object' ? event.data : null;
+      if (!data) return;
+      if (data.type === 'mdpro-infographic-context') {
+        applyMdproContext(data);
+        return;
+      }
+      if (data.type === 'mdpro-infographic-exported') {
+        showToast(String(data.fileName || '문서') + "을 MDPro 새 문서로 보냈습니다.");
+        return;
+      }
+      if (data.type === 'mdpro-infographic-export-cancelled') {
+        showToast("MDPro 문서 보내기를 취소했습니다.", "warning");
+        return;
+      }
+      if (data.type === 'mdpro-infographic-error') {
+        showToast(String(data.message || 'MDPro 연동 오류'), "error");
+      }
     });
 
     function initTheme() {
@@ -471,7 +687,8 @@
         custom: ""
       };
 
-      if(!els.globalStylePrompt.value) els.globalStylePrompt.value = presets.academic;
+      const savedBatchPrompt = localStorage.getItem(BATCH_PROMPT_STORAGE_KEY) || '';
+      if(!els.globalStylePrompt.value) els.globalStylePrompt.value = savedBatchPrompt || presets.academic;
 
       document.querySelectorAll('#stylePresets .preset-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -498,6 +715,121 @@
         renderUserSavedStyles();
         updatePresetButtonStyles('custom');
       });
+    }
+
+    function saveBatchPromptSetting() {
+      const value = String(els.globalStylePrompt?.value || '').trim();
+      if (!value) return showToast("저장할 일괄 생성 프롬프트를 입력해주세요.", "warning");
+      localStorage.setItem(BATCH_PROMPT_STORAGE_KEY, value);
+      showToast("일괄 생성 기본 프롬프트를 저장했습니다.");
+    }
+
+    async function listNanoBananaModels(apiKey) {
+      const models = [];
+      let pageToken = '';
+      do {
+        const query = new URLSearchParams({ key: apiKey, pageSize: '1000' });
+        if (pageToken) query.set('pageToken', pageToken);
+        const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models?' + query.toString());
+        const data = await response.json();
+        if (!response.ok) throw new Error(data?.error?.message || `HTTP ${response.status}`);
+        models.push(...(Array.isArray(data.models) ? data.models : []));
+        pageToken = String(data.nextPageToken || '');
+      } while (pageToken);
+      return models.filter(model => {
+        const id = String(model?.name || '').replace(/^models\//, '');
+        const searchable = [id, model?.baseModelId, model?.displayName, model?.description].filter(Boolean).join(' ');
+        const supportsGenerateContent = !Array.isArray(model?.supportedGenerationMethods)
+          || model.supportedGenerationMethods.includes('generateContent');
+        return supportsGenerateContent && (/nano\s*banana/i.test(searchable) || /gemini[^\s]*.*image|gemini-.*-image/i.test(searchable));
+      });
+    }
+
+    function mergeNanoBananaModelOptions(select, models) {
+      const selected = select.value || state.imageModel || DEFAULT_IMAGE_MODEL;
+      const existing = new Set(Array.from(select.options).map(option => option.value));
+      models.forEach(model => {
+        const id = String(model.name || '').replace(/^models\//, '');
+        if (!id || existing.has(id)) return;
+        const option = document.createElement('option');
+        option.value = id;
+        option.textContent = `${String(model.displayName || id)} · ${id}`;
+        option.dataset.dynamicNanoBanana = 'true';
+        select.appendChild(option);
+        existing.add(id);
+      });
+      select.value = existing.has(selected) ? selected : DEFAULT_IMAGE_MODEL;
+      return existing.size;
+    }
+
+    async function loadNanoBananaModels() {
+      if (!state.apiKey) {
+        requestMdproContext(false);
+        return showToast('ENV에서 AI Studio API 키를 저장한 뒤 다시 시도해주세요.', 'warning');
+      }
+      if (els.btnLoadNanoBananaModels) els.btnLoadNanoBananaModels.disabled = true;
+      if (els.nanoBananaModelStatus) els.nanoBananaModelStatus.textContent = 'AI Studio에서 Nano Banana 모델을 불러오는 중...';
+      try {
+        const models = await listNanoBananaModels(state.apiKey);
+        const total = mergeNanoBananaModelOptions(els.imageModelSelect, models);
+        if (els.nanoBananaModelStatus) els.nanoBananaModelStatus.textContent = `Nano Banana 이미지 모델 ${models.length}개 확인 · 선택 항목 ${total}개`;
+        showToast(`Nano Banana 이미지 모델 ${models.length}개를 불러왔습니다.`);
+      } catch (error) {
+        if (els.nanoBananaModelStatus) els.nanoBananaModelStatus.textContent = '모델 불러오기 실패: ' + error.message;
+        showToast('Nano Banana 모델 불러오기 실패: ' + error.message, 'error');
+      } finally {
+        if (els.btnLoadNanoBananaModels) els.btnLoadNanoBananaModels.disabled = false;
+      }
+    }
+
+    function buildBatchPromptMarkdown() {
+      const model = state.imageModel || DEFAULT_IMAGE_MODEL;
+      const promptText = String(els.globalStylePrompt?.value || '').trim();
+      return `# MDPro 인포그래픽 일괄 생성 프롬프트\n\n<!-- mdpro-infographic-batch-prompt -->\n\n## 이미지 생성 모델\n\n\`${model}\`\n\n## 공통 프롬프트\n\n${promptText}\n`;
+    }
+
+    function downloadBatchPromptMarkdown() {
+      const promptText = String(els.globalStylePrompt?.value || '').trim();
+      if (!promptText) return showToast("다운로드할 일괄 생성 프롬프트를 입력해주세요.", "warning");
+      const blob = new Blob([buildBatchPromptMarkdown()], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `MDPro_Infographic_Batch_Prompt_${new Date().toISOString().slice(0, 10)}.md`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      showToast("일괄 생성 프롬프트를 Markdown 파일로 저장했습니다.");
+    }
+
+    async function importBatchPromptMarkdown(event) {
+      const input = event?.target;
+      const file = input?.files?.[0];
+      if (!file) return;
+      try {
+        const markdown = await file.text();
+        const promptMatch = markdown.match(/##\s+공통 프롬프트\s*\r?\n+([\s\S]*?)\s*$/i);
+        const modelMatch = markdown.match(/##\s+이미지 생성 모델\s*\r?\n+`([^`]+)`/i);
+        const promptText = String(promptMatch ? promptMatch[1] : markdown).trim();
+        if (!promptText) throw new Error('프롬프트 내용이 비어 있습니다.');
+        els.globalStylePrompt.value = promptText;
+        localStorage.setItem(BATCH_PROMPT_STORAGE_KEY, promptText);
+        if (modelMatch && els.imageModelSelect) {
+          const importedModel = modelMatch[1].trim();
+          const supported = Array.from(els.imageModelSelect.options).some(option => option.value === importedModel);
+          if (supported) {
+            state.imageModel = importedModel;
+            els.imageModelSelect.value = importedModel;
+            localStorage.setItem(AUTO_IMAGE_MODEL_STORAGE_KEY, importedModel);
+          }
+        }
+        showToast(file.name + "에서 일괄 생성 프롬프트를 불러왔습니다.");
+      } catch (error) {
+        showToast("프롬프트 MD 불러오기 실패: " + error.message, "error");
+      } finally {
+        if (input) input.value = '';
+      }
     }
 
     function updatePresetButtonStyles(activeKey) {
@@ -622,6 +954,7 @@
 
     async function handleFile(file) {
       showToast(`${file.name} 읽는 중...`);
+      state.sourceFileName = file.name || 'Infographic_Slides.md';
       const ext = file.name.split('.').pop().toLowerCase();
       try {
         if (ext === 'txt' || ext === 'md') {
@@ -640,11 +973,54 @@
       }
     }
 
+    const ANNOTATION_TITLE_PATTERN = /^(?:주석|각주|미주|참고\s*문헌|참고\s*자료|참조|출처|인용|bibliography|references?|sources?|footnotes?|endnotes?|notes?)(?:\s*(?:및|\/|·|&|,|\+)\s*(?:주석|각주|미주|참고\s*문헌|참고\s*자료|참조|출처|인용|bibliography|references?|sources?|footnotes?|endnotes?|notes?))*\s*$/i;
+
+    function normalizeAnnotationTitle(value) {
+      return String(value || '')
+        .replace(/^\s*#{1,6}\s*/, '')
+        .replace(/^\s*\*{1,2}|\*{1,2}\s*$/g, '')
+        .replace(/^\s*(?:slide\s*\d+\s*[.:：\-–—]?\s*)/i, '')
+        .replace(/[\[\](){}]/g, '')
+        .replace(/[.:：\-–—]+\s*$/, '')
+        .trim();
+    }
+
+    function isAnnotationOnlyTitle(value) {
+      return ANNOTATION_TITLE_PATTERN.test(normalizeAnnotationTitle(value));
+    }
+
+    function splitTrailingAnnotationSection(source) {
+      const lines = String(source || '').split(/\r?\n/);
+      const startIndex = lines.findIndex((line) => {
+        const trimmed = line.trim();
+        const isExplicitHeading = /^#{1,6}\s+/.test(trimmed) || /^\*{1,2}.+\*{1,2}$/.test(trimmed);
+        return (isExplicitHeading || ANNOTATION_TITLE_PATTERN.test(normalizeAnnotationTitle(trimmed)))
+          && isAnnotationOnlyTitle(trimmed);
+      });
+
+      if (startIndex < 0) return { mainContent: String(source || ''), annotationContent: '' };
+      return {
+        mainContent: lines.slice(0, startIndex).join('\n').trimEnd(),
+        annotationContent: lines.slice(startIndex).join('\n').trim()
+      };
+    }
+
+    function appendAnnotationContent(content) {
+      const normalized = String(content || '').trim();
+      if (!normalized) return;
+      state.annotationContent = [state.annotationContent, normalized].filter(Boolean).join('\n\n');
+    }
+
     function parseDocument() {
-      const text = els.articleInput.value.trim();
+      const sourceText = els.articleInput.value.trim();
+      if (!sourceText) return showToast("분석할 텍스트가 없습니다.", "error");
+
+      const separated = splitTrailingAnnotationSection(sourceText);
+      const text = separated.mainContent;
       if (!text) return showToast("분석할 텍스트가 없습니다.", "error");
 
       state.parsedSlides = [];
+      state.annotationContent = separated.annotationContent;
       const chunks = text.split(/(?=####\s*\**Slide\s*\d+|####\s*Slide\s*\d+)/i);
       
       chunks.forEach((chunk, index) => {
@@ -652,6 +1028,11 @@
         const titleMatch = chunk.match(/####\s*\**Slide\s*(\d+)[^A-Za-z0-9가-힣]*([^\n\*]+)\**\n?/i);
         let slideNum = titleMatch ? titleMatch[1] : (index + 1).toString();
         let slideTitle = titleMatch ? titleMatch[2].trim() : `섹션 ${index + 1}`;
+
+        if (titleMatch && isAnnotationOnlyTitle(slideTitle)) {
+          appendAnnotationContent(chunk);
+          return;
+        }
 
         // 다양한 시각화 키워드 인식 (예: [시각적 요소 설계], [시각적 요소 복원 및 구성], [시각화 지시문] 등)
         const visualRegex = /\[\s*(?:시각적|시각화)\s*(?:요소|지시문)[^\]]*\]/i;
@@ -685,7 +1066,8 @@
       });
 
       if (state.parsedSlides.length > 0) {
-        showToast(`총 ${state.parsedSlides.length}개의 슬라이드 정보가 추출되었습니다.`);
+        const annotationMessage = state.annotationContent ? ' 주석/출처는 생성에서 제외하고 최종 문서에 보관합니다.' : '';
+        showToast(`총 ${state.parsedSlides.length}개의 슬라이드 정보가 추출되었습니다.${annotationMessage}`);
       } else {
         showToast("슬라이드 마커를 찾지 못했습니다.", "warning");
       }
@@ -703,6 +1085,18 @@
       const slide = state.parsedSlides.find(s => s.id === id);
       if(slide) slide.bodyContent = val;
     };
+
+    function expandParsedTextarea(textarea) {
+      if (!textarea) return;
+      textarea.style.height = 'auto';
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
+
+    function bindExpandingParsedTextarea(textarea) {
+      if (!textarea) return;
+      expandParsedTextarea(textarea);
+      textarea.addEventListener('input', () => expandParsedTextarea(textarea));
+    }
 
     function renderParsedList() {
       els.parsedListContainer.innerHTML = '';
@@ -753,11 +1147,11 @@
           <div class="flex flex-col gap-2 mt-1">
             <div class="relative group">
               <span class="absolute top-1 right-2 text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 transition"><i class="fa-solid fa-pen"></i> 시각화 지시문</span>
-              <textarea class="w-full text-[11px] p-2 bg-indigo-50/50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800/60 rounded-lg outline-none focus:border-indigo-400 text-slate-700 dark:text-slate-300 custom-scroll resize-y" rows="2" onchange="updateSlideInstruction('${slide.id}', this.value)" placeholder="시각화 지시문">${slide.instruction}</textarea>
+              <textarea class="parsed-content-textarea w-full text-[11px] p-2 bg-indigo-50/50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800/60 rounded-lg outline-none focus:border-indigo-400 text-slate-700 dark:text-slate-300 custom-scroll resize-y" data-content-kind="instruction" rows="2" onchange="updateSlideInstruction('${slide.id}', this.value)" placeholder="시각화 지시문">${slide.instruction}</textarea>
             </div>
             <div class="relative group">
               <span class="absolute top-1 right-2 text-[9px] text-slate-400 opacity-0 group-hover:opacity-100 transition"><i class="fa-solid fa-pen"></i> 본문 내용 (항목화)</span>
-              <textarea class="w-full text-[11px] p-2 bg-slate-50 dark:bg-[#0d131f] border border-slate-200 dark:border-[#223049] rounded-lg outline-none focus:border-blue-400 text-slate-600 dark:text-slate-400 custom-scroll resize-y" rows="3" onchange="updateSlideContent('${slide.id}', this.value)" placeholder="슬라이드 본문">${slide.bodyContent}</textarea>
+              <textarea class="parsed-content-textarea w-full text-[11px] p-2 bg-slate-50 dark:bg-[#0d131f] border border-slate-200 dark:border-[#223049] rounded-lg outline-none focus:border-blue-400 text-slate-600 dark:text-slate-400 custom-scroll resize-y" data-content-kind="body" rows="3" onchange="updateSlideContent('${slide.id}', this.value)" placeholder="슬라이드 본문">${slide.bodyContent}</textarea>
             </div>
           </div>
         `;
@@ -792,6 +1186,7 @@
         card.querySelector('.btn-indiv-gen').addEventListener('click', (e) => generateSingleSlide(e.target.dataset.index));
 
         els.parsedListContainer.appendChild(card);
+        card.querySelectorAll('.parsed-content-textarea').forEach(bindExpandingParsedTextarea);
       });
     }
 
@@ -815,6 +1210,10 @@
     }
 
     async function startBatchGeneration(generateAll) {
+      if (!state.apiKey) {
+        requestMdproContext(false);
+        return showToast("ENV에서 AI Studio API 키를 저장한 뒤 다시 시도해주세요.", "warning");
+      }
       state.isGenerating = true;
       state.stopRequested = false;
       updateBatchControls();
@@ -848,6 +1247,10 @@
     async function generateSingleSlide(index) {
       const slide = state.parsedSlides[index];
       if (slide.status === 'generating') return showToast("해당 슬라이드는 이미 생성 중입니다.", "warning");
+      if (!state.apiKey) {
+        requestMdproContext(false);
+        return showToast("ENV에서 AI Studio API 키를 저장한 뒤 다시 시도해주세요.", "warning");
+      }
       
       showToast(`Slide ${slide.slideNum} 백그라운드 생성 요청됨 (다중 실행 가능)`);
       slide.status = 'generating';
@@ -867,7 +1270,7 @@ All text inside the image MUST be written in clear KOREAN (한글).`;
           generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: state.aspectRatio } }
         };
 
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent?key=${state.apiKey}`;
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(state.imageModel || DEFAULT_IMAGE_MODEL)}:generateContent?key=${encodeURIComponent(state.apiKey)}`;
         const response = await fetchWithRetry(apiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         const result = await response.json();
         const base64Data = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
@@ -910,7 +1313,7 @@ All text inside the image MUST be written in clear KOREAN (한글).`;
           generationConfig: { responseModalities: ["IMAGE"], imageConfig: { aspectRatio: state.aspectRatio } }
         };
 
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image:generateContent?key=${state.apiKey}`;
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(state.imageModel || DEFAULT_IMAGE_MODEL)}:generateContent?key=${encodeURIComponent(state.apiKey)}`;
         const response = await fetchWithRetry(apiUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         const result = await response.json();
         const base64Data = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData)?.inlineData?.data;
@@ -1006,9 +1409,8 @@ All text inside the image MUST be written in clear KOREAN (한글).`;
       setTimeout(() => els.progressContainer.classList.add('hidden'), 3000);
     }
 
-    function downloadFinalDocument() {
-      if(state.parsedSlides.length === 0) return showToast("다운로드할 분석된 슬라이드가 없습니다.", "error");
-
+    function buildFinalDocument() {
+      if(state.parsedSlides.length === 0) return null;
       const formatBullets = document.getElementById('chkFormatBullets').checked;
       const removeVisualPrompt = document.getElementById('chkRemoveVisualPrompt').checked;
 
@@ -1047,16 +1449,66 @@ All text inside the image MUST be written in clear KOREAN (한글).`;
         finalDoc += "---\n\n";
       });
 
-      if(appendCount === 0) showToast("ImgBB에 업로드된 이미지가 없어 추가된 링크가 없습니다.", "warning");
+      if (state.annotationContent.trim()) {
+        finalDoc += `${state.annotationContent.trim()}\n`;
+      }
 
-      const blob = new Blob([finalDoc], { type: 'text/markdown' });
+      return { markdown: finalDoc, imageCount: appendCount };
+    }
+
+    function downloadFinalDocument() {
+      const result = buildFinalDocument();
+      if (!result) return showToast("다운로드할 분석된 슬라이드가 없습니다.", "error");
+      if(result.imageCount === 0) showToast("ImgBB에 업로드된 이미지가 없어 추가된 링크가 없습니다.", "warning");
+
+      const blob = new Blob([result.markdown], { type: 'text/markdown' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = `Finalized_Slides_${Date.now()}.md`;
       a.click();
       URL.revokeObjectURL(url);
-      showToast(`문서 다운로드 완료! (${appendCount}개의 이미지 링크 반영됨)`);
+      showToast(`로컬 MD 저장 완료! (${result.imageCount}개의 이미지 링크 반영됨)`);
+    }
+
+    async function sendFinalDocumentToMdpro() {
+      const result = buildFinalDocument();
+      if (!result) return showToast("MDPro로 보낼 분석된 슬라이드가 없습니다.", "error");
+      if (window.parent === window) {
+        return showToast("MDPro 안에서 열면 새 문서로 보낼 수 있습니다.", "warning");
+      }
+      const baseName = String(state.sourceFileName || 'Infographic_Slides.md')
+        .replace(/\.md$/i, '')
+        .trim() || 'Infographic_Slides';
+      const bridge = getMdproBridge();
+      const eventResult = dispatchMdproBridgeEvent('mdpro-infographic-export-markdown', {
+        markdown: result.markdown,
+        fileName: baseName + '_infographic.md'
+      });
+      if (eventResult && eventResult.responsePromise) {
+        try {
+          const exported = await eventResult.responsePromise;
+          if (exported && exported.cancelled) return showToast("MDPro 문서 보내기를 취소했습니다.", "warning");
+          return showToast(String(exported && exported.fileName || '문서') + "을 MDPro 새 문서로 보냈습니다.");
+        } catch (error) {
+          return showToast("MDPro로 보내기 실패: " + error.message, "error");
+        }
+      }
+      if (bridge && typeof bridge.exportMarkdown === 'function') {
+        try {
+          const exported = await bridge.exportMarkdown(result.markdown, baseName + '_infographic.md');
+          if (exported && exported.cancelled) return showToast("MDPro 문서 보내기를 취소했습니다.", "warning");
+          return showToast(String(exported && exported.fileName || '문서') + "을 MDPro 새 문서로 보냈습니다.");
+        } catch (error) {
+          return showToast("MDPro로 보내기 실패: " + error.message, "error");
+        }
+      }
+      window.parent.postMessage({
+        type: 'infographic-export-to-mdpro',
+        markdown: result.markdown,
+        fileName: baseName + '_infographic.md'
+      }, '*');
+      showToast("MDPro 새 문서 생성을 요청했습니다.");
     }
 
     async function downloadZipOnly() {

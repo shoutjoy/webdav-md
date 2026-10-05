@@ -47,6 +47,60 @@
     <link rel="stylesheet" href="./ShareSites/Share/share.css?v=20260408-2" charset="utf-8">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">
     <style>
+        #infographic-auto-panel {
+            position: fixed;
+            top: max(12px, env(safe-area-inset-top));
+            right: max(12px, env(safe-area-inset-right));
+            bottom: max(12px, env(safe-area-inset-bottom));
+            left: max(12px, env(safe-area-inset-left));
+            z-index: 75;
+            width: auto;
+            height: auto;
+            min-width: 0;
+            min-height: 0;
+            overflow: hidden;
+        }
+        #infographic-auto-frame {
+            display: block;
+            width: 100%;
+            height: 100%;
+            min-width: 0;
+            min-height: 0;
+        }
+        #infographic-single-panel {
+            position: fixed;
+            top: max(12px, env(safe-area-inset-top));
+            right: max(12px, env(safe-area-inset-right));
+            bottom: max(12px, env(safe-area-inset-bottom));
+            left: max(12px, env(safe-area-inset-left));
+            z-index: 76;
+            width: auto;
+            height: auto;
+            min-width: 0;
+            min-height: 0;
+            overflow: hidden;
+        }
+        #infographic-single-frame {
+            display: block;
+            width: 100%;
+            height: 100%;
+            min-width: 0;
+            min-height: 0;
+        }
+        @media (min-width: 640px) {
+            #infographic-auto-panel {
+                top: max(24px, env(safe-area-inset-top));
+                right: max(24px, env(safe-area-inset-right));
+                bottom: max(24px, env(safe-area-inset-bottom));
+                left: max(24px, env(safe-area-inset-left));
+            }
+            #infographic-single-panel {
+                top: max(24px, env(safe-area-inset-top));
+                right: max(24px, env(safe-area-inset-right));
+                bottom: max(24px, env(safe-area-inset-bottom));
+                left: max(24px, env(safe-area-inset-left));
+            }
+        }
         #settings-modal-panel {
             position: relative;
             resize: both;
@@ -575,6 +629,14 @@
                 <button type="button" id="btn-template-panel" onclick="toggleTemplatePanel()"
                     class="header-quick-tool hidden" title="양식" aria-label="양식">
                     <i data-lucide="notebook-tabs" aria-hidden="true"></i><span>양식</span>
+                </button>
+                <button type="button" id="btn-infographic-gemini" onclick="openInfographicGeminiApp()"
+                    class="header-quick-tool hidden" title="인포그래픽앱" aria-label="인포그래픽앱">
+                    <i data-lucide="chart-no-axes-combined" aria-hidden="true"></i><span>인포그래픽앱</span>
+                </button>
+                <button type="button" id="btn-infographic-auto" onclick="toggleInfographicAutoPanel()"
+                    class="header-quick-tool hidden" title="문서일괄시각화" aria-label="문서일괄시각화">
+                    <i data-lucide="workflow" aria-hidden="true"></i><span>문서일괄시각화</span>
                 </button>
             </div>
 
@@ -2811,6 +2873,24 @@
                                         class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500">
                                     <span class="text-sm font-medium text-slate-700 dark:text-slate-300">PDF 병합 버튼 보이기</span>
                                 </label>
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <label class="flex items-center gap-2 cursor-pointer select-none">
+                                        <input type="checkbox" id="infographic-gemini-visible" onclick="setTimeout(toggleInfographicGeminiVisibilitySection,0)"
+                                            class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500">
+                                        <span class="text-sm font-medium text-slate-700 dark:text-slate-300">인포그래픽앱 버튼 보이기</span>
+                                    </label>
+                                    <button type="button" id="infographic-single-open-from-settings" onclick="openInfographicSinglePanel()"
+                                        class="px-2 py-1 rounded border border-indigo-300 dark:border-indigo-700 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/30">앱 열기</button>
+                                </div>
+                                <div class="flex items-center gap-2 flex-wrap">
+                                    <label class="flex items-center gap-2 cursor-pointer select-none">
+                                        <input type="checkbox" id="infographic-auto-visible" onclick="setTimeout(toggleInfographicAutoVisibilitySection,0)"
+                                            class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500">
+                                        <span class="text-sm font-medium text-slate-700 dark:text-slate-300">문서일괄시각화 버튼 보이기</span>
+                                    </label>
+                                    <button type="button" id="infographic-auto-open-from-settings" onclick="openInfographicAutoPanel()"
+                                        class="px-2 py-1 rounded border border-indigo-300 dark:border-indigo-700 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/30">앱 열기</button>
+                                </div>
                                 <div class="flex items-center gap-4 flex-wrap">
                                     <span class="min-w-24 text-sm font-medium text-slate-700 dark:text-slate-300">GenSlide</span>
                                     <label class="flex items-center gap-1.5 cursor-pointer select-none">
@@ -3366,6 +3446,36 @@
             style="background:linear-gradient(135deg,transparent 45%,#94a3b8 46%,#94a3b8 54%,transparent 55%);"></div>
     </div>
 
+    <div id="infographic-single-panel" class="fixed inset-3 sm:inset-6 hidden flex-col z-[76] no-print rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl">
+        <div class="flex items-center justify-between px-3 py-2 border-b border-slate-200 dark:border-slate-700 select-none">
+            <div>
+                <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">인포그래픽앱</h3>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400">단일 인포그래픽과 머메이드 다이어그램을 만듭니다.</p>
+            </div>
+            <button type="button" onclick="closeInfographicSinglePanel()"
+                class="px-2.5 py-1.5 rounded border border-slate-300 dark:border-slate-600 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">닫기</button>
+        </div>
+        <div class="flex-1 min-h-0 p-2">
+            <iframe id="infographic-single-frame" data-src="./Apps/ingrographicSingle/single_info_code_artifact.html?v=20261005-nano-model-loader-1"
+                class="w-full h-full border-0 rounded bg-white dark:bg-slate-900" title="인포그래픽앱"></iframe>
+        </div>
+    </div>
+
+    <div id="infographic-auto-panel" class="fixed inset-3 sm:inset-6 hidden flex-col z-[75] no-print rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl">
+        <div class="flex items-center justify-between px-3 py-2 border-b border-slate-200 dark:border-slate-700 select-none">
+            <div>
+                <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">문서일괄시각화</h3>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400">ENV의 AI Studio·imgBB 키와 현재 MDPro 문서를 함께 사용합니다.</p>
+            </div>
+            <button type="button" onclick="closeInfographicAutoPanel()"
+                class="px-2.5 py-1.5 rounded border border-slate-300 dark:border-slate-600 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">닫기</button>
+        </div>
+        <div class="flex-1 min-h-0 p-2">
+            <iframe id="infographic-auto-frame" data-src="./Apps/inforgrapicAuto/imgbb.html?v=20261005-annotations-preserved-1"
+                class="w-full h-full border-0 rounded bg-white dark:bg-slate-900" title="문서일괄시각화"></iframe>
+        </div>
+    </div>
+
     <!-- =========================================================
      1. 외부 렌더링 라이브러리
      로컬 렌더링 모듈보다 먼저 실행되어야 함
@@ -3577,7 +3687,7 @@
 
 <!-- 공유 사이트 표시 -->
 <script
-    src="./ShareSites/sitesshow/sitesshow.js?v=20260908-image-app-links-1"
+    src="./ShareSites/sitesshow/sitesshow.js?v=20261005-infographic-batch-link-1"
     charset="utf-8"
     defer>
 </script>
@@ -3756,7 +3866,7 @@
     defer>
 </script>
 <script
-    src="./js/app.js?a4Pages=20260909-a4-lcr-1&amp;mermaid=20260909-print-image-1&amp;v=20260908-note-cover-fold-menu-4&amp;msetWebdav=20260908-1&amp;wdNewFile=20260909-2&amp;aiJenaReasoning=20260829-low-high-1&amp;storageSafety=20260815-1&amp;localWriteback=20260815-1&amp;localFileRefresh=20260817-1&amp;docxImport=20260817-dark-table-contrast-1&amp;viewModeTextInput=20260815-2&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;indbImages=20260812-3&amp;indbToggle=20260816-1&amp;tidyCustomJs=20260811-1&amp;html2md=20260817-1&amp;inline2ref=20260822-4&amp;saveDropdown=20260822-1&amp;aiJenaAttachments=20260822-2&amp;aiDataCenter=20260823-1&amp;settingsDrag=20260811-1&amp;copyFab=20260810-ai-jena-bottom-1&amp;mobileAiJena=20260817-1&amp;feature=templates-new-file-menu-2&amp;storageVisibility=20260810-1&amp;settingsResetConfirm=1&amp;toolbarNames=20260807-1&amp;templateFullscreen=20260807-1&amp;settingsFold=20260807-1&amp;mermaidDisplay=20260810-3&amp;comment=20260812-html-comment-1&amp;perf=20260810-10&amp;pdfExport=20260928-progress-cancel-2&amp;pvExport=20260813-modal-2&amp;pdfMergeTool=20260815-pdfm-project-15&amp;imageSizeHint=20260811-1&amp;textStyle=20260815-supsub-1&amp;localDefault=20260812-1&amp;folderTree=20260812-1&amp;documentMeta=20260812-1&amp;documentDrop=20260812-1&amp;sliderMaker=20260812-1&amp;scholarUpgrades=20260817-2&amp;pvHeaderSettings=20260815-1&amp;mainHeaderBackground=20260815-1&amp;mainHeaderScale=20260815-1&amp;headerFileActions=20260823-1&amp;listQuickMenu=20260823-1&amp;footnoteAnchorMenu=20260823-1&amp;imageInsertMenu=20260825-link-1&amp;verticalEditToolbar=20260823-2&amp;headerHeadingDisplay=20260825-1&amp;documentTheme=20260825-1&amp;fastSafetyTimeout=20260825-1&amp;fastCompleteStreaming=20260825-1&amp;fastLimitsUi=20260825-2&amp;aiDetailsToggle=20260825-1&amp;splitTab=20260825-1&amp;img2Math=20260909-webdav-1&amp;editorShiftSize=20260909-2&amp;editorShiftOrientation=20260911-vertical-1&amp;mermaidEditorResize=20260911-1&amp;aiJenaFloating=20260912-mobile-resize-1&amp;pvLiveEdit=20260911-1&amp;dataImageFold=20260912-1&amp;editorListTab=20260912-3&amp;headingHotkeys=20260912-2&amp;toolbarRecovery=20260912-list-outdent-9&amp;aiJenaGeneralAnswer=20260912-original-6&amp;aiJenaAnswerThemeNames=20260912-1&amp;aiJenaDefaultLayout=20260912-alt2-1&amp;aiJenaRealtimeRecord=20260912-2&amp;aiJenaFloatingCompactPosition=20260912-3&amp;aiJenaHeaderUtilities=20260912-2&amp;scrollSync=20260915-active-mode-1&amp;cmGutter=20260918-remove-1&amp;codeCopy=20260920-2&amp;editorPlaceholder=20260920-1&amp;printPdf=20260928-progress-cancel-2&amp;lineCopy=20260922-1&amp;localHtmlAssets=20260925-js-runtime-1&amp;nonprinting=20260925-3"
+    src="./js/app.js?a4Pages=20260909-a4-lcr-1&amp;mermaid=20260909-print-image-1&amp;v=20260908-note-cover-fold-menu-4&amp;msetWebdav=20260908-1&amp;wdNewFile=20260909-2&amp;aiJenaReasoning=20260829-low-high-1&amp;storageSafety=20260815-1&amp;localWriteback=20260815-1&amp;localFileRefresh=20260817-1&amp;docxImport=20260817-dark-table-contrast-1&amp;viewModeTextInput=20260815-2&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;indbImages=20260812-3&amp;indbToggle=20260816-1&amp;tidyCustomJs=20260811-1&amp;html2md=20260817-1&amp;inline2ref=20260822-4&amp;saveDropdown=20260822-1&amp;aiJenaAttachments=20260822-2&amp;aiDataCenter=20260823-1&amp;settingsDrag=20260811-1&amp;copyFab=20260810-ai-jena-bottom-1&amp;mobileAiJena=20260817-1&amp;feature=templates-new-file-menu-2&amp;storageVisibility=20260810-1&amp;settingsResetConfirm=1&amp;toolbarNames=20260807-1&amp;templateFullscreen=20260807-1&amp;settingsFold=20260807-1&amp;mermaidDisplay=20260810-3&amp;comment=20260812-html-comment-1&amp;perf=20260810-10&amp;pdfExport=20260928-progress-cancel-2&amp;pvExport=20260813-modal-2&amp;pdfMergeTool=20260815-pdfm-project-15&amp;imageSizeHint=20260811-1&amp;textStyle=20260815-supsub-1&amp;localDefault=20260812-1&amp;folderTree=20260812-1&amp;documentMeta=20260812-1&amp;documentDrop=20260812-1&amp;sliderMaker=20260812-1&amp;scholarUpgrades=20260817-2&amp;pvHeaderSettings=20260815-1&amp;mainHeaderBackground=20260815-1&amp;mainHeaderScale=20260815-1&amp;headerFileActions=20260823-1&amp;listQuickMenu=20260823-1&amp;footnoteAnchorMenu=20260823-1&amp;imageInsertMenu=20260825-link-1&amp;verticalEditToolbar=20260823-2&amp;headerHeadingDisplay=20260825-1&amp;documentTheme=20260825-1&amp;fastSafetyTimeout=20260825-1&amp;fastCompleteStreaming=20260825-1&amp;fastLimitsUi=20260825-2&amp;aiDetailsToggle=20260825-1&amp;splitTab=20260825-1&amp;img2Math=20260909-webdav-1&amp;editorShiftSize=20260909-2&amp;editorShiftOrientation=20260911-vertical-1&amp;mermaidEditorResize=20260911-1&amp;aiJenaFloating=20260912-mobile-resize-1&amp;pvLiveEdit=20260911-1&amp;dataImageFold=20260912-1&amp;editorListTab=20260912-3&amp;headingHotkeys=20260912-2&amp;toolbarRecovery=20260912-list-outdent-9&amp;aiJenaGeneralAnswer=20260912-original-6&amp;aiJenaAnswerThemeNames=20260912-1&amp;aiJenaDefaultLayout=20260912-alt2-1&amp;aiJenaRealtimeRecord=20260912-2&amp;aiJenaFloatingCompactPosition=20260912-3&amp;aiJenaHeaderUtilities=20260912-2&amp;scrollSync=20260915-active-mode-1&amp;cmGutter=20260918-remove-1&amp;codeCopy=20260920-2&amp;editorPlaceholder=20260920-1&amp;printPdf=20260928-progress-cancel-2&amp;lineCopy=20260922-1&amp;localHtmlAssets=20260925-js-runtime-1&amp;nonprinting=20260925-3&amp;infographicAuto=20261005-5"
     charset="utf-8"
     defer>
 </script>
