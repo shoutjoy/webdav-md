@@ -49,6 +49,20 @@ const FIRST_RUN_AI_SETTINGS_DEFAULTS = Object.freeze({
     infographicAutoVisible: false,
     recentWorkVisible: true,
     chromeSplitTabVisible: false,
+    recentWorkNameVisible: true,
+    chromeSplitTabNameVisible: false,
+    scholarSearchNameVisible: false,
+    highlightNameVisible: true,
+    toDocsNameVisible: false,
+    sitesNameVisible: false,
+    macroNameVisible: true,
+    templateNameVisible: false,
+    templateNewFileNameVisible: true,
+    noteCoverInsertNameVisible: true,
+    pdfMergeNameVisible: false,
+    infographicGeminiNameVisible: false,
+    infographicAutoNameVisible: false,
+    imageUploadToolbarNameVisible: true,
     html2pptVisible: true,
     html2pptNameVisible: false,
     fmaViewerVisible: true,
@@ -12582,6 +12596,66 @@ function getRecentWorkVisibleFromSettings(settings) {
     return !settings || settings.recentWorkVisible !== false;
 }
 
+const FEATURE_TOOL_NAME_BINDINGS = Object.freeze({
+    recentWorkNameVisible: { checkboxId: 'recent-work-name-visible', buttonId: 'open-recent-work-menu-item', nameId: 'open-recent-work-menu-name' },
+    chromeSplitTabNameVisible: { checkboxId: 'chrome-split-tab-name-visible', buttonId: 'btn-chrome-split-tab', nameId: 'btn-chrome-split-tab-name' },
+    scholarSearchNameVisible: { checkboxId: 'scholar-search-name-visible', buttonId: 'btn-scholar-search', nameId: 'btn-scholar-search-name' },
+    highlightNameVisible: { checkboxId: 'highlight-name-visible', buttonId: 'btn-highlight-popup', nameId: 'btn-highlight-popup-name' },
+    toDocsNameVisible: { checkboxId: 'todocs-name-visible', buttonId: 'btn-export-gdocs', nameId: 'btn-export-gdocs-name' },
+    sitesNameVisible: { checkboxId: 'sites-name-visible', buttonId: 'btn-sites-panel', nameId: 'btn-sites-panel-name' },
+    macroNameVisible: { checkboxId: 'macro-name-visible', buttonId: 'btn-macro-run', nameId: 'btn-macro-run-name' },
+    templateNameVisible: { checkboxId: 'template-name-visible', buttonId: 'btn-template-panel', nameId: 'btn-template-panel-name' },
+    templateNewFileNameVisible: { checkboxId: 'template-new-file-name-visible', buttonId: 'new-template-menu-item', nameId: 'new-template-menu-item-name' },
+    noteCoverInsertNameVisible: { checkboxId: 'note-cover-insert-name-visible', buttonId: 'btn-note-cover-insert', nameId: 'btn-note-cover-insert-name' },
+    pdfMergeNameVisible: { checkboxId: 'pdf-merge-name-visible', buttonId: 'btn-pdf-merge', nameId: 'btn-pdf-merge-name' },
+    infographicGeminiNameVisible: { checkboxId: 'infographic-gemini-name-visible', buttonId: 'btn-infographic-gemini', nameId: 'btn-infographic-gemini-name' },
+    infographicAutoNameVisible: { checkboxId: 'infographic-auto-name-visible', buttonId: 'btn-infographic-auto', nameId: 'btn-infographic-auto-name' },
+    imageUploadToolbarNameVisible: { checkboxId: 'image-upload-toolbar-name-visible', buttonId: 'btn-image-upload-toolbar', nameId: 'btn-image-upload-toolbar-name' }
+});
+
+let latestFeatureToolNameSettings = { ...FIRST_RUN_AI_SETTINGS_DEFAULTS };
+
+function applyFeatureToolNameBinding(key, visible) {
+    const binding = FEATURE_TOOL_NAME_BINDINGS[key];
+    if (!binding) return;
+    const checkbox = document.getElementById(binding.checkboxId);
+    const button = document.getElementById(binding.buttonId);
+    const name = document.getElementById(binding.nameId);
+    if (checkbox) checkbox.checked = visible;
+    if (name) name.classList.toggle('hidden', !visible);
+    if (button && button.classList.contains('header-quick-tool')) {
+        button.classList.toggle('feature-tool-name-visible', visible);
+        button.classList.toggle('feature-tool-name-hidden', !visible);
+    }
+}
+
+function applyFeatureToolNameVisibility(settings) {
+    latestFeatureToolNameSettings = { ...latestFeatureToolNameSettings, ...(settings || {}) };
+    Object.keys(FEATURE_TOOL_NAME_BINDINGS).forEach(function (key) {
+        applyFeatureToolNameBinding(key, latestFeatureToolNameSettings[key] === true);
+    });
+}
+
+async function toggleFeatureToolNameSetting(key, checkbox) {
+    if (!Object.prototype.hasOwnProperty.call(FEATURE_TOOL_NAME_BINDINGS, key)) return;
+    const visible = !!(checkbox && checkbox.checked);
+    const patch = { [key]: visible };
+    applyFeatureToolNameVisibility(patch);
+    try { await setAiSettings(patch); } catch (error) { console.error(error); }
+}
+
+async function refreshFeatureToolNameSettings() {
+    try {
+        const settings = await getAiSettings();
+        applyFeatureToolNameVisibility(settings || FIRST_RUN_AI_SETTINGS_DEFAULTS);
+    } catch (_) {
+        applyFeatureToolNameVisibility(latestFeatureToolNameSettings);
+    }
+}
+
+window.toggleFeatureToolNameSetting = toggleFeatureToolNameSetting;
+window.refreshFeatureToolNameSettings = refreshFeatureToolNameSettings;
+
 function applyRecentWorkVisibility(settings) {
     const enabled = getRecentWorkVisibleFromSettings(settings);
     const menuItem = document.getElementById('open-recent-work-menu-item');
@@ -14569,6 +14643,7 @@ function updateAiScholarSspimgAvailability(verified) {
 
 async function onAiFeatureCheckboxChange() {
     const settings = await getAiSettings();
+    applyFeatureToolNameVisibility(settings || FIRST_RUN_AI_SETTINGS_DEFAULTS);
     if (!isAiAccessVerified(settings)) return;
     await applyAiFeatureVisibility();
 }
@@ -14635,6 +14710,13 @@ async function persistAiSettingsFromModal() {
     const recentWorkVisible = !(recentWorkVisibleEl && recentWorkVisibleEl.checked === false);
     const chromeSplitTabVisibleEl = document.getElementById('chrome-split-tab-visible');
     const chromeSplitTabVisible = !!(chromeSplitTabVisibleEl && chromeSplitTabVisibleEl.checked);
+    const featureToolNameSettings = {};
+    Object.keys(FEATURE_TOOL_NAME_BINDINGS).forEach(function (key) {
+        const checkbox = document.getElementById(FEATURE_TOOL_NAME_BINDINGS[key].checkboxId);
+        featureToolNameSettings[key] = checkbox
+            ? checkbox.checked
+            : latestFeatureToolNameSettings[key] === true;
+    });
     const githubTokenEl = document.getElementById('github-token-input');
     const githubRepoEl = document.getElementById('github-repo-input');
     const githubBranchEl = document.getElementById('github-branch-input');
@@ -14670,6 +14752,7 @@ async function persistAiSettingsFromModal() {
         infographicAutoVisible: infographicAutoVisible,
         recentWorkVisible: recentWorkVisible,
         chromeSplitTabVisible: chromeSplitTabVisible,
+        ...featureToolNameSettings,
         templateCustomList: normalizeTemplateCustomList(templateCustomList).map(function (item) {
             return { id: item.id, name: item.name, desc: item.desc, content: item.content };
         }),
@@ -18857,6 +18940,7 @@ function injectSidebarAIHtml() {
 
 function restoreFeatureSettings(settings) {
     settings = settings || {};
+    applyFeatureToolNameVisibility(settings);
     const imageCheck = document.getElementById('image-upload-enabled');
     if (imageCheck) imageCheck.checked = settings.imageUploadEnabled === true;
     const highlightCheck = document.getElementById('highlight-visible');
@@ -18932,6 +19016,7 @@ async function loadAiSettingsToUI() {
         await window.GithubDataSettings.ensureUiReady();
     }
     const settings = await getAiSettings();
+    applyFeatureToolNameVisibility(settings || FIRST_RUN_AI_SETTINGS_DEFAULTS);
     loadOpenAICompatibleSettingsUI(settings);
     loadOllamaSettingsToUI();
     loadLiteRTLMSettingsToUI();

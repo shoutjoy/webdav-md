@@ -41,7 +41,7 @@
         '<button type="button" id="btn-scholar-search"',
         ' class="header-quick-tool hidden"',
         ' title="학술검색 입력창 열기 (Alt+S)" aria-label="학술검색">',
-        '<i data-lucide="graduation-cap" aria-hidden="true"></i><span>학술검색</span></button>'
+        '<i data-lucide="graduation-cap" aria-hidden="true"></i><span id="btn-scholar-search-name">학술검색</span></button>'
       ].join('');
       q('btn-scholar-search').addEventListener('click', open);
       if (global.lucide && typeof global.lucide.createIcons === 'function') global.lucide.createIcons();
@@ -50,12 +50,13 @@
     var settingsSlot = q('scholar-search-settings-slot');
     if (settingsSlot && !q('scholar-search-visible')) {
       settingsSlot.innerHTML = [
-        '<label class="flex items-center gap-2 cursor-pointer select-none">',
-        '<input type="checkbox" id="scholar-search-visible" class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500">',
-        '<span class="text-sm font-medium text-slate-700 dark:text-slate-300">학술검색 보이기</span>',
-        '</label>'
+        '<div class="feature-tool-setting-row"><span>학술검색</span>',
+        '<label><input type="checkbox" id="scholar-search-visible"> 버튼</label>',
+        '<label><input type="checkbox" id="scholar-search-name-visible" onchange="toggleFeatureToolNameSetting(\'scholarSearchNameVisible\', this)"> 이름</label>',
+        '</div>'
       ].join('');
       q('scholar-search-visible').addEventListener('change', toggleVisibility);
+      if (typeof global.refreshFeatureToolNameSettings === 'function') global.refreshFeatureToolNameSettings();
     }
   }
 

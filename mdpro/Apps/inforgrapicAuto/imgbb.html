@@ -110,6 +110,15 @@
         <button id="btnParseDocument" class="w-full py-2 rounded-xl bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white font-bold text-xs transition shadow-md flex items-center justify-center gap-2">
           <i class="fa-solid fa-microscope"></i> 슬라이드 분리 및 추출
         </button>
+
+        <!-- 시각화 요소 추출 키워드 입력칸 -->
+        <div class="flex flex-col gap-1.5 mt-1 mb-1">
+          <label for="extractionKeyword" class="text-[10px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+            <i class="fa-solid fa-key"></i> 시각화 지시문 추출 키워드 지정
+          </label>
+          <input type="text" id="extractionKeyword" value="[시각적 요소 복원 및 구성]" class="w-full text-xs p-2 border border-slate-200 dark:border-[#223049] rounded-lg bg-white dark:bg-[#161f30] text-slate-700 dark:text-slate-300 outline-none focus:border-blue-400" placeholder="예: 이미지 생성프롬프트" />
+        </div>
+
         <button id="btnFormatContent" class="w-full py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 font-bold text-xs transition shadow-sm flex items-center justify-center gap-2">
           <i class="fa-solid fa-list-ul"></i> 문서 본문 항목화 (마침표 기준)
         </button>
@@ -238,6 +247,10 @@
 
         <button id="btnBatchUploadImgbb" class="w-full py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition shadow-sm flex items-center justify-center gap-1.5 mt-1">
           <i class="fa-solid fa-cloud-arrow-up"></i> 전체 이미지 ImgBB 업로드
+        </button>
+
+        <button id="btnDownloadMdd" class="w-full py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs transition shadow-sm flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-box-archive"></i> 전체 이미지 문서 내부 저장 (.mdd)
         </button>
         
         <div class="mt-2 border-t border-slate-200 dark:border-slate-700 pt-3 flex flex-col gap-2">
@@ -393,6 +406,8 @@
     const DEFAULT_IMAGE_MODEL = 'gemini-3.1-flash-lite-image';
     const AUTO_IMAGE_MODEL_STORAGE_KEY = 'mdpro_infographic_auto_image_model';
     const BATCH_PROMPT_STORAGE_KEY = 'mdpro_infographic_auto_batch_prompt';
+    const DEFAULT_EXTRACTION_KEYWORD = '[시각적 요소 복원 및 구성]';
+    const EXTRACTION_KEYWORD_STORAGE_KEY = 'mdpro_infographic_auto_extraction_keyword';
 
     const state = {
       apiKey: localStorage.getItem('ss_gemini_api_key') || "",
@@ -417,6 +432,7 @@
       fileDropZone: document.getElementById('fileDropZone'),
       btnImportMdproDocument: document.getElementById('btnImportMdproDocument'),
       btnParseDocument: document.getElementById('btnParseDocument'),
+      extractionKeyword: document.getElementById('extractionKeyword'),
       btnFormatContent: document.getElementById('btnFormatContent'),
       parsedListContainer: document.getElementById('parsedListContainer'),
       parsedEmptyState: document.getElementById('parsedEmptyState'),
@@ -439,6 +455,7 @@
       imgbbApiKeyInput: document.getElementById('imgbbApiKeyInput'),
       btnSaveImgbbKey: document.getElementById('btnSaveImgbbKey'),
       btnBatchUploadImgbb: document.getElementById('btnBatchUploadImgbb'),
+      btnDownloadMdd: document.getElementById('btnDownloadMdd'),
       btnDownloadFinalDoc: document.getElementById('btnDownloadFinalDoc'),
       btnSendFinalDocToMdpro: document.getElementById('btnSendFinalDocToMdpro'),
       btnDownloadZipOnly: document.getElementById('btnDownloadZipOnly'),
@@ -538,6 +555,14 @@
 
       els.btnImportMdproDocument.addEventListener('click', () => requestMdproContext(true));
       els.btnParseDocument.addEventListener('click', parseDocument);
+      if (els.extractionKeyword) {
+        els.extractionKeyword.value = localStorage.getItem(EXTRACTION_KEYWORD_STORAGE_KEY) || DEFAULT_EXTRACTION_KEYWORD;
+        els.extractionKeyword.addEventListener('change', () => {
+          const keyword = els.extractionKeyword.value.trim() || DEFAULT_EXTRACTION_KEYWORD;
+          els.extractionKeyword.value = keyword;
+          localStorage.setItem(EXTRACTION_KEYWORD_STORAGE_KEY, keyword);
+        });
+      }
       els.btnGenerateNextBatch.addEventListener('click', () => startBatchGeneration(false));
       els.btnGenerateAll.addEventListener('click', () => startBatchGeneration(true));
       
@@ -547,6 +572,7 @@
       });
 
       els.btnBatchUploadImgbb.addEventListener('click', batchUploadToImgbb);
+      els.btnDownloadMdd.addEventListener('click', downloadMddDocument);
       els.btnDownloadFinalDoc.addEventListener('click', downloadFinalDocument);
       els.btnSendFinalDocToMdpro.addEventListener('click', sendFinalDocumentToMdpro);
       els.btnDownloadZipOnly.addEventListener('click', downloadZipOnly);
@@ -1011,6 +1037,26 @@
       state.annotationContent = [state.annotationContent, normalized].filter(Boolean).join('\n\n');
     }
 
+    function escapeRegExp(value) {
+      return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    function findVisualInstructionMarker(chunk) {
+      const keyword = String(els.extractionKeyword?.value || '').trim() || DEFAULT_EXTRACTION_KEYWORD;
+      const hasBrackets = keyword.startsWith('[') && keyword.endsWith(']');
+      const keywordPattern = hasBrackets
+        ? escapeRegExp(keyword)
+        : `(?:\\[\\s*)?${escapeRegExp(keyword)}(?:\\s*\\])?`;
+      const customMatch = chunk.match(new RegExp(keywordPattern, 'i'));
+      if (customMatch) return customMatch;
+
+      // 기본 키워드일 때는 기존 문서의 여러 시각화 표기도 계속 인식한다.
+      if (keyword === DEFAULT_EXTRACTION_KEYWORD) {
+        return chunk.match(/\[\s*(?:시각적|시각화)\s*(?:요소|지시문)[^\]]*\]/i);
+      }
+      return null;
+    }
+
     function parseDocument() {
       const sourceText = els.articleInput.value.trim();
       if (!sourceText) return showToast("분석할 텍스트가 없습니다.", "error");
@@ -1034,9 +1080,8 @@
           return;
         }
 
-        // 다양한 시각화 키워드 인식 (예: [시각적 요소 설계], [시각적 요소 복원 및 구성], [시각화 지시문] 등)
-        const visualRegex = /\[\s*(?:시각적|시각화)\s*(?:요소|지시문)[^\]]*\]/i;
-        const visualMatch = chunk.match(visualRegex);
+        // 입력란에서 지정한 키워드를 우선 사용하고, 기본값일 때는 기존 표기도 함께 지원한다.
+        const visualMatch = findVisualInstructionMarker(chunk);
         let bodyContent = chunk;
         let visualInstruction = "시각화 정보 자동 추출 안됨 (직접 입력 요망)";
         
@@ -1409,7 +1454,7 @@ All text inside the image MUST be written in clear KOREAN (한글).`;
       setTimeout(() => els.progressContainer.classList.add('hidden'), 3000);
     }
 
-    function buildFinalDocument() {
+    function buildFinalDocument(imageLinkForSlide) {
       if(state.parsedSlides.length === 0) return null;
       const formatBullets = document.getElementById('chkFormatBullets').checked;
       const removeVisualPrompt = document.getElementById('chkRemoveVisualPrompt').checked;
@@ -1420,7 +1465,7 @@ All text inside the image MUST be written in clear KOREAN (한글).`;
       let prefixMatch = els.articleInput.value.match(/^([\s\S]*?)(?=####\s*\**Slide)/i);
       if (prefixMatch && prefixMatch[1].trim()) finalDoc = prefixMatch[1].trim() + "\n\n";
 
-      state.parsedSlides.forEach(slide => {
+      state.parsedSlides.forEach((slide, index) => {
         finalDoc += `#### **Slide ${slide.slideNum}. ${slide.title}**\n\n`;
         
         let content = slide.bodyContent;
@@ -1441,8 +1486,11 @@ All text inside the image MUST be written in clear KOREAN (한글).`;
 
         if (!removeVisualPrompt) finalDoc += `* **[시각적 요소 복원 및 구성]:** ${slide.instruction}\n\n`;
         
-        if (slide.imgbbUrl) {
-          finalDoc += `![Slide ${slide.slideNum} 인포그래픽](${slide.imgbbUrl})\n\n`;
+        const imageUrl = typeof imageLinkForSlide === 'function'
+          ? imageLinkForSlide(slide, index)
+          : slide.imgbbUrl;
+        if (imageUrl) {
+          finalDoc += `![Slide ${slide.slideNum} 인포그래픽](${imageUrl})\n\n`;
           appendCount++;
         }
         
@@ -1454,6 +1502,46 @@ All text inside the image MUST be written in clear KOREAN (한글).`;
       }
 
       return { markdown: finalDoc, imageCount: appendCount };
+    }
+
+    function downloadMddDocument() {
+      const embeddedImages = [];
+      const result = buildFinalDocument((slide, index) => {
+        if (!slide.rawBase64) return null;
+        const id = `infographic-slide-${index + 1}`;
+        embeddedImages.push({
+          id,
+          name: `${id}.png`,
+          mime: 'image/png',
+          base64: slide.rawBase64
+        });
+        return `indb:${id}`;
+      });
+
+      if (!result) return showToast("저장할 분석된 슬라이드가 없습니다.", "error");
+      if (embeddedImages.length === 0) return showToast("문서에 저장할 생성 이미지가 없습니다.", "warning");
+
+      const baseName = String(state.sourceFileName || 'Infographic_Slides.md')
+        .replace(/\.[^.]+$/i, '')
+        .trim() || 'Infographic_Slides';
+      const payload = {
+        format: 'mdlive/mdd',
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        document: {
+          fileName: `${baseName}_infographic.md`,
+          content: result.markdown
+        },
+        images: embeddedImages
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${baseName}_infographic.mdd`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(`MDD 저장 완료! (${embeddedImages.length}개의 내부 이미지 링크 반영됨)`);
     }
 
     function downloadFinalDocument() {
