@@ -11,8 +11,9 @@ const sitesSource = readFileSync(
 test('Sites pre-registers the Gemini infographic batch app for new and existing lists', () => {
   assert.match(
     sitesSource,
-    /name: '인포그래픽 일괄작업', url: 'https:\/\/gemini\.google\.com\/share\/c008bb3f4c51\?skid=e25dc382-4e43-465e-b0e1-49ff3353204b'/
+    /const INFOGRAPHIC_BATCH_SITE_URL = 'https:\/\/share\.gemini\.google\/c9j7dKVXR5Ay'/
   );
+  assert.match(sitesSource, /item\.name === INFOGRAPHIC_BATCH_SITE_NAME[\s\S]*?infographicBatchSite\.url = INFOGRAPHIC_BATCH_SITE_URL/);
   assert.match(sitesSource, /DEFAULT_SITES_LIST\.filter\([\s\S]*?gemini\.google\.com\/share\//);
-  assert.match(indexSource, /sitesshow\.js\?v=20261005-infographic-batch-link-1/);
+  assert.match(indexSource, /sitesshow\.js\?v=20261007-infographic-batch-link-1/);
 });

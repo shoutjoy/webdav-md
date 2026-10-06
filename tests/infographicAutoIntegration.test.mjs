@@ -26,8 +26,8 @@ test('ENV exposes the infographic feature without replacing existing feature con
   assert.match(indexSource, /id="btn-infographic-gemini"[\s\S]*?<span>인포그래픽앱<\/span>/);
   assert.match(indexSource, /id="btn-infographic-auto"[\s\S]*?<span>문서일괄시각화<\/span>/);
   assert.match(indexSource, /id="btn-infographic-auto"[\s\S]*?data-lucide="workflow"/);
-  assert.match(indexSource, /인포그래픽앱 버튼 보이기/);
-  assert.match(indexSource, /문서일괄시각화 버튼 보이기/);
+  assert.match(indexSource, /<span>인포그래픽앱<\/span>[\s\S]*?id="infographic-gemini-visible"[\s\S]*?버튼[\s\S]*?id="infographic-gemini-name-visible"[\s\S]*?이름/);
+  assert.match(indexSource, /<span>문서일괄시각화<\/span>[\s\S]*?id="infographic-auto-visible"[\s\S]*?버튼[\s\S]*?id="infographic-auto-name-visible"[\s\S]*?이름/);
   assert.match(indexSource, /id="infographic-auto-frame"[^>]+data-src="\.\/Apps\/inforgrapicAuto\/imgbb\.html/);
   assert.match(infographicSource, /<title>문서일괄시각화<\/title>/);
   assert.match(appSource, /infographicGeminiVisible/);
@@ -97,6 +97,15 @@ test('batch extraction displays complete slide text without nested result scroll
   assert.match(infographicSource, /function expandParsedTextarea\(textarea\)/);
   assert.match(infographicSource, /textarea\.style\.height = `\$\{textarea\.scrollHeight\}px`/);
   assert.match(infographicSource, /querySelectorAll\('\.parsed-content-textarea'\)\.forEach\(bindExpandingParsedTextarea\)/);
+});
+
+test('batch extraction supports a persisted user-defined visual instruction keyword', () => {
+  assert.match(infographicSource, /id="extractionKeyword"[^>]+value="\[시각적 요소 복원 및 구성\]"/);
+  assert.match(infographicSource, /id="extractionKeyword"[^>]+placeholder="예: 이미지 생성프롬프트"/);
+  assert.match(infographicSource, /const EXTRACTION_KEYWORD_STORAGE_KEY/);
+  assert.match(infographicSource, /function findVisualInstructionMarker\(chunk\)/);
+  assert.match(infographicSource, /const visualMatch = findVisualInstructionMarker\(chunk\)/);
+  assert.match(infographicSource, /keyword\.startsWith\('\['\) && keyword\.endsWith\('\]'\)/);
 });
 
 test('batch extraction excludes annotation-only sections from images and restores them in markdown', () => {

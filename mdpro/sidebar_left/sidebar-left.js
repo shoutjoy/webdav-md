@@ -163,7 +163,7 @@
             '  <div class="flex items-center gap-2 mb-2 sidebar-text">',
             '    <button onclick="openBackupModal()" class="shrink-0 flex items-center justify-center p-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded text-slate-700 dark:text-slate-200 transition-colors" title="내문서 백업" aria-label="내문서 백업"><i data-lucide="archive" class="w-4 h-4"></i></button>',
             '    <button onclick="openMergeModal()" class="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded text-xs font-medium text-slate-700 dark:text-slate-200 transition-colors" title="문서 묶기"><i data-lucide="layers" class="w-3.5 h-3.5"></i><span>merge</span></button>',
-            '    <button id="btn-highlight-popup" onclick="openHighlightPopup()" class="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded text-xs font-medium text-slate-700 dark:text-slate-200 transition-colors" title="하이라이트 열기"><i data-lucide="highlighter" class="w-3.5 h-3.5"></i><span>Highlight</span></button>',
+            '    <button id="btn-highlight-popup" onclick="openHighlightPopup()" class="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 rounded text-xs font-medium text-slate-700 dark:text-slate-200 transition-colors" title="하이라이트 열기" aria-label="Highlight"><i data-lucide="highlighter" class="w-3.5 h-3.5"></i><span id="btn-highlight-popup-name">Highlight</span></button>',
             '  </div>',
             '  <div class="flex items-center justify-between sidebar-header-btns">',
             '    <div class="flex bg-slate-200 dark:bg-slate-800 rounded p-1 w-full mr-2 sidebar-text">',
@@ -216,6 +216,7 @@
             else sidebar.insertAdjacentHTML('afterbegin', getSidebarShellHtml());
         }
         sidebar.dataset.sidebarLeftReady = '1';
+        if (typeof window.refreshFeatureToolNameSettings === 'function') window.refreshFeatureToolNameSettings();
     }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', installSidebarShell);

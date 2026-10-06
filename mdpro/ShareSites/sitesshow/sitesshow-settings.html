@@ -1,9 +1,5 @@
 <div class="flex items-center justify-between gap-2">
-    <label class="flex items-center gap-2 cursor-pointer select-none">
-        <input type="checkbox" id="sites-visible" onclick="setTimeout(toggleSitesSection,0)"
-            class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500">
-        <span class="text-sm font-medium text-slate-700 dark:text-slate-300">Sites 보이기</span>
-    </label>
+    <div class="feature-tool-setting-row flex-1"><span>Sites</span><label><input type="checkbox" id="sites-visible" onclick="setTimeout(toggleSitesSection,0)"> 버튼</label><label><input type="checkbox" id="sites-name-visible" onchange="toggleFeatureToolNameSetting('sitesNameVisible', this)"> 이름</label></div>
     <button type="button" id="sites-settings-fold-btn" onclick="toggleSitesSettingsFold()"
         class="px-2 py-1 rounded border border-slate-300 dark:border-slate-600 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
         title="Sites 설정 접기/펼치기" aria-controls="sites-settings-body" aria-expanded="true">접기</button>

@@ -543,10 +543,7 @@
         if (!settingsSlot) return;
         settingsSlot.innerHTML = ''
             + '<div class="flex items-center justify-between gap-2">'
-            + '  <label class="flex items-center gap-2 cursor-pointer select-none">'
-            + '    <input type="checkbox" id="todocs-visible" onclick="setTimeout(toggleToDocsSection,0)" class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500">'
-            + '    <span class="text-sm font-medium text-slate-700 dark:text-slate-300">Share 보이기</span>'
-            + '  </label>'
+            + '  <div class="feature-tool-setting-row flex-1"><span>Share</span><label><input type="checkbox" id="todocs-visible" onclick="setTimeout(toggleToDocsSection,0)"> 버튼</label><label><input type="checkbox" id="todocs-name-visible" onchange="toggleFeatureToolNameSetting(\'toDocsNameVisible\', this)"> 이름</label></div>'
             + '  <button type="button" id="share-settings-fold-btn" onclick="toggleShareSettingsFold()" class="px-2 py-1 rounded border border-slate-300 dark:border-slate-600 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700" title="Share 설정 접기/펼치기">접기</button>'
             + '</div>'
             + '<div id="share-destinations-settings" class="pl-6 pt-1 space-y-2">'
@@ -600,7 +597,7 @@
         toolbarSlot.innerHTML = ''
             + '<button type="button" id="btn-export-gdocs" onclick="toggleShareLinksMenu()"'
             + ' class="header-quick-tool hidden" title="Share" aria-label="Share">'
-            + '<i data-lucide="share-2" aria-hidden="true"></i></button>';
+            + '<i data-lucide="share-2" aria-hidden="true"></i><span id="btn-export-gdocs-name">Share</span></button>';
     }
 
     async function injectShareUiFragments() {
@@ -644,6 +641,7 @@
             if (typeof window.applyShareSettingsFold === 'function' && typeof window.getShareSettingsFoldedFromLocal === 'function') {
                 window.applyShareSettingsFold(window.getShareSettingsFoldedFromLocal());
             }
+            if (typeof window.refreshFeatureToolNameSettings === 'function') window.refreshFeatureToolNameSettings();
         }
     }
 

@@ -35,7 +35,7 @@
     <script src="./js/md_notebooklm_equals_hr.js" charset="utf-8"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="stylesheet" href="./css/style.css?coverFold=20260908-input-fields-2&amp;v=20260908-purple-menu-hover-1&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;docxTableContrast=20260817-1&amp;tidyUi=20260811-1&amp;inline2refCss=20260822-2&amp;indbUi=20260812-3&amp;mermaidDisplay=20260810-1&amp;mermaidResize=20260810-1&amp;comment=20260810-3&amp;textStyle=20260815-supsub-1&amp;sidebarControls=20260812-4&amp;miniToc=20260815-responsive-1&amp;crossrefResults=20260812-1&amp;mainHeaderBackground=20260815-1&amp;lightChrome=20260823-6&amp;verticalEditToolbar=20260823-5&amp;aiHeaderButtons=20260823-1&amp;featureKeyStyle=20260823-1&amp;documentTheme=20260909-toggle-icon-2&amp;formatGutter=20260828-1&amp;miniPvResize=20260911-free-vertical-2&amp;img2MathCss=20261002-text-input-1&amp;editorShiftSize=20260909-7&amp;editorWheelContain=20260909-1&amp;mermaidEditorResize=20260911-1&amp;codeCopy=20260920-2&amp;printPdf=20260925-a4-multipage-1&amp;nonprinting=20260925-3" charset="utf-8">
+    <link rel="stylesheet" href="./css/style.css?coverFold=20260908-input-fields-2&amp;v=20260908-purple-menu-hover-1&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;docxTableContrast=20260817-1&amp;tidyUi=20260811-1&amp;inline2refCss=20260822-2&amp;indbUi=20260812-3&amp;mermaidDisplay=20260810-1&amp;mermaidResize=20260810-1&amp;comment=20260810-3&amp;textStyle=20260815-supsub-1&amp;sidebarControls=20260812-4&amp;miniToc=20260815-responsive-1&amp;crossrefResults=20260812-1&amp;mainHeaderBackground=20260815-1&amp;lightChrome=20260823-6&amp;verticalEditToolbar=20260823-5&amp;aiHeaderButtons=20260823-1&amp;featureKeyStyle=20260823-1&amp;documentTheme=20260909-toggle-icon-2&amp;formatGutter=20260828-1&amp;miniPvResize=20260911-free-vertical-2&amp;img2MathCss=20261002-text-input-1&amp;editorShiftSize=20260909-7&amp;editorWheelContain=20260909-1&amp;mermaidEditorResize=20260911-1&amp;codeCopy=20260920-2&amp;printPdf=20260925-a4-multipage-1&amp;nonprinting=20260925-3&amp;featureToolNames=20261006-1" charset="utf-8">
     <link rel="stylesheet" href="./MobileUI/mobile-ui.css?v=20260913-editor-fit-1" charset="utf-8">
     <link rel="stylesheet" href="./js/inDB/inDB.css?v=20260823-ai-audit-3" charset="utf-8">
     <link rel="stylesheet" href="./sidebar_left/sidebar-resize.css?v=20260812-1" charset="utf-8">
@@ -532,8 +532,9 @@
                     <button type="button" role="menuitem" onclick="convertCurrentPageLayout('landscape', event)" class="w-full px-3 py-2 rounded-md text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-blue-50 hover:text-blue-700 dark:hover:bg-blue-950/40 dark:hover:text-blue-300">▭ 현재 문서 → A4 가로</button>
                     <button type="button" role="menuitem" onclick="convertCurrentPageLayout('long', event)" class="w-full px-3 py-2 rounded-md text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-blue-50 hover:text-blue-700 dark:hover:bg-blue-950/40 dark:hover:text-blue-300">↕ 현재 문서 → 긴 문서</button>
                     <button type="button" role="menuitem" id="new-template-menu-item" onclick="openTemplateForNewFile(event)"
+                        title="양식으로 새파일" aria-label="양식으로 새파일"
                         class="hidden w-full px-3 py-2 rounded-md items-center gap-2 whitespace-nowrap text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-indigo-50 hover:text-indigo-700 dark:hover:bg-indigo-950/40 dark:hover:text-indigo-300">
-                        <i data-lucide="notebook-tabs" class="w-4 h-4 shrink-0"></i><span class="whitespace-nowrap">양식으로 새파일</span>
+                        <i data-lucide="notebook-tabs" class="w-4 h-4 shrink-0"></i><span id="new-template-menu-item-name" class="whitespace-nowrap">양식으로 새파일</span>
                     </button>
                 </div>
             </div>
@@ -553,9 +554,10 @@
                         <span>파일 열기</span>
                     </button>
                     <button type="button" role="menuitem" id="open-recent-work-menu-item" onclick="openRecentWorkFromMenu(event)"
+                        title="최근 작업 열기" aria-label="최근 작업 열기"
                         class="w-full px-3 py-2 rounded-md flex items-center gap-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
                         <i data-lucide="history" class="w-4 h-4"></i>
-                        <span>최근 작업 열기</span>
+                        <span id="open-recent-work-menu-name">최근 작업 열기</span>
                     </button>
                     <button type="button" role="menuitem" id="open-image-folder-menu-item" onclick="openImageFolderPickerFromMenu(event)"
                         class="hidden w-full px-3 py-2 rounded-md items-center gap-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800">
@@ -620,23 +622,23 @@
                 <div id="scholar-search-header-slot" class="contents"></div>
                 <button type="button" id="btn-pdf-merge" onclick="openPdfMergeWindow()"
                     class="header-quick-tool hidden" title="PDF 병합" aria-label="PDF 병합">
-                    <i data-lucide="combine" aria-hidden="true"></i><span>PDF 병합</span>
+                    <i data-lucide="combine" aria-hidden="true"></i><span id="btn-pdf-merge-name">PDF 병합</span>
                 </button>
                 <button type="button" id="btn-sites-panel" onclick="toggleSitesPanel()"
                     class="header-quick-tool hidden" title="Sites" aria-label="Sites">
-                    <i data-lucide="panels-top-left" aria-hidden="true"></i><span>Sites</span>
+                    <i data-lucide="panels-top-left" aria-hidden="true"></i><span id="btn-sites-panel-name">Sites</span>
                 </button>
                 <button type="button" id="btn-template-panel" onclick="toggleTemplatePanel()"
                     class="header-quick-tool hidden" title="양식" aria-label="양식">
-                    <i data-lucide="notebook-tabs" aria-hidden="true"></i><span>양식</span>
+                    <i data-lucide="notebook-tabs" aria-hidden="true"></i><span id="btn-template-panel-name">양식</span>
                 </button>
                 <button type="button" id="btn-infographic-gemini" onclick="openInfographicGeminiApp()"
                     class="header-quick-tool hidden" title="인포그래픽앱" aria-label="인포그래픽앱">
-                    <i data-lucide="chart-no-axes-combined" aria-hidden="true"></i><span>인포그래픽앱</span>
+                    <i data-lucide="chart-no-axes-combined" aria-hidden="true"></i><span id="btn-infographic-gemini-name">인포그래픽앱</span>
                 </button>
                 <button type="button" id="btn-infographic-auto" onclick="toggleInfographicAutoPanel()"
                     class="header-quick-tool hidden" title="문서일괄시각화" aria-label="문서일괄시각화">
-                    <i data-lucide="workflow" aria-hidden="true"></i><span>문서일괄시각화</span>
+                    <i data-lucide="workflow" aria-hidden="true"></i><span id="btn-infographic-auto-name">문서일괄시각화</span>
                 </button>
             </div>
 
@@ -671,7 +673,7 @@
                 <a id="btn-chrome-split-tab" href="./index.html" onclick="handleChromeSplitTabClick(event)"
                     class="hidden px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-md text-slate-600 dark:text-slate-400 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 dark:hover:text-white transition-all items-center justify-center"
                     title="크롬 분할뷰로 열기 (Ctrl+Alt+클릭)" aria-label="크롬 분할뷰로 열기">
-                    <i data-lucide="panel-left" class="w-4 h-4 sm:w-[18px] sm:h-[18px]" aria-hidden="true"></i>
+                    <i data-lucide="panel-left" class="w-4 h-4 sm:w-[18px] sm:h-[18px]" aria-hidden="true"></i><span id="btn-chrome-split-tab-name" class="hidden text-xs font-semibold">분할탭</span>
                 </a>
             </div>
             <button onclick="toggleTheme()"
@@ -1138,12 +1140,12 @@
                             </div>
                         </div>
                     </div>
-                    <button id="btn-image-upload-toolbar" type="button" onclick="openImagePanelFromQuickMenu(event)" title="이미지 업로드 삽입"
-                        class="hidden px-2 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-xs font-bold text-slate-700 dark:text-slate-200">IMG</button>
+                    <button id="btn-image-upload-toolbar" type="button" onclick="openImagePanelFromQuickMenu(event)" title="이미지 업로드 삽입" aria-label="이미지 업로드 삽입"
+                        class="hidden px-2 py-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-xs font-bold text-slate-700 dark:text-slate-200 items-center gap-1"><i data-lucide="image-up" class="w-3.5 h-3.5" aria-hidden="true"></i><span id="btn-image-upload-toolbar-name">IMG</span></button>
                     <div id="note-cover-toolbar" class="hidden relative flex items-center gap-1" hidden style="display: none !important">
                     <button id="btn-note-cover-insert" type="button" onclick="insertDefaultNoteCover()"
                         class="hidden px-2 py-1 bg-white dark:bg-slate-800 border border-violet-300 dark:border-violet-700 rounded text-[10px] font-bold text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-900/20 shadow-sm"
-                        title="문서 최상단에 note-cover 표지 삽입">[표지]</button>
+                        title="문서 최상단에 note-cover 표지 삽입" aria-label="표지 삽입"><i data-lucide="book-open" class="w-3.5 h-3.5 inline" aria-hidden="true"></i><span id="btn-note-cover-insert-name">[표지]</span></button>
                     <button type="button" onclick="toggleNoteCoverMenu(event)" aria-label="표지 메뉴" aria-expanded="false" id="btn-note-cover-menu" class="px-1 py-1 rounded border border-slate-600">▾</button>
                     <div id="note-cover-menu" hidden style="display:none" class="rounded border border-slate-600 bg-white dark:bg-slate-800 shadow-xl p-1">
                     <button id="btn-note-cover-remove" type="button" onclick="removeNoteCover()"
@@ -1154,7 +1156,7 @@
                     <div id="macro-toolbar-wrap" class="relative inline-flex items-center gap-1 hidden">
                         <button type="button" id="btn-macro-run" onclick="runCheckedMacroActions()"
                             class="px-2 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded text-[10px] font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm uppercase"
-                            title="체크된 매크로 실행">Macro >></button>
+                            title="체크된 매크로 실행" aria-label="MACRO 실행"><i data-lucide="play" class="w-3.5 h-3.5 inline" aria-hidden="true"></i><span id="btn-macro-run-name">Macro &gt;&gt;</span></button>
                         <button type="button" id="btn-macro-menu" onclick="toggleMacroMenu()"
                             class="px-1.5 py-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded text-[10px] font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm"
                             title="매크로 설정">▼</button>
@@ -2830,64 +2832,22 @@
                                 </div>
                             </div>
                             <div id="feature-tools-settings" class="pt-2 border-t border-slate-200 dark:border-slate-700 space-y-2">
-                                <label class="flex items-center gap-2 cursor-pointer select-none">
-                                    <input type="checkbox" id="recent-work-visible" onclick="setTimeout(toggleRecentWorkVisibilitySection,0)"
-                                        class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500">
-                                    <span class="text-sm font-medium text-slate-700 dark:text-slate-300">최근 작업 열기 보이기</span>
-                                </label>
-                                <label class="flex items-center gap-2 cursor-pointer select-none">
-                                    <input type="checkbox" id="chrome-split-tab-visible" onclick="setTimeout(toggleChromeSplitTabVisibilitySection,0)"
-                                        class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500">
-                                    <span class="text-sm font-medium text-slate-700 dark:text-slate-300">분할탭 보이기</span>
-                                </label>
+                                <div class="feature-tool-setting-row"><span>최근 작업 열기</span><label><input type="checkbox" id="recent-work-visible" onclick="setTimeout(toggleRecentWorkVisibilitySection,0)"> 버튼</label><label><input type="checkbox" id="recent-work-name-visible" onchange="toggleFeatureToolNameSetting('recentWorkNameVisible', this)"> 이름</label></div>
+                                <div class="feature-tool-setting-row"><span>분할탭</span><label><input type="checkbox" id="chrome-split-tab-visible" onclick="setTimeout(toggleChromeSplitTabVisibilitySection,0)"> 버튼</label><label><input type="checkbox" id="chrome-split-tab-name-visible" onchange="toggleFeatureToolNameSetting('chromeSplitTabNameVisible', this)"> 이름</label></div>
                                 <div id="scholar-search-settings-slot"></div>
-                                <label class="flex items-center gap-2 cursor-pointer select-none">
-                                    <input type="checkbox" id="highlight-visible" onclick="setTimeout(toggleHighlightSection,0)"
-                                        class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500">
-                                    <span class="text-sm font-medium text-slate-700 dark:text-slate-300">Highlight 보이기</span>
-                                </label>
+                                <div class="feature-tool-setting-row"><span>Highlight</span><label><input type="checkbox" id="highlight-visible" onclick="setTimeout(toggleHighlightSection,0)"> 버튼</label><label><input type="checkbox" id="highlight-name-visible" onchange="toggleFeatureToolNameSetting('highlightNameVisible', this)"> 이름</label></div>
                                 <div id="google-share-settings-slot" class="space-y-2"></div>
                                 <div id="sites-settings-slot"></div>
-                                <label class="flex items-center gap-2 cursor-pointer select-none">
-                                    <input type="checkbox" id="macro-visible" onclick="setTimeout(toggleMacroVisibilitySection,0)"
-                                        class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500">
-                                    <span class="text-sm font-medium text-slate-700 dark:text-slate-300">MACRO기능 보이기</span>
-                                </label>
-                                <label class="flex items-center gap-2 cursor-pointer select-none">
-                                    <input type="checkbox" id="template-visible" onclick="setTimeout(toggleTemplateSection,0)"
-                                        class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500">
-                                    <span class="text-sm font-medium text-slate-700 dark:text-slate-300">양식보기</span>
-                                </label>
-                                <label class="flex items-center gap-2 cursor-pointer select-none">
-                                    <input type="checkbox" id="template-new-file-visible" onclick="setTimeout(toggleTemplateNewFileSection,0)"
-                                        class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500">
-                                    <span class="text-sm font-medium text-slate-700 dark:text-slate-300">새파일에서 양식 보이기</span>
-                                </label>
-                                <label class="flex items-center gap-2 cursor-pointer select-none">
-                                    <input type="checkbox" id="note-cover-insert-visible" onclick="setTimeout(toggleNoteCoverInsertSection,0)"
-                                        class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500">
-                                    <span class="text-sm font-medium text-slate-700 dark:text-slate-300">표지삽입 보이기</span>
-                                </label>
-                                <label class="flex items-center gap-2 cursor-pointer select-none">
-                                    <input type="checkbox" id="pdf-merge-visible" onclick="setTimeout(togglePdfMergeVisibilitySection,0)"
-                                        class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500">
-                                    <span class="text-sm font-medium text-slate-700 dark:text-slate-300">PDF 병합 버튼 보이기</span>
-                                </label>
-                                <div class="flex items-center gap-2 flex-wrap">
-                                    <label class="flex items-center gap-2 cursor-pointer select-none">
-                                        <input type="checkbox" id="infographic-gemini-visible" onclick="setTimeout(toggleInfographicGeminiVisibilitySection,0)"
-                                            class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500">
-                                        <span class="text-sm font-medium text-slate-700 dark:text-slate-300">인포그래픽앱 버튼 보이기</span>
-                                    </label>
+                                <div class="feature-tool-setting-row"><span>MACRO</span><label><input type="checkbox" id="macro-visible" onclick="setTimeout(toggleMacroVisibilitySection,0)"> 버튼</label><label><input type="checkbox" id="macro-name-visible" onchange="toggleFeatureToolNameSetting('macroNameVisible', this)"> 이름</label></div>
+                                <div class="feature-tool-setting-row"><span>양식</span><label><input type="checkbox" id="template-visible" onclick="setTimeout(toggleTemplateSection,0)"> 버튼</label><label><input type="checkbox" id="template-name-visible" onchange="toggleFeatureToolNameSetting('templateNameVisible', this)"> 이름</label></div>
+                                <div class="feature-tool-setting-row"><span>새파일 양식</span><label><input type="checkbox" id="template-new-file-visible" onclick="setTimeout(toggleTemplateNewFileSection,0)"> 버튼</label><label><input type="checkbox" id="template-new-file-name-visible" onchange="toggleFeatureToolNameSetting('templateNewFileNameVisible', this)"> 이름</label></div>
+                                <div class="feature-tool-setting-row"><span>표지삽입</span><label><input type="checkbox" id="note-cover-insert-visible" onclick="setTimeout(toggleNoteCoverInsertSection,0)"> 버튼</label><label><input type="checkbox" id="note-cover-insert-name-visible" onchange="toggleFeatureToolNameSetting('noteCoverInsertNameVisible', this)"> 이름</label></div>
+                                <div class="feature-tool-setting-row"><span>PDF 병합</span><label><input type="checkbox" id="pdf-merge-visible" onclick="setTimeout(togglePdfMergeVisibilitySection,0)"> 버튼</label><label><input type="checkbox" id="pdf-merge-name-visible" onchange="toggleFeatureToolNameSetting('pdfMergeNameVisible', this)"> 이름</label></div>
+                                <div class="flex items-center gap-2 flex-wrap"><div class="feature-tool-setting-row flex-1"><span>인포그래픽앱</span><label><input type="checkbox" id="infographic-gemini-visible" onclick="setTimeout(toggleInfographicGeminiVisibilitySection,0)"> 버튼</label><label><input type="checkbox" id="infographic-gemini-name-visible" onchange="toggleFeatureToolNameSetting('infographicGeminiNameVisible', this)"> 이름</label></div>
                                     <button type="button" id="infographic-single-open-from-settings" onclick="openInfographicSinglePanel()"
                                         class="px-2 py-1 rounded border border-indigo-300 dark:border-indigo-700 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/30">앱 열기</button>
                                 </div>
-                                <div class="flex items-center gap-2 flex-wrap">
-                                    <label class="flex items-center gap-2 cursor-pointer select-none">
-                                        <input type="checkbox" id="infographic-auto-visible" onclick="setTimeout(toggleInfographicAutoVisibilitySection,0)"
-                                            class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500">
-                                        <span class="text-sm font-medium text-slate-700 dark:text-slate-300">문서일괄시각화 버튼 보이기</span>
-                                    </label>
+                                <div class="flex items-center gap-2 flex-wrap"><div class="feature-tool-setting-row flex-1"><span>문서일괄시각화</span><label><input type="checkbox" id="infographic-auto-visible" onclick="setTimeout(toggleInfographicAutoVisibilitySection,0)"> 버튼</label><label><input type="checkbox" id="infographic-auto-name-visible" onchange="toggleFeatureToolNameSetting('infographicAutoNameVisible', this)"> 이름</label></div>
                                     <button type="button" id="infographic-auto-open-from-settings" onclick="openInfographicAutoPanel()"
                                         class="px-2 py-1 rounded border border-indigo-300 dark:border-indigo-700 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/30">앱 열기</button>
                                 </div>
@@ -2923,9 +2883,7 @@
                                     <span class="text-sm font-medium text-slate-700 dark:text-slate-300">이미지 업로드 사용</span>
                                 </label>
                                 <div id="image-upload-settings" class="pl-6 space-y-2">
-                                    <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
-                                        <input type="checkbox" id="image-upload-toolbar-enabled" onchange="setImageUploadToolbarVisible(this.checked)">Link 옆 이미지 업로드 버튼 표시
-                                    </label>
+                                    <div class="feature-tool-setting-row"><span>Link 옆 이미지 업로드</span><label><input type="checkbox" id="image-upload-toolbar-enabled" onchange="setImageUploadToolbarVisible(this.checked)"> 버튼</label><label><input type="checkbox" id="image-upload-toolbar-name-visible" onchange="toggleFeatureToolNameSetting('imageUploadToolbarNameVisible', this)"> 이름</label></div>
                                     <label for="ai-imgbb-api-key" class="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">imgBB API Key</label>
                                     <div class="flex items-center gap-2 flex-wrap">
                                         <div class="settings-credential-field flex-1 min-w-[160px]">
@@ -3599,7 +3557,7 @@
 
 <!-- 가벼운 통합 객체만 먼저 연결하고 참고문헌·Crossref·결과 셸은 최초 실행 시 지연 로드한다. -->
 <script
-    src="./js/Scholarref/integration/scholar-search-app.js?v=20260812-scholar-modules-1"
+    src="./js/Scholarref/integration/scholar-search-app.js?v=20261006-feature-tool-names-1"
     charset="utf-8"
     defer>
 </script>
@@ -3673,7 +3631,7 @@
 
 <!-- 통합 공유 기능 -->
 <script
-    src="./ShareSites/Share/share.js?v=20260823-icon-button-1"
+    src="./ShareSites/Share/share.js?v=20261006-feature-tool-names-1"
     charset="utf-8"
     defer>
 </script>
@@ -3687,7 +3645,7 @@
 
 <!-- 공유 사이트 표시 -->
 <script
-    src="./ShareSites/sitesshow/sitesshow.js?v=20261005-infographic-batch-link-1"
+    src="./ShareSites/sitesshow/sitesshow.js?v=20261007-infographic-batch-link-1"
     charset="utf-8"
     defer>
 </script>
@@ -3745,7 +3703,7 @@
 
 <!-- 왼쪽 사이드바 -->
 <script
-    src="./sidebar_left/sidebar-left.js?v=20260911-icon-only-actions-1"
+    src="./sidebar_left/sidebar-left.js?v=20261006-feature-tool-names-1"
     charset="utf-8"
     defer>
 </script>
@@ -3866,7 +3824,7 @@
     defer>
 </script>
 <script
-    src="./js/app.js?a4Pages=20260909-a4-lcr-1&amp;mermaid=20260909-print-image-1&amp;v=20260908-note-cover-fold-menu-4&amp;msetWebdav=20260908-1&amp;wdNewFile=20260909-2&amp;aiJenaReasoning=20260829-low-high-1&amp;storageSafety=20260815-1&amp;localWriteback=20260815-1&amp;localFileRefresh=20260817-1&amp;docxImport=20260817-dark-table-contrast-1&amp;viewModeTextInput=20260815-2&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;indbImages=20260812-3&amp;indbToggle=20260816-1&amp;tidyCustomJs=20260811-1&amp;html2md=20260817-1&amp;inline2ref=20260822-4&amp;saveDropdown=20260822-1&amp;aiJenaAttachments=20260822-2&amp;aiDataCenter=20260823-1&amp;settingsDrag=20260811-1&amp;copyFab=20260810-ai-jena-bottom-1&amp;mobileAiJena=20260817-1&amp;feature=templates-new-file-menu-2&amp;storageVisibility=20260810-1&amp;settingsResetConfirm=1&amp;toolbarNames=20260807-1&amp;templateFullscreen=20260807-1&amp;settingsFold=20260807-1&amp;mermaidDisplay=20260810-3&amp;comment=20260812-html-comment-1&amp;perf=20260810-10&amp;pdfExport=20260928-progress-cancel-2&amp;pvExport=20260813-modal-2&amp;pdfMergeTool=20260815-pdfm-project-15&amp;imageSizeHint=20260811-1&amp;textStyle=20260815-supsub-1&amp;localDefault=20260812-1&amp;folderTree=20260812-1&amp;documentMeta=20260812-1&amp;documentDrop=20260812-1&amp;sliderMaker=20260812-1&amp;scholarUpgrades=20260817-2&amp;pvHeaderSettings=20260815-1&amp;mainHeaderBackground=20260815-1&amp;mainHeaderScale=20260815-1&amp;headerFileActions=20260823-1&amp;listQuickMenu=20260823-1&amp;footnoteAnchorMenu=20260823-1&amp;imageInsertMenu=20260825-link-1&amp;verticalEditToolbar=20260823-2&amp;headerHeadingDisplay=20260825-1&amp;documentTheme=20260825-1&amp;fastSafetyTimeout=20260825-1&amp;fastCompleteStreaming=20260825-1&amp;fastLimitsUi=20260825-2&amp;aiDetailsToggle=20260825-1&amp;splitTab=20260825-1&amp;img2Math=20260909-webdav-1&amp;editorShiftSize=20260909-2&amp;editorShiftOrientation=20260911-vertical-1&amp;mermaidEditorResize=20260911-1&amp;aiJenaFloating=20260912-mobile-resize-1&amp;pvLiveEdit=20260911-1&amp;dataImageFold=20260912-1&amp;editorListTab=20260912-3&amp;headingHotkeys=20260912-2&amp;toolbarRecovery=20260912-list-outdent-9&amp;aiJenaGeneralAnswer=20260912-original-6&amp;aiJenaAnswerThemeNames=20260912-1&amp;aiJenaDefaultLayout=20260912-alt2-1&amp;aiJenaRealtimeRecord=20260912-2&amp;aiJenaFloatingCompactPosition=20260912-3&amp;aiJenaHeaderUtilities=20260912-2&amp;scrollSync=20260915-active-mode-1&amp;cmGutter=20260918-remove-1&amp;codeCopy=20260920-2&amp;editorPlaceholder=20260920-1&amp;printPdf=20260928-progress-cancel-2&amp;lineCopy=20260922-1&amp;localHtmlAssets=20260925-js-runtime-1&amp;nonprinting=20260925-3&amp;infographicAuto=20261005-5"
+    src="./js/app.js?a4Pages=20260909-a4-lcr-1&amp;mermaid=20260909-print-image-1&amp;v=20260908-note-cover-fold-menu-4&amp;msetWebdav=20260908-1&amp;wdNewFile=20260909-2&amp;aiJenaReasoning=20260829-low-high-1&amp;storageSafety=20260815-1&amp;localWriteback=20260815-1&amp;localFileRefresh=20260817-1&amp;docxImport=20260817-dark-table-contrast-1&amp;viewModeTextInput=20260815-2&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;indbImages=20260812-3&amp;indbToggle=20260816-1&amp;tidyCustomJs=20260811-1&amp;html2md=20260817-1&amp;inline2ref=20260822-4&amp;saveDropdown=20260822-1&amp;aiJenaAttachments=20260822-2&amp;aiDataCenter=20260823-1&amp;settingsDrag=20260811-1&amp;copyFab=20260810-ai-jena-bottom-1&amp;mobileAiJena=20260817-1&amp;feature=templates-new-file-menu-2&amp;storageVisibility=20260810-1&amp;settingsResetConfirm=1&amp;toolbarNames=20260807-1&amp;templateFullscreen=20260807-1&amp;settingsFold=20260807-1&amp;mermaidDisplay=20260810-3&amp;comment=20260812-html-comment-1&amp;perf=20260810-10&amp;pdfExport=20260928-progress-cancel-2&amp;pvExport=20260813-modal-2&amp;pdfMergeTool=20260815-pdfm-project-15&amp;imageSizeHint=20260811-1&amp;textStyle=20260815-supsub-1&amp;localDefault=20260812-1&amp;folderTree=20260812-1&amp;documentMeta=20260812-1&amp;documentDrop=20260812-1&amp;sliderMaker=20260812-1&amp;scholarUpgrades=20260817-2&amp;pvHeaderSettings=20260815-1&amp;mainHeaderBackground=20260815-1&amp;mainHeaderScale=20260815-1&amp;headerFileActions=20260823-1&amp;listQuickMenu=20260823-1&amp;footnoteAnchorMenu=20260823-1&amp;imageInsertMenu=20260825-link-1&amp;verticalEditToolbar=20260823-2&amp;headerHeadingDisplay=20260825-1&amp;documentTheme=20260825-1&amp;fastSafetyTimeout=20260825-1&amp;fastCompleteStreaming=20260825-1&amp;fastLimitsUi=20260825-2&amp;aiDetailsToggle=20260825-1&amp;splitTab=20260825-1&amp;img2Math=20260909-webdav-1&amp;editorShiftSize=20260909-2&amp;editorShiftOrientation=20260911-vertical-1&amp;mermaidEditorResize=20260911-1&amp;aiJenaFloating=20260912-mobile-resize-1&amp;pvLiveEdit=20260911-1&amp;dataImageFold=20260912-1&amp;editorListTab=20260912-3&amp;headingHotkeys=20260912-2&amp;toolbarRecovery=20260912-list-outdent-9&amp;aiJenaGeneralAnswer=20260912-original-6&amp;aiJenaAnswerThemeNames=20260912-1&amp;aiJenaDefaultLayout=20260912-alt2-1&amp;aiJenaRealtimeRecord=20260912-2&amp;aiJenaFloatingCompactPosition=20260912-3&amp;aiJenaHeaderUtilities=20260912-2&amp;scrollSync=20260915-active-mode-1&amp;cmGutter=20260918-remove-1&amp;codeCopy=20260920-2&amp;editorPlaceholder=20260920-1&amp;printPdf=20260928-progress-cancel-2&amp;lineCopy=20260922-1&amp;localHtmlAssets=20260925-js-runtime-1&amp;nonprinting=20260925-3&amp;infographicAuto=20261005-5&amp;featureToolNames=20261006-1"
     charset="utf-8"
     defer>
 </script>

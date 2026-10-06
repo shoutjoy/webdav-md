@@ -2170,7 +2170,11 @@ export default function App() {
           className="webdav-app-layout flex max-h-[calc(100vh-2rem)] min-h-[calc(100vh-2rem)] flex-col gap-1 overflow-hidden md:flex-row"
           style={{ '--mobile-explorer-width': `${explorerWidth}%` }}
         >
-          {isExplorerOpen && <div id="webdav-explorer-panel" className="webdav-explorer-panel" style={{ flexBasis: `${explorerWidth}%` }}>
+          {isExplorerOpen && <div
+            id="webdav-explorer-panel"
+            className={`webdav-explorer-panel ${isExplorerCompact ? 'is-compact' : ''}`}
+            style={isExplorerCompact ? undefined : { flexBasis: `${explorerWidth}%` }}
+          >
             <FileExplorer
               files={files}
               directoryTree={directoryTree}

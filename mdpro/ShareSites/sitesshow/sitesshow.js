@@ -18,6 +18,9 @@
     let editingSiteIndex = -1;
     let editingPreferencesSiteIndex = -1;
 
+    const INFOGRAPHIC_BATCH_SITE_NAME = '인포그래픽 일괄작업';
+    const INFOGRAPHIC_BATCH_SITE_URL = 'https://share.gemini.google/c9j7dKVXR5Ay';
+
     const DEFAULT_SITES_LIST = [
         { name: 'data visualization', url: 'https://parkjoonghee.shinyapps.io/shinyapp2/' },
         { name: 'Serial Mediation effect', url: 'https://parkjoonghee.shinyapps.io/sobel/' },
@@ -33,7 +36,7 @@
         { name: 'colab.new', url: 'http://colab.new' },
         { name: '이미지확장앱', url: 'https://gemini.google.com/share/d1591e765dfd?skid=c20dbc64-20bb-4bcc-a772-24cf6a3ac2ea' },
         { name: '인포그래픽앱', url: 'https://gemini.google.com/share/cf9601ca8bb0?skid=c485f35a-a1b3-421d-a5bd-7841cb209643' },
-        { name: '인포그래픽 일괄작업', url: 'https://gemini.google.com/share/c008bb3f4c51?skid=e25dc382-4e43-465e-b0e1-49ff3353204b' },
+        { name: INFOGRAPHIC_BATCH_SITE_NAME, url: INFOGRAPHIC_BATCH_SITE_URL },
         { name: '인포그래픽생성앱kYLE', url: 'https://share.gemini.google/2wY4mVdEy7RB' }
     ];
 
@@ -60,10 +63,7 @@
                 // Fallback for environments where fragment fetch can fail.
                 settingsSlot.innerHTML = [
                     '<div class="flex items-center justify-between gap-2">',
-                    '  <label class="flex items-center gap-2 cursor-pointer select-none">',
-                    '    <input type="checkbox" id="sites-visible" onclick="setTimeout(toggleSitesSection,0)" class="rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500">',
-                    '    <span class="text-sm font-medium text-slate-700 dark:text-slate-300">Sites 보이기</span>',
-                    '  </label>',
+                    '  <div class="feature-tool-setting-row flex-1"><span>Sites</span><label><input type="checkbox" id="sites-visible" onclick="setTimeout(toggleSitesSection,0)"> 버튼</label><label><input type="checkbox" id="sites-name-visible" onchange="toggleFeatureToolNameSetting(\'sitesNameVisible\', this)"> 이름</label></div>',
                     '  <button type="button" id="sites-settings-fold-btn" onclick="toggleSitesSettingsFold()" class="px-2 py-1 rounded border border-slate-300 dark:border-slate-600 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700" title="Sites 설정 접기/펼치기" aria-controls="sites-settings-body" aria-expanded="true">접기</button>',
                     '</div>',
                     '<div id="sites-settings-body" class="mt-3 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/30 overflow-hidden">',
@@ -131,6 +131,7 @@
                 sitesList = normalizeSitesList(settings && settings.sitesList);
                 renderSitesPanel();
             }
+            if (typeof window.refreshFeatureToolNameSettings === 'function') window.refreshFeatureToolNameSettings();
         }
     }
 
@@ -180,6 +181,10 @@
             .filter(function (item) { return !!item.url; });
 
         const base = out.length ? out : DEFAULT_SITES_LIST.slice();
+        const infographicBatchSite = base.find(function (item) {
+            return item.name === INFOGRAPHIC_BATCH_SITE_NAME;
+        });
+        if (infographicBatchSite) infographicBatchSite.url = INFOGRAPHIC_BATCH_SITE_URL;
         function normalizeUrl(u) {
             return String(u || '').trim().toLowerCase().replace(/\/+$/, '');
         }
