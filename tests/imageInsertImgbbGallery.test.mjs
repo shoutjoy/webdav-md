@@ -30,11 +30,12 @@ test('selecting an imgBB catalog image returns its direct URL to the IMG insert 
     assert.match(imageInsertSource, /event\.data\.source === 'imgbb'/);
     assert.match(imageInsertSource, /input\.value = imageUrl/);
     assert.match(imageInsertSource, /setImageInsertPreview\(String\(source\.previewUrl \|\| imageUrl\)\)/);
-    assert.match(indexSource, /image_insert\.js\?v=20261010-imgbb-html-input-1/);
+    assert.match(indexSource, /image_insert\.js\?v=20261010-imgbb-images-1/);
 });
 
 test('gallery can open imgBB for manual browsing and import a copied direct URL', () => {
     assert.match(gallerySource, /id="open-imgbb-site"/);
+    assert.match(gallerySource, />imgBB 이미지 열기<\/button>/);
     assert.match(gallerySource, /id="imgbb-manual-url"/);
     assert.match(gallerySource, /id="paste-imgbb-url"/);
     assert.match(gallerySource, /type:\s*'image-gallery-add-imgbb-url'/);
