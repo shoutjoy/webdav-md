@@ -268,7 +268,7 @@
     </header>
 
     <section class="browser-tools" aria-label="imgBB 웹 탐색 및 URL 가져오기">
-        <button id="open-imgbb-site" class="toolbar-btn primary" type="button">imgBB 웹 열기</button>
+        <button id="open-imgbb-site" class="toolbar-btn primary" type="button">imgBB 이미지 열기</button>
         <input id="imgbb-manual-url" type="text" placeholder="Direct link 또는 <img src=&quot;...&quot;> HTML 코드를 붙여 넣으세요" autocomplete="off">
         <button id="paste-imgbb-url" class="toolbar-btn" type="button">클립보드 붙여넣기</button>
         <button id="add-imgbb-url" class="toolbar-btn primary" type="button">URL 가져오기</button>
@@ -704,7 +704,7 @@
                 try { browserWindow.opener = null; } catch (_) {}
                 try { browserWindow.focus(); } catch (_) {}
                 setSource('imgbb');
-                setStatus('imgBB 웹 창에서 Direct link를 복사한 뒤 아래 입력칸으로 가져오세요.', false);
+                setStatus('imgBB 전체 이미지 화면을 열었습니다. 로그인되어 있으면 계정 관리 상태로 표시됩니다.', false);
             }
 
             async function pasteImgbbUrl() {

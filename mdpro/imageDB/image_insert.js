@@ -461,7 +461,7 @@ function toggleImageInsertGallery() {
         return;
     }
 
-    const galleryUrl = new URL('./imageDB/image-gallery.html?v=20261010-imgbb-html-input-1', document.baseURI || window.location.href);
+    const galleryUrl = new URL('./imageDB/image-gallery.html?v=20261010-imgbb-images-1', document.baseURI || window.location.href);
     const width = Math.max(900, Math.min(1440, Math.round((window.screen && window.screen.availWidth || 1400) * 0.86)));
     const height = Math.max(620, Math.min(960, Math.round((window.screen && window.screen.availHeight || 900) * 0.86)));
     const left = Math.max(0, Math.round(((window.screen && window.screen.availWidth || width) - width) / 2));
