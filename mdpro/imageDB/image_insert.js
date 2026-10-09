@@ -112,6 +112,28 @@ function saveImageInsertImgbbCatalogItem(data, fallbackName) {
     return item;
 }
 
+function applyImageInsertImgbbSelection(data) {
+    const source = data && typeof data === 'object' ? data : {};
+    const imageUrl = String(source.url || '').trim();
+    if (!/^https:\/\//i.test(imageUrl)) {
+        setImageInsertStatus('선택한 imgBB 이미지 주소가 올바르지 않습니다.', true);
+        return false;
+    }
+    clearImageInsertInternalSavedState();
+    imageInsertCurrentDataUrl = '';
+    imageInsertCurrentFileName = String(source.name || getImageAltTextFromUrl(imageUrl) || 'imgBB image');
+    const input = document.getElementById('img-insert-url');
+    if (input) {
+        input.value = imageUrl;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    setImageInsertPreview(String(source.previewUrl || imageUrl));
+    renderImageInsertInternalInfo();
+    setImageInsertStatus('imgBB 갤러리에서 선택됨: ' + imageInsertCurrentFileName, false);
+    return true;
+}
+
 function setImageUploadProgress(pct, active) {
     const wrap = document.getElementById('img-insert-progress-wrap');
     const fill = document.getElementById('img-insert-progress-fill');
@@ -422,7 +444,7 @@ function toggleImageInsertGallery() {
         return;
     }
 
-    const galleryUrl = new URL('./imageDB/image-gallery.html?v=20261009-imgbb-catalog-1', document.baseURI || window.location.href);
+    const galleryUrl = new URL('./imageDB/image-gallery.html?v=20261009-imgbb-browser-2', document.baseURI || window.location.href);
     const width = Math.max(900, Math.min(1440, Math.round((window.screen && window.screen.availWidth || 1400) * 0.86)));
     const height = Math.max(620, Math.min(960, Math.round((window.screen && window.screen.availHeight || 900) * 0.86)));
     const left = Math.max(0, Math.round(((window.screen && window.screen.availWidth || width) - width) / 2));
@@ -550,26 +572,39 @@ window.addEventListener('message', function (event) {
     }
     if (event.data.type === 'image-gallery-select') {
         if (event.data.source === 'imgbb') {
-            const imageUrl = String(event.data.url || '').trim();
-            if (!/^https:\/\//i.test(imageUrl)) {
-                setImageInsertStatus('선택한 imgBB 이미지 주소가 올바르지 않습니다.', true);
-                return;
-            }
-            clearImageInsertInternalSavedState();
-            imageInsertCurrentDataUrl = '';
-            imageInsertCurrentFileName = String(event.data.name || getImageAltTextFromUrl(imageUrl) || 'imgBB image');
-            const input = document.getElementById('img-insert-url');
-            if (input) {
-                input.value = imageUrl;
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-            setImageInsertPreview(String(event.data.previewUrl || imageUrl));
-            renderImageInsertInternalInfo();
-            setImageInsertStatus('imgBB 갤러리에서 선택됨: ' + imageInsertCurrentFileName, false);
+            applyImageInsertImgbbSelection(event.data);
         } else {
             applyImageInsertGalleryPopupSelection(event.data.id);
         }
+        return;
+    }
+    if (event.data.type === 'image-gallery-add-imgbb-url') {
+        const manualUrl = String(event.data.url || '').trim();
+        let parsedUrl = null;
+        try { parsedUrl = new URL(manualUrl); } catch (_) {}
+        if (!parsedUrl || parsedUrl.protocol !== 'https:') {
+            event.source.postMessage({
+                type: 'image-gallery-imgbb-url-error',
+                message: 'HTTPS 이미지 직접 링크를 입력해 주세요.'
+            }, '*');
+            return;
+        }
+        const manualItem = saveImageInsertImgbbCatalogItem({
+            url: parsedUrl.href,
+            display_url: parsedUrl.href,
+            title: String(event.data.name || getImageAltTextFromUrl(parsedUrl.href))
+        }, event.data.name);
+        if (!manualItem) {
+            event.source.postMessage({ type: 'image-gallery-imgbb-url-error', message: '이미지 링크를 저장하지 못했습니다.' }, '*');
+            return;
+        }
+        sendImageInsertGalleryRecords(event.source);
+        applyImageInsertImgbbSelection({
+            url: manualItem.url,
+            previewUrl: manualItem.displayUrl,
+            name: manualItem.name
+        });
+        event.source.postMessage({ type: 'image-gallery-imgbb-url-added', item: manualItem }, '*');
         return;
     }
     if (event.data.type === 'image-gallery-request-fma-open') {

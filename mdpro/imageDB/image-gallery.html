@@ -50,6 +50,25 @@
             font-weight: 700;
         }
         .source-tab.active { color: white; border-color: var(--accent); background: #6b21a8; }
+        .browser-tools {
+            display: grid;
+            grid-template-columns: auto minmax(220px, 1fr) auto auto;
+            gap: 8px;
+            align-items: center;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--line);
+            background: #111827;
+        }
+        .browser-tools input {
+            min-width: 0;
+            height: 36px;
+            padding: 0 11px;
+            color: var(--text);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #0b1220;
+        }
+        .browser-hint { grid-column: 1 / -1; color: var(--muted); font-size: 11px; }
         .search {
             min-width: 160px;
             max-width: 460px;
@@ -216,6 +235,8 @@
         }
         @media (max-width: 760px) {
             .topbar { flex-wrap: wrap; }
+            .browser-tools { grid-template-columns: 1fr 1fr; }
+            .browser-tools input { grid-column: 1 / -1; }
             .title { min-width: 150px; }
             .layout { grid-template-columns: 230px 1fr; }
             .image-item { grid-template-columns: 60px minmax(0, 1fr); }
@@ -246,6 +267,14 @@
         <button id="open-fma-top" class="toolbar-btn primary" type="button">FMA Viewer</button>
     </header>
 
+    <section class="browser-tools" aria-label="imgBB 웹 탐색 및 URL 가져오기">
+        <button id="open-imgbb-site" class="toolbar-btn primary" type="button">imgBB 웹 열기</button>
+        <input id="imgbb-manual-url" type="url" placeholder="imgBB의 Direct link(https://i.ibb.co/...)를 붙여 넣으세요" autocomplete="off">
+        <button id="paste-imgbb-url" class="toolbar-btn" type="button">클립보드 붙여넣기</button>
+        <button id="add-imgbb-url" class="toolbar-btn primary" type="button">URL 가져오기</button>
+        <div class="browser-hint">imgBB 웹 창에서 이미지를 확인하고 Embed codes의 Direct link를 복사한 뒤 붙여 넣으면 갤러리 저장과 IMG 삽입창 선택이 함께 처리됩니다.</div>
+    </section>
+
     <main class="layout">
         <aside class="sidebar">
             <div class="list-summary">
@@ -270,6 +299,7 @@
                 <div class="actions">
                     <button id="select-image" class="action select" type="button">삽입창에서 선택</button>
                     <button id="open-fma" class="action fma" type="button">FMA Viewer로 보기</button>
+                    <button id="copy-url" class="action" type="button">URL 복사</button>
                     <button id="download" class="action" type="button">다운로드</button>
                 </div>
             </div>
@@ -304,6 +334,7 @@
             const sortEl = document.getElementById('sort');
             const sourceIndbEl = document.getElementById('source-indb');
             const sourceImgbbEl = document.getElementById('source-imgbb');
+            const manualUrlEl = document.getElementById('imgbb-manual-url');
 
             function getSourceItems() {
                 return state.source === 'imgbb' ? state.imgbbItems : state.indbItems;
@@ -612,6 +643,74 @@
                 anchor.click();
             }
 
+            async function copySelectedUrl() {
+                const selected = getSelectedItem();
+                if (!selected) {
+                    setStatus('먼저 이미지를 선택하세요.', true);
+                    return;
+                }
+                const url = state.source === 'imgbb'
+                    ? String(selected.url || selected.displayUrl || '')
+                    : ('internal://' + encodeURIComponent(String(selected.id)));
+                try {
+                    await navigator.clipboard.writeText(url);
+                    setStatus('URL을 클립보드에 복사했습니다: ' + url, false);
+                } catch (error) {
+                    setStatus('URL 복사 실패: 주소를 직접 선택해 주세요. ' + url, true);
+                }
+            }
+
+            function openImgbbBrowser() {
+                const width = Math.max(760, Math.min(1280, Math.round((window.screen.availWidth || 1280) * 0.78)));
+                const height = Math.max(620, Math.min(940, Math.round((window.screen.availHeight || 860) * 0.82)));
+                const browserWindow = window.open(
+                    'https://imgbb.com/',
+                    'mdpro-imgbb-browser',
+                    'popup=yes,width=' + width + ',height=' + height + ',resizable=yes,scrollbars=yes'
+                );
+                if (!browserWindow) {
+                    setStatus('imgBB 웹 창이 차단되었습니다. 브라우저에서 팝업을 허용해 주세요.', true);
+                    return;
+                }
+                try { browserWindow.opener = null; } catch (_) {}
+                try { browserWindow.focus(); } catch (_) {}
+                setSource('imgbb');
+                setStatus('imgBB 웹 창에서 Direct link를 복사한 뒤 아래 입력칸으로 가져오세요.', false);
+            }
+
+            async function pasteImgbbUrl() {
+                try {
+                    manualUrlEl.value = String(await navigator.clipboard.readText() || '').trim();
+                    manualUrlEl.focus();
+                    setStatus('클립보드 URL을 붙여 넣었습니다. URL 가져오기를 누르세요.', false);
+                } catch (_) {
+                    manualUrlEl.focus();
+                    setStatus('클립보드 접근이 차단되었습니다. Ctrl+V로 직접 붙여 넣어 주세요.', true);
+                }
+            }
+
+            function addManualImgbbUrl() {
+                const url = manualUrlEl.value.trim();
+                let parsed = null;
+                try { parsed = new URL(url); } catch (_) {}
+                if (!parsed || parsed.protocol !== 'https:') {
+                    setStatus('imgBB의 HTTPS Direct link를 입력해 주세요.', true);
+                    manualUrlEl.focus();
+                    return;
+                }
+                if (!window.opener || window.opener.closed) {
+                    setStatus('원본 md-viewer 창에서 갤러리를 다시 열어 주세요.', true);
+                    return;
+                }
+                setSource('imgbb');
+                window.opener.postMessage({
+                    type: 'image-gallery-add-imgbb-url',
+                    url: parsed.href,
+                    name: parsed.pathname.split('/').pop() || 'imgBB image'
+                }, '*');
+                setStatus('imgBB URL을 확인하고 갤러리에 추가하는 중...', false);
+            }
+
             async function loadImages() {
                 setStatus('inDB 이미지를 불러오는 중...', false);
                 if (window.opener && !window.opener.closed) {
@@ -638,15 +737,25 @@
             sortEl.addEventListener('change', applyFilter);
             sourceIndbEl.addEventListener('click', function () { setSource('indb'); });
             sourceImgbbEl.addEventListener('click', function () { setSource('imgbb'); });
+            document.getElementById('open-imgbb-site').addEventListener('click', openImgbbBrowser);
+            document.getElementById('paste-imgbb-url').addEventListener('click', pasteImgbbUrl);
+            document.getElementById('add-imgbb-url').addEventListener('click', addManualImgbbUrl);
+            manualUrlEl.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter') {
+                    addManualImgbbUrl();
+                    event.preventDefault();
+                }
+            });
             document.getElementById('refresh').addEventListener('click', loadImages);
             document.getElementById('open-fma-top').addEventListener('click', openInFmaViewer);
             document.getElementById('open-fma').addEventListener('click', openInFmaViewer);
             document.getElementById('select-image').addEventListener('click', selectInInsertWindow);
+            document.getElementById('copy-url').addEventListener('click', copySelectedUrl);
             document.getElementById('download').addEventListener('click', downloadSelected);
             document.getElementById('prev').addEventListener('click', function () { moveSelection(-1); });
             document.getElementById('next').addEventListener('click', function () { moveSelection(1); });
             document.addEventListener('keydown', function (event) {
-                if (event.target === searchEl) return;
+                if (event.target === searchEl || event.target === manualUrlEl) return;
                 if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
                     moveSelection(-1);
                     event.preventDefault();
@@ -675,6 +784,20 @@
                 }
                 if (event.data && event.data.type === 'image-gallery-error') {
                     setStatus('갤러리 로드 실패: ' + String(event.data.message || '알 수 없는 오류'), true);
+                }
+                if (event.data && event.data.type === 'image-gallery-imgbb-url-added') {
+                    const addedId = String(event.data.item && event.data.item.id || '');
+                    if (event.data.item && !state.imgbbItems.some(function (item) { return String(item.id) === addedId; })) {
+                        state.imgbbItems.unshift(event.data.item);
+                    }
+                    setSource('imgbb');
+                    const added = state.imgbbItems.find(function (item) { return String(item.id) === addedId; });
+                    if (added) selectItem(added);
+                    manualUrlEl.value = '';
+                    setStatus('imgBB URL을 갤러리에 저장하고 IMG 삽입창에 적용했습니다.', false);
+                }
+                if (event.data && event.data.type === 'image-gallery-imgbb-url-error') {
+                    setStatus(String(event.data.message || 'imgBB URL을 가져오지 못했습니다.'), true);
                 }
                 if (event.data && event.data.type === 'image-gallery-fma-open-choice') {
                     continueOpenInFmaViewer(event.data);

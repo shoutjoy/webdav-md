@@ -29,6 +29,16 @@ test('gallery preserves inDB browsing and adds an imgBB source tab', () => {
 test('selecting an imgBB catalog image returns its direct URL to the IMG insert field', () => {
     assert.match(imageInsertSource, /event\.data\.source === 'imgbb'/);
     assert.match(imageInsertSource, /input\.value = imageUrl/);
-    assert.match(imageInsertSource, /setImageInsertPreview\(String\(event\.data\.previewUrl \|\| imageUrl\)\)/);
-    assert.match(indexSource, /image_insert\.js\?v=20261009-imgbb-gallery-1/);
+    assert.match(imageInsertSource, /setImageInsertPreview\(String\(source\.previewUrl \|\| imageUrl\)\)/);
+    assert.match(indexSource, /image_insert\.js\?v=20261009-imgbb-browser-2/);
+});
+
+test('gallery can open imgBB for manual browsing and import a copied direct URL', () => {
+    assert.match(gallerySource, /id="open-imgbb-site"/);
+    assert.match(gallerySource, /id="imgbb-manual-url"/);
+    assert.match(gallerySource, /id="paste-imgbb-url"/);
+    assert.match(gallerySource, /type:\s*'image-gallery-add-imgbb-url'/);
+    assert.match(gallerySource, /id="copy-url"/);
+    assert.match(imageInsertSource, /event\.data\.type === 'image-gallery-add-imgbb-url'/);
+    assert.match(imageInsertSource, /type:\s*'image-gallery-imgbb-url-added'/);
 });
