@@ -269,10 +269,10 @@
 
     <section class="browser-tools" aria-label="imgBB 웹 탐색 및 URL 가져오기">
         <button id="open-imgbb-site" class="toolbar-btn primary" type="button">imgBB 웹 열기</button>
-        <input id="imgbb-manual-url" type="url" placeholder="imgBB의 Direct link(https://i.ibb.co/...)를 붙여 넣으세요" autocomplete="off">
+        <input id="imgbb-manual-url" type="text" placeholder="Direct link 또는 <img src=&quot;...&quot;> HTML 코드를 붙여 넣으세요" autocomplete="off">
         <button id="paste-imgbb-url" class="toolbar-btn" type="button">클립보드 붙여넣기</button>
         <button id="add-imgbb-url" class="toolbar-btn primary" type="button">URL 가져오기</button>
-        <div class="browser-hint">imgBB 웹 창에서 이미지를 확인하고 Embed codes의 Direct link를 복사한 뒤 붙여 넣으면 갤러리 저장과 IMG 삽입창 선택이 함께 처리됩니다.</div>
+        <div class="browser-hint">imgBB 웹 창에서 Direct link 또는 HTML 이미지 코드를 복사해 붙여 넣으면 주소를 자동 추출하고 갤러리 저장과 IMG 삽입창 선택을 함께 처리합니다.</div>
     </section>
 
     <main class="layout">
@@ -299,7 +299,7 @@
                 <div class="actions">
                     <button id="select-image" class="action select" type="button">삽입창에서 선택</button>
                     <button id="open-fma" class="action fma" type="button">FMA Viewer로 보기</button>
-                    <button id="copy-url" class="action" type="button">URL 복사</button>
+                    <button id="copy-url" class="action" type="button">HTML 복사</button>
                     <button id="download" class="action" type="button">다운로드</button>
                 </div>
             </div>
@@ -368,6 +368,30 @@
                 const date = new Date(Number(value) || 0);
                 if (!Number.isFinite(date.getTime()) || !date.getTime()) return '날짜 정보 없음';
                 return date.toLocaleString('ko-KR');
+            }
+
+            function extractImageUrl(value) {
+                let raw = String(value || '').trim();
+                if (!raw) return '';
+                const imgMatch = /<img\b[^>]*\bsrc\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s>]+))/i.exec(raw);
+                if (imgMatch) raw = String(imgMatch[1] || imgMatch[2] || imgMatch[3] || '').trim();
+                const decoder = document.createElement('textarea');
+                decoder.innerHTML = raw;
+                raw = decoder.value.replace(/\\([/:])/g, '$1');
+                try {
+                    const parsed = new URL(raw);
+                    return parsed.protocol === 'https:' ? parsed.href : '';
+                } catch (_) {
+                    return '';
+                }
+            }
+
+            function escapeHtmlAttribute(value) {
+                return String(value == null ? '' : value)
+                    .replace(/&/g, '&amp;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
             }
 
             function getObjectUrl(item) {
@@ -643,7 +667,7 @@
                 anchor.click();
             }
 
-            async function copySelectedUrl() {
+            async function copySelectedHtml() {
                 const selected = getSelectedItem();
                 if (!selected) {
                     setStatus('먼저 이미지를 선택하세요.', true);
@@ -652,11 +676,16 @@
                 const url = state.source === 'imgbb'
                     ? String(selected.url || selected.displayUrl || '')
                     : ('internal://' + encodeURIComponent(String(selected.id)));
+                const alt = String(selected.name || selected.id || 'image')
+                    .replace(/\.[^.]+$/, '')
+                    .replace(/[-_]+/g, ' ')
+                    .trim() || 'image';
+                const html = '<img src="' + escapeHtmlAttribute(url) + '" alt="' + escapeHtmlAttribute(alt) + '" border="0">';
                 try {
-                    await navigator.clipboard.writeText(url);
-                    setStatus('URL을 클립보드에 복사했습니다: ' + url, false);
+                    await navigator.clipboard.writeText(html);
+                    setStatus('HTML 이미지 코드를 클립보드에 복사했습니다.', false);
                 } catch (error) {
-                    setStatus('URL 복사 실패: 주소를 직접 선택해 주세요. ' + url, true);
+                    setStatus('HTML 코드 복사에 실패했습니다.', true);
                 }
             }
 
@@ -664,7 +693,7 @@
                 const width = Math.max(760, Math.min(1280, Math.round((window.screen.availWidth || 1280) * 0.78)));
                 const height = Math.max(620, Math.min(940, Math.round((window.screen.availHeight || 860) * 0.82)));
                 const browserWindow = window.open(
-                    'https://imgbb.com/',
+                    'https://jh-park9.imgbb.com/',
                     'mdpro-imgbb-browser',
                     'popup=yes,width=' + width + ',height=' + height + ',resizable=yes,scrollbars=yes'
                 );
@@ -690,11 +719,11 @@
             }
 
             function addManualImgbbUrl() {
-                const url = manualUrlEl.value.trim();
+                const url = extractImageUrl(manualUrlEl.value);
                 let parsed = null;
                 try { parsed = new URL(url); } catch (_) {}
                 if (!parsed || parsed.protocol !== 'https:') {
-                    setStatus('imgBB의 HTTPS Direct link를 입력해 주세요.', true);
+                    setStatus('HTTPS Direct link 또는 src가 포함된 img HTML 코드를 입력해 주세요.', true);
                     manualUrlEl.focus();
                     return;
                 }
@@ -750,7 +779,7 @@
             document.getElementById('open-fma-top').addEventListener('click', openInFmaViewer);
             document.getElementById('open-fma').addEventListener('click', openInFmaViewer);
             document.getElementById('select-image').addEventListener('click', selectInInsertWindow);
-            document.getElementById('copy-url').addEventListener('click', copySelectedUrl);
+            document.getElementById('copy-url').addEventListener('click', copySelectedHtml);
             document.getElementById('download').addEventListener('click', downloadSelected);
             document.getElementById('prev').addEventListener('click', function () { moveSelection(-1); });
             document.getElementById('next').addEventListener('click', function () { moveSelection(1); });

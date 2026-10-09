@@ -84,6 +84,23 @@ function getImageInsertImgbbCatalog() {
     }
 }
 
+function extractImageUrlFromCopiedValue(value) {
+    let raw = String(value || '').trim();
+    if (!raw) return '';
+    const imgMatch = /<img\b[^>]*\bsrc\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s>]+))/i.exec(raw);
+    if (imgMatch) raw = String(imgMatch[1] || imgMatch[2] || imgMatch[3] || '').trim();
+    raw = raw
+        .replace(/&amp;/gi, '&')
+        .replace(/&#x3a;|&#58;/gi, ':')
+        .replace(/\\([/:])/g, '$1');
+    try {
+        const parsed = new URL(raw);
+        return parsed.protocol === 'https:' ? parsed.href : '';
+    } catch (_) {
+        return '';
+    }
+}
+
 function saveImageInsertImgbbCatalogItem(data, fallbackName) {
     const source = data && typeof data === 'object' ? data : {};
     const directUrl = String(source.url || (source.image && source.image.url) || source.display_url || '').trim();
@@ -114,8 +131,8 @@ function saveImageInsertImgbbCatalogItem(data, fallbackName) {
 
 function applyImageInsertImgbbSelection(data) {
     const source = data && typeof data === 'object' ? data : {};
-    const imageUrl = String(source.url || '').trim();
-    if (!/^https:\/\//i.test(imageUrl)) {
+    const imageUrl = extractImageUrlFromCopiedValue(source.url);
+    if (!imageUrl) {
         setImageInsertStatus('선택한 imgBB 이미지 주소가 올바르지 않습니다.', true);
         return false;
     }
@@ -444,7 +461,7 @@ function toggleImageInsertGallery() {
         return;
     }
 
-    const galleryUrl = new URL('./imageDB/image-gallery.html?v=20261009-imgbb-browser-2', document.baseURI || window.location.href);
+    const galleryUrl = new URL('./imageDB/image-gallery.html?v=20261010-imgbb-html-input-1', document.baseURI || window.location.href);
     const width = Math.max(900, Math.min(1440, Math.round((window.screen && window.screen.availWidth || 1400) * 0.86)));
     const height = Math.max(620, Math.min(960, Math.round((window.screen && window.screen.availHeight || 900) * 0.86)));
     const left = Math.max(0, Math.round(((window.screen && window.screen.availWidth || width) - width) / 2));
@@ -579,7 +596,7 @@ window.addEventListener('message', function (event) {
         return;
     }
     if (event.data.type === 'image-gallery-add-imgbb-url') {
-        const manualUrl = String(event.data.url || '').trim();
+        const manualUrl = extractImageUrlFromCopiedValue(event.data.url);
         let parsedUrl = null;
         try { parsedUrl = new URL(manualUrl); } catch (_) {}
         if (!parsedUrl || parsedUrl.protocol !== 'https:') {
@@ -745,7 +762,7 @@ function toggleImageInsertDockRight() {
 
 function openImageInsertExternalLink(type) {
     const targetUrl = type === 'imgbb'
-        ? 'https://imgbb.com/'
+        ? 'https://jh-park9.imgbb.com/'
         : 'https://www.google.co.kr/imghp';
     try {
         const win = window.open(targetUrl, '_blank', 'noopener,noreferrer');
