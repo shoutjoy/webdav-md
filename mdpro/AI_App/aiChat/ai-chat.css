@@ -1432,6 +1432,9 @@ body.ai-chat-history-resizing { cursor: ew-resize !important; user-select: none 
 .ai-chat-compose-actions .ai-chat-send { border-color: #6e80ff; background: #5965dc; color: #fff; min-width: 44px; }
 .ai-chat-compose-actions .ai-chat-stop { border-color: #8b5360; background: #4b3440; color: #ffccd2; min-width: 42px; }
 .ai-chat-compose-actions .ai-chat-attach { min-width: 0; padding: 3px 7px; border-color: #6d719c; background: #363a67; color: #e1e4ff; }
+.ai-chat-compose-actions .ai-chat-img-gen { width: 44px; min-width: 44px; padding: 3px 2px; border-color: #6d719c; background: #363a67; color: #e1e4ff; font-size: 10px; }
+.ai-chat-compose-actions .ai-chat-img-gen:hover { background: #75571f; }
+.ai-chat-compose-actions .ai-chat-img-gen.active { border-color: #d89b2b; background: #75571f; color: #fff2ba; box-shadow: 0 0 0 2px rgba(216,155,43,.18); }
 .ai-chat-compose-actions .ai-chat-import-selection { position: relative; min-width: 0; padding: 3px 8px; border-color: #527b96; background: #29465d; color: #c8ebff; }
 .ai-chat-compose-actions .ai-chat-import-selection:hover { background: #355c78; }
 .ai-chat-import-selection::after {
@@ -2003,11 +2006,12 @@ body.theme-light .ai-chat-academic-footer button:hover {
   border-color: #fdba74 !important;
 }
 
-/* 3. 문장으로만 작성 토글 [✔ 문장] */
+/* 3. 문장으로만 작성 토글 [✔] */
 .ai-chat-compose-actions .ai-chat-realtime-sentence-toggle {
-  min-width: 0 !important;
-  padding: 2px 7px !important;
-  gap: 4px !important;
+  width: 27px !important;
+  min-width: 27px !important;
+  padding: 0 !important;
+  gap: 0 !important;
   border: 1px solid #475569 !important;
   background: #1e293b !important;
   color: #94a3b8 !important;
@@ -2131,12 +2135,13 @@ body.theme-light .ai-chat-compose-actions .ai-chat-realtime-sentence-toggle.acti
 /* Keep the composer controls within three button rows: two mode rows + one action row. */
 .ai-chat-compose-actions {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 4px;
 }
 .ai-chat-compose-actions > * { min-width: 0; }
 .ai-chat-compose-actions .ai-chat-attach,
+.ai-chat-compose-actions .ai-chat-img-gen,
 .ai-chat-compose-actions .ai-chat-import-selection,
 .ai-chat-compose-actions .ai-chat-stop,
 .ai-chat-compose-actions .ai-chat-send {
@@ -2256,10 +2261,10 @@ body.theme-light .ai-chat-panel.layout-floating.floating-compact {
 .ai-chat-panel.layout-floating #ai-chat-internet-toggle::before { content: "🌐"; }
 .ai-chat-panel.layout-floating #ai-chat-floating-toggle::before { content: "☰"; }
 .ai-chat-panel.layout-floating #ai-chat-attach::before { content: "⇩"; }
+.ai-chat-panel.layout-floating #ai-chat-img-gen::before { content: "▣"; }
 .ai-chat-panel.layout-floating #ai-chat-import-selection::before { content: "🍴"; }
 .ai-chat-panel.layout-floating #ai-chat-realtime-doc-toggle::before,
 .ai-chat-panel.layout-floating #ai-chat-realtime-target-toggle::before,
-.ai-chat-panel.layout-floating #ai-chat-realtime-sentence-toggle::before,
 .ai-chat-panel.layout-floating #ai-chat-floating-compact-close::before {
   position: absolute;
   inset: 0;
@@ -2275,14 +2280,19 @@ body.theme-light .ai-chat-panel.layout-floating.floating-compact {
 .ai-chat-panel.layout-floating #ai-chat-realtime-doc-toggle::before { content: "✎"; }
 .ai-chat-panel.layout-floating #ai-chat-realtime-target-toggle::before { content: "←"; }
 .ai-chat-panel.layout-floating #ai-chat-realtime-target-toggle[data-target="document-end"]::before { content: "↓"; }
-.ai-chat-panel.layout-floating #ai-chat-realtime-sentence-toggle::before { content: "문"; font-size: 14px; font-weight: 800; }
 .ai-chat-panel.layout-floating #ai-chat-floating-compact-close::before { content: "🚪"; }
 .ai-chat-panel.layout-floating.floating-compact #ai-chat-floating-compact-close { display: inline-flex !important; }
 .ai-chat-panel.layout-floating #ai-chat-stop::before { content: "■"; }
 .ai-chat-panel.layout-floating #ai-chat-send::before { content: "↑"; }
 .ai-chat-panel.layout-floating .ai-chat-realtime-toolbar { gap: 4px !important; }
-.ai-chat-panel.layout-floating .ai-chat-rt-check-box,
+.ai-chat-panel.layout-floating #ai-chat-realtime-doc-toggle .ai-chat-rt-check-box,
 .ai-chat-panel.layout-floating .ai-chat-rt-sentence-text { display: none !important; }
+.ai-chat-panel.layout-floating #ai-chat-realtime-sentence-toggle .ai-chat-rt-check-box {
+  position: relative;
+  z-index: 2;
+  display: inline-flex !important;
+  text-indent: 0;
+}
 .ai-chat-panel.layout-floating .ai-chat-rt-doc-icon,
 .ai-chat-panel.layout-floating .ai-chat-rt-arrow-icon {
   position: absolute;

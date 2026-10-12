@@ -72,8 +72,32 @@ test('Alt+4 uses recognizable compact action icons', () => {
   assert.match(chatStyles, /#ai-chat-import-selection::before\s*\{\s*content:\s*"🍴"/);
   assert.match(chatStyles, /#ai-chat-realtime-doc-toggle::before\s*\{\s*content:\s*"✎"/);
   assert.match(chatStyles, /#ai-chat-realtime-target-toggle::before\s*\{\s*content:\s*"←"/);
-  assert.match(chatStyles, /#ai-chat-realtime-sentence-toggle::before\s*\{\s*content:\s*"문"/);
+  assert.doesNotMatch(chatScript, /ai-chat-rt-sentence-text[^>]*>문장<\/span>/);
+  assert.match(chatStyles, /\.ai-chat-compose-actions \.ai-chat-realtime-sentence-toggle\s*\{[^}]*width:\s*27px[^}]*min-width:\s*27px/s);
+  assert.match(chatStyles, /#ai-chat-realtime-sentence-toggle \.ai-chat-rt-check-box\s*\{[^}]*display:\s*inline-flex\s*!important/s);
   assert.match(chatStyles, /#ai-chat-floating-compact-close::before\s*\{\s*content:\s*"🚪"/);
+});
+
+test('AI Jena imgGen is a compact reversible model toggle with quota fallback', () => {
+  assert.match(chatScript, /id=["']ai-chat-img-gen["'][^>]*aria-pressed=["']false["']/);
+  assert.match(chatScript, /id=["']ai-chat-img-gen["'][^>]*>ImgG<\/button>/);
+  assert.match(chatScript, /var IMG_GEN_PRIMARY_MODEL = 'gemini-3-pro-image-preview'/);
+  assert.match(chatScript, /var IMG_GEN_FALLBACK_MODEL = 'gemini-2.5-flash-image'/);
+  assert.match(chatScript, /function toggleImgGenMode\(\)[\s\S]*imgGenPreviousState = \{[\s\S]*provider: state\.provider[\s\S]*geminiModel: state\.geminiModel/);
+  assert.match(chatScript, /imgGen OFF · 이전 AI 공급자와 모델로 돌아왔습니다/);
+  assert.match(chatScript, /isImageQuotaError\(error\)[\s\S]*root\.confirm\([\s\S]*selectGeminiImageModel\(IMG_GEN_FALLBACK_MODEL\)/);
+  assert.match(chatStyles, /\.ai-chat-compose-actions \.ai-chat-img-gen \{[^}]*width:\s*44px[^}]*min-width:\s*44px/s);
+  assert.match(chatStyles, /\.ai-chat-compose-actions \.ai-chat-img-gen\.active/);
+  assert.match(chatStyles, /#ai-chat-img-gen::before\s*\{\s*content:\s*"▣"/);
+});
+
+test('AI Studio TTS models cannot enable Gemini thinking', () => {
+  assert.match(chatScript, /function isGeminiTtsModel\(model\)/);
+  assert.match(chatScript, /ttsModel && state\.responseMode === 'reasoning'\) setResponseMode\('quick'\)/);
+  assert.match(chatScript, /ttsModel && buttons\[i\]\.getAttribute\('data-ai-chat-mode'\) === 'reasoning'/);
+  assert.match(appScript, /function isAIChatGeminiTtsModel\(model\)/);
+  assert.match(appScript, /const reasoningMode = responseMode === 'reasoning' && !ttsModel/);
+  assert.match(appScript, /!imageModel && !ttsModel && \/\^gemini-2\\\.5\/i\.test\(model\)/);
 });
 
 test('Alt+4 settings stay inside the visible browser viewport', () => {
