@@ -129,6 +129,8 @@
   var DEFAULT_CHAT_WIDTH = 380;
   var MIN_CHAT_WIDTH = 340;
   var DEFAULT_POPUP_HEIGHT = 585;
+  var IMG_GEN_PRIMARY_MODEL = 'gemini-3-pro-image-preview';
+  var IMG_GEN_FALLBACK_MODEL = 'gemini-2.5-flash-image';
   var DEFAULT_GEMINI_MODELS = [
     'gemini-3.5-flash-lite',
     'gemini-3.7-flash',
@@ -162,6 +164,28 @@
 // https://aistudio.google.com/rate-limit?timeRange=last-28-days
   var MERMAID_GENERATION_RULE = 'Mermaid는 N1, N2 같은 단순 ID를 사용하고 라벨을 큰따옴표로 감싼다. 노드와 연결은 별도 줄에 선언한다. subgraph와 코드 블록을 닫고, 요청하지 않은 HTML·아이콘·클릭 동작은 생략한다. 완결된 mermaid 코드 블록을 직접 작성한다.';
   MERMAID_DARK_MODE_PROMPT_RULE += ' ' + MERMAID_GENERATION_RULE;
+
+  function isMermaidOutputRequest(value) {
+    var text = String(value || '').trim();
+    if (!/(?:mermaid|머메이드)/i.test(text)) return false;
+    return /(?:작성|생성|만들|그려|그림|변환|시각화|도식화|수정|고쳐|완성|출력|제공|삽입|렌더|부탁|create|generate|write|draw|convert|visuali[sz]e|fix|update|complete|output|return|provide|render)/i.test(text)
+      || /(?:mermaid|머메이드)[\s\S]{0,40}(?:diagram|flowchart|다이어그램|도식)[\s\S]{0,20}(?:please|줘|주세요|해라)/i.test(text);
+  }
+
+  function mermaidInstructionForRequest(value, codeOnly) {
+    if (!isMermaidOutputRequest(value)) return '';
+    return [
+      MERMAID_DARK_MODE_PROMPT_RULE,
+      codeOnly ? '이 요청은 Mermaid 출력 요청이다. 설명 없이 완결된 mermaid 코드 블록 하나만 반환한다.' : ''
+    ].filter(Boolean).join(' ');
+  }
+
+  function latestUserRequestText() {
+    for (var i = state.messages.length - 1; i >= 0; i--) {
+      if (state.messages[i] && state.messages[i].role === 'user') return String(state.messages[i].content || '');
+    }
+    return '';
+  }
 
 
   var state = {
@@ -230,6 +254,7 @@
   var pendingAttachments = [];
   var MAX_ATTACHMENTS = 8;
   var attachmentLoading = false;
+  var imgGenPreviousState = null;
 
   function storageGet(key, fallback) {
     try {
@@ -822,7 +847,7 @@
       + '      <div class="ai-chat-mode-row" role="group" aria-label="응답 모드">'
       + '        <button type="button" id="ai-chat-floating-toggle" class="ai-chat-floating-toggle" title="대화창 펼치기" aria-label="대화창 펼치기" aria-expanded="false">☰</button>'
       + '        <button type="button" data-ai-chat-mode="quick">즉시</button>'
-      + '        <label class="ai-chat-fast-toggle" title="설명 없이 답만 빠르게 생성합니다. Mermaid 요청은 코드만 반환합니다."><input type="checkbox" id="ai-chat-fast-mode"><span>FAST</span></label>'
+      + '        <label class="ai-chat-fast-toggle" title="요청에 필요한 핵심만 빠르고 간결하게 답합니다. Mermaid 생성 요청은 코드만 반환합니다."><input type="checkbox" id="ai-chat-fast-mode"><span>FAST</span></label>'
       + '        <button type="button" data-ai-chat-mode="reasoning">추론</button>'
       + '        <label class="ai-chat-reasoning-toggle" title="추론내용 표시"><input type="checkbox" id="ai-chat-show-reasoning" aria-label="추론내용 표시"></label>'
       + '        <input type="checkbox" id="ai-chat-sentence-only" style="display:none !important;" hidden>'
@@ -832,6 +857,7 @@
       + '      </div>'
       + '      <div class="ai-chat-compose-actions">'
       + '        <button type="button" id="ai-chat-attach" class="ai-chat-attach" title="문서 또는 이미지 첨부">📎 파일</button>'
+      + '        <button type="button" id="ai-chat-img-gen" class="ai-chat-img-gen" title="이미지 생성 모델 켜기" aria-pressed="false">ImgG</button>'
       + '        <button type="button" id="ai-chat-import-selection" class="ai-chat-import-selection" aria-label="문서 선택 내용을 AI Jena 입력창으로 가져오기" data-tooltip="문서에서 내용을 선택한 뒤 Ctrl+Alt+L을 누르거나 이 버튼을 클릭하세요.">↙ 선택 가져오기</button>'
       + '        <div class="ai-chat-realtime-toolbar" role="group" aria-label="문서 실시간 작성 설정">'
       + '          <button type="button" id="ai-chat-realtime-doc-toggle" class="ai-chat-realtime-doc-toggle" title="문서로 실시간 작성 (켜면 AI 답변이 생성되는 즉시 문서에 직접 작성됩니다)" aria-pressed="false" aria-label="문서로 실시간 작성">'
@@ -843,7 +869,6 @@
       + '          </button>'
       + '          <button type="button" id="ai-chat-realtime-sentence-toggle" class="ai-chat-realtime-sentence-toggle" title="문장으로만 작성 (제목이나 목록 없이 문장과 문단으로만 답변합니다)" aria-pressed="false" aria-label="문장으로만 작성">'
       + '            <span class="ai-chat-rt-check-box" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5L6.5 11.5L12.5 4.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>'
-      + '            <span class="ai-chat-rt-sentence-text">문장</span>'
       + '          </button>'
       + '        </div>'
       + '        <button type="button" id="ai-chat-floating-compact-close" class="ai-chat-floating-compact-close" title="AI Jena 닫기" aria-label="AI Jena 닫기">닫기</button>'
@@ -954,6 +979,9 @@
     document.getElementById('ai-chat-attach').addEventListener('click', function () {
       document.getElementById('ai-chat-file-input').click();
     });
+    document.getElementById('ai-chat-img-gen').addEventListener('click', function () {
+      toggleImgGenMode();
+    });
     document.getElementById('ai-chat-file-input').addEventListener('change', function (event) {
       addAttachmentFiles(event.target.files);
       event.target.value = '';
@@ -1046,6 +1074,7 @@
       finishAcademicCountEdit(true);
     });
     document.getElementById('ai-chat-provider').addEventListener('change', function (event) {
+      clearImgGenRestoreState();
       state.provider = (event.target.value === 'aistudio' || event.target.value === 'ollama' || event.target.value === 'litertlm' || event.target.value === 'deepseek' || event.target.value === 'openai-compatible' || event.target.value === 'openai') ? event.target.value : 'lmstudio';
       storageSet(PROVIDER_KEY, state.provider);
       updateProviderUI();
@@ -1054,6 +1083,7 @@
     });
     document.getElementById('ai-chat-model').addEventListener('change', function (event) {
       if (state.provider === 'lmstudio') return;
+      clearImgGenRestoreState();
       if (state.provider === 'litertlm') {
         state.litertlmModel = event.target.value || '';
         storageSet(LITERTLM_MODEL_KEY, state.litertlmModel);
@@ -2623,7 +2653,7 @@
       return;
     }
     if (state.fastMode) {
-      help.textContent = 'FAST · 최소 컨텍스트 · 설명 없이 답만 출력';
+      help.textContent = 'FAST · 최소 컨텍스트 · 필요한 핵심만 간결하게 응답';
       return;
     }
     if (state.internetSearchEnabled) {
@@ -2744,6 +2774,10 @@
   }
 
   function setResponseMode(mode) {
+    if (mode === 'reasoning' && state.provider === 'aistudio' && isGeminiTtsModel(state.geminiModel)) {
+      mode = 'quick';
+      setStatus('AI Studio TTS 모델은 추론을 지원하지 않아 즉시 응답 모드로 유지됩니다.', '');
+    }
     state.responseMode = mode === 'reasoning' ? 'reasoning' : 'quick';
     if (state.responseMode === 'reasoning' && state.fastMode) setFastMode(false, false);
     storageSet(RESPONSE_MODE_KEY, state.responseMode);
@@ -3081,6 +3115,7 @@
     var answerAppearance = document.getElementById('ai-chat-answer-appearance');
     var refresh = document.getElementById('ai-chat-refresh-model');
     var importSelection = document.getElementById('ai-chat-import-selection');
+    var imgGen = document.getElementById('ai-chat-img-gen');
     var academicToggle = document.getElementById('ai-chat-academic-toggle');
     var internetToggle = document.getElementById('ai-chat-internet-toggle');
     var academicCount = document.getElementById('ai-chat-academic-count');
@@ -3098,9 +3133,14 @@
     if (answerAppearance) answerAppearance.disabled = state.running;
     if (refresh) refresh.disabled = state.running;
     if (importSelection) importSelection.disabled = state.running || state.storageInitializing;
+    if (imgGen) imgGen.disabled = state.running || state.storageInitializing;
     var imageModel = state.provider === 'aistudio' && isGeminiImageModel(state.geminiModel);
-    for (var i = 0; i < modeButtons.length; i++) modeButtons[i].disabled = state.running || imageModel;
-    if (showReasoning) showReasoning.disabled = state.running || imageModel;
+    var ttsModel = state.provider === 'aistudio' && isGeminiTtsModel(state.geminiModel);
+    for (var i = 0; i < modeButtons.length; i++) {
+      modeButtons[i].disabled = state.running || imageModel
+        || (ttsModel && modeButtons[i].getAttribute('data-ai-chat-mode') === 'reasoning');
+    }
+    if (showReasoning) showReasoning.disabled = state.running || imageModel || ttsModel;
     if (fastMode) fastMode.disabled = state.running || imageModel;
     if (academicToggle) academicToggle.disabled = state.running || imageModel;
     if (internetToggle) internetToggle.disabled = state.running || imageModel;
@@ -3148,6 +3188,78 @@
 
   function isGeminiImageModel(model) {
     return /(?:^|-)image(?:-|$)/i.test(String(model || ''));
+  }
+
+  function isGeminiTtsModel(model) {
+    return /(?:^|-)tts(?:-|$)/i.test(String(model || ''));
+  }
+
+  function syncImgGenButton() {
+    var button = document.getElementById('ai-chat-img-gen');
+    if (!button) return;
+    var active = !!imgGenPreviousState;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    button.title = active ? '이미지 생성 모델 끄기 · 이전 AI 모델로 복원' : '이미지 생성 모델 켜기';
+  }
+
+  function clearImgGenRestoreState() {
+    imgGenPreviousState = null;
+    syncImgGenButton();
+  }
+
+  function toggleImgGenMode() {
+    if (!imgGenPreviousState) {
+      imgGenPreviousState = {
+        provider: state.provider,
+        geminiModel: state.geminiModel,
+        responseMode: state.responseMode,
+        fastMode: state.fastMode
+      };
+      selectGeminiImageModel(IMG_GEN_PRIMARY_MODEL);
+      syncImgGenButton();
+      setStatus('imgGen ON · Nano Banana Pro Preview로 전환했습니다. 생성할 이미지를 입력하세요.', 'ok');
+      return;
+    }
+    var previous = imgGenPreviousState;
+    imgGenPreviousState = null;
+    state.provider = previous.provider;
+    state.geminiModel = previous.geminiModel;
+    state.responseMode = previous.responseMode;
+    state.fastMode = previous.fastMode;
+    storageSet(PROVIDER_KEY, state.provider);
+    storageSet(GEMINI_MODEL_KEY, state.geminiModel);
+    storageSet(RESPONSE_MODE_KEY, state.responseMode);
+    storageSet(FAST_MODE_KEY, state.fastMode ? '1' : '0');
+    updateProviderUI();
+    setResponseMode(state.responseMode);
+    setFastMode(state.fastMode, false);
+    syncImgGenButton();
+    setStatus('imgGen OFF · 이전 AI 공급자와 모델로 돌아왔습니다.', 'ok');
+  }
+
+  function selectGeminiImageModel(model) {
+    var selected = String(model || IMG_GEN_PRIMARY_MODEL);
+    state.provider = 'aistudio';
+    state.geminiModel = selected;
+    storageSet(PROVIDER_KEY, state.provider);
+    storageSet(GEMINI_MODEL_KEY, state.geminiModel);
+    var provider = document.getElementById('ai-chat-provider');
+    if (provider) provider.value = state.provider;
+    var models = DEFAULT_GEMINI_MODELS.slice();
+    try { models = getBridge().getCachedGeminiModels(); } catch (_) {}
+    models = mergeGeminiModels(models);
+    if (models.indexOf(selected) < 0) models.unshift(selected);
+    setModelOptions(models, selected, false);
+    updateHeaderModel();
+    updateModelModeUI();
+    syncImgGenButton();
+    saveHistory();
+  }
+
+  function isImageQuotaError(error) {
+    var message = String(error && error.message ? error.message : error || '');
+    return /(?:\b429\b|resource[_\s-]*exhausted|quota|rate\s*limit|할당량|토큰[^\n]*(?:소진|부족|없))/i.test(message);
   }
 
   function activeProviderModel() {
@@ -3219,6 +3331,8 @@
 
   function updateModelModeUI() {
     var imageModel = state.provider === 'aistudio' && isGeminiImageModel(state.geminiModel);
+    var ttsModel = state.provider === 'aistudio' && isGeminiTtsModel(state.geminiModel);
+    if (ttsModel && state.responseMode === 'reasoning') setResponseMode('quick');
     var panel = document.getElementById('ai-chat-panel');
     var input = document.getElementById('ai-chat-input');
     var showReasoning = document.getElementById('ai-chat-show-reasoning');
@@ -3227,8 +3341,11 @@
     if (input) input.placeholder = imageModel
       ? '생성할 이미지를 설명하세요. Enter 생성 · Shift+Enter 줄바꿈'
       : '질문을 입력하세요. Enter 전송 · Shift+Enter 줄바꿈';
-    for (var i = 0; i < buttons.length; i++) buttons[i].disabled = state.running || imageModel;
-    if (showReasoning) showReasoning.disabled = state.running || imageModel;
+    for (var i = 0; i < buttons.length; i++) {
+      buttons[i].disabled = state.running || imageModel
+        || (ttsModel && buttons[i].getAttribute('data-ai-chat-mode') === 'reasoning');
+    }
+    if (showReasoning) showReasoning.disabled = state.running || imageModel || ttsModel;
     updateAcademicSearchUI();
   }
 
@@ -4305,7 +4422,7 @@
           : [
               writingStyleInstruction({ academic: false }),
               sentenceOnlyInstruction(),
-              MERMAID_DARK_MODE_PROMPT_RULE,
+              mermaidInstructionForRequest(sourceUser && sourceUser.content, false),
               '원래 사용자 요청과 직전 assistant 답변 전체를 대화 문맥으로 읽고, 직전 답변 바로 다음 내용만 한국어로 이어서 작성한다.',
               '이미 작성한 내용, 제목, 문장, 문단을 반복하거나 요약하지 않는다.',
               '내부 추론, 계획, 작업 설명, 체크리스트, "The user wants" 같은 메타 문장을 출력하지 않는다.',
@@ -4871,7 +4988,7 @@
 
   function internetSystemInstruction(evidence) {
     return [
-      MERMAID_GENERATION_RULE,
+      mermaidInstructionForRequest(latestUserRequestText(), false),
       '아래 인터넷 검색 근거만 외부 사실의 출처로 사용하여 한국어로 답하라.',
       writingStyleInstruction({ academic: false }),
       sentenceOnlyInstruction(),
@@ -4886,7 +5003,7 @@
 
   function nativeInternetSystemInstruction() {
     return [
-      MERMAID_GENERATION_RULE,
+      mermaidInstructionForRequest(latestUserRequestText(), false),
       'Google Search 도구를 사용하여 최신 인터넷 근거를 확인한 뒤 한국어로 답하라.',
       writingStyleInstruction({ academic: false }),
       sentenceOnlyInstruction(),
@@ -5811,7 +5928,7 @@
     ].join('\n');
     return [
       '역할: 이미 수집된 Crossref/OpenAlex 논문 초록을 빠르게 정리하는 학술 요약자이다.',
-      MERMAID_GENERATION_RULE,
+      mermaidInstructionForRequest(latestUserRequestText(), false),
       writingStyleInstruction({ academic: true }),
       sentenceOnlyInstruction(),
       '속도 원칙: 검색은 이미 끝났다. 추가 검색, 장시간 추론, 다단계 분석, 계획 수립, 재검토를 하지 말고 제공된 초록을 한 번 훑어 즉시 본문을 작성한다.',
@@ -5837,7 +5954,7 @@
     if (splitPart) {
       return [
         '검증 논문 요약의 미완료 파트만 이어 쓴다.',
-        MERMAID_GENERATION_RULE,
+        mermaidInstructionForRequest(latestUserRequestText(), false),
         writingStyleInstruction({ academic: true }),
         sentenceOnlyInstruction(),
         '선택된 문체로 근거와 제한적인 해석을 연결한다.',
@@ -6104,13 +6221,12 @@
             ? [
               state.realtimeDocWrite
                 ? ('현재 활성 문서에 실시간으로 직접 작성하는 모드입니다. ' + (pendingUser && pendingUser.selectedDocText ? '문서에서 [선택한 문서 텍스트]를 대체하여 들어갈 완성된 최종 내용만 첫 단어부터 작성하세요.' : '문서에 바로 들어갈 최종 본문 내용만 첫 단어부터 작성하세요.') + ' [EXPLANATION]이나 [ANSWER] 같은 태그, 목차, 서론 설명, 인사말, 메타 발언을 일절 출력하지 말고 바로 본문만 작성하세요.')
-                : 'FAST mode. Use only the latest user message and answer directly with no explanation, rationale, preface, checklist, or meta-commentary.',
-              'Keep the response concise and do not restate the request.',
+                : 'FAST mode. Use only the latest user message and answer it directly and concisely. Include a brief explanation, code, list, or other structure when it is useful to satisfy the request, but omit greetings, repetition, and meta-commentary.',
+              'Choose the response format that best fits the request instead of forcing a particular format.',
               writingStyleInstruction({ academic: false }),
               sentenceOnlyInstruction(),
-              MERMAID_DARK_MODE_PROMPT_RULE,
-              'For a Mermaid request, return exactly one fenced mermaid code block and nothing else.'
-            ].join(' ')
+              mermaidInstructionForRequest(text, state.fastMode)
+            ].filter(Boolean).join(' ')
           : state.generalAnswer
             ? originalAnswerInstruction()
             : [
@@ -6118,14 +6234,18 @@
               writingStyleInstruction({ academic: false }),
               sentenceOnlyInstruction(),
               reasoningAnswerInstruction(),
-              MERMAID_DARK_MODE_PROMPT_RULE,
+              mermaidInstructionForRequest(text, false),
               'This is a continuous multi-turn conversation. Use the previous conversation as context for every new message.',
               'Resolve follow-up references such as "위 질문", "그것", "그중", "두 번째", "더 자세히", and "계속" from the previous user and assistant messages instead of asking the user to repeat them.',
               'When the latest request changes or corrects an earlier request, follow the latest request while preserving still-relevant context.',
               'Follow the requested format, tone, and length precisely. Give a complete, accurate, polished final answer with all requested code or details.',
-              'Always return two clearly tagged sections: [EXPLANATION]a short user-facing summary of the basis or approach[/EXPLANATION] followed by [ANSWER]the final answer[/ANSWER].',
-              'The explanation is not hidden chain-of-thought: keep it concise and never expose private internal reasoning, step-by-step deliberation, planning, checklists, or meta-commentary.'
-            ].join(' ')
+              state.provider === 'ollama'
+                ? 'Respond naturally in the format best suited to the request. Do not force Mermaid, code, a diagram, or any other special format unless the user asks for it.'
+                : 'Always return two clearly tagged sections: [EXPLANATION]a short user-facing summary of the basis or approach[/EXPLANATION] followed by [ANSWER]the final answer[/ANSWER].',
+              state.provider === 'ollama'
+                ? 'Give the useful answer itself; do not expose private internal reasoning, step-by-step deliberation, planning, or meta-commentary.'
+                : 'The explanation is not hidden chain-of-thought: keep it concise and never expose private internal reasoning, step-by-step deliberation, planning, checklists, or meta-commentary.'
+            ].filter(Boolean).join(' ')
       });
       if (nativeInternetSearch) {
         pendingUser.internetSources = normalizeInternetSources(result && result.internetSources);
@@ -6243,8 +6363,16 @@
         setStatus('응답 생성을 중지했습니다.', '');
       } else {
         pendingUser.failed = true;
+        var switchedImageModel = false;
+        if (state.provider === 'aistudio' && state.geminiModel === IMG_GEN_PRIMARY_MODEL && isImageQuotaError(error)) {
+          var shouldSwitch = root.confirm('Nano Banana Pro Preview의 이미지 생성 할당량이 소진되었습니다. Nano Banana 모델로 전환할까요?');
+          if (shouldSwitch) {
+            selectGeminiImageModel(IMG_GEN_FALLBACK_MODEL);
+            switchedImageModel = true;
+          }
+        }
         state.messages.push({ role: 'assistant', content: '오류: ' + message, createdAt: Date.now(), error: true });
-        setStatus(message, 'error');
+        setStatus(switchedImageModel ? 'Nano Banana 모델로 전환했습니다. 같은 요청을 다시 전송해 주세요.' : message, switchedImageModel ? 'ok' : 'error');
       }
     } finally {
       if (realtimeDocActive) {

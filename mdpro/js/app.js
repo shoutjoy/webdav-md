@@ -16962,6 +16962,10 @@ function isAIChatGeminiImageModel(model) {
     return /(?:^|-)image(?:-|$)/i.test(String(model || ''));
 }
 
+function isAIChatGeminiTtsModel(model) {
+    return /(?:^|-)tts(?:-|$)/i.test(String(model || ''));
+}
+
 async function getAIStudioKeyForChat() {
     let key = getProtectedAiCredential('gemini', 'ss_gemini_api_key');
     if (key) return key;
@@ -17550,7 +17554,8 @@ async function callAIStudioChat(messages, systemInstruction, modelOverride, sign
         }
     });
     if (!contents.length) throw new Error('전송할 대화가 없습니다.');
-    const reasoningMode = responseMode === 'reasoning';
+    const ttsModel = isAIChatGeminiTtsModel(model);
+    const reasoningMode = responseMode === 'reasoning' && !ttsModel;
     const imageModel = isAIChatGeminiImageModel(model);
     const modelLimits = imageModel
         ? { inputTokenLimit: 0, outputTokenLimit: 0 }
@@ -17560,9 +17565,9 @@ async function callAIStudioChat(messages, systemInstruction, modelOverride, sign
     const generationConfig = imageModel
         ? { responseModalities: ['TEXT', 'IMAGE'] }
         : { maxOutputTokens: maxOutputTokens };
-    if (!imageModel && /^gemini-3/i.test(model)) {
+    if (!imageModel && !ttsModel && /^gemini-3/i.test(model)) {
         generationConfig.thinkingConfig = { thinkingLevel: reasoningMode ? 'high' : 'low' };
-    } else if (!imageModel && /^gemini-2\.5/i.test(model)) {
+    } else if (!imageModel && !ttsModel && /^gemini-2\.5/i.test(model)) {
         generationConfig.thinkingConfig = { thinkingBudget: reasoningMode ? 4096 : 0 };
     }
     const payload = { contents: contents, generationConfig: generationConfig };
