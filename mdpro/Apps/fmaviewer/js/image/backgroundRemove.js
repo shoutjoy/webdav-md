@@ -2,7 +2,6 @@
    Browser-only & Google AI Studio Background Removal
    ======================================================= */
 
-const REMBG_WEB_MODULE_URL = "https://unpkg.com/@bunnio/rembg-web@1.0.2/dist/index.js";
 const REMBG_LOCAL_HUMAN_MODEL_PATHS = [
     "image_model/u2net_human_seg.onnx",
     "Image_model/u2net_human_seg.onnx",
@@ -678,7 +677,8 @@ async function runWebGlBackgroundRemoval(src, signal, startPercent, endPercent) 
 
 async function loadRembgModule() {
     if (!rembgModulePromise) {
-        rembgModulePromise = import(REMBG_WEB_MODULE_URL).then(async module => {
+        // This file is a classic script: keep Vite from injecting module-only imports.
+        rembgModulePromise = import("https://unpkg.com/@bunnio/rembg-web@1.0.2/dist/index.js").then(async module => {
             if (typeof module?.remove !== "function" ||
                 typeof module?.newSession !== "function" ||
                 typeof module?.rembgConfig?.setCustomModelPath !== "function") {
