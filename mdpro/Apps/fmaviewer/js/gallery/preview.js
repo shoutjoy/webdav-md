@@ -188,7 +188,14 @@ function renderDynamicMeta(i) {
         const bgRemoveBtn = document.createElement("button");
         bgRemoveBtn.innerText = "BG Remove";
         bgRemoveBtn.className = "meta-action-button meta-bg-remove-button";
-        bgRemoveBtn.onclick = () => openBackgroundRemoveEditor(idx, "local");
+        bgRemoveBtn.onclick = event => {
+            event.stopPropagation();
+            try { openBackgroundRemoveEditor(idx, "local"); }
+            catch (error) {
+                console.error('BG Remove 창 열기 실패:', error);
+                alert('배경 제거 창을 열지 못했습니다: ' + (error?.message || error));
+            }
+        };
 
         actionsDiv.appendChild(favBtn);
         actionsDiv.appendChild(downBtn);

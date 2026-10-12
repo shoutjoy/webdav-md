@@ -17,6 +17,8 @@
         templateVisible: ['features', 'global', ['boolean'], 16],
         noteCoverInsertVisible: ['features', 'global', ['boolean'], 16],
         pdfMergeVisible: ['features', 'global', ['boolean'], 16],
+        tts2audioVisible: ['features', 'global', ['boolean'], 16],
+        tts2audioNameVisible: ['features', 'global', ['boolean'], 16],
         recentWorkVisible: ['features', 'global', ['boolean'], 16],
         html2pptVisible: ['features', 'global', ['boolean'], 16],
         html2pptNameVisible: ['features', 'global', ['boolean'], 16],

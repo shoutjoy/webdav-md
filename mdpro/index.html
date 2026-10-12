@@ -87,6 +87,33 @@
             min-width: 0;
             min-height: 0;
         }
+        #tts2audio-panel {
+            position: fixed;
+            top: max(48px, env(safe-area-inset-top));
+            right: max(24px, env(safe-area-inset-right));
+            width: min(980px, calc(100vw - 32px));
+            height: min(820px, calc(100vh - 72px));
+            min-width: min(420px, calc(100vw - 16px));
+            min-height: 320px;
+            z-index: 77;
+            overflow: visible;
+        }
+        #tts2audio-frame {
+            display: block;
+            width: 100%;
+            height: 100%;
+            min-width: 0;
+            min-height: 0;
+        }
+        .tts2audio-resize-handle { position: absolute; z-index: 3; touch-action: none; }
+        .tts2audio-resize-n { top: -5px; left: 12px; right: 12px; height: 10px; cursor: ns-resize; }
+        .tts2audio-resize-s { bottom: -5px; left: 12px; right: 12px; height: 10px; cursor: ns-resize; }
+        .tts2audio-resize-e { top: 12px; right: -5px; bottom: 12px; width: 10px; cursor: ew-resize; }
+        .tts2audio-resize-w { top: 12px; left: -5px; bottom: 12px; width: 10px; cursor: ew-resize; }
+        .tts2audio-resize-ne { top: -6px; right: -6px; width: 16px; height: 16px; cursor: nesw-resize; }
+        .tts2audio-resize-se { right: -6px; bottom: -6px; width: 18px; height: 18px; cursor: nwse-resize; }
+        .tts2audio-resize-sw { left: -6px; bottom: -6px; width: 16px; height: 16px; cursor: nesw-resize; }
+        .tts2audio-resize-nw { top: -6px; left: -6px; width: 16px; height: 16px; cursor: nwse-resize; }
         @media (min-width: 640px) {
             #infographic-auto-panel {
                 top: max(24px, env(safe-area-inset-top));
@@ -639,6 +666,10 @@
                 <button type="button" id="btn-infographic-auto" onclick="toggleInfographicAutoPanel()"
                     class="header-quick-tool hidden" title="문서일괄시각화" aria-label="문서일괄시각화">
                     <i data-lucide="workflow" aria-hidden="true"></i><span id="btn-infographic-auto-name">문서일괄시각화</span>
+                </button>
+                <button type="button" id="btn-tts2audio" onclick="toggleTts2AudioPanel()"
+                    class="header-quick-tool hidden" title="TTS2Audio" aria-label="TTS2Audio">
+                    <i data-lucide="mic-2" aria-hidden="true"></i><span id="btn-tts2audio-name">TTS2Audio</span>
                 </button>
             </div>
 
@@ -2851,6 +2882,10 @@
                                     <button type="button" id="infographic-auto-open-from-settings" onclick="openInfographicAutoPanel()"
                                         class="px-2 py-1 rounded border border-indigo-300 dark:border-indigo-700 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/30">앱 열기</button>
                                 </div>
+                                <div class="flex items-center gap-2 flex-wrap"><div class="feature-tool-setting-row flex-1"><span>TTS2Audio</span><label><input type="checkbox" id="tts2audio-visible" onclick="setTimeout(toggleTts2AudioVisibilitySection,0)"> 버튼</label><label><input type="checkbox" id="tts2audio-name-visible" onchange="toggleFeatureToolNameSetting('tts2audioNameVisible', this)"> 이름</label></div>
+                                    <button type="button" id="tts2audio-open-from-settings" onclick="openTts2AudioPanel()"
+                                        class="px-2 py-1 rounded border border-indigo-300 dark:border-indigo-700 text-xs font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/30">앱 열기</button>
+                                </div>
                                 <div class="flex items-center gap-4 flex-wrap">
                                     <span class="min-w-24 text-sm font-medium text-slate-700 dark:text-slate-300">GenSlide</span>
                                     <label class="flex items-center gap-1.5 cursor-pointer select-none">
@@ -3434,6 +3469,29 @@
         </div>
     </div>
 
+    <div id="tts2audio-panel" class="hidden flex-col no-print rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl">
+        <div id="tts2audio-panel-header" class="flex items-center justify-between gap-3 px-3 py-2 border-b border-slate-200 dark:border-slate-700 cursor-move select-none">
+            <div class="min-w-0">
+                <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2"><i data-lucide="mic-2" class="w-4 h-4" aria-hidden="true"></i>TTS2Audio</h3>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate">ENV의 AI Studio 키로 음성·오디오북·영상 파일을 만듭니다.</p>
+            </div>
+            <button type="button" onclick="closeTts2AudioPanel()"
+                class="shrink-0 px-2.5 py-1.5 rounded border border-slate-300 dark:border-slate-600 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">닫기</button>
+        </div>
+        <div class="flex-1 min-h-0 p-2 overflow-hidden">
+            <iframe id="tts2audio-frame" data-src="./Apps/textToAudio/index.html?v=20261013-batch-audio-19"
+                class="w-full h-full border-0 rounded bg-white dark:bg-slate-900" title="TTS2Audio"></iframe>
+        </div>
+        <div class="tts2audio-resize-handle tts2audio-resize-n" data-tts2audio-resize="n" aria-hidden="true"></div>
+        <div class="tts2audio-resize-handle tts2audio-resize-s" data-tts2audio-resize="s" aria-hidden="true"></div>
+        <div class="tts2audio-resize-handle tts2audio-resize-e" data-tts2audio-resize="e" aria-hidden="true"></div>
+        <div class="tts2audio-resize-handle tts2audio-resize-w" data-tts2audio-resize="w" aria-hidden="true"></div>
+        <div class="tts2audio-resize-handle tts2audio-resize-ne" data-tts2audio-resize="ne" aria-hidden="true"></div>
+        <div class="tts2audio-resize-handle tts2audio-resize-se" data-tts2audio-resize="se" aria-hidden="true"></div>
+        <div class="tts2audio-resize-handle tts2audio-resize-sw" data-tts2audio-resize="sw" aria-hidden="true"></div>
+        <div class="tts2audio-resize-handle tts2audio-resize-nw" data-tts2audio-resize="nw" aria-hidden="true"></div>
+    </div>
+
     <!-- =========================================================
      1. 외부 렌더링 라이브러리
      로컬 렌더링 모듈보다 먼저 실행되어야 함
@@ -3645,7 +3703,7 @@
 
 <!-- 공유 사이트 표시 -->
 <script
-    src="./ShareSites/sitesshow/sitesshow.js?v=20261007-infographic-batch-link-1"
+    src="./ShareSites/sitesshow/sitesshow.js?v=20261013-tts2audio-link-1"
     charset="utf-8"
     defer>
 </script>

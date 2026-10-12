@@ -47,6 +47,7 @@ const FIRST_RUN_AI_SETTINGS_DEFAULTS = Object.freeze({
     noteCoverInsertVisible: true,
     pdfMergeVisible: false,
     infographicAutoVisible: false,
+    tts2audioVisible: false,
     recentWorkVisible: true,
     chromeSplitTabVisible: false,
     recentWorkNameVisible: true,
@@ -62,6 +63,7 @@ const FIRST_RUN_AI_SETTINGS_DEFAULTS = Object.freeze({
     pdfMergeNameVisible: false,
     infographicGeminiNameVisible: false,
     infographicAutoNameVisible: false,
+    tts2audioNameVisible: false,
     imageUploadToolbarNameVisible: true,
     html2pptVisible: true,
     html2pptNameVisible: false,
@@ -12588,6 +12590,10 @@ function getInfographicGeminiVisibleFromSettings(settings) {
     return getInfographicAutoVisibleFromSettings(settings);
 }
 
+function getTts2AudioVisibleFromSettings(settings) {
+    return !!(settings && settings.tts2audioVisible === true);
+}
+
 function getChromeSplitTabVisibleFromSettings(settings) {
     return !!(settings && settings.chromeSplitTabVisible === true);
 }
@@ -12610,6 +12616,7 @@ const FEATURE_TOOL_NAME_BINDINGS = Object.freeze({
     pdfMergeNameVisible: { checkboxId: 'pdf-merge-name-visible', buttonId: 'btn-pdf-merge', nameId: 'btn-pdf-merge-name' },
     infographicGeminiNameVisible: { checkboxId: 'infographic-gemini-name-visible', buttonId: 'btn-infographic-gemini', nameId: 'btn-infographic-gemini-name' },
     infographicAutoNameVisible: { checkboxId: 'infographic-auto-name-visible', buttonId: 'btn-infographic-auto', nameId: 'btn-infographic-auto-name' },
+    tts2audioNameVisible: { checkboxId: 'tts2audio-name-visible', buttonId: 'btn-tts2audio', nameId: 'btn-tts2audio-name' },
     imageUploadToolbarNameVisible: { checkboxId: 'image-upload-toolbar-name-visible', buttonId: 'btn-image-upload-toolbar', nameId: 'btn-image-upload-toolbar-name' }
 });
 
@@ -12737,6 +12744,7 @@ function openInfographicSinglePanel() {
     const frame = document.getElementById('infographic-single-frame');
     if (!panel || !frame) return;
     closeInfographicAutoPanel();
+    closeTts2AudioPanel();
     ensureLazyFrameLoaded(frame);
     panel.classList.remove('hidden');
     panel.classList.add('flex');
@@ -12837,6 +12845,7 @@ function openInfographicAutoPanel() {
     const frame = document.getElementById('infographic-auto-frame');
     if (!panel || !frame) return;
     closeInfographicSinglePanel();
+    closeTts2AudioPanel();
     ensureLazyFrameLoaded('infographic-auto-frame');
     panel.classList.remove('hidden');
     panel.classList.add('flex');
@@ -12855,6 +12864,139 @@ function toggleInfographicAutoPanel() {
     if (!panel || panel.classList.contains('hidden')) openInfographicAutoPanel();
     else closeInfographicAutoPanel();
 }
+
+function applyTts2AudioVisibility(settings) {
+    const enabled = getTts2AudioVisibleFromSettings(settings || {});
+    const button = document.getElementById('btn-tts2audio');
+    if (button) button.classList.toggle('hidden', !enabled);
+    if (!enabled) closeTts2AudioPanel();
+    syncHeaderFeatureToolsVisibility();
+}
+
+async function toggleTts2AudioVisibilitySection() {
+    const check = document.getElementById('tts2audio-visible');
+    const enabled = !!(check && check.checked);
+    applyTts2AudioVisibility({ tts2audioVisible: enabled });
+    try { await setAiSettings({ tts2audioVisible: enabled }); } catch (error) { console.error(error); }
+}
+
+function getTts2AudioContext() {
+    return {
+        type: 'mdpro-tts2audio-context',
+        apiKey: String(getProtectedAiCredential('gemini', 'ss_gemini_api_key') || '')
+    };
+}
+
+function postTts2AudioContext(targetWindow) {
+    if (targetWindow) targetWindow.postMessage(getTts2AudioContext(), window.location.origin);
+}
+
+function openTts2AudioPanel() {
+    const panel = document.getElementById('tts2audio-panel');
+    const frame = document.getElementById('tts2audio-frame');
+    if (!panel || !frame) return;
+    closeInfographicSinglePanel();
+    closeInfographicAutoPanel();
+    ensureLazyFrameLoaded(frame);
+    bindTts2AudioPanelInteractions();
+    panel.classList.remove('hidden');
+    panel.classList.add('flex');
+    if (frame.contentWindow) postTts2AudioContext(frame.contentWindow);
+}
+
+function closeTts2AudioPanel() {
+    const panel = document.getElementById('tts2audio-panel');
+    if (!panel) return;
+    panel.classList.add('hidden');
+    panel.classList.remove('flex');
+}
+
+function toggleTts2AudioPanel() {
+    const panel = document.getElementById('tts2audio-panel');
+    if (!panel || panel.classList.contains('hidden')) openTts2AudioPanel();
+    else closeTts2AudioPanel();
+}
+
+function bindTts2AudioPanelInteractions() {
+    const panel = document.getElementById('tts2audio-panel');
+    const header = document.getElementById('tts2audio-panel-header');
+    if (!panel || panel.dataset.interactionsBound === '1') return;
+    panel.dataset.interactionsBound = '1';
+    const beginPointerAction = function (event, mode) {
+        if (event.button !== 0) return;
+        if (mode === 'move' && event.target.closest('button, input, select, textarea, a')) return;
+        event.preventDefault();
+        const startRect = panel.getBoundingClientRect();
+        const startX = event.clientX;
+        const startY = event.clientY;
+        const minWidth = Math.min(420, Math.max(240, window.innerWidth - 16));
+        const minHeight = Math.min(320, Math.max(220, window.innerHeight - 16));
+        panel.style.right = 'auto';
+        panel.style.bottom = 'auto';
+        panel.style.left = startRect.left + 'px';
+        panel.style.top = startRect.top + 'px';
+        panel.style.width = startRect.width + 'px';
+        panel.style.height = startRect.height + 'px';
+        const move = function (moveEvent) {
+            const dx = moveEvent.clientX - startX;
+            const dy = moveEvent.clientY - startY;
+            let left = startRect.left;
+            let top = startRect.top;
+            let width = startRect.width;
+            let height = startRect.height;
+            if (mode === 'move') {
+                left += dx;
+                top += dy;
+            } else {
+                if (mode.includes('e')) width = Math.max(minWidth, startRect.width + dx);
+                if (mode.includes('s')) height = Math.max(minHeight, startRect.height + dy);
+                if (mode.includes('w')) {
+                    width = Math.max(minWidth, startRect.width - dx);
+                    left = startRect.right - width;
+                }
+                if (mode.includes('n')) {
+                    height = Math.max(minHeight, startRect.height - dy);
+                    top = startRect.bottom - height;
+                }
+            }
+            left = Math.max(0, Math.min(left, window.innerWidth - width));
+            top = Math.max(0, Math.min(top, window.innerHeight - height));
+            width = Math.min(width, window.innerWidth - left);
+            height = Math.min(height, window.innerHeight - top);
+            panel.style.left = left + 'px';
+            panel.style.top = top + 'px';
+            panel.style.width = width + 'px';
+            panel.style.height = height + 'px';
+        };
+        const end = function () {
+            window.removeEventListener('pointermove', move);
+            window.removeEventListener('pointerup', end);
+            document.body.style.userSelect = '';
+        };
+        document.body.style.userSelect = 'none';
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', end, { once: true });
+    };
+    if (header) header.addEventListener('pointerdown', function (event) { beginPointerAction(event, 'move'); });
+    panel.querySelectorAll('[data-tts2audio-resize]').forEach(function (handle) {
+        handle.addEventListener('pointerdown', function (event) {
+            beginPointerAction(event, String(handle.dataset.tts2audioResize || 'se'));
+        });
+    });
+}
+
+window.addEventListener('message', function (event) {
+    const frame = document.getElementById('tts2audio-frame');
+    if (!frame || event.source !== frame.contentWindow || event.origin !== window.location.origin) return;
+    const data = event && event.data;
+    if (data && data.type === 'tts2audio-request-context') postTts2AudioContext(event.source);
+    if (data && data.type === 'tts-fma-document' && /^data:image\/[a-z0-9.+-]+;base64,/i.test(String(data.dataUrl || ''))) {
+        if (typeof window.openImageInsertModal === 'function' && typeof window.applyImageInsertDataUrl === 'function') {
+            window.openImageInsertModal();
+            window.applyImageInsertDataUrl(data.dataUrl, String(data.name || 'fma-edited.png'));
+        }
+    }
+});
 
 window.addEventListener('message', async function (event) {
     const autoFrame = document.getElementById('infographic-auto-frame');
@@ -13155,13 +13297,15 @@ function syncHeaderFeatureToolsVisibility() {
     const templateBtn = document.getElementById('btn-template-panel');
     const infographicGeminiBtn = document.getElementById('btn-infographic-gemini');
     const infographicAutoBtn = document.getElementById('btn-infographic-auto');
+    const tts2audioBtn = document.getElementById('btn-tts2audio');
     const scholarEnabled = !!(scholarBtn && !scholarBtn.classList.contains('hidden'));
     const pdfMergeEnabled = !!(pdfMergeBtn && !pdfMergeBtn.classList.contains('hidden'));
     const sitesEnabled = !!(sitesBtn && !sitesBtn.classList.contains('hidden'));
     const templateEnabled = !!(templateBtn && !templateBtn.classList.contains('hidden'));
     const infographicGeminiEnabled = !!(infographicGeminiBtn && !infographicGeminiBtn.classList.contains('hidden'));
     const infographicAutoEnabled = !!(infographicAutoBtn && !infographicAutoBtn.classList.contains('hidden'));
-    if (scholarEnabled || pdfMergeEnabled || sitesEnabled || templateEnabled || infographicGeminiEnabled || infographicAutoEnabled) {
+    const tts2audioEnabled = !!(tts2audioBtn && !tts2audioBtn.classList.contains('hidden'));
+    if (scholarEnabled || pdfMergeEnabled || sitesEnabled || templateEnabled || infographicGeminiEnabled || infographicAutoEnabled || tts2audioEnabled) {
         wrap.classList.remove('hidden');
         wrap.classList.add('flex');
         wrap.style.display = 'flex';
@@ -14706,6 +14850,8 @@ async function persistAiSettingsFromModal() {
     const infographicGeminiVisible = !!(infographicGeminiVisibleEl && infographicGeminiVisibleEl.checked);
     const infographicAutoVisibleEl = document.getElementById('infographic-auto-visible');
     const infographicAutoVisible = !!(infographicAutoVisibleEl && infographicAutoVisibleEl.checked);
+    const tts2audioVisibleEl = document.getElementById('tts2audio-visible');
+    const tts2audioVisible = !!(tts2audioVisibleEl && tts2audioVisibleEl.checked);
     const recentWorkVisibleEl = document.getElementById('recent-work-visible');
     const recentWorkVisible = !(recentWorkVisibleEl && recentWorkVisibleEl.checked === false);
     const chromeSplitTabVisibleEl = document.getElementById('chrome-split-tab-visible');
@@ -14750,6 +14896,7 @@ async function persistAiSettingsFromModal() {
         pdfMergeVisible: pdfMergeVisible,
         infographicGeminiVisible: infographicGeminiVisible,
         infographicAutoVisible: infographicAutoVisible,
+        tts2audioVisible: tts2audioVisible,
         recentWorkVisible: recentWorkVisible,
         chromeSplitTabVisible: chromeSplitTabVisible,
         ...featureToolNameSettings,
@@ -18966,6 +19113,8 @@ function restoreFeatureSettings(settings) {
     if (infographicGeminiCheck) infographicGeminiCheck.checked = getInfographicGeminiVisibleFromSettings(settings);
     const infographicAutoCheck = document.getElementById('infographic-auto-visible');
     if (infographicAutoCheck) infographicAutoCheck.checked = getInfographicAutoVisibleFromSettings(settings);
+    const tts2audioCheck = document.getElementById('tts2audio-visible');
+    if (tts2audioCheck) tts2audioCheck.checked = getTts2AudioVisibleFromSettings(settings);
     const recentWorkCheck = document.getElementById('recent-work-visible');
     if (recentWorkCheck) recentWorkCheck.checked = getRecentWorkVisibleFromSettings(settings);
     const chromeSplitTabCheck = document.getElementById('chrome-split-tab-visible');
@@ -19055,6 +19204,8 @@ async function loadAiSettingsToUI() {
         if (infographicGeminiCheckEmpty) infographicGeminiCheckEmpty.checked = false;
         const infographicAutoCheckEmpty = document.getElementById('infographic-auto-visible');
         if (infographicAutoCheckEmpty) infographicAutoCheckEmpty.checked = false;
+        const tts2audioCheckEmpty = document.getElementById('tts2audio-visible');
+        if (tts2audioCheckEmpty) tts2audioCheckEmpty.checked = false;
         const recentWorkCheckEmpty = document.getElementById('recent-work-visible');
         if (recentWorkCheckEmpty) recentWorkCheckEmpty.checked = true;
         const chromeSplitTabCheckEmpty = document.getElementById('chrome-split-tab-visible');
@@ -19127,6 +19278,7 @@ async function loadAiSettingsToUI() {
         applyPdfMergeVisibility({ pdfMergeVisible: false });
         applyInfographicGeminiVisibility({ infographicGeminiVisible: false });
         applyInfographicAutoVisibility({ infographicAutoVisible: false });
+        applyTts2AudioVisibility({ tts2audioVisible: false });
         applyRecentWorkVisibility({ recentWorkVisible: true });
         applyChromeSplitTabVisibility({ chromeSplitTabVisible: false });
     applyHtml2pptVisibility({ html2pptVisible: false, html2pptNameVisible: false });
@@ -19265,6 +19417,7 @@ async function loadAiSettingsToUI() {
     applyPdfMergeVisibility(settings);
     applyInfographicGeminiVisibility(settings);
     applyInfographicAutoVisibility(settings);
+    applyTts2AudioVisibility(settings);
     applyHtml2pptVisibility(settings);
     applyFmaViewerVisibility(settings);
     applyAiUseFold(getAiUseFoldedFromLocal());
@@ -19324,6 +19477,7 @@ async function initAiVisibility() {
     applyPdfMergeVisibility(settings || { pdfMergeVisible: false });
     applyInfographicGeminiVisibility(settings || { infographicGeminiVisible: false });
     applyInfographicAutoVisibility(settings || { infographicAutoVisible: false });
+    applyTts2AudioVisibility(settings || { tts2audioVisible: false });
     applyRecentWorkVisibility(settings || { recentWorkVisible: true });
     applyChromeSplitTabVisibility(settings || { chromeSplitTabVisible: false });
     applyHtml2pptVisibility(settings || { html2pptVisible: false, html2pptNameVisible: false });
@@ -20524,6 +20678,10 @@ window.openInfographicSinglePanel = openInfographicSinglePanel;
 window.closeInfographicSinglePanel = closeInfographicSinglePanel;
 window.openInfographicAutoPanel = openInfographicAutoPanel;
 window.closeInfographicAutoPanel = closeInfographicAutoPanel;
+window.toggleTts2AudioVisibilitySection = toggleTts2AudioVisibilitySection;
+window.toggleTts2AudioPanel = toggleTts2AudioPanel;
+window.openTts2AudioPanel = openTts2AudioPanel;
+window.closeTts2AudioPanel = closeTts2AudioPanel;
 window.insertDefaultNoteCover = insertDefaultNoteCover;
 window.removeNoteCover = removeNoteCover;
 window.toggleNoteCoverMenu = toggleNoteCoverMenu;

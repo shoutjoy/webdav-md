@@ -21,6 +21,7 @@ const staticTools = [
   ['pdf-merge-visible', 'pdf-merge-name-visible'],
   ['infographic-gemini-visible', 'infographic-gemini-name-visible'],
   ['infographic-auto-visible', 'infographic-auto-name-visible'],
+  ['tts2audio-visible', 'tts2audio-name-visible'],
   ['html2ppt-visible', 'html2ppt-name-visible'],
   ['fma-viewer-visible', 'fma-viewer-name-visible'],
   ['image-upload-toolbar-enabled', 'image-upload-toolbar-name-visible']
