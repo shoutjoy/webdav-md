@@ -182,7 +182,13 @@
             return html;
         },
         prepareMarkdown: function (raw) {
-            return normalizeLegacyMathDelimiters(raw);
+            // Quoted sentence placeholders are literal tildes, not paired deletion marks.
+            return normalizeLegacyMathDelimiters(raw).split(/(`{3,}[\s\S]*?`{3,}|~{3,}[^\n]*\n[\s\S]*?\n~{3,}|`+[^`]*`+)/g).map(function (part, index) {
+                if (index % 2) return part;
+                return part.replace(/(["'“‘])~~(?=[^~\s])([^\n"'”’]*)(["'”’])/g, function (match, quote, body, end) {
+                    return body.indexOf('~~') >= 0 ? match : quote + '&#126;&#126;' + body + end;
+                });
+            }).join('');
         },
         createMarkedInput: function (raw) {
             return this.protectMathSegments(this.prepareMarkdown(raw));

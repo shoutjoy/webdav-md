@@ -29,6 +29,7 @@
     var preview = document.getElementById('av-pv-render');
     if (preview && window.AIChatMarkdown) {
       preview.innerHTML = window.AIChatMarkdown.toHtml(markdown);
+      window.AIChatMarkdown.typeset(preview);
       preview.querySelectorAll('a[href]').forEach(function (link) {
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
