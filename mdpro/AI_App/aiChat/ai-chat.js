@@ -5442,6 +5442,9 @@
         }
         if (message.role === 'assistant' && actions) item.appendChild(actions);
         list.appendChild(item);
+        if (content.classList.contains('markdown-rendered') && root.AIChatMarkdown) {
+          root.AIChatMarkdown.typeset(content);
+        }
       });
     }
     if (state.running) {
