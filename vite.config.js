@@ -7,6 +7,7 @@ import { createWebSearchMiddleware } from './src/webSearchProxy.js';
 import { createShareMiddleware } from './src/shareServer.js';
 import { createBackupMiddleware } from './src/backupServer.js';
 import { createLMStudioServerMiddleware } from './src/lmStudioServer.js';
+import { createSystemUsageMiddleware } from './src/systemUsageServer.js';
 
 const WEB_DAV_PROXY_PATH = '/__webdav_proxy';
 const WEB_DAV_TARGET = 'https://webdav.freemath.synology.me';
@@ -40,6 +41,7 @@ export default defineConfig(({ mode }) => {
       {
         name: 'ai-jena-web-search-proxy',
         configureServer(server) {
+          server.middlewares.use(createSystemUsageMiddleware());
           server.middlewares.use(createLMStudioServerMiddleware());
           server.middlewares.use(createBackupMiddleware());
           server.middlewares.use(createShareMiddleware());
@@ -49,6 +51,7 @@ export default defineConfig(({ mode }) => {
           }));
         },
         configurePreviewServer(server) {
+          server.middlewares.use(createSystemUsageMiddleware());
           server.middlewares.use(createLMStudioServerMiddleware());
           server.middlewares.use(createBackupMiddleware());
           server.middlewares.use(createShareMiddleware());

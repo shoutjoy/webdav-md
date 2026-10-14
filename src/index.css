@@ -130,6 +130,13 @@ body { margin: 0; background: #e9edf3; }
 .dark .mdpro-stage { border-color:#334155; background:#0f172a; }
 .mdpro-stage-bar { height: 38px; display: flex; align-items: center; gap: 9px; padding: 0 12px; color: #334155; background: linear-gradient(180deg,#e2e8f0,#cbd5e1); border-bottom: 1px solid #bac5d3; font-size: 11px; letter-spacing: .08em; }
 .dark .mdpro-stage-bar { color:#dbe5f3; background:linear-gradient(180deg,#202938,#151c28); border-bottom-color:#303b4c; }
+.system-usage { display:flex; flex-wrap:wrap; flex-shrink:0; gap:4px 12px; cursor:default; letter-spacing:0; font-size:11px; font-variant-numeric:tabular-nums; }
+.system-usage > span { white-space:nowrap; }
+.system-usage b { display:inline-block; min-width:4ch; text-align:right; }
+@media (max-width:600px) {
+  .mdpro-stage-bar { height:auto; min-height:38px; flex-wrap:wrap; padding-top:6px; padding-bottom:6px; }
+  .system-usage { gap:2px 6px; font-size:9px; }
+}
 .mdpro-stage-dot { width: 8px; height: 8px; border-radius: 50%; background: #7c9cff; box-shadow: 0 0 0 4px rgba(124,156,255,.12); }
 .mdpro-stage-path { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #64748b; letter-spacing: 0; font-family: ui-monospace, monospace; font-size: 12px; }
 .mdpro-stage-directory { color:#738399; }
