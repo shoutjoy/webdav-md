@@ -11,19 +11,17 @@ body:not(.viewer-view-mode) #content-viewport.a4-active {
 .long-document-active:not(.hidden) { overflow-y: auto !important; align-items: flex-start; }
 #content-viewport.long-document-active #editor-doc-wrap {
   flex: 0 0 auto;
-  min-height: 320px;
+  min-height: 80px;
   height: max-content;
   overflow: visible;
 }
-/* Short and blank continuous documents begin as an A4 portrait sheet. The
-   script resolves the exact pixel floor from the rendered width so this also
-   works in installed PWA windows and after the sidebar changes width. */
+/* Continuous documents follow their content instead of an A4 height floor. */
 #content-viewport.long-document-active #editor-doc-wrap,
 #viewer-container.long-document-active #viewer.long-document-sheet {
-  aspect-ratio: 210 / 297;
+  aspect-ratio: auto;
 }
 #content-viewport.long-document-active #viewer-edit-ta {
-  min-height: 320px;
+  min-height: 80px;
   overflow-y: hidden !important;
   scrollbar-width: none;
   resize: none;
@@ -63,7 +61,7 @@ body:not(.viewer-view-mode) #content-viewport.a4-active {
   width: 18px;
   height: 18px;
   border-radius: 3px 3px 9px 3px;
-  cursor: nwse-resize;
+  cursor: ew-resize;
 }
 .long-document-resize-corner::after {
   content: '';
@@ -76,8 +74,8 @@ body:not(.viewer-view-mode) #content-viewport.a4-active {
   border-bottom: 2px solid #1d4ed8;
 }
 body.long-document-resizing,
-body.long-document-resizing * { cursor: ns-resize !important; }
-body.long-document-resizing .long-document-resize-corner { cursor: nwse-resize !important; }
+body.long-document-resizing * { cursor: ew-resize !important; }
+body.long-document-resizing .long-document-resize-corner { cursor: ew-resize !important; }
 .a4-active .long-document-resize-handle,
 #viewer.a4-view > .long-document-resize-handle { display: none !important; }
 #a4-pages { width: max-content; min-width: 100%; min-height: max-content; padding: 0 0 64px; }

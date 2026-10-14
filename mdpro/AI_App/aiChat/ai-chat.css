@@ -1683,6 +1683,12 @@ body.theme-light .ai-chat-checklist strong,
 body.theme-light .ai-chat-academic-results,
 body.theme-light .ai-chat-academic-list details p { color: #e5e5ea; }
 body.theme-light .ai-chat-thinking-track { background: #3a3a3c; }
+body.theme-light .ai-chat-thinking small,
+body.theme-light .ai-chat-thinking-elapsed,
+body.theme-light .ai-chat-thinking-metrics { color: #f1f5f9; }
+body.theme-light .ai-chat-thinking-metrics span:nth-child(even) { color: #ede4ff; }
+body.theme-light .ai-chat-thinking-metrics span:nth-child(odd):not(:first-child) { color: #d5ecff; }
+body.theme-light .ai-chat-thinking-metrics span:last-child { color: #d5ffed; }
 body.theme-light .ai-chat-live-stream > div { color: #d1d1d6; }
 body.theme-light .ai-chat-response-notice { border-color: #48484a; background: #2c2c2e; color: #a1a1a6; }
 body.theme-light .ai-chat-image-gallery figure { border-color: #48484a; background: #242426; }
