@@ -188,6 +188,9 @@
   }
 
 
+  var providerConnections = {};
+  var modelRefreshRevision = 0;
+
   var state = {
     enabled: false,
     open: false,
@@ -814,7 +817,7 @@
       + '  </aside>'
       + '  <div class="ai-chat-main">'
       + '    <button type="button" id="ai-chat-provider-toggle" class="ai-chat-provider-toggle" aria-expanded="false">'
-      + '      <span id="ai-chat-provider-chevron" aria-hidden="true">▸</span><span id="ai-chat-provider-summary">AI 공급자 · 연결 확인 전</span><small id="ai-chat-provider-toggle-label">설정</small>'
+      + '      <span id="ai-chat-provider-chevron" aria-hidden="true">▸</span><span id="ai-chat-provider-summary">AI 공급자 · 연결 확인 전</span><span id="ai-chat-provider-connection" role="status" aria-live="polite">연결 확인 전</span><small id="ai-chat-provider-toggle-label">설정</small>'
       + '    </button>'
       + '    <div id="ai-chat-provider-controls" class="ai-chat-provider-controls collapsed">'
       + '      <div class="ai-chat-provider-row">'
@@ -2565,6 +2568,13 @@
   function updateProviderSummary() {
     var summary = document.getElementById('ai-chat-provider-summary');
     if (!summary) return;
+    var connection = document.getElementById('ai-chat-provider-connection');
+    if (connection) {
+      var status = providerConnections[state.provider] || 'unknown';
+      connection.dataset.status = status;
+      connection.textContent = { unknown: '연결 확인 전', checking: '연결 확인 중', connected: '● 연결됨', error: '연결 실패' }[status];
+      connection.title = '모델 선택과 별개로 실제 서버 요청 결과를 표시합니다. 새로고침 버튼으로 다시 확인할 수 있습니다.';
+    }
     if (state.provider === 'lmstudio') {
       summary.textContent = 'AI 공급자 · LM Studio · ' + (state.lmModel || '로드 모델 확인 필요');
     } else if (state.provider === 'ollama') {
@@ -3437,38 +3447,41 @@
   async function refreshModels(silent) {
     if (!state.open && silent) return;
     var requestedProvider = state.provider;
+    var refreshRevision = ++modelRefreshRevision;
+    providerConnections[requestedProvider] = 'checking';
+    updateProviderSummary();
     try {
       var bridge = getBridge();
       if (!silent) setStatus('모델 정보를 확인하는 중...', 'loading');
       if (state.provider === 'lmstudio') {
         var lm = await bridge.refreshLMStudioModels();
-        if (state.provider !== requestedProvider) return;
+        if (state.provider !== requestedProvider || refreshRevision !== modelRefreshRevision) return;
         state.lmModel = lm && lm.model ? lm.model : '';
         state.lmContextLength = Math.max(0, Number(lm && lm.contextLength) || 0);
         setModelOptions(lm && lm.models ? lm.models : [], state.lmModel, true);
-        setStatus(state.lmModel ? '현재 LM Studio 로드 모델을 자동으로 사용합니다.' : 'LM Studio에 로드된 LLM이 없습니다.', state.lmModel ? 'ok' : 'error');
+        setStatus(state.lmModel ? 'LM Studio 서버 연결됨 · 로드 모델: ' + state.lmModel : 'LM Studio 서버 연결됨 · 로드된 LLM이 없습니다.', state.lmModel ? 'ok' : 'error');
       } else if (state.provider === 'ollama') {
-        var ollamaModels = silent ? bridge.getCachedOllamaModels() : await bridge.refreshOllamaModels();
-        if (state.provider !== requestedProvider) return;
+        var ollamaModels = await bridge.refreshOllamaModels();
+        if (state.provider !== requestedProvider || refreshRevision !== modelRefreshRevision) return;
         setModelOptions(ollamaModels || [], state.ollamaModel, false);
         var ollamaSelect = document.getElementById('ai-chat-model');
         state.ollamaModel = ollamaSelect && ollamaSelect.value ? ollamaSelect.value : '';
         storageSet(OLLAMA_MODEL_KEY, state.ollamaModel);
         setStatus(state.ollamaModel
-          ? 'Ollama 모델을 사용합니다: ' + state.ollamaModel
-          : 'Ollama 모델이 없습니다. 로컬 서버와 설정 주소를 확인하세요.',
+          ? 'Ollama 서버 연결됨 · 선택 모델: ' + state.ollamaModel
+          : 'Ollama 서버 연결됨 · 설치된 모델이 없습니다.',
           state.ollamaModel ? 'ok' : 'error');
       } else if (state.provider === 'litertlm') {
-        var liteModels = silent ? bridge.getCachedLiteRTLMModels() : await bridge.refreshLiteRTLMModels();
-        if (state.provider !== requestedProvider) return;
+        var liteModels = await bridge.refreshLiteRTLMModels();
+        if (state.provider !== requestedProvider || refreshRevision !== modelRefreshRevision) return;
         setModelOptions(liteModels || [], state.litertlmModel, false);
         var liteSelect = document.getElementById('ai-chat-model');
         state.litertlmModel = liteSelect && liteSelect.value ? liteSelect.value : '';
         storageSet(LITERTLM_MODEL_KEY, state.litertlmModel);
         setStatus(state.litertlmModel ? 'LiteRT-LM 연결 완료: ' + state.litertlmModel : 'LiteRT-LM 모델이 없습니다.', state.litertlmModel ? 'ok' : 'error');
       } else if (state.provider === 'deepseek') {
-        var deepseekModels = silent ? bridge.getCachedDeepseekModels() : await bridge.refreshDeepseekModels();
-        if (state.provider !== requestedProvider) return;
+        var deepseekModels = await bridge.refreshDeepseekModels();
+        if (state.provider !== requestedProvider || refreshRevision !== modelRefreshRevision) return;
         if (!deepseekModels || !deepseekModels.length) deepseekModels = DEFAULT_DEEPSEEK_MODELS;
         setModelOptions(deepseekModels, state.deepseekModel, false);
         var deepseekModelSelect = document.getElementById('ai-chat-model');
@@ -3481,8 +3494,8 @@
           state.deepseekModel ? 'ok' : 'error'
         );
       } else if (state.provider === 'openai') {
-        var openaiModels = silent ? bridge.getCachedOpenAIModels() : await bridge.refreshOpenAIModels();
-        if (state.provider !== requestedProvider) return;
+        var openaiModels = await bridge.refreshOpenAIModels();
+        if (state.provider !== requestedProvider || refreshRevision !== modelRefreshRevision) return;
         if (!openaiModels || !openaiModels.length) openaiModels = DEFAULT_OPENAI_MODELS;
         setModelOptions(openaiModels, state.openaiModel, false);
         var openaiSelect = document.getElementById('ai-chat-model');
@@ -3493,16 +3506,16 @@
           state.openaiModel ? 'ok' : 'error'
         );
       } else if (state.provider === 'openai-compatible') {
-        var compatibleModels = silent ? bridge.getCachedOpenAICompatibleModels() : await bridge.refreshOpenAICompatibleModels();
-        if (state.provider !== requestedProvider) return;
+        var compatibleModels = await bridge.refreshOpenAICompatibleModels();
+        if (state.provider !== requestedProvider || refreshRevision !== modelRefreshRevision) return;
         setModelOptions(compatibleModels || [], state.openaiCompatibleModel, false);
         var compatibleModelSelect = document.getElementById('ai-chat-model');
         state.openaiCompatibleModel = compatibleModelSelect && compatibleModelSelect.value ? compatibleModelSelect.value : '';
         storageSet(OPENAI_COMPATIBLE_MODEL_KEY, state.openaiCompatibleModel);
         setStatus(state.openaiCompatibleModel ? 'OrcaRouter / OpenAI 호환 모델: ' + state.openaiCompatibleModel : '사용 가능한 OpenAI 호환 모델이 없습니다.', state.openaiCompatibleModel ? 'ok' : 'error');
       } else {
-        var models = silent && bridge.hasGeminiModelCatalog() ? bridge.getCachedGeminiModels() : await bridge.refreshGeminiModels();
-        if (state.provider !== requestedProvider) return;
+        var models = await bridge.refreshGeminiModels();
+        if (state.provider !== requestedProvider || refreshRevision !== modelRefreshRevision) return;
         models = mergeGeminiModels(models);
         setModelOptions(models, state.geminiModel, false);
         var modelSelect = document.getElementById('ai-chat-model');
@@ -3512,9 +3525,12 @@
           ? 'Nano Banana 이미지 모델입니다. 생성할 장면을 입력하세요.'
           : 'AI Studio 전체 모델 목록입니다. 계정별 할당량과 전용 API 지원 여부는 별도 확인이 필요합니다.', 'ok');
       }
+      providerConnections[requestedProvider] = 'connected';
       updateHeaderModel();
       updateModelModeUI();
     } catch (error) {
+      if (state.provider !== requestedProvider || refreshRevision !== modelRefreshRevision) return;
+      providerConnections[requestedProvider] = 'error';
       if (state.provider === 'lmstudio') {
         state.lmModel = '';
         state.lmContextLength = 0;
