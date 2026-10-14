@@ -158,7 +158,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260914-serpapi-vault-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?v=20260914-full-article-text-4',
+    aiChat: './AI_App/aiChat/ai-chat.js?v=20261014-ollama-mode-settings-1',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260925-nonprinting-3'
@@ -1578,6 +1578,7 @@ const OPENAI_COMPATIBLE_DEFAULTS = Object.freeze({
     modelId: 'deepseek/deepseek-v4-flash-free'
 });
 const OPENAI_COMPATIBLE_PROVIDER_URLS = Object.freeze({
+    lemonade: 'http://127.0.0.1:13305/api/v1',
     'openai-compatible': 'https://api.orcarouter.ai/v1',
     openrouter: 'https://openrouter.ai/api/v1',
     groq: 'https://api.groq.com/openai/v1',
@@ -1623,8 +1624,69 @@ function applyOpenAICompatibleProviderPreset() {
     const baseUrl = document.getElementById('openai-compatible-base-url');
     if (!provider || !baseUrl) return;
     baseUrl.value = OPENAI_COMPATIBLE_PROVIDER_URLS[provider.value] || OPENAI_COMPATIBLE_DEFAULTS.baseUrl;
+    if (provider.value === 'lemonade') {
+        document.getElementById('openai-compatible-model-id').value = 'qwen3-it-4b-FLM';
+        document.getElementById('openai-compatible-api-key').value = 'lemonade-local';
+        document.getElementById('openai-compatible-free-models-only').checked = false;
+    }
     validateOpenAICompatibleBaseUrlUI();
 }
+
+// Only select the NPU model after the local server confirms it is installed.
+window.connectAIJenaNPU = async function (protocol) {
+    if (protocol === 'openai-compatible') {
+        const connection = { baseUrl: OPENAI_COMPATIBLE_PROVIDER_URLS.lemonade, apiKey: 'lemonade-local', modelId: 'qwen3-it-4b-FLM' };
+        const models = await fetchOpenAICompatibleModels(connection);
+        if (!models.includes(connection.modelId)) throw new Error('NPU 모델이 설치되지 않았습니다. lemonade pull qwen3-it-4b-FLM을 실행하세요.');
+        await setAiSettings({ openaiCompatibleProvider: 'lemonade', openaiCompatibleBaseUrl: connection.baseUrl, openaiCompatibleApiKey: connection.apiKey, openaiCompatibleModelId: connection.modelId });
+        localStorage.setItem('ss_openai_compatible_provider', 'lemonade');
+        localStorage.setItem('ss_openai_compatible_base_url', connection.baseUrl);
+        localStorage.setItem('ss_openai_compatible_api_key', connection.apiKey);
+        localStorage.setItem('ss_openai_compatible_model_id', connection.modelId);
+        localStorage.setItem('ss_ai_chat_openai_compatible_model', connection.modelId);
+        localStorage.setItem(OPENAI_COMPATIBLE_FREE_ONLY_KEY, '0');
+        localStorage.setItem('ss_ai_chat_provider', 'openai-compatible');
+        loadOpenAICompatibleSettingsUI();
+        if (window.AIChat && typeof window.AIChat.syncSettings === 'function') window.AIChat.syncSettings();
+        return connection.modelId;
+    }
+    const baseUrl = 'http://127.0.0.1:13305';
+    const modelId = 'qwen3-it-4b-FLM:latest';
+    const models = await listOllamaModels({ baseUrl }, true);
+    if (!models.includes(modelId)) {
+        throw new Error('NPU 모델이 설치되지 않았습니다. lemonade pull qwen3-it-4b-FLM을 실행하세요.');
+    }
+    if (getOllamaSettings().baseUrl !== baseUrl) {
+        localStorage.setItem('ss_ollama_before_npu_v1', JSON.stringify({
+            baseUrl: getOllamaSettings().baseUrl,
+            model: localStorage.getItem('ss_ai_chat_ollama_model') || '',
+            generation: localStorage.getItem('ss_ai_chat_ollama_generation_v1')
+        }));
+    }
+    localStorage.setItem(OLLAMA_BASE_URL_KEY, baseUrl);
+    localStorage.setItem('ss_ai_chat_ollama_model', modelId);
+    localStorage.setItem('ss_ai_chat_provider', 'ollama');
+    localStorage.setItem('ss_ai_chat_ollama_generation_v1', JSON.stringify(
+        Object.assign({}, getOllamaSettings(), { contextLength: 16384 })
+    ));
+    saveStoredModelList(OLLAMA_MODELS_KEY, models);
+    loadOllamaSettingsToUI();
+    if (window.AIChat && typeof window.AIChat.syncSettings === 'function') window.AIChat.syncSettings();
+    return modelId;
+};
+
+window.restoreAIJenaOllama = function () {
+    let previous = {};
+    try { previous = JSON.parse(localStorage.getItem('ss_ollama_before_npu_v1') || '{}'); } catch (_) {}
+    localStorage.setItem(OLLAMA_BASE_URL_KEY, previous.baseUrl || 'http://127.0.0.1:11434');
+    localStorage.setItem('ss_ai_chat_ollama_model', previous.model || '');
+    localStorage.setItem('ss_ai_chat_provider', 'ollama');
+    if (previous.generation != null) localStorage.setItem('ss_ai_chat_ollama_generation_v1', previous.generation);
+    else localStorage.removeItem('ss_ai_chat_ollama_generation_v1');
+    saveStoredModelList(OLLAMA_MODELS_KEY, []);
+    loadOllamaSettingsToUI();
+    if (window.AIChat && typeof window.AIChat.syncSettings === 'function') window.AIChat.syncSettings();
+};
 
 function closeOpenAICompatibleModelMenu() {
     const menu = document.getElementById('openai-compatible-model-menu');
@@ -16441,6 +16503,19 @@ function mergeAIChatOpenAIModels(models) {
     return preferred.concat(available.filter(function (model) { return preferred.indexOf(model) < 0; }));
 }
 
+function normalizeOllamaGenerationSettings(value) {
+    const source = value || {};
+    const integer = (key, fallback, min, max) => Math.min(max, Math.max(min, Math.round(Number(source[key]) || fallback)));
+    return {
+        contextLength: integer('contextLength', 8192, 512, 262144),
+        quickMaxTokens: integer('quickMaxTokens', 4096, 1, 262144),
+        reasoningMaxTokens: integer('reasoningMaxTokens', 8192, 1, 262144),
+        timeoutMs: integer('timeoutMs', 580000, 1000, 86400000),
+        temperature: Number.isFinite(Number(source.temperature)) && source.temperature !== '' && source.temperature != null
+            ? Math.min(2, Math.max(0, Number(source.temperature))) : 0.4
+    };
+}
+
 function getOllamaSettings() {
     const fallback = 'http://127.0.0.1:11434';
     let storedBaseUrl = String(localStorage.getItem(OLLAMA_BASE_URL_KEY) || fallback).trim().replace(/\/+$/, '');
@@ -16450,7 +16525,9 @@ function getOllamaSettings() {
         if (localHost && parsed.port === '8080') storedBaseUrl = fallback;
     } catch (_) {}
     localStorage.removeItem('ss_ollama_connection_mode');
-    return { baseUrl: storedBaseUrl };
+    let generation = {};
+    try { generation = JSON.parse(localStorage.getItem('ss_ai_chat_ollama_generation_v1') || '{}'); } catch (_) {}
+    return Object.assign({ baseUrl: storedBaseUrl }, normalizeOllamaGenerationSettings(generation));
 }
 
 function normalizeOllamaBaseUrl(value) {
@@ -16900,12 +16977,17 @@ async function callOllamaChatText(messages, systemInstruction, modelOverride, si
     const lastUserIndex = normalized.map(function (item) { return item.role; }).lastIndexOf('user');
     if (lastUserIndex < 0) throw new Error('전송할 사용자 질문이 없습니다.');
     const emit = typeof onStreamEvent === 'function' ? onStreamEvent : function () {};
-    const reasoningMode = responseMode === 'reasoning';
-    const contextLength = await getAIChatOllamaContextLength(settings.baseUrl, model, signal);
+    const fastMode = settings.fastMode === true;
+    const reasoningMode = responseMode === 'reasoning' && !fastMode;
+    const config = window.LocalAI && typeof window.LocalAI.loadConfig === 'function' ? window.LocalAI.loadConfig(localStorage) : {};
+    const contextLength = settings.contextLength;
+    const requestedOutputTokens = Math.max(1, Number(fastMode ? config.fastMaxTokens : (reasoningMode ? settings.reasoningMaxTokens : settings.quickMaxTokens)) || (fastMode ? 3000 : 4096));
+    const timeoutMs = Math.max(1000, Number(fastMode ? config.fastTimeoutMs : settings.timeoutMs) || (fastMode ? 120000 : 580000));
     const fixedInputTokens = estimateAIChatTokens(systemInstruction) + estimateAIChatTokens(normalized[lastUserIndex].content);
+    if (fixedInputTokens + 256 >= contextLength) throw new Error('Ollama 입력이 설정된 컨텍스트를 초과합니다. Ollama 세부 설정에서 CONTEXT TOK를 늘리거나 입력을 줄이세요.');
     const outputReserve = Math.min(
         Math.max(1, contextLength - fixedInputTokens - 256),
-        Math.max(1024, Math.floor(contextLength * (reasoningMode ? 0.4 : 0.32)))
+        requestedOutputTokens
     );
     const historyTokenBudget = Math.max(0, contextLength - fixedInputTokens - outputReserve - 256);
     const historyMessages = retainAIChatHistory(normalized.slice(0, lastUserIndex), historyTokenBudget);
@@ -16916,7 +16998,7 @@ async function callOllamaChatText(messages, systemInstruction, modelOverride, si
     const estimatedInputTokens = payloadMessages.reduce(function (sum, item) {
         return sum + estimateAIChatTokens(item.content);
     }, 0);
-    const maxOutputTokens = Math.max(1, contextLength - estimatedInputTokens - 256);
+    const maxOutputTokens = Math.max(1, Math.min(requestedOutputTokens, contextLength - estimatedInputTokens - 256));
     emit({
         type: 'request.start',
         provider: 'ollama',
@@ -16934,7 +17016,8 @@ async function callOllamaChatText(messages, systemInstruction, modelOverride, si
         think: reasoningMode,
         options: {
             num_ctx: contextLength,
-            num_predict: maxOutputTokens
+            num_predict: maxOutputTokens,
+            temperature: settings.temperature
         }
     };
     let lineBuffer = '';
@@ -16990,17 +17073,32 @@ async function callOllamaChatText(messages, systemInstruction, modelOverride, si
             emit({ type: 'message.delta', provider: 'ollama', content: answerDelta });
         }
     }
-    await requestLocalAITextStream(settings.baseUrl + '/api/chat', {
-        method: 'POST',
-        headers: headers,
-        body: JSON.stringify(body),
-        signal: signal
-    }, function (chunk) {
-        lineBuffer += chunk;
-        const lines = lineBuffer.split(/\r?\n/);
-        lineBuffer = lines.pop() || '';
-        lines.forEach(processOllamaLine);
-    });
+    const streamController = new AbortController();
+    const abortStream = () => streamController.abort();
+    if (signal && signal.aborted) abortStream();
+    if (signal) signal.addEventListener('abort', abortStream, { once: true });
+    let timedOut = false;
+    const timeout = setTimeout(() => { timedOut = true; streamController.abort(); }, timeoutMs);
+    try {
+        await requestLocalAITextStream(settings.baseUrl + '/api/chat', {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(body),
+            signal: streamController.signal
+        }, function (chunk) {
+            lineBuffer += chunk;
+            const lines = lineBuffer.split(/\r?\n/);
+            lineBuffer = lines.pop() || '';
+            lines.forEach(processOllamaLine);
+        });
+    } catch (error) {
+        if (timedOut) throw new Error('Ollama ' + (fastMode ? 'FAST ' : '') + '제한 시간(' + Math.round(timeoutMs / 1000) + '초)을 초과했습니다. 세부 설정에서 시간을 늘릴 수 있습니다.');
+        if (signal && signal.aborted) { const aborted = new Error('Ollama request aborted'); aborted.name = 'AbortError'; throw aborted; }
+        throw error;
+    } finally {
+        clearTimeout(timeout);
+        if (signal) signal.removeEventListener('abort', abortStream);
+    }
     if (lineBuffer.trim()) processOllamaLine(lineBuffer);
     if (streamError) throw streamError;
     if (reasoningStarted && !reasoningEnded) emit({ type: 'reasoning.end', provider: 'ollama' });
@@ -18246,6 +18344,12 @@ function aiChatDataUrlToFile(dataUrl, name) {
 }
 
 window.AIChatBridge = Object.freeze({
+    getOllamaGenerationSettings: function () { return normalizeOllamaGenerationSettings(getOllamaSettings()); },
+    saveOllamaGenerationSettings: function (value) {
+        const settings = normalizeOllamaGenerationSettings(value);
+        localStorage.setItem('ss_ai_chat_ollama_generation_v1', JSON.stringify(settings));
+        return settings;
+    },
     getSelectedDocumentText: function () {
         if (!editorTextarea) return '';
         const cmView = editorTextarea && editorTextarea.__mdCm6View;
@@ -18449,7 +18553,8 @@ window.AIChatBridge = Object.freeze({
                     request.model,
                     controller.signal,
                     request.mode,
-                    typeof request.onStreamEvent === 'function' ? request.onStreamEvent : undefined
+                    typeof request.onStreamEvent === 'function' ? request.onStreamEvent : undefined,
+                    { fastMode: request.fastMode === true }
                 );
                 return {
                     provider: 'ollama',

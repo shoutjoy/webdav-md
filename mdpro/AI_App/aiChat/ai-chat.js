@@ -824,6 +824,7 @@
       + '        <label>AI 공급자<select id="ai-chat-provider"><option value="lmstudio">LM Studio</option><option value="litertlm">LiteRT-LM</option><option value="aistudio">AI Studio (Gemini)</option><option value="ollama">Ollama</option><option value="deepseek">DeepSeek (유료)</option><option value="openai-compatible">OrcaRouter / OpenAI 호환</option><option value="openai">OpenAI · ChatGPT 모델 (유료 API)</option></select></label>'
       + '        <label>모델<select id="ai-chat-model"></select></label>'
       + '        <button type="button" id="ai-chat-refresh-model" title="현재 모델 새로고침">↻</button>'
+      + '        <button type="button" id="ai-chat-npu-connect" title="Lemonade의 OpenAI 호환 API에서 NPU 전용 모델을 선택합니다. 서버가 실행 중이어야 합니다.">Lemonade AI · NPU 연결</button>'
       + '      </div>'
       + '      <div class="ai-chat-writing-style-row">'
       + '        <label class="ai-chat-writing-style-control">답변 문체<select id="ai-chat-writing-style"><option value="academic">학술체</option><option value="polite">존댓말</option></select></label>'
@@ -837,6 +838,17 @@
       + '          <label>FAST TOK <input id="ai-chat-fast-token-limit" type="number" min="1" step="1" value="3000" inputmode="numeric" aria-label="FAST 최대 토큰"></label>'
       + '          <label>LIMIT TIME <input id="ai-chat-fast-time-limit" type="number" min="1" step="1" value="120" inputmode="numeric" aria-label="FAST 제한 시간(초)"><span>초</span></label>'
       + '        </div>'
+      + '      </details>'
+      + '      <details class="ai-chat-fast-settings-details">'
+      + '        <summary>Ollama 세부 설정 · 즉시 / 추론</summary>'
+      + '        <div class="ai-chat-fast-limits ai-chat-provider-fast-limits ai-chat-ollama-limits" aria-label="Ollama 응답 설정">'
+      + '          <label>CONTEXT TOK <input id="ai-chat-ollama-context" type="number" min="512" max="262144" step="512" value="8192" aria-label="Ollama 컨텍스트 토큰"></label>'
+      + '          <label>즉시 TOK <input id="ai-chat-ollama-quick-tokens" type="number" min="1" max="262144" value="4096" aria-label="Ollama 즉시 최대 토큰"></label>'
+      + '          <label>추론 TOK <input id="ai-chat-ollama-reasoning-tokens" type="number" min="1" max="262144" value="8192" aria-label="Ollama 추론 최대 토큰"></label>'
+      + '          <label>LIMIT TIME <input id="ai-chat-ollama-timeout" type="number" min="1" max="86400" value="580" aria-label="Ollama 제한 시간(초)"><span>초</span></label>'
+      + '          <label>온도 <input id="ai-chat-ollama-temperature" type="number" min="0" max="2" step="0.1" value="0.4" aria-label="Ollama 온도"></label>'
+      + '        </div>'
+      + '        <p class="ai-chat-ollama-settings-help">Ollama에 적용됩니다. 즉시·FAST는 추론 끔, 추론 모드는 추론 켬입니다. FAST의 토큰·시간은 위 FAST 세부 설정을 사용하며, 출력은 남은 컨텍스트 이내로 제한됩니다. GPU 사용은 서버 설정을 따릅니다.</p>'
       + '      </details>'
       + '    </div>'
       + '    <div id="ai-chat-status" class="ai-chat-status" role="status" aria-live="polite"></div>'
@@ -994,6 +1006,22 @@
       syncFastLimitControls();
       setProviderControlsOpen(!state.providerControlsOpen);
     });
+    document.getElementById('ai-chat-npu-connect').addEventListener('click', async function () {
+      if (state.running) { setStatus('응답 완료 후 NPU를 연결하세요.', 'error'); return; }
+      var button = this;
+      button.disabled = true;
+      setStatus('로컬 NPU 서버와 설치 모델을 확인하는 중...', '');
+      try {
+        if (typeof window.connectAIJenaNPU !== 'function') throw new Error('앱을 새로고침한 후 다시 연결하세요.');
+        var model = await window.connectAIJenaNPU('openai-compatible');
+        state.provider = 'openai-compatible';
+        state.openaiCompatibleModel = model;
+        await refreshModels();
+        setStatus('AMD NPU 전용 모델 선택됨 · ' + model + ' · 엔진: FastFlowLM', 'ok');
+      } catch (error) {
+        setStatus('NPU 연결 실패: ' + (error.message || error) + ' · Lemonade 서버 실행을 확인하세요.', 'error');
+      } finally { button.disabled = false; }
+    });
     document.getElementById('ai-chat-floating-toggle').addEventListener('click', function () {
       var settingsWereOpen = state.providerControlsOpen;
       setFloatingExpanded(document.getElementById('ai-chat-panel').classList.contains('floating-compact'));
@@ -1004,6 +1032,9 @@
     syncFastLimitControls();
     document.getElementById('ai-chat-fast-token-limit').addEventListener('change', saveFastLimitControls);
     document.getElementById('ai-chat-fast-time-limit').addEventListener('change', saveFastLimitControls);
+    ['context', 'quick-tokens', 'reasoning-tokens', 'timeout', 'temperature'].forEach(function (name) {
+      document.getElementById('ai-chat-ollama-' + name).addEventListener('change', saveOllamaGenerationControls);
+    });
     document.getElementById('ai-chat-layout-menu-button').addEventListener('click', function (event) {
       event.stopPropagation();
       toggleLayoutMenu();
@@ -2529,6 +2560,7 @@
   }
 
   function syncFastLimitControls() {
+    syncOllamaGenerationControls();
     var config = readLocalFastConfig() || {};
     var tokenInput = document.getElementById('ai-chat-fast-token-limit');
     var timeInput = document.getElementById('ai-chat-fast-time-limit');
@@ -2563,6 +2595,25 @@
       setStatus('FAST 설정을 저장하지 못했습니다: ' + (error && error.message ? error.message : error), 'error');
       syncFastLimitControls();
     }
+  }
+
+  function syncOllamaGenerationControls() {
+    var settings;
+    try { settings = getBridge().getOllamaGenerationSettings(); } catch (_) { return; }
+    var fields = { context: settings.contextLength, 'quick-tokens': settings.quickMaxTokens, 'reasoning-tokens': settings.reasoningMaxTokens, timeout: settings.timeoutMs / 1000, temperature: settings.temperature };
+    Object.keys(fields).forEach(function (name) {
+      var input = document.getElementById('ai-chat-ollama-' + name);
+      if (input) input.value = String(fields[name]);
+    });
+  }
+
+  function saveOllamaGenerationControls() {
+    var read = function (name) { return Number(document.getElementById('ai-chat-ollama-' + name).value); };
+    try {
+      getBridge().saveOllamaGenerationSettings({ contextLength: read('context'), quickMaxTokens: read('quick-tokens'), reasoningMaxTokens: read('reasoning-tokens'), timeoutMs: read('timeout') * 1000, temperature: read('temperature') });
+      syncOllamaGenerationControls();
+      setStatus('Ollama 세부 설정 저장 · 다음 요청부터 적용됩니다.', 'ok');
+    } catch (error) { setStatus('Ollama 설정 저장 실패: ' + error.message, 'error'); }
   }
 
   function updateProviderSummary() {
