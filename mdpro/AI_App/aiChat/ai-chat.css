@@ -569,6 +569,7 @@ html.ai-chat-page-pushed .ai-chat-panel.layout-popup {
   font-size: 10px;
   font-weight: 700;
 }
+.ai-chat-ollama-settings-help { margin: 0; padding: 7px 11px; color: var(--chat-muted); font-size: 11px; line-height: 1.5; }
 .ai-chat-fast-limits label { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .ai-chat-fast-limits input {
   width: 62px;
@@ -582,6 +583,9 @@ html.ai-chat-page-pushed .ai-chat-panel.layout-popup {
   text-align: right;
 }
 .ai-chat-fast-limits input:focus { outline: 2px solid #4f8cff; outline-offset: 1px; }
+.ai-chat-ollama-limits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ai-chat-ollama-limits label { display: flex; flex-wrap: wrap; min-width: 0; white-space: normal; }
+.ai-chat-ollama-limits input { width: 100%; box-sizing: border-box; }
 .ai-chat-provider-fast-limits {
   justify-content: flex-start;
   padding: 7px 11px 9px;
@@ -633,6 +637,7 @@ html.ai-chat-page-pushed .ai-chat-panel.layout-popup {
 }
 .ai-chat-provider-row select:disabled { opacity: 1; color: #cfe0fa; -webkit-text-fill-color: #cfe0fa; }
 .ai-chat-provider-row button { width: 34px; height: 34px; padding: 0; font-size: 18px; }
+#ai-chat-npu-connect { grid-column: 1 / -1; width: 100%; height: auto; min-height: 34px; padding: 6px 10px; font-size: 12px; }
 .ai-chat-writing-style-row {
   display: grid;
   grid-template-columns: minmax(0, 180px) auto minmax(0, 160px) auto;

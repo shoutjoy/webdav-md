@@ -7,7 +7,7 @@ const source = fs.readFileSync(new URL('../mdpro/AI_App/aiChat/ai-chat.js', impo
 
 function loadMermaidPromptHelpers() {
   const start = source.indexOf('  var MERMAID_DARK_MODE_PROMPT_RULE');
-  const end = source.indexOf('\n\n\n  var state =', start);
+  const end = source.indexOf('  var state =', start);
   const runtime = vm.createContext({});
   vm.runInContext(source.slice(start, end), runtime);
   return runtime;
