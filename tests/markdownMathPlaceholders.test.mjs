@@ -38,3 +38,29 @@ test('code and quoted intentional deletion stay unchanged', async () => {
   const text = '`"~~예시"`\n```text\n"~~예시"\n```\n"~~취소선~~"';
   assert.equal(root.MathRender.prepareMarkdown(text), text);
 });
+
+test('ordinary parenthetical words remain text in documents and Jena tables', async () => {
+  const root = await load();
+  const sentence = '성취감, 학습 통제감(Self-Efficacy), 개념의 명확한 이해. (→ 동기 부여 및 몰입 유도)';
+  const source = '| 고객 그룹 | 핵심 니즈 |\n| --- | --- |\n| 학생 | ' + sentence + ' |';
+  assert.equal(root.MathRender.prepareMarkdown(source), source);
+  for (const html of [root.MathRender.renderMarkdownSync(root.marked, source), root.AIChatMarkdown.toHtml(source)]) {
+    assert.ok(html.includes(sentence));
+    assert.match(html, /<table>/);
+    assert.doesNotMatch(html, /\\\(|\$|MATHSEG/);
+  }
+  for (const text of ['(Self-Efficacy),', '(cost/benefit).', '(A/B testing).', '(pre-test).', '[Self-Efficacy]']) {
+    assert.equal(root.MathRender.prepareMarkdown(text), text);
+  }
+});
+
+test('explicit math and legacy mathematical expressions still render', async () => {
+  const root = await load();
+  assert.equal(root.MathRender.prepareMarkdown('(x-y).'), '\\(x-y\\).');
+  assert.equal(root.MathRender.prepareMarkdown('[x^2]'), '\\[x^2\\]');
+  for (const source of ['$x-y$', '\\(x-y\\)', '$\\sin(x)$']) {
+    const html = root.MathRender.renderMarkdownSync(root.marked, source);
+    assert.match(html, /\$.*\$/);
+    assert.doesNotMatch(html, /MATHSEG/);
+  }
+});

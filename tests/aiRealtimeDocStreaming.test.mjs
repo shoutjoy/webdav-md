@@ -38,4 +38,12 @@ test('streamed answer updates the visible document before completion and retains
   context.finishRealtimeDocStream('First token next');
   assert.equal(editor.value, 'Before\n\nFirst token nextAfter');
   assert.equal(context.activeRealtimeDocStream, null);
+  editor.selectionStart = editor.selectionEnd = 0;
+  context.startRealtimeDocStream({ target: 'cursor', continuationText: 'First token next' });
+  context.writeRealtimeDocStreamChunk(' continued');
+  frames.shift()();
+  assert.equal(editor.value, 'Before\n\nFirst token next continuedAfter');
+  context.finishRealtimeDocStream(' continued');
+  assert.equal(editor.value, 'Before\n\nFirst token next continuedAfter');
+  assert.throws(() => context.startRealtimeDocStream({ continuationText: 'missing answer' }), /이전 답변/);
 });

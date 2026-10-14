@@ -61,7 +61,10 @@
         var s = String(text || '').trim();
         if (!s) return false;
         if (/[가-힣]{2,}/.test(s)) return false;
-        if (/^[A-Za-z]{2,}$/.test(s)) return false;
+        // A hyphen, slash, or comparison sign in prose is not evidence of math.
+        // Ignore TeX command names when checking for ordinary English words.
+        var plainText = s.replace(/\\[A-Za-z]+/g, '');
+        if (/[A-Za-z]{2,}/.test(plainText)) return false;
         return /\\[A-Za-z]+|[_^=]|[+\-*/]|[{}]|[<>]/.test(s);
     }
 

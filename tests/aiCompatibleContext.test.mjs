@@ -7,7 +7,7 @@ const source = readFileSync(new URL('../mdpro/js/app.js', import.meta.url), 'utf
 const helpers = source.slice(source.indexOf('function fitOpenAICompatibleContext('), source.indexOf('async function fetchOpenAICompatibleModels('));
 const budgetDependencies = {
     getOllamaSettings: () => ({}),
-    normalizeOllamaGenerationSettings: () => ({ contextLength: 12800, temperature: 0.4 }),
+    normalizeOllamaGenerationSettings: () => ({ contextLength: 12800, reasoningContextLength: 65536, quickMaxTokens: 1024, reasoningMaxTokens: 32768, temperature: 0.4 }),
     readOpenAICompatibleModelsCache: () => [{ id: 'gemma', context_length: 8192 }],
     getScholarAIProviderRuntime: () => ({ getLMStudioConfig: () => ({ quickMaxTokens: 1024 }) }),
     estimateAIChatTokens: content => String(content || '').length,
@@ -109,4 +109,14 @@ test('a smaller server context limit takes precedence over the configured defaul
     const context = vm.createContext({ ...budgetDependencies, readOpenAICompatibleModelsCache: () => [{ id: 'flash', context_length: 2048 }] });
     vm.runInContext(helpers, context);
     assert.equal(context.budgetOpenAICompatibleChat('flash', [{ role: 'user', content: 'question' }], '', {}).contextLength, 2048);
+});
+
+test('reasoning uses the larger context and continuation preserves the original answer', () => {
+    const context = vm.createContext({ ...budgetDependencies, readOpenAICompatibleModelsCache: () => [] });
+    vm.runInContext(helpers, context);
+    const messages = [{ role: 'user', content: 'original request' }, { role: 'assistant', content: 'answer'.repeat(500) }, { role: 'user', content: 'continue' }];
+    const budget = context.budgetOpenAICompatibleChat('model', messages, '', { mode: 'reasoning', continuation: true });
+    assert.equal(budget.contextLength, 65536);
+    assert.equal(budget.maxTokens, 32768);
+    assert.equal(budget.messages[1].content, messages[1].content);
 });
