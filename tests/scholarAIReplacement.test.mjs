@@ -72,3 +72,23 @@ test('streaming result remains available with document replacement unchecked',as
  const context={document:{getElementById:()=>({value:'source'})},window:{ScholarAIReplacement:{begin:()=>null}},getCallback:()=>((p,s,search,model,opts)=>{options=opts;return pending}),invokeSync:()=>'',scholarAIIsSlideMakerActive:()=>false,scholarAIGetTonePreset:()=>'',scholarAIGetToneInstruction:()=>'',scholarAISetRunningState(){},scholarAIApplyResultText(raw){preview=raw;return {result:raw}},scholarAIHistoryAdd(){},scholarAIHistoryRender(){},scholarAIStopProgress(){},alert:assert.fail};
  vm.createContext(context);vm.runInContext('var scholarAIRunEpoch=0;\n'+source.slice(start,end),context);const task=context.scholarAIRun();options.onText('[RESULT]첫 조각');assert.equal(preview,'[RESULT]첫 조각');finish({text:'[RESULT]완료'});await task;
 });
+
+test('plain general replies remain writable while explanation-only replies stay excluded',()=>{
+ const normalize=loadFunction('mdpro/sidebarAI/sidebar-ai.js','scholarAINormalizeResultText').toString();
+ const parse=loadFunction('mdpro/sidebarAI/sidebar-ai.js','scholarAIParseExplanationResult',normalize);
+ assert.equal(parse('일반 요청의 답변').result,'일반 요청의 답변');
+ assert.equal(parse('<think>비공개 추론</think>최종 본문').result,'최종 본문');
+ assert.equal(parse('[EXPLANATION]설명만').result,'');
+});
+
+test('special requests replace selection regardless of presentation',async()=>{
+ const s=readFileSync('mdpro/sidebarAI/scholar-ai-upgrades.js','utf8');
+ const start=s.indexOf('  async function runSpecial('),end=s.indexOf('  function protectedRanges(',start);
+ for(const presentation of ['default','translation','slides']){
+  let output='source',opts;
+  const context={el:id=>id==='scholar-ai-selected'?{value:'source'}:null,window:{ScholarAIReplacement:{begin(){output='';return {}},update(tx,text){output=text},finish(tx,text){output=text},cancel(){output='source'}}},getCallback:name=>name==='callScholarAI'?async(p,sys,search,model,o)=>{opts=o;o.onText('streamed');assert.equal(output,'streamed');return {text:'complete'}}:null,setRunning(){},setPresentation(){},applyResult:raw=>({answer:raw}),alert:assert.fail};
+  vm.createContext(context);vm.runInContext('var specialRunEpoch=0;\n'+s.slice(start,end),context);
+  await context.runSpecial({presentation,system:'write',prompt:'rewrite'});
+  assert.equal(output,'complete');assert.equal(typeof opts.onText,'function');
+ }
+});

@@ -2329,7 +2329,9 @@
       liveStream.stage = providerLabel + '에 요청을 전송하는 중';
       liveStream.progress = 2;
     } else if (type === 'transport.start') {
-      liveStream.stage = providerLabel + ' 실시간 스트림에 연결하는 중';
+      liveStream.stage = providerLabel === 'Ollama'
+        ? 'Ollama 응답 대기 · 모델 준비/문맥 처리/첫 토큰 대기'
+        : providerLabel + ' 실시간 스트림에 연결하는 중';
       liveStream.progress = Math.max(liveStream.progress, 3);
     } else if (type === 'chat.start') {
       liveStream.stage = '모델 연결 완료 · 문맥 처리 대기';
