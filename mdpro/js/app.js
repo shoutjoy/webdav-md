@@ -158,7 +158,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260914-serpapi-vault-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?v=20261014-settings-single-fold-10',
+    aiChat: './AI_App/aiChat/ai-chat.js?v=20261014-model-residency-12',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260925-nonprinting-3'
@@ -1884,13 +1884,14 @@ const openAICompatibleOutputLimits = new Map();
 
 function budgetOpenAICompatibleChat(model, messages, systemInstruction, request) {
     const details = readOpenAICompatibleModelsCache().find(row => row.id === model) || {};
-    const configuredContext = normalizeOllamaGenerationSettings(getOllamaSettings()).contextLength;
+    const generationSettings = normalizeOllamaGenerationSettings(getOllamaSettings());
+    const configuredContext = request.mode === 'reasoning' ? generationSettings.reasoningContextLength : generationSettings.contextLength;
     const reportedContext = Number(details.context_length || details.max_context_window || details.contextLength) || configuredContext;
     let contextLength = Math.max(256, Math.min(reportedContext, configuredContext, Number(request.contextLimit) || reportedContext));
     const config = getScholarAIProviderRuntime().getLMStudioConfig();
     const requestedOutput = Math.max(1, Number(request.outputLimit) || Number(request.fastMode ? config.fastMaxTokens
-        : (request.mode === 'reasoning' ? config.reasoningMaxTokens : config.quickMaxTokens)) || 4096);
-    const current = messages.slice(-1);
+        : (request.mode === 'reasoning' ? generationSettings.reasoningMaxTokens : generationSettings.quickMaxTokens)) || 4096);
+    const current = request.continuation ? messages.slice() : messages.slice(-1);
     const system = systemInstruction ? [{ role: 'system', content: String(systemInstruction) }] : [];
     const count = rows => rows.reduce((sum, row) => sum + Math.ceil(estimateAIChatTokens(row.content) * 1.5) + 16, 0);
     // The app's formatting instructions can exceed small local windows by
@@ -1917,7 +1918,7 @@ function budgetOpenAICompatibleChat(model, messages, systemInstruction, request)
         throw new Error('선택한 모델의 입력 한도(' + contextLength + ' 토큰)를 초과했습니다. 질문이나 첨부 문서를 줄이거나 컨텍스트가 더 큰 모델을 선택하세요.');
     }
     const reserve = Math.min(requestedOutput, Math.max(256, Math.floor(contextLength * 0.32)));
-    const history = retainAIChatHistory(messages.slice(0, -1), Math.max(0, contextLength - fixedTokens - reserve - 256));
+    const history = request.continuation ? [] : retainAIChatHistory(messages.slice(0, -1), Math.max(0, contextLength - fixedTokens - reserve - 256));
     const retained = system.concat(history, current);
     const inputTokens = count(retained);
     const outputLimit = Number(details.top_provider && details.top_provider.max_completion_tokens) || requestedOutput;
@@ -1971,9 +1972,37 @@ async function requestOpenAICompatibleChat(connection, model, messages, systemIn
             retainedMessages = retainedMessages.slice();
             const oldest = retainedMessages.findIndex(item => item.role === 'user');
             const next = retainedMessages.findIndex((item, index) => index > oldest && item.role === 'user');
-            if (oldest >= 0 && next >= 0) retainedMessages.splice(oldest, next - oldest);
+            if (!request.continuation && oldest >= 0 && next >= 0) retainedMessages.splice(oldest, next - oldest);
         }
     }
+}
+
+function compatibleResidencyKey(connection, model) {
+    return 'ss_ai_compatible_residency:' + encodeURIComponent(connection.baseUrl + '\n' + model);
+}
+
+async function manageOpenAICompatibleResidency(connection, model, enabled, signal) {
+    const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + connection.apiKey };
+    const call = async (url, body) => {
+        const response = await fetch(url, { method: body ? 'POST' : 'GET', headers, ...(body ? { body: JSON.stringify(body) } : {}), signal });
+        if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
+        const data = await response.json();
+        if (data.status === 'error' || data.error) throw new Error(data.message || data.error.message || '모델 유지 설정 실패');
+        return data;
+    };
+    const health = await call(connection.baseUrl + '/health');
+    if (!Array.isArray(health.all_models_loaded)) throw new Error('이 서버는 Lemonade 모델 유지 API를 지원하지 않습니다. 일반 OpenAI 호환 API만으로는 모델 메모리 유지를 제어할 수 없습니다.');
+    const loaded = health.all_models_loaded.find(row => row.model_name === model);
+    if (enabled && !loaded) {
+        await call(connection.baseUrl + '/load', { model_name: model, pinned: true });
+    } else if (loaded && loaded.pinned !== enabled) {
+        await call(new URL('/internal/pin', connection.baseUrl).href, { model_name: model, pinned: enabled });
+    }
+    const verified = await call(connection.baseUrl + '/health');
+    const current = verified.all_models_loaded && verified.all_models_loaded.find(row => row.model_name === model);
+    if (enabled && (!current || current.pinned !== true)) throw new Error('서버에서 모델의 메모리 고정을 확인하지 못했습니다. 서버 버전과 모델 유지 지원을 확인하세요.');
+    if (!enabled && current && current.pinned === true) throw new Error('서버에서 모델 유지 해제를 확인하지 못했습니다.');
+    return { loaded: !!current, pinned: !!(current && current.pinned), model: model };
 }
 
 async function fetchOpenAICompatibleModels(connection) {
@@ -16685,9 +16714,10 @@ function normalizeOllamaGenerationSettings(value) {
     const source = value || {};
     const integer = (key, fallback, min, max) => Math.min(max, Math.max(min, Math.round(Number(source[key]) || fallback)));
     return {
-        contextLength: integer('contextLength', 12800, 512, 262144),
-        quickMaxTokens: integer('quickMaxTokens', 4096, 1, 262144),
-        reasoningMaxTokens: integer('reasoningMaxTokens', 8192, 1, 262144),
+        contextLength: integer('contextLength', 32768, 512, 262144),
+        reasoningContextLength: integer('reasoningContextLength', 65536, 512, 262144),
+        quickMaxTokens: integer('quickMaxTokens', 16384, 1, 262144),
+        reasoningMaxTokens: integer('reasoningMaxTokens', 32768, 1, 262144),
         timeoutMs: integer('timeoutMs', 580000, 1000, 86400000),
         temperature: Number.isFinite(Number(source.temperature)) && source.temperature !== '' && source.temperature != null
             ? Math.min(2, Math.max(0, Number(source.temperature))) : 0.4
@@ -16705,6 +16735,14 @@ function getOllamaSettings() {
     localStorage.removeItem('ss_ollama_connection_mode');
     let generation = {};
     try { generation = JSON.parse(localStorage.getItem('ss_ai_chat_ollama_generation_v1') || '{}'); } catch (_) {}
+    if (localStorage.getItem('ss_ai_chat_large_context_v1') !== '1') {
+        generation.contextLength = Math.max(32768, Number(generation.contextLength) || 0);
+        generation.reasoningContextLength = Math.max(65536, Number(generation.reasoningContextLength) || 0);
+        generation.quickMaxTokens = Math.max(16384, Number(generation.quickMaxTokens) || 0);
+        generation.reasoningMaxTokens = Math.max(32768, Number(generation.reasoningMaxTokens) || 0);
+        localStorage.setItem('ss_ai_chat_ollama_generation_v1', JSON.stringify(generation));
+        localStorage.setItem('ss_ai_chat_large_context_v1', '1');
+    }
     return Object.assign({ baseUrl: storedBaseUrl }, normalizeOllamaGenerationSettings(generation));
 }
 
@@ -17300,7 +17338,7 @@ async function callOllamaChatText(messages, systemInstruction, modelOverride, si
     const fastMode = settings.fastMode === true;
     const reasoningMode = responseMode === 'reasoning' && !fastMode;
     const config = window.LocalAI && typeof window.LocalAI.loadConfig === 'function' ? window.LocalAI.loadConfig(localStorage) : {};
-    const contextLength = settings.contextLength;
+    const contextLength = reasoningMode ? settings.reasoningContextLength : settings.contextLength;
     const requestedOutputTokens = Math.max(1, Number(fastMode ? config.fastMaxTokens : (reasoningMode ? settings.reasoningMaxTokens : settings.quickMaxTokens)) || (fastMode ? 3000 : 4096));
     const timeoutMs = Math.max(1000, Number(fastMode ? config.fastTimeoutMs : settings.timeoutMs) || (fastMode ? 120000 : 580000));
     const fixedInputTokens = estimateAIChatTokens(systemInstruction) + estimateAIChatTokens(normalized[lastUserIndex].content);
@@ -18388,7 +18426,12 @@ function startRealtimeDocStream(options) {
     let end = 0;
     let isReplacing = false;
 
-    if (target === 'document-end') {
+    if (options && options.continuationText) {
+        const previous = String(options.continuationText);
+        const previousStart = raw.lastIndexOf(previous);
+        if (previousStart < 0) throw new Error('이전 답변을 현재 문서에서 찾지 못했습니다. 원문을 복원한 뒤 이어쓰기를 실행하세요.');
+        start = end = previousStart + previous.length;
+    } else if (target === 'document-end') {
         start = end = raw.length;
     } else {
         let selStart = -1;
@@ -18421,7 +18464,7 @@ function startRealtimeDocStream(options) {
     const before = raw.slice(0, start);
     const after = raw.slice(end);
     let prefix = '';
-    if (!isReplacing) {
+    if (!isReplacing && !(options && options.continuationText)) {
         prefix = before && !/\n\s*\n$/.test(before) ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
     }
 
@@ -18726,6 +18769,12 @@ function aiChatDataUrlToFile(dataUrl, name) {
 }
 
 window.AIChatBridge = Object.freeze({
+    setOpenAICompatibleResidency: async function (model, enabled) {
+        const connection = getStoredOpenAICompatibleConnection();
+        const result = await manageOpenAICompatibleResidency(connection, model, enabled, AbortSignal.timeout(600000));
+        localStorage.setItem(compatibleResidencyKey(connection, model), enabled ? '1' : '0');
+        return result;
+    },
     getOllamaGenerationSettings: function () { return normalizeOllamaGenerationSettings(getOllamaSettings()); },
     saveOllamaGenerationSettings: function (value) {
         const settings = normalizeOllamaGenerationSettings(value);
@@ -18895,6 +18944,9 @@ window.AIChatBridge = Object.freeze({
                 const model = String(request.model || connection.modelId || '').trim();
                 if (!model) throw new Error('OrcaRouter / OpenAI 호환 모델을 선택하세요.');
                 const messages = normalizeAIChatMessages(request.messages);
+                if (localStorage.getItem(compatibleResidencyKey(connection, model)) === '1') {
+                    await manageOpenAICompatibleResidency(connection, model, true, controller.signal);
+                }
                 const data = await requestOpenAICompatibleChat(connection, model, messages, request.systemInstruction, request, controller.signal);
                 const choice = data && data.choices && data.choices[0] || {};
                 const message = choice.message || {};

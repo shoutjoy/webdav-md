@@ -838,6 +838,11 @@
       + '      </div>'
       + '      <details class="ai-chat-fast-settings-details">'
       + '        <summary>세부 설정 · FAST / 온도 / Ollama</summary>'
+      + '        <div class="ai-chat-provider-row" role="group" aria-label="OpenAI 호환 모델 연결 유지">'
+      + '          <button type="button" id="ai-chat-compatible-keep-loaded">모델 연결 유지</button>'
+      + '          <button type="button" id="ai-chat-compatible-release">유지 해제</button>'
+      + '        </div>'
+      + '        <p id="ai-chat-compatible-residency-status" class="ai-chat-ollama-settings-help" role="status">OpenAI 호환 · Lemonade 지원 서버에서 선택한 모델을 메모리에 유지합니다. 유지 해제는 모델을 강제로 종료하지 않습니다.</p>'
       + '        <p class="ai-chat-ollama-settings-help">FAST 응답 설정</p>'
       + '        <div class="ai-chat-fast-limits ai-chat-provider-fast-limits" aria-label="FAST 응답 설정">'
       + '          <label>FAST TOK <input id="ai-chat-fast-token-limit" type="number" min="1" step="1" value="3000" inputmode="numeric" aria-label="FAST 최대 토큰"></label>'
@@ -849,9 +854,10 @@
       + '      <p class="ai-chat-ollama-settings-help">0~2 · 낮을수록 일정한 답변, 높을수록 다양한 답변을 생성합니다. 변경하면 자동 저장되며 다음 요청부터 적용됩니다.</p>'
       + '        <p class="ai-chat-ollama-settings-help">Ollama · 즉시 / 추론</p>'
       + '        <div class="ai-chat-fast-limits ai-chat-provider-fast-limits ai-chat-ollama-limits" aria-label="Ollama 응답 설정">'
-      + '          <label>CONTEXT TOK <input id="ai-chat-ollama-context" type="number" min="512" max="262144" step="512" value="12800" aria-label="Ollama 컨텍스트 토큰"></label>'
-      + '          <label>즉시 TOK <input id="ai-chat-ollama-quick-tokens" type="number" min="1" max="262144" value="4096" aria-label="Ollama 즉시 최대 토큰"></label>'
-      + '          <label>추론 TOK <input id="ai-chat-ollama-reasoning-tokens" type="number" min="1" max="262144" value="8192" aria-label="Ollama 추론 최대 토큰"></label>'
+      + '          <label>CONTEXT TOK <input id="ai-chat-ollama-context" type="number" min="512" max="262144" step="512" value="32768" aria-label="Ollama 컨텍스트 토큰"></label>'
+      + '          <label>추론 CONTEXT TOK <input id="ai-chat-ollama-reasoning-context" type="number" min="512" max="262144" step="512" value="65536" aria-label="추론 컨텍스트 토큰"></label>'
+      + '          <label>즉시 TOK <input id="ai-chat-ollama-quick-tokens" type="number" min="1" max="262144" value="16384" aria-label="Ollama 즉시 최대 토큰"></label>'
+      + '          <label>추론 TOK <input id="ai-chat-ollama-reasoning-tokens" type="number" min="1" max="262144" value="32768" aria-label="Ollama 추론 최대 토큰"></label>'
       + '          <label>LIMIT TIME <input id="ai-chat-ollama-timeout" type="number" min="1" max="86400" value="580" aria-label="Ollama 제한 시간(초)"><span>초</span></label>'
       + '          <label>온도 <input id="ai-chat-ollama-temperature" type="number" min="0" max="2" step="0.1" value="0.4" aria-label="Ollama 온도"></label>'
       + '        </div>'
@@ -1009,6 +1015,33 @@
       event.target.value = '';
     });
     document.getElementById('ai-chat-refresh-model').addEventListener('click', function () { refreshModels(false); });
+    ['ai-chat-compatible-keep-loaded', 'ai-chat-compatible-release'].forEach(function (id) {
+      document.getElementById(id).addEventListener('click', async function () {
+        if (state.running || compatibleResidencyBusy) return;
+        if (state.provider !== 'openai-compatible') return setStatus('OrcaRouter / OpenAI 호환 공급자를 선택하세요.', 'error');
+        var enabled = id === 'ai-chat-compatible-keep-loaded';
+        var model = activeProviderModel();
+        var status = document.getElementById('ai-chat-compatible-residency-status');
+        compatibleResidencyBusy = true;
+        document.getElementById('ai-chat-provider').disabled = true;
+        document.getElementById('ai-chat-model').disabled = true;
+        document.getElementById('ai-chat-compatible-keep-loaded').disabled = true;
+        document.getElementById('ai-chat-compatible-release').disabled = true;
+        status.textContent = model + (enabled ? ' · 연결 유지 설정 중...' : ' · 유지 해제 중...');
+        try {
+          await getBridge().setOpenAICompatibleResidency(model, enabled);
+          status.textContent = model + (enabled ? ' · 메모리 고정 확인됨 · 다음 요청에서 재사용' : ' · 유지 해제 확인됨');
+        } catch (error) {
+          status.textContent = model + ' · ' + (error.message || error);
+        } finally {
+          compatibleResidencyBusy = false;
+          document.getElementById('ai-chat-provider').disabled = state.running;
+          document.getElementById('ai-chat-model').disabled = state.running || state.provider === 'lmstudio';
+          document.getElementById('ai-chat-compatible-keep-loaded').disabled = false;
+          document.getElementById('ai-chat-compatible-release').disabled = false;
+        }
+      });
+    });
     document.getElementById('ai-chat-provider-toggle').addEventListener('click', function () {
       syncFastLimitControls();
       setProviderControlsOpen(!state.providerControlsOpen);
@@ -1042,7 +1075,7 @@
     syncFastLimitControls();
     document.getElementById('ai-chat-fast-token-limit').addEventListener('change', saveFastLimitControls);
     document.getElementById('ai-chat-fast-time-limit').addEventListener('change', saveFastLimitControls);
-    ['context', 'quick-tokens', 'reasoning-tokens', 'timeout', 'temperature'].forEach(function (name) {
+    ['context', 'reasoning-context', 'quick-tokens', 'reasoning-tokens', 'timeout', 'temperature'].forEach(function (name) {
       document.getElementById('ai-chat-ollama-' + name).addEventListener('change', saveOllamaGenerationControls);
     });
     document.getElementById('ai-chat-generation-temperature').addEventListener('change', function (event) {
@@ -2625,7 +2658,7 @@
   function syncOllamaGenerationControls() {
     var settings;
     try { settings = getBridge().getOllamaGenerationSettings(); } catch (_) { return; }
-    var fields = { context: settings.contextLength, 'quick-tokens': settings.quickMaxTokens, 'reasoning-tokens': settings.reasoningMaxTokens, timeout: settings.timeoutMs / 1000, temperature: settings.temperature };
+    var fields = { context: settings.contextLength, 'reasoning-context': settings.reasoningContextLength, 'quick-tokens': settings.quickMaxTokens, 'reasoning-tokens': settings.reasoningMaxTokens, timeout: settings.timeoutMs / 1000, temperature: settings.temperature };
     Object.keys(fields).forEach(function (name) {
       var input = document.getElementById('ai-chat-ollama-' + name);
       if (input) input.value = String(fields[name]);
@@ -2637,7 +2670,7 @@
   function saveOllamaGenerationControls() {
     var read = function (name) { return Number(document.getElementById('ai-chat-ollama-' + name).value); };
     try {
-      getBridge().saveOllamaGenerationSettings({ contextLength: read('context'), quickMaxTokens: read('quick-tokens'), reasoningMaxTokens: read('reasoning-tokens'), timeoutMs: read('timeout') * 1000, temperature: read('temperature') });
+      getBridge().saveOllamaGenerationSettings({ contextLength: read('context'), reasoningContextLength: read('reasoning-context'), quickMaxTokens: read('quick-tokens'), reasoningMaxTokens: read('reasoning-tokens'), timeoutMs: read('timeout') * 1000, temperature: read('temperature') });
       syncOllamaGenerationControls();
       setStatus('생성 설정 저장 · OpenAI 호환 / Ollama 온도는 다음 요청부터 적용됩니다.', 'ok');
     } catch (error) { setStatus('Ollama 설정 저장 실패: ' + error.message, 'error'); }
@@ -3114,12 +3147,12 @@
     if (bottomBtn) bottomBtn.classList.toggle('active', state.realtimeDocTarget === 'document-end');
   }
 
-  function beginRealtimeDocForCurrentGeneration() {
+  function beginRealtimeDocForCurrentGeneration(options) {
     if (!state.running || !state.realtimeDocWrite || realtimeDocActive) return false;
     try {
       var bridge = getBridge();
       if (!bridge || typeof bridge.startRealtimeDocStream !== 'function') return false;
-      var streamInit = bridge.startRealtimeDocStream({ target: state.realtimeDocTarget });
+      var streamInit = bridge.startRealtimeDocStream(Object.assign({ target: state.realtimeDocTarget }, options || {}));
       realtimeDocAccumulated = '';
       realtimeDocWritten = '';
       realtimeDocActive = true;
@@ -4462,13 +4495,15 @@
       var message = state.messages[i];
       if (!message) continue;
       if (message.role === 'user') break;
-      if (message.role === 'assistant' && !message.error && String(message.content || '').trim()) parts.unshift(String(message.content).trim());
+      if (message.role === 'assistant' && !message.error && String(message.content || '').trim()) parts.unshift(message);
     }
-    return parts.join('\n\n');
+    return parts.map(function (message, index) {
+      return (index && !message.continuationInline ? '\n\n' : '') + (message.continuationInline ? String(message.content) : String(message.content).trim());
+    }).join('');
   }
 
   async function continueAssistantAnswer(messageIndex) {
-    if (state.running || state.storageInitializing) return;
+    if (state.running || state.storageInitializing || compatibleResidencyBusy) return;
     var requestRevision = generationStopRevision;
     var target = state.messages[messageIndex];
     if (!target || target.role !== 'assistant' || target.error) return;
@@ -4526,6 +4561,10 @@
           { role: 'assistant', content: originalAnswer },
           { role: 'user', content: continuationPrompt }
         ];
+    realtimeDocAccumulated = '';
+    realtimeDocWritten = '';
+    realtimeDocActive = false;
+    realtimeDocExclusive = false;
     setRunning(true);
     startThinkingProgress();
     renderMessages();
@@ -4533,10 +4572,13 @@
     renderMessages();
     setStatus(splitAcademic ? '학술 분할 답변 ' + requestedPart + '/' + academicTotalParts + '을 작성하는 중...' : '이전 답변의 끊긴 지점부터 이어서 작성하는 중...', 'loading');
     try {
+      if (state.realtimeDocWrite && !beginRealtimeDocForCurrentGeneration({ continuationText: originalAnswer })) {
+        throw new Error('이전 답변 뒤에서 실시간 이어쓰기를 시작하지 못했습니다. 현재 문서에 이전 답변이 있는지 확인하세요.');
+      }
       var result = await getBridge().complete({
         provider: state.provider,
         model: activeProviderModel(),
-        mode: 'quick',
+        mode: academicSearch ? 'quick' : state.responseMode,
         academicSearch: academicSearch,
         continuation: true,
         splitAcademicResponse: splitAcademic,
@@ -4551,6 +4593,7 @@
               mermaidInstructionForRequest(sourceUser && sourceUser.content, false),
               '원래 사용자 요청과 직전 assistant 답변 전체를 대화 문맥으로 읽고, 직전 답변 바로 다음 내용만 한국어로 이어서 작성한다.',
               '이미 작성한 내용, 제목, 문장, 문단을 반복하거나 요약하지 않는다.',
+              '마지막 문장의 정확한 다음 글자부터 이어 쓴다. Markdown 제목 단계, 목록 번호, 표의 열과 행, 코드 블록 상태를 유지한다. 새 문단이나 행이 필요한 경우 필요한 줄바꿈부터 출력한다. 기존 결론 뒤에 새 목차를 만들거나 번호를 다시 시작하지 않는다.',
               '내부 추론, 계획, 작업 설명, 체크리스트, "The user wants" 같은 메타 문장을 출력하지 않는다.',
               '첫 토큰부터 사용자에게 보여 줄 새 본문만 출력하고, 남은 요구사항을 충분히 작성한 뒤 완성된 문장으로 끝낸다.'
             ].join(' ')
@@ -4563,10 +4606,18 @@
       if (continuationBody.notice && !continuedStatus.notice) continuedStatus.notice = continuationBody.notice;
       if (academicSearch) continued = normalizeAcademicAnswer(continued, sourceUser && sourceUser.academicSources);
       continued = removeRepeatedContinuation(originalAnswer, continued, academicSearch);
+      if (continued && !academicSearch) {
+        var leadingWhitespace = (continuedRaw.match(/^\s*/) || [''])[0];
+        continued = leadingWhitespace + continued;
+      }
       if (!continued && !continuedStatus.notice) {
         continuedStatus.notice = '모델이 새 내용을 추가하지 않고 기존 답변을 반복했습니다. 기존 답변은 변경되지 않았습니다. “이어서 작성”을 다시 누르면 아직 작성되지 않은 내용만 요청합니다.';
       }
       assertGenerationActive(requestRevision);
+      if (realtimeDocActive) {
+        getBridge().finishRealtimeDocStream(continued);
+        realtimeDocActive = false;
+      }
 
 
       var combinedAnswer = [originalAnswer, continued].filter(Boolean).join('\n\n');
@@ -4577,6 +4628,8 @@
         reasoning: '',
         notice: continuedStatus.notice,
         isContinuation: true,
+        continuationInline: !academicSearch,
+        realtimeDocRecord: realtimeDocExclusive,
         continuationCount: (Number(target.continuationCount) || 0) + 1,
         createdAt: Date.now(),
         provider: result.provider,
@@ -4614,6 +4667,10 @@
       if ((error && error.name === 'AbortError') || /abort|중지/i.test(message)) setStatus('이어서 작성을 중지했습니다.', '');
       else setStatus(message, 'error');
     } finally {
+      if (realtimeDocActive) {
+        try { getBridge().finishRealtimeDocStream(); } catch (_) {}
+        realtimeDocActive = false;
+      }
       stopThinkingProgress();
       setRunning(false);
       saveHistory();
@@ -6118,7 +6175,7 @@
     var result = await getBridge().complete({
       provider: state.provider,
       model: activeProviderModel(),
-      mode: 'quick',
+        mode: 'quick',
       academicSearch: false,
       messages: [{ role: 'user', content: String(query || '') }],
       systemInstruction: [
@@ -6170,6 +6227,7 @@
   }
 
   var generationStopRevision = 0;
+  var compatibleResidencyBusy = false;
 
   function assertGenerationActive(revision) {
     if (revision === generationStopRevision) return;
@@ -6179,7 +6237,7 @@
   }
 
   async function sendMessage() {
-    if (state.running || state.storageInitializing) return;
+    if (state.running || state.storageInitializing || compatibleResidencyBusy) return;
     var requestRevision = generationStopRevision;
     if (attachmentLoading) return setStatus('첨부 파일을 모두 읽은 뒤 전송해 주세요.', 'error');
     var input = document.getElementById('ai-chat-input');
