@@ -18067,6 +18067,9 @@ function applyRealtimeDocText(text) {
     if (typeof editorTextarea.scrollHeight !== 'undefined' && session.target === 'document-end') {
         editorTextarea.scrollTop = editorTextarea.scrollHeight;
     }
+    // A4 pages and previews listen to input on the source textarea. Updating
+    // its value alone leaves those visible editors stale until completion.
+    editorTextarea.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 function scheduleRealtimeDocFlush() {
@@ -18921,7 +18924,7 @@ function ensureSidebarAILoaded() {
     };
     const script = document.createElement('script');
     const base = getDocumentBaseUrl();
-    const aiSidebarScriptVersion = '20261014-scholar-stream-2';
+    const aiSidebarScriptVersion = '20261014-scholar-tone-4';
     try {
         const u = new URL('./sidebarAI/sidebar-ai.js', base);
         u.searchParams.set('v', aiSidebarScriptVersion);

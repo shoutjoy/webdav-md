@@ -43,13 +43,14 @@
         <button type="button" class="sa-btn ghost" id="sa-model-btn" onclick="toggleScholarAIModelSelect()" style="font-size:11px">Model</button>
         <div id="scholar-ai-quick-wrap" class="scholar-ai-quick-wrap">
           <button type="button" id="scholar-ai-quick-toggle" class="sa-btn ghost scholar-ai-quick-toggle" onclick="toggleScholarAIQuickMenu(event)" aria-haspopup="menu" aria-expanded="false">빠른기능 ▾</button>
+<label class="scholar-ai-quick-expand-label" title="빠른기능 버튼 펼치기"><input type="checkbox" id="scholar-ai-quick-expand" aria-label="빠른기능 버튼 펼치기" aria-controls="scholar-ai-quick-menu" onchange="scholarAISetQuickExpanded(this.checked)"></label>
           <div id="scholar-ai-quick-menu" class="scholar-ai-quick-menu" role="menu">
-            <button type="button" id="scholar-ai-academic-ida-btn" class="sa-btn ghost scholar-ai-tone-apply-btn" onclick="scholarAIQuickAction('tone')" role="menuitem">~이다 문체변경</button>
+            <button type="button" id="scholar-ai-academic-ida-btn" class="sa-btn ghost scholar-ai-tone-apply-btn" onclick="scholarAIQuickAction('tone')" role="menuitem">문체</button>
             <div class="scholar-ai-translation-control" title="선택 텍스트를 대학원 수준 이상의 학술 문체로 번역">
-              <button type="button" id="scholar-ai-academic-translate-btn" class="sa-btn ghost scholar-ai-translation-btn" onclick="scholarAIQuickAction('translate')">학술번역</button>
+              <button type="button" id="scholar-ai-academic-translate-btn" class="sa-btn ghost scholar-ai-translation-btn" onclick="scholarAIQuickAction('translate')">번역</button>
               <select id="scholar-ai-translation-direction" aria-label="학술번역 방향" onclick="event.stopPropagation()"><option value="en-ko">EN→KO</option><option value="ko-en">KO→EN</option></select>
             </div>
-            <button type="button" id="scholar-ai-slide-generate-btn" class="sa-btn ghost scholar-ai-slide-generate-btn" onclick="scholarAIQuickAction('slides')" role="menuitem">슬라이드 생성</button>
+            <button type="button" id="scholar-ai-slide-generate-btn" class="sa-btn ghost scholar-ai-slide-generate-btn" onclick="scholarAIQuickAction('slides')" role="menuitem">slide</button>
           </div>
         </div>
       </div>
@@ -306,13 +307,14 @@
         <button type="button" class="sa-btn ghost" id="sa-model-btn" onclick="toggleScholarAIModelSelect()" style="font-size:11px">Model</button>
         <div id="scholar-ai-quick-wrap" class="scholar-ai-quick-wrap">
           <button type="button" id="scholar-ai-quick-toggle" class="sa-btn ghost scholar-ai-quick-toggle" onclick="toggleScholarAIQuickMenu(event)" aria-haspopup="menu" aria-expanded="false">빠른기능 ▾</button>
+<label class="scholar-ai-quick-expand-label" title="빠른기능 버튼 펼치기"><input type="checkbox" id="scholar-ai-quick-expand" aria-label="빠른기능 버튼 펼치기" aria-controls="scholar-ai-quick-menu" onchange="scholarAISetQuickExpanded(this.checked)"></label>
           <div id="scholar-ai-quick-menu" class="scholar-ai-quick-menu" role="menu">
-            <button type="button" id="scholar-ai-academic-ida-btn" class="sa-btn ghost scholar-ai-tone-apply-btn" onclick="scholarAIQuickAction('tone')" role="menuitem">~이다 문체변경</button>
+            <button type="button" id="scholar-ai-academic-ida-btn" class="sa-btn ghost scholar-ai-tone-apply-btn" onclick="scholarAIQuickAction('tone')" role="menuitem">문체</button>
             <div class="scholar-ai-translation-control" title="선택 텍스트를 대학원 수준 이상의 학술 문체로 번역">
-              <button type="button" id="scholar-ai-academic-translate-btn" class="sa-btn ghost scholar-ai-translation-btn" onclick="scholarAIQuickAction('translate')">학술번역</button>
+              <button type="button" id="scholar-ai-academic-translate-btn" class="sa-btn ghost scholar-ai-translation-btn" onclick="scholarAIQuickAction('translate')">번역</button>
               <select id="scholar-ai-translation-direction" aria-label="학술번역 방향" onclick="event.stopPropagation()"><option value="en-ko">EN→KO</option><option value="ko-en">KO→EN</option></select>
             </div>
-            <button type="button" id="scholar-ai-slide-generate-btn" class="sa-btn ghost scholar-ai-slide-generate-btn" onclick="scholarAIQuickAction('slides')" role="menuitem">슬라이드 생성</button>
+            <button type="button" id="scholar-ai-slide-generate-btn" class="sa-btn ghost scholar-ai-slide-generate-btn" onclick="scholarAIQuickAction('slides')" role="menuitem">slide</button>
           </div>
         </div>
       </div>
@@ -2300,7 +2302,9 @@
     if (/^\s*<!DOCTYPE html/i.test(text) || /^\s*<html[\s>]/i.test(text) || /^\s*<(div|section|article|main|style|script)[\s>]/i.test(text)) {
       return { explanation: '', result: scholarAINormalizeResultText(text) };
     }
-    return { explanation: text, result: '' };
+    // Providers may omit the requested envelope. Plain replies are still
+    // document output; explicit explanation/reasoning markers remain excluded.
+    return { explanation: '', result: scholarAINormalizeResultText(text) };
   }
 
   function scholarAIApplyResultText(rawText) {
