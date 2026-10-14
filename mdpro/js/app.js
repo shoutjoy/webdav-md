@@ -16821,7 +16821,7 @@ async function requestLocalAITextStream(url, options, onChunk) {
     if (tail) handleChunk(tail);
 }
 
-async function listOllamaModels(settingsOverride) {
+async function listOllamaModels(settingsOverride, allowEmpty) {
     const settings = Object.assign({}, getOllamaSettings(), settingsOverride || {});
     settings.baseUrl = normalizeOllamaBaseUrl(settings.baseUrl);
     const data = await requestLocalAIJson(settings.baseUrl + '/api/tags', {
@@ -16836,7 +16836,7 @@ async function listOllamaModels(settingsOverride) {
     }).map(function (item) {
         return String(item && (item.id || item.model || item.name) || '').trim();
     }).filter(Boolean);
-    if (!models.length) throw new Error('Ollama에서 사용 가능한 모델을 찾지 못했습니다.');
+    if (!models.length && !allowEmpty) throw new Error('Ollama에서 사용 가능한 모델을 찾지 못했습니다.');
     return Array.from(new Set(models));
 }
 
@@ -18293,7 +18293,7 @@ window.AIChatBridge = Object.freeze({
         return loadSettingsLiteRTLMModels();
     },
     refreshOllamaModels: async function () {
-        const models = await listOllamaModels();
+        const models = await listOllamaModels(undefined, true);
         saveStoredModelList(OLLAMA_MODELS_KEY, models);
         return models;
     },
@@ -18322,7 +18322,7 @@ window.AIChatBridge = Object.freeze({
         return fetchOpenAICompatibleModels(getStoredOpenAICompatibleConnection());
     },
     refreshLMStudioModels: async function () {
-        const result = await getScholarAIProviderRuntime().syncLMStudioLoadedModel();
+        const result = await getScholarAIProviderRuntime().syncLMStudioLoadedModel(undefined, true);
         const models = result.models.map(function (item) { return item.id; }).filter(Boolean);
         saveStoredModelList(SCHOLAR_AI_LM_MODELS_KEY, models);
         return { model: result.model, models: models, contextLength: getAIChatLMContextLength(result) };

@@ -2468,3 +2468,9 @@ body.theme-light .ai-chat-panel.layout-floating.floating-compact {
   flex: 1 1 auto;
   min-width: 72px;
 }
+
+/* Keep connection status visible independently of the selected model label. */
+#ai-chat-provider-connection { flex: 0 0 auto; font-size: 11px; color: #b9c7da; }
+#ai-chat-provider-connection[data-status="connected"] { color: #36e9b5; }
+#ai-chat-provider-connection[data-status="checking"] { color: #f1ce73; }
+#ai-chat-provider-connection[data-status="error"] { color: #ff9393; }

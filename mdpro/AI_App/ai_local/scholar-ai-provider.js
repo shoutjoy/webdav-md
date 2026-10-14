@@ -209,9 +209,10 @@
       }
     }
 
-    async function syncLMStudioLoadedModel(configPatch) {
+    async function syncLMStudioLoadedModel(configPatch, allowEmpty) {
       var loaded = await listLMStudioLoadedModels(configPatch);
       if (!loaded.length) {
+        if (allowEmpty) return { model: '', models: [] };
         throw new Error('LM Studio에 현재 로드된 LLM이 없습니다. LM Studio의 Local Server에서 모델을 먼저 Load 하세요.');
       }
       var configured = String(getLMStudioConfig().model || '').trim();
