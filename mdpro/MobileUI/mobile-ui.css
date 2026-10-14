@@ -300,13 +300,13 @@
 
     body.mobile-ui-active #content-viewport.long-document-active #editor-doc-wrap {
         flex: 0 0 auto;
-        min-height: 320px;
+        min-height: 80px;
         height: max-content;
         overflow: visible;
     }
 
     body.mobile-ui-active #content-viewport.long-document-active #viewer-edit-ta {
-        min-height: 320px;
+        min-height: 80px;
         overflow-y: hidden;
         touch-action: pan-y;
     }

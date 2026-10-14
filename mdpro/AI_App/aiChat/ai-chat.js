@@ -76,6 +76,7 @@
   var OPENAI_MODEL_KEY = 'ss_ai_chat_openai_model';
   var OPENAI_COMPATIBLE_MODEL_KEY = 'ss_ai_chat_openai_compatible_model';
   var OLLAMA_MODEL_KEY = 'ss_ai_chat_ollama_model';
+  var NPU_MODEL_KEY = 'ss_ai_chat_npu_model';
   var LITERTLM_MODEL_KEY = 'ss_ai_chat_litertlm_model';
   var WRITING_STYLE_KEY = 'ss_ai_chat_writing_style';
   var GENERAL_ANSWER_KEY = 'ss_ai_chat_general_answer';
@@ -118,7 +119,7 @@
   var MIGRATION_KEY = 'ss_ai_chat_idb_migrated_v1';
   var SQLITE_SYNC_KEYS = new Set([
     ENABLED_KEY, PROVIDER_KEY, GEMINI_MODEL_KEY, DEEPSEEK_MODEL_KEY, OPENAI_MODEL_KEY, OPENAI_COMPATIBLE_MODEL_KEY,
-    OLLAMA_MODEL_KEY, LITERTLM_MODEL_KEY, WRITING_STYLE_KEY, GENERAL_ANSWER_KEY, ANSWER_APPEARANCE_KEY, ANSWER_FONT_SIZE_KEY, RESPONSE_MODE_KEY, FAST_MODE_KEY, SENTENCE_ONLY_KEY, REALTIME_DOC_WRITE_KEY, REALTIME_DOC_TARGET_KEY, SHOW_REASONING_KEY,
+    OLLAMA_MODEL_KEY, NPU_MODEL_KEY, LITERTLM_MODEL_KEY, WRITING_STYLE_KEY, GENERAL_ANSWER_KEY, ANSWER_APPEARANCE_KEY, ANSWER_FONT_SIZE_KEY, RESPONSE_MODE_KEY, FAST_MODE_KEY, SENTENCE_ONLY_KEY, REALTIME_DOC_WRITE_KEY, REALTIME_DOC_TARGET_KEY, SHOW_REASONING_KEY,
     ACADEMIC_SEARCH_KEY, ACADEMIC_COUNT_KEY, INTERNET_SEARCH_KEY, LAYOUT_KEY, START_LAYOUT_KEY
   ]);
   var CHAT_DB_NAME = 'md_viewer_ai_chat';
@@ -189,6 +190,7 @@
 
 
   var providerConnections = {};
+  var compatibleConnectionSettings = '';
   var modelRefreshRevision = 0;
 
   var state = {
@@ -214,6 +216,7 @@
     geminiModel: 'gemini-3.5-flash-lite',
     ollamaModel: '',
     litertlmModel: '',
+    npuModel: '',
     deepseekModel: 'deepseek-v4-flash',
     openaiModel: 'gpt-5.6-sol',
     openaiCompatibleModel: 'orcarouter/free',
@@ -479,7 +482,7 @@
       academicSearchEnabled: state.academicSearchEnabled,
       academicSearchCount: state.academicSearchCount,
       geminiModel: state.geminiModel,
-      ollamaModel: state.ollamaModel,
+      ollamaModel: state.ollamaModel, npuModel: state.npuModel,
       deepseekModel: state.deepseekModel,
       openaiModel: state.openaiModel,
       openaiCompatibleModel: state.openaiCompatibleModel,
@@ -522,7 +525,7 @@
       academicSearchEnabled: !!record.academicSearchEnabled,
       academicSearchCount: Number(record.academicSearchCount || state.academicSearchCount),
       geminiModel: record.geminiModel || state.geminiModel,
-      ollamaModel: record.ollamaModel || state.ollamaModel,
+      ollamaModel: record.ollamaModel || state.ollamaModel, npuModel: record.npuModel || state.npuModel,
       deepseekModel: record.deepseekModel || state.deepseekModel,
       openaiModel: record.openaiModel || state.openaiModel,
       openaiCompatibleModel: record.openaiCompatibleModel || state.openaiCompatibleModel,
@@ -566,7 +569,7 @@
         academicSearchEnabled: !!conversation.academicSearchEnabled,
         academicSearchCount: Number(conversation.academicSearchCount || 0),
         geminiModel: conversation.geminiModel || '',
-        ollamaModel: conversation.ollamaModel || '',
+        ollamaModel: conversation.ollamaModel || '', npuModel: conversation.npuModel || '',
         deepseekModel: conversation.deepseekModel || '',
         openaiModel: conversation.openaiModel || '',
         openaiCompatibleModel: conversation.openaiCompatibleModel || '',
@@ -656,13 +659,14 @@
     });
     if (record && record.provider) {
       var nextProvider = String(record.provider || '').toLowerCase();
-      state.provider = nextProvider === 'aistudio' || nextProvider === 'ollama' || nextProvider === 'litertlm' || nextProvider === 'deepseek' || nextProvider === 'openai-compatible' || nextProvider === 'openai' ? nextProvider : 'lmstudio';
+      state.provider = nextProvider === 'aistudio' || nextProvider === 'ollama' || nextProvider === 'ollama-npu' || nextProvider === 'litertlm' || nextProvider === 'deepseek' || nextProvider === 'openai-compatible' || nextProvider === 'openai' ? nextProvider : 'lmstudio';
     }
     if (record && record.responseMode) state.responseMode = record.responseMode === 'reasoning' ? 'reasoning' : 'quick';
     if (record && typeof record.showReasoning === 'boolean') state.showReasoning = record.showReasoning;
     if (record && typeof record.academicSearchEnabled === 'boolean') state.academicSearchEnabled = record.academicSearchEnabled;
     if (record && Number(record.academicSearchCount)) state.academicSearchCount = normalizeAcademicCount(record.academicSearchCount);
     if (record && record.geminiModel) state.geminiModel = record.geminiModel;
+    if (record && record.npuModel) state.npuModel = record.npuModel;
     if (record && record.ollamaModel) state.ollamaModel = record.ollamaModel;
     if (record && record.deepseekModel) state.deepseekModel = record.deepseekModel;
     if (record && record.openaiModel) state.openaiModel = record.openaiModel;
@@ -700,7 +704,7 @@
             titleCustomized: false, pinned: false, pinnedAt: 0,
             provider: state.provider, responseMode: state.responseMode, showReasoning: state.showReasoning,
             academicSearchEnabled: state.academicSearchEnabled, academicSearchCount: state.academicSearchCount,
-            geminiModel: state.geminiModel, ollamaModel: state.ollamaModel, deepseekModel: state.deepseekModel, openaiModel: state.openaiModel, openaiCompatibleModel: state.openaiCompatibleModel,
+            geminiModel: state.geminiModel, ollamaModel: state.ollamaModel, npuModel: state.npuModel, deepseekModel: state.deepseekModel, openaiModel: state.openaiModel, openaiCompatibleModel: state.openaiCompatibleModel,
             messages: legacy
           };
           await requestPromise(conversationStore('readwrite').put(migrated));
@@ -719,7 +723,7 @@
           titleCustomized: false, pinned: false, pinnedAt: 0,
           provider: state.provider, responseMode: state.responseMode, showReasoning: state.showReasoning,
           academicSearchEnabled: state.academicSearchEnabled, academicSearchCount: state.academicSearchCount,
-          geminiModel: state.geminiModel, ollamaModel: state.ollamaModel, deepseekModel: state.deepseekModel, openaiModel: state.openaiModel, openaiCompatibleModel: state.openaiCompatibleModel, messages: []
+          geminiModel: state.geminiModel, ollamaModel: state.ollamaModel, npuModel: state.npuModel, deepseekModel: state.deepseekModel, openaiModel: state.openaiModel, openaiCompatibleModel: state.openaiCompatibleModel, messages: []
         };
         state.conversations = [current];
         await requestPromise(conversationStore('readwrite').put(current));
@@ -821,7 +825,7 @@
       + '    </button>'
       + '    <div id="ai-chat-provider-controls" class="ai-chat-provider-controls collapsed">'
       + '      <div class="ai-chat-provider-row">'
-      + '        <label>AI 공급자<select id="ai-chat-provider"><option value="lmstudio">LM Studio</option><option value="litertlm">LiteRT-LM</option><option value="aistudio">AI Studio (Gemini)</option><option value="ollama">Ollama</option><option value="deepseek">DeepSeek (유료)</option><option value="openai-compatible">OrcaRouter / OpenAI 호환</option><option value="openai">OpenAI · ChatGPT 모델 (유료 API)</option></select></label>'
+      + '        <label>AI 공급자<select id="ai-chat-provider"><option value="lmstudio">LM Studio</option><option value="litertlm">LiteRT-LM</option><option value="aistudio">AI Studio (Gemini)</option><option value="ollama">Ollama</option><option value="ollama-npu">Ollama NPU · Lemonade</option><option value="deepseek">DeepSeek (유료)</option><option value="openai-compatible">OrcaRouter / OpenAI 호환</option><option value="openai">OpenAI · ChatGPT 모델 (유료 API)</option></select></label>'
       + '        <label>모델<select id="ai-chat-model"></select></label>'
       + '        <button type="button" id="ai-chat-refresh-model" title="현재 모델 새로고침">↻</button>'
       + '        <button type="button" id="ai-chat-npu-connect" title="Lemonade의 OpenAI 호환 API에서 NPU 전용 모델을 선택합니다. 서버가 실행 중이어야 합니다.">Lemonade AI · NPU 연결</button>'
@@ -833,16 +837,19 @@
       + '        <label class="ai-chat-insert-expand-toggle" title="켜면 각 AI 답변 아래에 삽입 방식을 펼쳐 표시합니다."><input type="checkbox" id="ai-chat-insert-expand"><span>삽입방식</span></label>'
       + '      </div>'
       + '      <details class="ai-chat-fast-settings-details">'
-      + '        <summary>FAST 세부 설정</summary>'
+      + '        <summary>세부 설정 · FAST / 온도 / Ollama</summary>'
+      + '        <p class="ai-chat-ollama-settings-help">FAST 응답 설정</p>'
       + '        <div class="ai-chat-fast-limits ai-chat-provider-fast-limits" aria-label="FAST 응답 설정">'
       + '          <label>FAST TOK <input id="ai-chat-fast-token-limit" type="number" min="1" step="1" value="3000" inputmode="numeric" aria-label="FAST 최대 토큰"></label>'
       + '          <label>LIMIT TIME <input id="ai-chat-fast-time-limit" type="number" min="1" step="1" value="120" inputmode="numeric" aria-label="FAST 제한 시간(초)"><span>초</span></label>'
       + '        </div>'
-      + '      </details>'
-      + '      <details class="ai-chat-fast-settings-details">'
-      + '        <summary>Ollama 세부 설정 · 즉시 / 추론</summary>'
+      + '      <div class="ai-chat-fast-limits ai-chat-provider-fast-limits">'
+      + '        <label>온도 · OpenAI 호환 / Ollama <input id="ai-chat-generation-temperature" type="number" min="0" max="2" step="0.1" value="0.4" aria-label="OpenAI 호환 및 Ollama 생성 온도"></label>'
+      + '      </div>'
+      + '      <p class="ai-chat-ollama-settings-help">0~2 · 낮을수록 일정한 답변, 높을수록 다양한 답변을 생성합니다. 변경하면 자동 저장되며 다음 요청부터 적용됩니다.</p>'
+      + '        <p class="ai-chat-ollama-settings-help">Ollama · 즉시 / 추론</p>'
       + '        <div class="ai-chat-fast-limits ai-chat-provider-fast-limits ai-chat-ollama-limits" aria-label="Ollama 응답 설정">'
-      + '          <label>CONTEXT TOK <input id="ai-chat-ollama-context" type="number" min="512" max="262144" step="512" value="8192" aria-label="Ollama 컨텍스트 토큰"></label>'
+      + '          <label>CONTEXT TOK <input id="ai-chat-ollama-context" type="number" min="512" max="262144" step="512" value="12800" aria-label="Ollama 컨텍스트 토큰"></label>'
       + '          <label>즉시 TOK <input id="ai-chat-ollama-quick-tokens" type="number" min="1" max="262144" value="4096" aria-label="Ollama 즉시 최대 토큰"></label>'
       + '          <label>추론 TOK <input id="ai-chat-ollama-reasoning-tokens" type="number" min="1" max="262144" value="8192" aria-label="Ollama 추론 최대 토큰"></label>'
       + '          <label>LIMIT TIME <input id="ai-chat-ollama-timeout" type="number" min="1" max="86400" value="580" aria-label="Ollama 제한 시간(초)"><span>초</span></label>'
@@ -1013,9 +1020,12 @@
       setStatus('로컬 NPU 서버와 설치 모델을 확인하는 중...', '');
       try {
         if (typeof window.connectAIJenaNPU !== 'function') throw new Error('앱을 새로고침한 후 다시 연결하세요.');
-        var model = await window.connectAIJenaNPU('openai-compatible');
-        state.provider = 'openai-compatible';
-        state.openaiCompatibleModel = model;
+        var model = await window.connectAIJenaNPU('ollama-npu');
+        state.provider = 'ollama-npu';
+        state.npuModel = model;
+        storageSet(PROVIDER_KEY, state.provider);
+        storageSet(NPU_MODEL_KEY, model);
+        updateProviderUI();
         await refreshModels();
         setStatus('AMD NPU 전용 모델 선택됨 · ' + model + ' · 엔진: FastFlowLM', 'ok');
       } catch (error) {
@@ -1034,6 +1044,16 @@
     document.getElementById('ai-chat-fast-time-limit').addEventListener('change', saveFastLimitControls);
     ['context', 'quick-tokens', 'reasoning-tokens', 'timeout', 'temperature'].forEach(function (name) {
       document.getElementById('ai-chat-ollama-' + name).addEventListener('change', saveOllamaGenerationControls);
+    });
+    document.getElementById('ai-chat-generation-temperature').addEventListener('change', function (event) {
+      var input = event.target;
+      if (!input.value.trim() || !input.checkValidity()) {
+        setStatus('온도는 0부터 2까지 0.1 단위로 입력하세요.', 'error');
+        syncOllamaGenerationControls();
+        return;
+      }
+      document.getElementById('ai-chat-ollama-temperature').value = input.value;
+      saveOllamaGenerationControls();
     });
     document.getElementById('ai-chat-layout-menu-button').addEventListener('click', function (event) {
       event.stopPropagation();
@@ -1109,7 +1129,7 @@
     });
     document.getElementById('ai-chat-provider').addEventListener('change', function (event) {
       clearImgGenRestoreState();
-      state.provider = (event.target.value === 'aistudio' || event.target.value === 'ollama' || event.target.value === 'litertlm' || event.target.value === 'deepseek' || event.target.value === 'openai-compatible' || event.target.value === 'openai') ? event.target.value : 'lmstudio';
+      state.provider = (event.target.value === 'aistudio' || event.target.value === 'ollama' || event.target.value === 'ollama-npu' || event.target.value === 'litertlm' || event.target.value === 'deepseek' || event.target.value === 'openai-compatible' || event.target.value === 'openai') ? event.target.value : 'lmstudio';
       storageSet(PROVIDER_KEY, state.provider);
       updateProviderUI();
       refreshModels(false);
@@ -1118,7 +1138,11 @@
     document.getElementById('ai-chat-model').addEventListener('change', function (event) {
       if (state.provider === 'lmstudio') return;
       clearImgGenRestoreState();
-      if (state.provider === 'litertlm') {
+      if (state.provider === 'ollama-npu') {
+        state.npuModel = event.target.value || '';
+        storageSet(NPU_MODEL_KEY, state.npuModel);
+        updateHeaderModel(); saveHistory(); return;
+      } else if (state.provider === 'litertlm') {
         state.litertlmModel = event.target.value || '';
         storageSet(LITERTLM_MODEL_KEY, state.litertlmModel);
         updateHeaderModel(); saveHistory(); return;
@@ -2350,11 +2374,12 @@
   function handleStreamEvent(event) {
     if (!liveStream || !event || !event.type) return;
     var type = String(event.type);
-    var providerLabel = event.provider === 'ollama' || state.provider === 'ollama'
-      ? 'Ollama'
-      : (event.provider === 'litertlm' || state.provider === 'litertlm'
-          ? 'LiteRT-LM'
-          : (event.provider === 'aistudio' || state.provider === 'aistudio' ? 'AI Studio' : 'LM Studio'));
+    var providerLabel = event.provider === 'ollama-npu' || state.provider === 'ollama-npu'
+      ? 'Ollama NPU · Lemonade'
+      : (event.provider === 'ollama' || state.provider === 'ollama' ? 'Ollama'
+        : (event.provider === 'litertlm' || state.provider === 'litertlm' ? 'LiteRT-LM'
+          : (event.provider === 'aistudio' || state.provider === 'aistudio' ? 'AI Studio'
+            : (event.provider === 'openai-compatible' || state.provider === 'openai-compatible' ? 'OrcaRouter / OpenAI 호환' : 'LM Studio'))));
     if (type === 'request.start') {
       liveStream.contextLength = Math.max(0, Number(event.context_length) || 0);
       liveStream.maxOutputTokens = Math.max(0, Number(event.max_output_tokens) || 0);
@@ -2423,7 +2448,7 @@
       var exactTokenRatio = liveStream.maxOutputTokens
         ? liveStream.exactOutputTokens / liveStream.maxOutputTokens
         : 0;
-      liveStream.stage = exactTokenRatio >= 0.92 && (state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'litertlm')
+      liveStream.stage = exactTokenRatio >= 0.92 && (state.provider === 'lmstudio' || state.provider === 'ollama' || (state.provider === 'litertlm' || state.provider === 'ollama-npu'))
         ? '출력 한도 근접 · 이어쓰기 준비'
         : '응답 완료';
       liveStream.progress = 100;
@@ -2455,7 +2480,7 @@
     thinkingProgress = 2;
     liveStream = {
       phase: 'connecting',
-      stage: (state.provider === 'ollama' ? 'Ollama' : (state.provider === 'aistudio' ? 'AI Studio' : 'LM Studio')) + ' 연결 중',
+      stage: state.provider === 'ollama-npu' ? 'Ollama NPU · Lemonade 연결 중' : (state.provider === 'ollama' ? 'Ollama' : (state.provider === 'aistudio' ? 'AI Studio' : 'LM Studio')) + ' 연결 중',
       progress: 2,
       contextLength: state.lmContextLength || 0,
       maxOutputTokens: 0,
@@ -2605,6 +2630,8 @@
       var input = document.getElementById('ai-chat-ollama-' + name);
       if (input) input.value = String(fields[name]);
     });
+    var temperature = document.getElementById('ai-chat-generation-temperature');
+    if (temperature) temperature.value = String(settings.temperature);
   }
 
   function saveOllamaGenerationControls() {
@@ -2612,7 +2639,7 @@
     try {
       getBridge().saveOllamaGenerationSettings({ contextLength: read('context'), quickMaxTokens: read('quick-tokens'), reasoningMaxTokens: read('reasoning-tokens'), timeoutMs: read('timeout') * 1000, temperature: read('temperature') });
       syncOllamaGenerationControls();
-      setStatus('Ollama 세부 설정 저장 · 다음 요청부터 적용됩니다.', 'ok');
+      setStatus('생성 설정 저장 · OpenAI 호환 / Ollama 온도는 다음 요청부터 적용됩니다.', 'ok');
     } catch (error) { setStatus('Ollama 설정 저장 실패: ' + error.message, 'error'); }
   }
 
@@ -2630,6 +2657,8 @@
       summary.textContent = 'AI 공급자 · LM Studio · ' + (state.lmModel || '로드 모델 확인 필요');
     } else if (state.provider === 'ollama') {
       summary.textContent = 'AI 공급자 · Ollama · ' + (state.ollamaModel || '모델 확인 필요');
+    } else if (state.provider === 'ollama-npu') {
+      summary.textContent = 'AI 공급자 · Ollama NPU · Lemonade · ' + (state.npuModel || '모델 확인 필요');
     } else if (state.provider === 'litertlm') {
       summary.textContent = 'AI 공급자 · LiteRT-LM · ' + (state.litertlmModel || '모델 확인 필요');
     } else if (state.provider === 'deepseek') {
@@ -3220,6 +3249,8 @@
         : 'LM Studio · 로드 모델 확인 필요';
     } else if (state.provider === 'ollama') {
       header.textContent = 'Ollama · ' + (state.ollamaModel || '모델 확인 필요');
+    } else if (state.provider === 'ollama-npu') {
+      header.textContent = 'Ollama NPU · Lemonade · ' + (state.npuModel || '모델 확인 필요');
     } else if (state.provider === 'litertlm') {
       header.textContent = 'LiteRT-LM · ' + (state.litertlmModel || '모델 확인 필요');
     } else if (state.provider === 'deepseek') {
@@ -3328,6 +3359,7 @@
   function activeProviderModel() {
     if (state.provider === 'aistudio') return state.geminiModel;
     if (state.provider === 'ollama') return state.ollamaModel;
+    if (state.provider === 'ollama-npu') return state.npuModel;
     if (state.provider === 'litertlm') return state.litertlmModel;
     if (state.provider === 'deepseek') return state.deepseekModel;
     if (state.provider === 'openai') return state.openaiModel;
@@ -3449,6 +3481,13 @@
       var ollamaModelSelect = document.getElementById('ai-chat-model');
       if (ollamaModelSelect && ollamaModelSelect.value) state.ollamaModel = ollamaModelSelect.value;
       storageSet(OLLAMA_MODEL_KEY, state.ollamaModel || '');
+    } else if (state.provider === 'ollama-npu') {
+      var cachedNPUModels = [];
+      try { cachedNPUModels = getBridge().getCachedNPUModels(); } catch (_) {}
+      setModelOptions(cachedNPUModels, state.npuModel, false);
+      var liteModelSelect = document.getElementById('ai-chat-model');
+      state.npuModel = liteModelSelect && liteModelSelect.value ? liteModelSelect.value : '';
+      storageSet(NPU_MODEL_KEY, state.npuModel);
     } else if (state.provider === 'litertlm') {
       var cachedLiteRTLMModels = [];
       try { cachedLiteRTLMModels = getBridge().getCachedLiteRTLMModels(); } catch (_) {}
@@ -3498,6 +3537,12 @@
   async function refreshModels(silent) {
     if (!state.open && silent) return;
     var requestedProvider = state.provider;
+    var compatibleSettings = JSON.stringify([
+      storageGet('ss_openai_compatible_base_url'), storageGet('ss_openai_compatible_api_key')
+    ]);
+    if (silent && requestedProvider === 'openai-compatible'
+        && providerConnections[requestedProvider] === 'connected'
+        && compatibleConnectionSettings === compatibleSettings) return;
     var refreshRevision = ++modelRefreshRevision;
     providerConnections[requestedProvider] = 'checking';
     updateProviderSummary();
@@ -3522,6 +3567,14 @@
           ? 'Ollama 서버 연결됨 · 선택 모델: ' + state.ollamaModel
           : 'Ollama 서버 연결됨 · 설치된 모델이 없습니다.',
           state.ollamaModel ? 'ok' : 'error');
+      } else if (state.provider === 'ollama-npu') {
+        var liteModels = await bridge.refreshNPUModels();
+        if (state.provider !== requestedProvider || refreshRevision !== modelRefreshRevision) return;
+        setModelOptions(liteModels || [], state.npuModel, false);
+        var liteSelect = document.getElementById('ai-chat-model');
+        state.npuModel = liteSelect && liteSelect.value ? liteSelect.value : '';
+        storageSet(NPU_MODEL_KEY, state.npuModel);
+        setStatus(state.npuModel ? 'Ollama NPU · Lemonade 연결 완료: ' + state.npuModel : 'Ollama NPU · Lemonade 모델이 없습니다.', state.npuModel ? 'ok' : 'error');
       } else if (state.provider === 'litertlm') {
         var liteModels = await bridge.refreshLiteRTLMModels();
         if (state.provider !== requestedProvider || refreshRevision !== modelRefreshRevision) return;
@@ -3577,6 +3630,7 @@
           : 'AI Studio 전체 모델 목록입니다. 계정별 할당량과 전용 API 지원 여부는 별도 확인이 필요합니다.', 'ok');
       }
       providerConnections[requestedProvider] = 'connected';
+      if (requestedProvider === 'openai-compatible') compatibleConnectionSettings = compatibleSettings;
       updateHeaderModel();
       updateModelModeUI();
     } catch (error) {
@@ -3588,6 +3642,9 @@
         setModelOptions([], '', true);
       } else if (state.provider === 'ollama') {
         state.ollamaModel = '';
+        setModelOptions([], '', false);
+      } else if (state.provider === 'ollama-npu') {
+        state.npuModel = '';
         setModelOptions([], '', false);
       } else if (state.provider === 'litertlm') {
         state.litertlmModel = '';
@@ -4485,7 +4542,7 @@
         splitAcademicResponse: splitAcademic,
         previousResponseId: null,
         messages: continuationMessages,
-        onStreamEvent: state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'litertlm' || state.provider === 'aistudio' ? handleStreamEvent : undefined,
+        onStreamEvent: state.provider === 'openai-compatible' || state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'ollama-npu' || state.provider === 'litertlm' || state.provider === 'aistudio' ? handleStreamEvent : undefined,
         systemInstruction: academicSearch
           ? academicContinuationInstruction(evidence, splitAcademic ? requestedPart : 0, continuationEvidenceProfile)
           : [
@@ -5588,6 +5645,8 @@
     var currentTitle = titleFromMessages(state.messages);
     var providerLabel = state.provider === 'lmstudio'
       ? 'LM Studio'
+      : state.provider === 'ollama-npu'
+      ? 'Ollama NPU · Lemonade'
       : state.provider === 'ollama'
       ? 'Ollama'
       : state.provider === 'deepseek'
@@ -5599,6 +5658,8 @@
       : 'AI Studio (Gemini)';
     var modelLabel = state.provider === 'lmstudio'
       ? (state.lmModel || '확인되지 않음')
+      : state.provider === 'ollama-npu'
+      ? (state.npuModel || '확인되지 않음')
       : state.provider === 'ollama'
       ? (state.ollamaModel || '확인되지 않음')
       : state.provider === 'deepseek'
@@ -5677,7 +5738,7 @@
       id: newId(), title: '새 대화', createdAt: Date.now(), updatedAt: Date.now(),
       provider: state.provider, responseMode: state.responseMode, showReasoning: state.showReasoning,
       academicSearchEnabled: state.academicSearchEnabled, academicSearchCount: state.academicSearchCount,
-      geminiModel: state.geminiModel, ollamaModel: state.ollamaModel, deepseekModel: state.deepseekModel, openaiModel: state.openaiModel, openaiCompatibleModel: state.openaiCompatibleModel, messages: []
+      geminiModel: state.geminiModel, ollamaModel: state.ollamaModel, npuModel: state.npuModel, deepseekModel: state.deepseekModel, openaiModel: state.openaiModel, openaiCompatibleModel: state.openaiCompatibleModel, messages: []
     };
     if (state.dbReady) {
       await requestPromise(conversationStore('readwrite').put(record));
@@ -6284,7 +6345,7 @@
         messages: academicSearchActive
           ? [{ role: 'user', content: academicModelInput(text, pendingUser.academicQuery, splitAcademicResponse ? 1 : 0, !!reusableAcademic, academicProfile) }]
           : contextMessages({ reasoningMode: state.responseMode === 'reasoning' }),
-        onStreamEvent: state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'litertlm' || state.provider === 'aistudio' ? handleStreamEvent : undefined,
+        onStreamEvent: state.provider === 'openai-compatible' || state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'ollama-npu' || state.provider === 'litertlm' || state.provider === 'aistudio' ? handleStreamEvent : undefined,
         systemInstruction: academicSearchActive
           ? academicSystemInstruction(academicEvidence, splitAcademicResponse ? 1 : 0, academicProfile)
           : internetSearchActive
@@ -6295,6 +6356,7 @@
                 ? ('현재 활성 문서에 실시간으로 직접 작성하는 모드입니다. ' + (pendingUser && pendingUser.selectedDocText ? '문서에서 [선택한 문서 텍스트]를 대체하여 들어갈 완성된 최종 내용만 첫 단어부터 작성하세요.' : '문서에 바로 들어갈 최종 본문 내용만 첫 단어부터 작성하세요.') + ' [EXPLANATION]이나 [ANSWER] 같은 태그, 목차, 서론 설명, 인사말, 메타 발언을 일절 출력하지 말고 바로 본문만 작성하세요.')
                 : 'FAST mode. Use only the latest user message and answer it directly and concisely. Include a brief explanation, code, list, or other structure when it is useful to satisfy the request, but omit greetings, repetition, and meta-commentary.',
               'Choose the response format that best fits the request instead of forcing a particular format.',
+              'Follow the latest user request over earlier conversation topics. Answer in Korean unless the user explicitly requests another language; preserve requested foreign quotations, names, formulas and code. When the user supplies exact text to repeat, copy that text verbatim, changing only the requested numbering. Do not replace it with paraphrases, translations or previous answers. Output the completed result only, without self-corrections, drafts or correction commentary.',
               writingStyleInstruction({ academic: false }),
               sentenceOnlyInstruction(),
               mermaidInstructionForRequest(text, state.fastMode)
@@ -6521,7 +6583,7 @@
     setHeaderUtilitiesVisible(storageGet(HEADER_UTILITIES_KEY, '0') === '1');
     bindPreserveEditorSelectionOnPanel();
     var savedProvider = storageGet(PROVIDER_KEY, 'lmstudio');
-    state.provider = savedProvider === 'aistudio' || savedProvider === 'ollama' || savedProvider === 'litertlm' || savedProvider === 'deepseek' || savedProvider === 'openai-compatible' || savedProvider === 'openai'
+    state.provider = savedProvider === 'aistudio' || savedProvider === 'ollama' || savedProvider === 'ollama-npu' || savedProvider === 'litertlm' || savedProvider === 'deepseek' || savedProvider === 'openai-compatible' || savedProvider === 'openai'
       ? savedProvider
       : (savedProvider === 'lmstudio' ? 'lmstudio' : 'lmstudio');
     state.providerControlsOpen = storageGet(PROVIDER_CONTROLS_KEY, '0') === '1';
@@ -6561,6 +6623,7 @@
     if (state.academicSearchEnabled && state.internetSearchEnabled) state.internetSearchEnabled = false;
     state.academicSearchCount = normalizeAcademicCount(storageGet(ACADEMIC_COUNT_KEY, '10'));
     state.geminiModel = storageGet(GEMINI_MODEL_KEY, DEFAULT_GEMINI_MODELS[0]);
+    state.npuModel = storageGet(NPU_MODEL_KEY, state.npuModel || '');
     state.ollamaModel = storageGet(OLLAMA_MODEL_KEY, '');
     state.deepseekModel = storageGet(DEEPSEEK_MODEL_KEY, DEFAULT_DEEPSEEK_MODELS[0]);
     state.openaiModel = storageGet(OPENAI_MODEL_KEY, DEFAULT_OPENAI_MODELS[0]);
@@ -6618,10 +6681,11 @@
     },
     syncSettings: function () {
       var provider = storageGet(PROVIDER_KEY, state.provider);
-      state.provider = provider === 'aistudio' || provider === 'ollama' || provider === 'litertlm' || provider === 'deepseek' || provider === 'openai-compatible' || provider === 'openai'
+      state.provider = provider === 'aistudio' || provider === 'ollama' || provider === 'ollama-npu' || provider === 'litertlm' || provider === 'deepseek' || provider === 'openai-compatible' || provider === 'openai'
         ? provider : 'lmstudio';
       state.geminiModel = storageGet(GEMINI_MODEL_KEY, state.geminiModel);
-      state.ollamaModel = storageGet(OLLAMA_MODEL_KEY, state.ollamaModel);
+      state.npuModel = storageGet(NPU_MODEL_KEY, state.npuModel || '');
+    state.ollamaModel = storageGet(OLLAMA_MODEL_KEY, state.ollamaModel);
       state.litertlmModel = storageGet(LITERTLM_MODEL_KEY, state.litertlmModel);
       state.deepseekModel = storageGet(DEEPSEEK_MODEL_KEY, state.deepseekModel);
       state.openaiModel = storageGet(OPENAI_MODEL_KEY, state.openaiModel);

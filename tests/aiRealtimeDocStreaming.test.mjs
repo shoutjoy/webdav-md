@@ -22,6 +22,8 @@ test('streamed answer updates the visible document before completion and retains
     Event, performAutoSave() {}, activeSidebarTab: '', renderTOC() {}
   });
   vm.runInContext(streaming, context);
+  // Caret layout is covered separately; this harness only paints input events.
+  context.followRealtimeDocCaret = () => {};
   context.startRealtimeDocStream({ target: 'cursor' });
   painted.length = 0;
   context.writeRealtimeDocStreamChunk('First');

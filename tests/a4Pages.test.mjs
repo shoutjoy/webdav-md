@@ -87,13 +87,34 @@ function setup(createAllowed = true) {
     return { window, source, wrap, viewer, host, inputs, type, document, handlers };
 }
 
-test('blank continuous documents start at an A4 portrait height', () => {
+test('blank continuous documents keep only a small input floor', () => {
     const env = setup();
     env.window.A4Pages.sync('');
-    assert.equal(env.wrap.style.height, '1123px');
-    assert.equal(env.source.style.height, '1123px');
-    assert.equal(env.viewer.style.minHeight, '1123px');
+    assert.equal(env.wrap.style.height, '80px');
+    assert.equal(env.source.style.height, '80px');
+    assert.equal(env.viewer.style.minHeight, '80px');
     assert.equal(env.viewer.style.height, 'auto');
+});
+
+test('empty document fills the visible viewport and grows beyond it with content', () => {
+    const env = setup();
+    const viewport = env.document.getElementById('content-viewport');
+    Object.defineProperty(viewport, 'clientHeight', { configurable: true, value: 800 });
+    env.window.A4Pages.fitLongDocumentToContent();
+    assert.equal(env.wrap.style.height, '760px');
+    assert.equal(env.viewer.style.minHeight, '760px');
+    env.source.__mdCm6View = { dom: { isConnected: true }, scrollDOM: {}, contentHeight: 1400 };
+    env.window.A4Pages.fitLongDocumentToContent();
+    assert.equal(env.wrap.style.height, '1442px');
+    env.source.__mdCm6View.contentHeight = 20;
+    Object.defineProperty(viewport, 'clientHeight', { value: 600 });
+    env.window.A4Pages.fitLongDocumentToContent();
+    assert.equal(env.wrap.style.height, '560px');
+    env.document.body.classList.add('viewer-view-mode');
+    Object.defineProperty(env.document.getElementById('viewer-container'), 'clientHeight', { value: 700 });
+    env.window.A4Pages.fitLongDocumentToContent();
+    assert.equal(env.wrap.style.height, '660px');
+    assert.equal(env.viewer.style.minHeight, '660px');
 });
 
 test('continuous CodeMirror sheet fits the visible editor instead of its hidden textarea', () => {
@@ -106,7 +127,7 @@ test('continuous CodeMirror sheet fits the visible editor instead of its hidden 
 
     env.source.__mdCm6View.contentHeight = 64;
     env.window.A4Pages.fitLongDocumentToContent();
-    assert.equal(env.wrap.style.height, '1123px', 'the sheet shrinks to its A4 floor with the document');
+    assert.equal(env.wrap.style.height, '106px', 'the sheet shrinks with the document');
 });
 
 test('continuous view sheet follows rendered content height and can shrink again', () => {
@@ -118,7 +139,52 @@ test('continuous view sheet follows rendered content height and can shrink again
 
     env.viewer.replaceChildren();
     env.window.A4Pages.fitLongDocumentToContent();
-    assert.equal(env.viewer.style.minHeight, '1123px');
+    assert.equal(env.viewer.style.minHeight, '80px');
+});
+
+test('streamed wrapped content stays inside the sheet when estimated height lags', () => {
+    const env = setup();
+    let renderedHeight = 2600;
+    env.source.__mdCm6View = {
+        dom: { isConnected: true }, scrollDOM: {}, contentHeight: 400,
+        contentDOM: { getBoundingClientRect: () => ({ height: renderedHeight }) }
+    };
+    env.source.dispatchEvent({ type: 'mdpro:editor-geometry-change' });
+    assert.equal(env.wrap.style.height, '2642px');
+    assert.equal(env.viewer.style.minHeight, '2642px');
+    renderedHeight = 3000;
+    env.source.dispatchEvent({ type: 'input' });
+    assert.equal(env.wrap.style.height, '3042px');
+    renderedHeight = 100;
+    env.window.A4Pages.fitLongDocumentToContent();
+    assert.equal(env.wrap.style.height, '442px');
+});
+
+test('continuous documents expose width resizing without manual height control', () => {
+    const env = setup();
+    assert.equal(env.viewer.children.some(child => child.dataset.resizeKind === 'height'), false);
+    env.document.body.classList.add('viewer-view-mode');
+    const handle = env.viewer.children.find(child => child.dataset.resizeKind === 'corner');
+    handle.parentElement = env.viewer;
+    handle.closest = () => handle;
+    env.handlers.pointerdown({ target: handle, clientX: 0, clientY: 0, preventDefault() {} });
+    env.handlers.pointermove({ clientX: 0, clientY: 1500 });
+    assert.equal(env.wrap.style.height, '80px');
+    assert.equal(env.viewer.style.minHeight, '80px');
+    assert.equal(env.wrap.style.width, env.viewer.style.width);
+    assert.equal(env.viewer.dataset.longManualHeight, undefined);
+});
+
+test('shared continuous height includes either editor or rendered content', () => {
+    const env = setup();
+    env.source.__mdCm6View = { dom: { isConnected: true }, scrollDOM: {}, contentHeight: 2400 };
+    env.window.A4Pages.fitLongDocumentToContent();
+    assert.equal(env.wrap.style.height, '2442px');
+    assert.equal(env.viewer.style.minHeight, '2442px');
+    env.source.__mdCm6View.contentHeight = 50;
+    env.window.A4Pages.fitLongDocumentToContent();
+    assert.equal(env.wrap.style.height, '92px');
+    assert.equal(env.viewer.style.minHeight, '92px');
 });
 
 test('A4 is opt-in and original blank documents retain the original editor', () => {

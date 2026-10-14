@@ -158,7 +158,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260914-serpapi-vault-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?v=20261014-ollama-mode-settings-1',
+    aiChat: './AI_App/aiChat/ai-chat.js?v=20261014-settings-single-fold-10',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260925-nonprinting-3'
@@ -1634,6 +1634,14 @@ function applyOpenAICompatibleProviderPreset() {
 
 // Only select the NPU model after the local server confirms it is installed.
 window.connectAIJenaNPU = async function (protocol) {
+    if (protocol === 'ollama-npu') {
+        const models = await listNPUModels();
+        const previous = localStorage.getItem('ss_ai_chat_npu_model');
+        const model = models.includes(previous) ? previous : models[0];
+        localStorage.setItem('ss_ai_chat_npu_model', model);
+        localStorage.setItem('ss_ai_chat_provider', 'ollama-npu');
+        return model;
+    }
     if (protocol === 'openai-compatible') {
         const connection = { baseUrl: OPENAI_COMPATIBLE_PROVIDER_URLS.lemonade, apiKey: 'lemonade-local', modelId: 'qwen3-it-4b-FLM' };
         const models = await fetchOpenAICompatibleModels(connection);
@@ -1805,6 +1813,167 @@ function getStoredOpenAICompatibleConnection() {
         apiKey: key,
         modelId: String(localStorage.getItem('ss_ai_chat_openai_compatible_model') || localStorage.getItem('ss_openai_compatible_model_id') || OPENAI_COMPATIBLE_DEFAULTS.modelId).trim()
     };
+}
+
+// Keep the newest question intact; only discard complete older turns.
+function fitOpenAICompatibleContext(messages, tokenBudget) {
+    const result = messages.slice();
+    const estimate = item => Array.from(String(item.content || '')).reduce((sum, char) => sum + (char.charCodeAt(0) < 128 ? 0.25 : 1), 24);
+    const firstUser = () => result.findIndex(item => item.role === 'user');
+    while (result.reduce((sum, item) => sum + estimate(item), 0) > tokenBudget) {
+        const start = firstUser();
+        const next = result.findIndex((item, index) => index > start && item.role === 'user');
+        if (start < 0 || next < 0) break;
+        result.splice(start, next - start);
+    }
+    return result;
+}
+
+async function readScholarAITextEventStream(response, emit) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let answer = '';
+    let reasoning = '';
+    let finalResponse = {};
+    function consume(block) {
+        const dataText = block.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
+        if (!dataText || dataText === '[DONE]') return;
+        const event = JSON.parse(dataText);
+        if (event.error || event.type === 'response.failed' || event.type === 'error') {
+            throw new Error(event.error?.message || event.response?.error?.message || event.message || 'AI 스트리밍 응답 오류');
+        }
+        if (event.type === 'response.completed' || event.type === 'response.incomplete') finalResponse = event.response || {};
+        const choice = event.choices && event.choices[0];
+        const delta = choice && choice.delta || {};
+        const content = event.type === 'response.output_text.delta' ? event.delta : delta.content;
+        if (typeof content === 'string' && content) {
+            answer += content;
+            emit({ type: 'message.delta', content: content });
+        }
+        if (delta.reasoning_content) {
+            reasoning += delta.reasoning_content;
+            emit({ type: 'reasoning.delta', content: delta.reasoning_content });
+        }
+        if (choice && choice.finish_reason) finalResponse.finishReason = choice.finish_reason;
+        if (event.usage) finalResponse.usage = event.usage;
+        if (event.model) finalResponse.model = event.model;
+    }
+    try {
+        while (true) {
+            const part = await reader.read();
+            buffer += part.done ? decoder.decode() : decoder.decode(part.value, { stream: true });
+            buffer = buffer.replace(/\r\n/g, '\n');
+            let boundary;
+            while ((boundary = buffer.indexOf('\n\n')) >= 0) {
+                consume(buffer.slice(0, boundary));
+                buffer = buffer.slice(boundary + 2);
+            }
+            if (part.done) break;
+        }
+        if (buffer.trim()) consume(buffer);
+    } finally { reader.releaseLock(); }
+    return Object.assign({}, finalResponse, {
+        output_text: answer,
+        choices: [{ message: { content: answer, reasoning_content: reasoning }, finish_reason: finalResponse.finishReason || '' }]
+    });
+}
+
+const openAICompatibleContextLimits = new Map();
+const openAICompatibleOutputLimits = new Map();
+
+function budgetOpenAICompatibleChat(model, messages, systemInstruction, request) {
+    const details = readOpenAICompatibleModelsCache().find(row => row.id === model) || {};
+    const configuredContext = normalizeOllamaGenerationSettings(getOllamaSettings()).contextLength;
+    const reportedContext = Number(details.context_length || details.max_context_window || details.contextLength) || configuredContext;
+    let contextLength = Math.max(256, Math.min(reportedContext, configuredContext, Number(request.contextLimit) || reportedContext));
+    const config = getScholarAIProviderRuntime().getLMStudioConfig();
+    const requestedOutput = Math.max(1, Number(request.outputLimit) || Number(request.fastMode ? config.fastMaxTokens
+        : (request.mode === 'reasoning' ? config.reasoningMaxTokens : config.quickMaxTokens)) || 4096);
+    const current = messages.slice(-1);
+    const system = systemInstruction ? [{ role: 'system', content: String(systemInstruction) }] : [];
+    const count = rows => rows.reduce((sum, row) => sum + Math.ceil(estimateAIChatTokens(row.content) * 1.5) + 16, 0);
+    // The app's formatting instructions can exceed small local windows by
+    // themselves. Preserve the current question; compact only app instructions.
+    const systemBudget = Math.max(0, Math.min(1024, Math.floor(contextLength * 0.2), contextLength - count(current) - 512));
+    if (system.length && count(system) > systemBudget) {
+        const original = system[0].content;
+        let low = 0, high = original.length;
+        while (low < high) {
+            const middle = Math.ceil((low + high) / 2);
+            const head = Math.ceil(middle * 0.7);
+            const tail = middle - head;
+            const content = original.slice(0, head) + '\n' + (tail ? original.slice(-tail) : '');
+            if (count([{ role: 'system', content }]) <= systemBudget) low = middle;
+            else high = middle - 1;
+        }
+        const head = Math.ceil(low * 0.7), tail = low - head;
+        if (low) system[0].content = original.slice(0, head) + '\n' + (tail ? original.slice(-tail) : '');
+        else system.length = 0;
+    }
+    const fixedTokens = count(system.concat(current));
+    if (fixedTokens + 256 >= contextLength && fixedTokens + 256 < reportedContext) contextLength = reportedContext;
+    if (fixedTokens + 256 >= contextLength) {
+        throw new Error('선택한 모델의 입력 한도(' + contextLength + ' 토큰)를 초과했습니다. 질문이나 첨부 문서를 줄이거나 컨텍스트가 더 큰 모델을 선택하세요.');
+    }
+    const reserve = Math.min(requestedOutput, Math.max(256, Math.floor(contextLength * 0.32)));
+    const history = retainAIChatHistory(messages.slice(0, -1), Math.max(0, contextLength - fixedTokens - reserve - 256));
+    const retained = system.concat(history, current);
+    const inputTokens = count(retained);
+    const outputLimit = Number(details.top_provider && details.top_provider.max_completion_tokens) || requestedOutput;
+    return { messages: retained, contextLength: contextLength, inputTokens: inputTokens, fixedTokens: fixedTokens,
+        maxTokens: Math.max(1, Math.floor(Math.min(requestedOutput, outputLimit, contextLength - inputTokens - 256))) };
+}
+
+async function requestOpenAICompatibleChat(connection, model, messages, systemInstruction, request, signal) {
+    if (!request) { signal = systemInstruction; systemInstruction = ''; request = {}; }
+    const key = connection.baseUrl + '\n' + model;
+    const emit = typeof request.onStreamEvent === 'function' ? request.onStreamEvent : null;
+    const generation = normalizeOllamaGenerationSettings(getOllamaSettings());
+    let contextLimit = openAICompatibleContextLimits.get(key);
+    let outputLimit = openAICompatibleOutputLimits.get(key);
+    let retainedMessages = messages;
+    for (let attempt = 0; attempt < 5; attempt++) {
+        const budget = budgetOpenAICompatibleChat(model, retainedMessages, systemInstruction, Object.assign({}, request, { contextLimit: contextLimit, outputLimit: outputLimit }));
+        let receivedContent = false;
+        const forward = event => {
+            if ((event.type === 'message.delta' || event.type === 'reasoning.delta') && event.content) receivedContent = true;
+            if (emit) emit(event);
+        };
+        forward({ type: 'request.start', provider: 'openai-compatible', context_length: budget.contextLength,
+            estimated_input_tokens: budget.inputTokens, max_output_tokens: budget.maxTokens });
+        try {
+            const response = await fetch(connection.baseUrl + '/chat/completions', {
+                method: 'POST',
+                headers: { Accept: emit ? 'text/event-stream, application/json' : 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer ' + connection.apiKey },
+                body: JSON.stringify({ model: model, messages: budget.messages, max_tokens: budget.maxTokens, temperature: generation.temperature, stream: !!emit }),
+                signal: signal
+            });
+            if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
+            forward({ type: 'chat.start', provider: 'openai-compatible' });
+            const data = emit && /text\/event-stream/i.test(response.headers.get('content-type') || '')
+                ? await readScholarAITextEventStream(response, forward) : await response.json();
+            if (data.error) throw new Error(String(data.error.message || data.error));
+            if (contextLimit) openAICompatibleContextLimits.set(key, contextLimit);
+            if (outputLimit) openAICompatibleOutputLimits.set(key, outputLimit);
+            return data;
+        } catch (error) {
+            if (error.name === 'AbortError' || !/max length reached|context.{0,40}(exceed|length|limit|window)|maximum context|too many tokens|prompt.{0,30}too long|token.{0,20}limit/i.test(error.message)) throw error;
+            if (receivedContent || attempt === 4) {
+                throw new Error('OpenAI 호환 서버가 Max length reached 오류를 반환했습니다. 대화 이력과 답변 생성 한도를 줄여도 실패했습니다. 서버의 모델 컨텍스트 및 세션 설정을 확인해 주세요.');
+            }
+            // A length error can mean an output limit, not an oversized question.
+            // Never shrink the context below the unchanged system and current input.
+            outputLimit = Math.max(32, Math.floor(budget.maxTokens / 2));
+            contextLimit = Math.min(budget.contextLength, Math.max(
+                budget.fixedTokens + outputLimit + 257, Math.floor(budget.contextLength / 2)
+            ));
+            retainedMessages = retainedMessages.slice();
+            const oldest = retainedMessages.findIndex(item => item.role === 'user');
+            const next = retainedMessages.findIndex((item, index) => index > oldest && item.role === 'user');
+            if (oldest >= 0 && next >= 0) retainedMessages.splice(oldest, next - oldest);
+        }
+    }
 }
 
 async function fetchOpenAICompatibleModels(connection) {
@@ -4744,6 +4913,9 @@ function toggleMode(mode, options) {
         console.warn('toggleMode: viewer-container or content-viewport not found.', { vc: !!vc, ec: !!ec });
         return;
     }
+    const longScrollSync = ec.classList.contains('long-document-active');
+    const modeScrollRatio = getScrollRatio(isEditMode ? ec : vc);
+    const hasViewClickPosition = viewClickMappedCaretPos != null;
     if (mode === 'edit') {
         const mappedPos = viewClickMappedCaretPos == null
             ? getMarkdownCharPositionForLine(String(editorTextarea ? editorTextarea.value : currentMarkdown || ''), getMarkdownLineFromViewerViewport(vc))
@@ -4776,7 +4948,10 @@ function toggleMode(mode, options) {
             if (window.A4Pages && typeof window.A4Pages.fitLongDocumentToContent === 'function') {
                 window.A4Pages.fitLongDocumentToContent();
             }
-            if (!options?.skipScrollSync) scrollEditorToMarkdownLine(mappedLine, 'auto');
+            if (!options?.skipScrollSync) {
+                if (longScrollSync && !hasViewClickPosition) setScrollRatio(ec, modeScrollRatio);
+                else scrollEditorToMarkdownLine(mappedLine, 'auto');
+            }
         });
     } else {
         // Capture the editor viewport before hiding it. The caret can remain at
@@ -4843,7 +5018,10 @@ function toggleMode(mode, options) {
                     if (window.A4Pages && typeof window.A4Pages.fitLongDocumentToContent === 'function') {
                         window.A4Pages.fitLongDocumentToContent();
                     }
-                    scrollViewerToMarkdownLine(vc, editLineIndex, visibleCaret);
+                    if (!options?.skipScrollSync) {
+                        if (longScrollSync) setScrollRatio(vc, modeScrollRatio);
+                        else scrollViewerToMarkdownLine(vc, editLineIndex, visibleCaret);
+                    }
                 };
                 // Viewer typography, images, and the long-sheet minimum height
                 // can settle over subsequent layout frames. Reapply the same
@@ -16507,7 +16685,7 @@ function normalizeOllamaGenerationSettings(value) {
     const source = value || {};
     const integer = (key, fallback, min, max) => Math.min(max, Math.max(min, Math.round(Number(source[key]) || fallback)));
     return {
-        contextLength: integer('contextLength', 8192, 512, 262144),
+        contextLength: integer('contextLength', 12800, 512, 262144),
         quickMaxTokens: integer('quickMaxTokens', 4096, 1, 262144),
         reasoningMaxTokens: integer('reasoningMaxTokens', 8192, 1, 262144),
         timeoutMs: integer('timeoutMs', 580000, 1000, 86400000),
@@ -16678,6 +16856,148 @@ function applyLiteRTLMMobilePreset() {
     const status = document.getElementById('settings-litertlm-status');
     if (status) status.textContent = '모바일 경량값을 적용했습니다. 저장 버튼을 눌러 확정하세요.';
 }
+
+function getNPUBaseUrl() {
+    return 'http://127.0.0.1:13305/api/v1';
+}
+
+async function listNPUModels(signal) {
+    const data = await requestLocalAIJson(getNPUBaseUrl() + '/models', {
+        headers: { Accept: 'application/json' }, signal: signal
+    });
+    const rows = (Array.isArray(data.data) ? data.data : []).filter(function (model) {
+        return model && model.downloaded !== false && model.recipe === 'flm'
+            && (!Array.isArray(model.labels) || model.labels.includes('chat'));
+    });
+    const models = rows.map(function (model) { return String(model.id || ''); }).filter(Boolean);
+    const preferred = models.indexOf('gemma4-it-e2b-FLM');
+    if (preferred > 0) models.unshift(models.splice(preferred, 1)[0]);
+    if (!models.length) throw new Error('Lemonade에 설치된 FastFlowLM NPU 채팅 모델이 없습니다. Ollama Desk에서 FLM 모델을 설치하세요.');
+    // Keep the context budget supplied by the actual NPU model, rather than
+    // assuming the larger Ollama context window applies to this engine.
+    localStorage.setItem('ss_ai_chat_npu_model_details', JSON.stringify(rows));
+    saveStoredModelList('ss_ai_chat_npu_models', models);
+    return models;
+}
+
+async function callNPUChat(request, signal) {
+    const models = await listNPUModels(signal);
+    const model = String(request.model || models[0] || '');
+    if (!models.includes(model)) throw new Error('설치된 FastFlowLM NPU 모델을 선택하세요.');
+    const rows = JSON.parse(localStorage.getItem('ss_ai_chat_npu_model_details') || '[]');
+    const details = rows.find(function (row) { return row.id === model; }) || {};
+    const config = getScholarAIProviderRuntime().getLMStudioConfig();
+    const contextLength = Math.max(256, Number(details.context_length || details.max_context_window) || 4096);
+    const requestedTokens = request.fastMode ? config.fastMaxTokens
+        : (request.mode === 'reasoning' ? config.reasoningMaxTokens : config.quickMaxTokens);
+    const maxTokens = Math.max(1, Math.min(Number(requestedTokens) || 4096, Math.floor(contextLength / 2)));
+    const inputBudget = contextLength - maxTokens - 128;
+    const history = normalizeAIChatMessages(request.messages);
+    const messages = [];
+    let inputTokens = 0;
+    if (request.systemInstruction) {
+        const content = String(request.systemInstruction).slice(0, Math.max(0, Math.floor(inputBudget / 4) - 8) * 2);
+        messages.push({ role: 'system', content: content });
+        inputTokens += Math.ceil(content.length / 2) + 8;
+    }
+    const recent = [];
+    for (let index = history.length - 1; index >= 0; index--) {
+        const message = history[index];
+        const tokens = Math.ceil(String(message.content || '').length / 2) + 8;
+        if (inputTokens + tokens > inputBudget) {
+            if (index === history.length - 1) throw new Error('NPU 모델의 컨텍스트(' + contextLength + ' 토큰)를 초과했습니다. 입력을 줄이세요.');
+            break;
+        }
+        recent.unshift(message);
+        inputTokens += tokens;
+    }
+    while (recent.length > 1 && recent[0].role !== 'user') recent.shift();
+    messages.push(...recent);
+    const settings = { provider: 'ollama-npu', baseUrl: getNPUBaseUrl(), contextLength: contextLength, maxGen: maxTokens, renderIntervalMs: 80 };
+    const body = { model: model, messages: messages, max_tokens: maxTokens, temperature: 0.4, stream: false };
+    if (typeof request.onStreamEvent === 'function') {
+        return await streamNPUChat(body, settings, signal, request.onStreamEvent);
+    }
+    const data = await requestLocalAIJson(getNPUBaseUrl() + '/chat/completions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(body), signal: signal
+    });
+    const choice = data.choices && data.choices[0] || {};
+    const message = choice.message || {};
+    return { provider: 'ollama-npu', model: data.model || model, text: String(message.content || ''),
+        reasoning: String(message.reasoning_content || ''), finishReason: choice.finish_reason || '',
+        usage: data.usage || null, contextLength: contextLength, maxOutputTokens: maxTokens, responseId: data.id || null };
+}
+
+async function streamNPUChat(body, settings, signal, onStreamEvent) {
+    const baseUrl = settings.baseUrl;
+    const provider = settings.provider || 'litertlm';
+    const emit = typeof onStreamEvent === 'function' ? onStreamEvent : function () {};
+    emit({ type: 'request.start', provider: provider, context_length: settings.contextLength, max_output_tokens: settings.maxGen, render_interval_ms: settings.renderIntervalMs });
+    emit({ type: 'transport.start', provider: provider });
+    const transportOptions = {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream, application/json' },
+        body: JSON.stringify(Object.assign({}, body, { stream: true })), signal: signal
+    };
+    emit({ type: 'chat.start', provider: provider });
+    emit({ type: 'prompt_processing.start', provider: provider });
+    let text = '', reasoning = '', finishReason = '', responseId = null, responseModel = body.model, usage = null, buffer = '';
+    let answerStarted = false, reasoningStarted = false, reasoningEnded = false, promptEnded = false;
+    function processPayload(payload) {
+        const value = String(payload || '').trim();
+        if (!value || value === '[DONE]') return;
+        let data;
+        try { data = JSON.parse(value); } catch (_) { return; }
+        if (data.error) throw new Error(String(data.error.message || data.error));
+        responseId = data.id || responseId; responseModel = data.model || responseModel; usage = data.usage || usage;
+        const choice = data.choices && data.choices[0] || {};
+        const delta = choice.delta || choice.message || {};
+        const reasoningDelta = String(delta.reasoning_content || delta.reasoning || '');
+        const answerDelta = String(delta.content || choice.text || '');
+        if (!promptEnded && (reasoningDelta || answerDelta)) { promptEnded = true; emit({ type: 'prompt_processing.end', provider: provider }); }
+        if (reasoningDelta) {
+            if (!reasoningStarted) { reasoningStarted = true; emit({ type: 'reasoning.start', provider: provider }); }
+            reasoning += reasoningDelta; emit({ type: 'reasoning.delta', provider: provider, content: reasoningDelta });
+        }
+        if (answerDelta) {
+            if (reasoningStarted && !reasoningEnded) { reasoningEnded = true; emit({ type: 'reasoning.end', provider: provider }); }
+            if (!answerStarted) { answerStarted = true; emit({ type: 'message.start', provider: provider }); }
+            text += answerDelta; emit({ type: 'message.delta', provider: provider, content: answerDelta });
+        }
+        finishReason = choice.finish_reason || finishReason;
+    }
+    function consumeChunk(chunk) {
+        buffer += chunk;
+        let boundary;
+        while ((boundary = buffer.indexOf('\n')) >= 0) {
+            const line = buffer.slice(0, boundary).replace(/\r$/, ''); buffer = buffer.slice(boundary + 1);
+            if (line.startsWith('data:')) processPayload(line.slice(5));
+            else if (line.trim().startsWith('{')) processPayload(line);
+        }
+    }
+    if (provider === 'ollama-npu') {
+        await requestLocalAITextStream(baseUrl + '/chat/completions', transportOptions, consumeChunk);
+    } else {
+        const response = await fetch(baseUrl + '/chat/completions', transportOptions);
+        if (!response.ok) throw new Error('HTTP ' + response.status + ': ' + (await response.text() || response.statusText));
+        if (!response.body) throw new Error(provider + ' 스트림 응답 본문이 없습니다.');
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+            const chunk = await reader.read();
+            if (chunk.done) break;
+            consumeChunk(decoder.decode(chunk.value, { stream: true }));
+        }
+        consumeChunk(decoder.decode());
+    }
+    if (buffer.trim()) processPayload(buffer.replace(/^data:\s*/i, ''));
+    if (reasoningStarted && !reasoningEnded) emit({ type: 'reasoning.end', provider: provider });
+    if (answerStarted) emit({ type: 'message.end', provider: provider });
+    const completionTokens = Number(usage && (usage.completion_tokens || usage.output_tokens)) || 0;
+    emit({ type: 'chat.end', provider: provider, result: { stats: { total_output_tokens: completionTokens, reasoning_output_tokens: Number(usage && usage.reasoning_tokens) || 0 } } });
+    return { provider: provider, model: responseModel, text: text, reasoning: reasoning, finishReason: finishReason, usage: usage, contextLength: settings.contextLength, maxOutputTokens: settings.maxGen, responseId: responseId };
+}
+
 
 async function streamLiteRTLMChat(body, settings, signal, onStreamEvent) {
     const baseUrl = normalizeLiteRTLMBaseUrl(settings.cloudUrl || LITERTLM_CLOUD_BASE_URL);
@@ -18129,6 +18449,67 @@ function startRealtimeDocStream(options) {
     return { ok: true, target: target, isReplacing: isReplacing };
 }
 
+let realtimeDocFollowFrame = 0;
+function followRealtimeDocCaret(caret) {
+    if (realtimeDocFollowFrame) cancelAnimationFrame(realtimeDocFollowFrame);
+    // Run after the input listeners have fitted the continuous document.
+    realtimeDocFollowFrame = requestAnimationFrame(function () {
+        realtimeDocFollowFrame = requestAnimationFrame(function () {
+            realtimeDocFollowFrame = 0;
+            if (!editorTextarea || !isEditMode) return;
+            const viewport = document.getElementById('content-viewport');
+            const longDocument = viewport && viewport.classList.contains('long-document-active');
+            const target = longDocument ? viewport : getActiveScrollTarget();
+            if (!target) return;
+            if (longDocument) {
+                // a4-pages owns sheet sizing; scrollHeight includes the current
+                // height and must not be used here to grow it on every chunk.
+                editorTextarea.scrollTop = 0;
+            }
+            const cmView = editorTextarea.__mdCm6View;
+            if (cmView && typeof cmView.coordsAtPos === 'function') {
+                const coords = cmView.coordsAtPos(Math.min(caret, cmView.state.doc.length));
+                if (!coords) return;
+                const scrollTarget = longDocument ? viewport : cmView.scrollDOM;
+                if (!scrollTarget) return;
+                const top = coords.top - scrollTarget.getBoundingClientRect().top;
+                const followLine = scrollTarget.clientHeight * 0.72;
+                if (coords.bottom > scrollTarget.getBoundingClientRect().top + followLine || top < 0) {
+                    scrollTarget.scrollTop = Math.max(0, scrollTarget.scrollTop + top - followLine);
+                }
+                return;
+            }
+            const style = getComputedStyle(editorTextarea);
+            const mirror = document.createElement('div');
+            Object.assign(mirror.style, {
+                position: 'fixed', left: '-100000px', top: '0', visibility: 'hidden',
+                boxSizing: 'border-box', width: editorTextarea.offsetWidth + 'px',
+                padding: style.padding, border: style.border,
+                fontFamily: style.fontFamily, fontSize: style.fontSize,
+                fontWeight: style.fontWeight, fontStyle: style.fontStyle,
+                lineHeight: style.lineHeight, letterSpacing: style.letterSpacing,
+                whiteSpace: style.whiteSpace, overflowWrap: style.overflowWrap,
+                wordBreak: style.wordBreak, tabSize: style.tabSize
+            });
+            mirror.setAttribute('aria-hidden', 'true');
+            mirror.textContent = editorTextarea.value.slice(0, caret);
+            const marker = document.createElement('span');
+            marker.textContent = '\u200b';
+            mirror.appendChild(marker);
+            document.body.appendChild(mirror);
+            const caretTop = marker.getBoundingClientRect().top - mirror.getBoundingClientRect().top;
+            mirror.remove();
+            const lineHeight = parseFloat(style.lineHeight) || 24;
+            const caretInView = target === editorTextarea ? caretTop - target.scrollTop
+                : editorTextarea.getBoundingClientRect().top - target.getBoundingClientRect().top + caretTop - editorTextarea.scrollTop;
+            const followLine = target.clientHeight * 0.72;
+            if (caretInView > followLine || caretInView < lineHeight) {
+                target.scrollTop = Math.max(0, target.scrollTop + caretInView - followLine);
+            }
+        });
+    });
+}
+
 function applyRealtimeDocText(text) {
     if (!activeRealtimeDocStream) return;
     const session = activeRealtimeDocStream;
@@ -18168,6 +18549,7 @@ function applyRealtimeDocText(text) {
     // A4 pages and previews listen to input on the source textarea. Updating
     // its value alone leaves those visible editors stale until completion.
     editorTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+    followRealtimeDocCaret(caret);
 }
 
 function scheduleRealtimeDocFlush() {
@@ -18387,6 +18769,8 @@ window.AIChatBridge = Object.freeze({
         renderSettingsGeminiModels(models);
         return models;
     },
+    getCachedNPUModels: function () { return readStoredModelList('ss_ai_chat_npu_models'); },
+    refreshNPUModels: listNPUModels,
     getCachedOllamaModels: function () {
         return readStoredModelList(OLLAMA_MODELS_KEY);
     },
@@ -18505,20 +18889,13 @@ window.AIChatBridge = Object.freeze({
         const controller = new AbortController();
         aiChatAbortController = controller;
         try {
+            if (request.provider === 'ollama-npu') return await callNPUChat(request, controller.signal);
             if (request.provider === 'openai-compatible') {
                 const connection = getStoredOpenAICompatibleConnection();
                 const model = String(request.model || connection.modelId || '').trim();
                 if (!model) throw new Error('OrcaRouter / OpenAI 호환 모델을 선택하세요.');
                 const messages = normalizeAIChatMessages(request.messages);
-                if (request.systemInstruction) messages.unshift({ role: 'system', content: String(request.systemInstruction) });
-                const response = await fetch(connection.baseUrl + '/chat/completions', {
-                    method: 'POST',
-                    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer ' + connection.apiKey },
-                    body: JSON.stringify({ model: model, messages: messages, stream: false }),
-                    signal: controller.signal
-                });
-                if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
-                const data = await response.json();
+                const data = await requestOpenAICompatibleChat(connection, model, messages, request.systemInstruction, request, controller.signal);
                 const choice = data && data.choices && data.choices[0] || {};
                 const message = choice.message || {};
                 return {

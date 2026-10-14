@@ -28,12 +28,21 @@
     let floatingPosition = null;
     let longResizeBound = false;
     let longResizeFrame = 0;
+    let longFitPending = false;
     let longContentObserver = null;
-    const A4_PORTRAIT_RATIO = 297 / 210;
+    let longEditorContentObserver = null;
+    let observedEditorContent = null;
 
-    function longDocumentMinimumHeight(target) {
-        const width = Math.max(0, Number(target?.getBoundingClientRect?.().width) || Number(target?.clientWidth) || 0);
-        return Math.max(320, Math.ceil(width * A4_PORTRAIT_RATIO));
+
+    function longDocumentMinimumHeight() {
+        // Use the visible mode's viewport, excluding its outer sheet padding.
+        // Both editor and viewer share this floor when switching modes.
+        const container = document.body.classList.contains('viewer-view-mode')
+            ? document.getElementById('viewer-container') : viewport;
+        if (!container) return 80;
+        const style = getComputedStyle(container);
+        const padding = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
+        return Math.max(80, Math.floor((Number(container.clientHeight) || 0) - padding));
     }
 
     function longDocumentTarget() {
@@ -46,7 +55,10 @@
         if (cmView && cmView.dom?.isConnected) {
             const scrollerStyle = getComputedStyle(cmView.scrollDOM);
             const verticalPadding = parseFloat(scrollerStyle.paddingTop) + parseFloat(scrollerStyle.paddingBottom);
-            return Math.ceil(cmView.contentHeight + (Number.isFinite(verticalPadding) ? verticalPadding : 0) + 2);
+            // During streaming CodeMirror's estimated height can lag behind
+            // wrapped lines. Include the actual laid-out content as well.
+            const renderedHeight = Number(cmView.contentDOM?.getBoundingClientRect?.().height) || 0;
+            return Math.ceil(Math.max(cmView.contentHeight, renderedHeight) + (Number.isFinite(verticalPadding) ? verticalPadding : 0) + 2);
         }
         const previousHeight = source.style.height;
         const previousMinHeight = source.style.minHeight;
@@ -62,10 +74,8 @@
         if (orientation || !source.isConnected) return;
         const wrap = document.getElementById('editor-doc-wrap');
         if (!wrap) return;
-        // A normal Markdown document remains a continuous document, but its
-        // first empty/short sheet starts at the physical proportions of A4.
-        // Longer content can still grow naturally below that first-page floor.
-        const minimum = Math.max(longDocumentMinimumHeight(wrap), Number(wrap.dataset.longManualHeight) || 0);
+        // Open to the available screen height and grow with longer content.
+        const minimum = longDocumentMinimumHeight();
         const contentHeight = measureLongEditorContentHeight();
         let height = Math.max(minimum, contentHeight);
         // The textarea is a flex child of the sheet. Grow the sheet first;
@@ -84,6 +94,7 @@
         // stale inner scroll position behind creates a misleading second
         // scrollbar and makes mode-position synchronization drift.
         source.scrollTop = 0;
+        return height;
     }
 
     function fitLongViewerToContent() {
@@ -91,29 +102,61 @@
         const viewer = document.getElementById('viewer');
         if (!viewer || !viewer.isConnected) return;
         // Renderers such as Mermaid and images can finish after the Markdown
-        // HTML has been inserted. Reset the sheet to its user-selected floor
+        // HTML has been inserted. Reset the sheet to its empty input floor
         // before reading scrollHeight so it can grow and shrink with that late
         // content instead of leaving it outside the document border.
-        const minimum = Math.max(longDocumentMinimumHeight(viewer), Number(viewer.dataset.longManualHeight) || 0);
+        const minimum = longDocumentMinimumHeight();
         if (viewer.style.height !== 'auto') viewer.style.height = 'auto';
         const minimumCss = minimum + 'px';
         if (viewer.style.minHeight !== minimumCss) viewer.style.minHeight = minimumCss;
         const contentHeight = Math.ceil(Number(viewer.scrollHeight) || 0) + 2;
         const fittedCss = Math.max(minimum, contentHeight) + 'px';
         if (viewer.style.minHeight !== fittedCss) viewer.style.minHeight = fittedCss;
+        return Math.max(minimum, contentHeight);
     }
 
     function fitLongDocumentToContent() {
-        fitLongEditorToContent();
-        fitLongViewerToContent();
+        trackLongEditorContent();
+        const editorHeight = fitLongEditorToContent();
+        const viewerHeight = fitLongViewerToContent();
+        if (orientation) return;
+        const height = Math.max(editorHeight || 0, viewerHeight || 0);
+        if (!height) return;
+        const wrap = document.getElementById('editor-doc-wrap');
+        const viewer = document.getElementById('viewer');
+        if (wrap) wrap.style.height = height + 'px';
+        if (!source.__mdCm6View) source.style.height = height + 'px';
+        if (viewer) viewer.style.minHeight = height + 'px';
     }
 
     function scheduleLongDocumentFit() {
-        if (typeof window.cancelAnimationFrame === 'function') window.cancelAnimationFrame(longResizeFrame);
+        // Coalesce streaming updates without cancelling a fit that is already
+        // queued. Frequent input must never postpone sheet growth indefinitely.
+        if (longFitPending) return;
+        longFitPending = true;
         const schedule = typeof window.requestAnimationFrame === 'function'
             ? window.requestAnimationFrame.bind(window)
             : callback => { callback(); return 0; };
-        longResizeFrame = schedule(fitLongDocumentToContent);
+        longResizeFrame = schedule(() => {
+            longFitPending = false;
+            fitLongDocumentToContent();
+        });
+    }
+
+    function trackLongEditorContent() {
+        const content = source.__mdCm6View?.contentDOM;
+        if (!content || content === observedEditorContent || typeof ResizeObserver !== 'function') return;
+        longEditorContentObserver?.disconnect();
+        observedEditorContent = content;
+        let previousHeight = -1;
+        longEditorContentObserver = new ResizeObserver(entries => {
+            const height = entries[0]?.contentRect.height || 0;
+            if (Math.abs(height - previousHeight) > 0.5) {
+                previousHeight = height;
+                scheduleLongDocumentFit();
+            }
+        });
+        longEditorContentObserver.observe(content);
     }
 
     function bindLongDocumentContentTracking() {
@@ -129,9 +172,31 @@
                     scheduleLongDocumentFit();
                 }
             }).observe(wrap);
+            const viewportSizes = new WeakMap();
+            const viewportObserver = new ResizeObserver(entries => {
+                let changed = false;
+                entries.forEach(entry => {
+                    const height = entry.contentRect.height;
+                    if (height > 0 && Math.abs(height - (viewportSizes.get(entry.target) || 0)) > 0.5) {
+                        viewportSizes.set(entry.target, height);
+                        changed = true;
+                    }
+                });
+                if (changed) scheduleLongDocumentFit();
+            });
+            viewportObserver.observe(viewport);
+            const viewerContainer = document.getElementById('viewer-container');
+            if (viewerContainer) viewportObserver.observe(viewerContainer);
         }
         if (typeof MutationObserver === 'function') {
-            longContentObserver = new MutationObserver(scheduleLongDocumentFit);
+            longContentObserver = new MutationObserver(records => {
+                // Ignore our own sheet sizing; observing it would schedule
+                // another fit every time the shared minimum is reapplied.
+                if (records.some(record => !(record.type === 'attributes'
+                    && record.target === viewer && record.attributeName === 'style'))) {
+                    scheduleLongDocumentFit();
+                }
+            });
             longContentObserver.observe(viewer, {
                 childList: true,
                 subtree: true,
@@ -147,11 +212,11 @@
 
     function ensureLongResizeHandles(target) {
         if (!target || target.querySelector?.(':scope > .long-document-resize-handle')) return;
-        ['height', 'corner'].forEach(kind => {
+        ['corner'].forEach(kind => {
             const handle = document.createElement('div');
             handle.className = `long-document-resize-handle long-document-resize-${kind} no-print`;
             handle.dataset.resizeKind = kind;
-            const label = kind === 'height' ? '긴 문서 높이 조절' : '긴 문서 크기 조절';
+            const label = '긴 문서 너비 조절';
             handle.setAttribute('role', 'separator');
             handle.setAttribute('aria-label', label);
             handle.title = label;
@@ -192,27 +257,25 @@
             event.preventDefault();
             const start = target.getBoundingClientRect();
             const startX = event.clientX;
-            const startY = event.clientY;
+
             const kind = handle.dataset.resizeKind;
             handle.setPointerCapture?.(event.pointerId);
             document.body.classList.add('long-document-resizing');
             const move = moveEvent => {
-                const requestedHeight = Math.round(start.height + moveEvent.clientY - startY);
-                const contentFloor = target.id === 'viewer'
-                    ? Math.ceil(target.scrollHeight || 0)
-                    : measureLongEditorContentHeight();
-                const height = Math.max(320, contentFloor, requestedHeight);
-                target.style.height = height + 'px';
-                target.style.minHeight = height + 'px';
-                target.dataset.longManualHeight = String(height);
-                if (target.id === 'editor-doc-wrap' && !source.__mdCm6View) source.style.height = height + 'px';
+
+
+                const sheets = [document.getElementById('editor-doc-wrap'), document.getElementById('viewer')].filter(Boolean);
+
                 if (kind === 'corner') {
                     const available = Math.max(320, viewport.clientWidth - 32);
                     const width = Math.max(320, Math.min(available, Math.round(start.width + moveEvent.clientX - startX)));
-                    target.style.width = width + 'px';
-                    target.style.maxWidth = 'none';
-                    target.style.flex = '0 0 auto';
+                    sheets.forEach(sheet => {
+                        sheet.style.width = width + 'px';
+                        sheet.style.maxWidth = 'none';
+                        sheet.style.flex = '0 0 auto';
+                    });
                 }
+                fitLongDocumentToContent();
             };
             const end = () => {
                 document.removeEventListener('pointermove', move);
