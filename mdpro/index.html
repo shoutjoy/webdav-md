@@ -40,7 +40,7 @@
     <link rel="stylesheet" href="./js/inDB/inDB.css?v=20260823-ai-audit-3" charset="utf-8">
     <link rel="stylesheet" href="./sidebar_left/sidebar-resize.css?v=20260812-1" charset="utf-8">
     <link rel="stylesheet" href="./sidebar_left/storage-tree.css?v=20260812-1" charset="utf-8">
-    <link rel="stylesheet" href="./sidebarAI/sidebar-ai.css?v=20260817-scholar-upgrades-1" charset="utf-8">
+    <link rel="stylesheet" href="./sidebarAI/sidebar-ai.css?v=20261014-scholar-stream-2" charset="utf-8">
     <link rel="stylesheet" href="./AI_App/aiChat/ai-chat.css?v=20260912-mobile-floating-resize-1" charset="utf-8">
     <link rel="stylesheet" href="./AI_App/dataCenter/ai-data-center.css?v=20260908-hidden-jena-data-2" charset="utf-8">
     <link rel="stylesheet" href="./js/Scholarref/styles/scholarref.css?v=20260812-scholar-modules-1" charset="utf-8">
@@ -822,6 +822,7 @@
                   </div>
                   <div class="scholar-ai-run-row">
                     <button type="button" id="scholar-ai-run-btn" class="sa-btn" style="background:#4f8ef7;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px" onclick="scholarAIRun()">실행</button>
+<label class="scholar-ai-live-label"><input type="checkbox" id="scholar-ai-live-replace"> 실시간 작성 · 선택 내용 대체</label>
                     <button type="button" id="scholar-ai-stop-btn" class="sa-btn ghost" style="padding:6px 12px;font-size:12px" onclick="scholarAIStop()" disabled>중지</button>
                     <div id="scholar-ai-progress-wrap" class="scholar-ai-progress-wrap" aria-live="polite">
                       <div class="scholar-ai-progress-bar">
@@ -838,14 +839,14 @@
                 </div>
                 <div class="scholar-ai-footer">
                   <div class="scholar-ai-insert-wrap">
-                    <button type="button" class="sa-btn ghost" onclick="handleScholarAIInsertClick()">문서내 삽입</button>
+                    <button type="button" class="sa-btn ghost" onclick="handleScholarAIInsertClick()" title="선택한 기능 실행">←</button><button type="button" id="scholar-ai-insert-mode-button" class="sa-btn ghost" onclick="toggleScholarAIInsertMenu()">커서위치삽입</button>
                     <div class="scholar-ai-insert-menu" id="scholar-ai-insert-menu">
-                      <button type="button" onclick="scholarAIInsertDoc(0); closeScholarAIInsertMenu()">커서위치삽입</button>
-                      <button type="button" onclick="scholarAIInsertDoc(1); closeScholarAIInsertMenu()">문서 한줄 아래에 삽입</button>
-                      <button type="button" onclick="scholarAIInsertDoc(2); closeScholarAIInsertMenu()">선택 내용 대체</button>
-                      <button type="button" id="scholar-ai-insert-translation-footnotes" style="display:none" onclick="scholarAIInsertDoc(6); closeScholarAIInsertMenu()">번역 + 주요 용어 각주 삽입</button>
-                      <button type="button" onclick="scholarAIInsertDoc(3); closeScholarAIInsertMenu()">ToGenslide</button>
-                      <button type="button" onclick="scholarAIInsertDoc(4); closeScholarAIInsertMenu()">Mermaid(ME) 삽입</button>
+                      <button type="button" data-insert-mode="0" onclick="scholarAISelectInsertMode(0)">커서위치삽입</button>
+                      <button type="button" data-insert-mode="1" onclick="scholarAISelectInsertMode(1)">문서 한줄 아래에 삽입</button>
+                      <button type="button" data-insert-mode="2" onclick="scholarAISelectInsertMode(2)">선택 내용 대체</button>
+                      <button type="button" id="scholar-ai-insert-translation-footnotes" style="display:none" data-insert-mode="6" onclick="scholarAISelectInsertMode(6)">번역 + 주요 용어 각주 삽입</button>
+                      <button type="button" data-insert-mode="3" onclick="scholarAISelectInsertMode(3)">ToGenslide</button>
+                      <button type="button" data-insert-mode="4" onclick="scholarAISelectInsertMode(4)">Mermaid(ME) 삽입</button>
                     </div>
                   </div>
                   <button type="button" id="scholar-ai-to-genslide-btn" class="sa-btn" style="display:none;background:#f59e0b;color:#111827;border:none" onclick="scholarAIToGenSlide()" title="슬라이드 HTML을 GenSlide로 보내기">ToGenslide</button>
@@ -3584,7 +3585,7 @@
 
 <!-- 이미지 편집기 삽입 -->
 <script
-    src="./imageDB/image_insert.js?v=20261010-imgbb-images-1"
+    src="./imageDB/image_insert.js?v=20261014-scholar-stream-2"
     charset="utf-8"
     defer>
 </script>
@@ -3641,7 +3642,7 @@
 
 <!-- 학술 AI 제공자 -->
 <script
-    src="./AI_App/ai_local/scholar-ai-provider.js?v=20260824-lm-load-1"
+    src="./AI_App/ai_local/scholar-ai-provider.js?v=20261014-scholar-stream-2"
     charset="utf-8"
     defer>
 </script>
@@ -3655,7 +3656,7 @@
 
 <!-- AI 결과 편집기 삽입 -->
 <script
-    src="./sidebarAI/insert.js?v=20260817-scholar-upgrades-1"
+    src="./sidebarAI/insert.js?v=20261014-scholar-stream-2"
     charset="utf-8"
     defer>
 </script>
@@ -3882,13 +3883,13 @@
     defer>
 </script>
 <script
-    src="./js/app.js?a4Pages=20260909-a4-lcr-1&amp;mermaid=20260909-print-image-1&amp;v=20260908-note-cover-fold-menu-4&amp;msetWebdav=20260908-1&amp;wdNewFile=20260909-2&amp;aiJenaReasoning=20260829-low-high-1&amp;storageSafety=20260815-1&amp;localWriteback=20260815-1&amp;localFileRefresh=20260817-1&amp;docxImport=20260817-dark-table-contrast-1&amp;viewModeTextInput=20260815-2&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;indbImages=20260812-3&amp;indbToggle=20260816-1&amp;tidyCustomJs=20260811-1&amp;html2md=20260817-1&amp;inline2ref=20260822-4&amp;saveDropdown=20260822-1&amp;aiJenaAttachments=20260822-2&amp;aiDataCenter=20260823-1&amp;settingsDrag=20260811-1&amp;copyFab=20260810-ai-jena-bottom-1&amp;mobileAiJena=20260817-1&amp;feature=templates-new-file-menu-2&amp;storageVisibility=20260810-1&amp;settingsResetConfirm=1&amp;toolbarNames=20260807-1&amp;templateFullscreen=20260807-1&amp;settingsFold=20260807-1&amp;mermaidDisplay=20260810-3&amp;comment=20260812-html-comment-1&amp;perf=20260810-10&amp;pdfExport=20260928-progress-cancel-2&amp;pvExport=20260813-modal-2&amp;pdfMergeTool=20260815-pdfm-project-15&amp;imageSizeHint=20260811-1&amp;textStyle=20260815-supsub-1&amp;localDefault=20260812-1&amp;folderTree=20260812-1&amp;documentMeta=20260812-1&amp;documentDrop=20260812-1&amp;sliderMaker=20260812-1&amp;scholarUpgrades=20260817-2&amp;pvHeaderSettings=20260815-1&amp;mainHeaderBackground=20260815-1&amp;mainHeaderScale=20260815-1&amp;headerFileActions=20260823-1&amp;listQuickMenu=20260823-1&amp;footnoteAnchorMenu=20260823-1&amp;imageInsertMenu=20260825-link-1&amp;verticalEditToolbar=20260823-2&amp;headerHeadingDisplay=20260825-1&amp;documentTheme=20260825-1&amp;fastSafetyTimeout=20260825-1&amp;fastCompleteStreaming=20260825-1&amp;fastLimitsUi=20260825-2&amp;aiDetailsToggle=20260825-1&amp;splitTab=20260825-1&amp;img2Math=20260909-webdav-1&amp;editorShiftSize=20260909-2&amp;editorShiftOrientation=20260911-vertical-1&amp;mermaidEditorResize=20260911-1&amp;aiJenaFloating=20260912-mobile-resize-1&amp;pvLiveEdit=20260911-1&amp;dataImageFold=20260912-1&amp;editorListTab=20260912-3&amp;headingHotkeys=20260912-2&amp;toolbarRecovery=20260912-list-outdent-9&amp;aiJenaGeneralAnswer=20260912-original-6&amp;aiJenaAnswerThemeNames=20260912-1&amp;aiJenaDefaultLayout=20260912-alt2-1&amp;aiJenaRealtimeRecord=20260912-2&amp;aiJenaFloatingCompactPosition=20260912-3&amp;aiJenaHeaderUtilities=20260912-2&amp;scrollSync=20260915-active-mode-1&amp;cmGutter=20260918-remove-1&amp;codeCopy=20260920-2&amp;editorPlaceholder=20260920-1&amp;printPdf=20260928-progress-cancel-2&amp;lineCopy=20260922-1&amp;localHtmlAssets=20260925-js-runtime-1&amp;nonprinting=20260925-3&amp;infographicAuto=20261005-5&amp;featureToolNames=20261006-1"
+    src="./js/app.js?a4Pages=20260909-a4-lcr-1&amp;mermaid=20260909-print-image-1&amp;v=20260908-note-cover-fold-menu-4&amp;msetWebdav=20260908-1&amp;wdNewFile=20260909-2&amp;aiJenaReasoning=20260829-low-high-1&amp;storageSafety=20260815-1&amp;localWriteback=20260815-1&amp;localFileRefresh=20260817-1&amp;docxImport=20260817-dark-table-contrast-1&amp;viewModeTextInput=20260815-2&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;indbImages=20260812-3&amp;indbToggle=20260816-1&amp;tidyCustomJs=20260811-1&amp;html2md=20260817-1&amp;inline2ref=20260822-4&amp;saveDropdown=20260822-1&amp;aiJenaAttachments=20260822-2&amp;aiDataCenter=20260823-1&amp;settingsDrag=20260811-1&amp;copyFab=20260810-ai-jena-bottom-1&amp;mobileAiJena=20260817-1&amp;feature=templates-new-file-menu-2&amp;storageVisibility=20260810-1&amp;settingsResetConfirm=1&amp;toolbarNames=20260807-1&amp;templateFullscreen=20260807-1&amp;settingsFold=20260807-1&amp;mermaidDisplay=20260810-3&amp;comment=20260812-html-comment-1&amp;perf=20260810-10&amp;pdfExport=20260928-progress-cancel-2&amp;pvExport=20260813-modal-2&amp;pdfMergeTool=20260815-pdfm-project-15&amp;imageSizeHint=20260811-1&amp;textStyle=20260815-supsub-1&amp;localDefault=20260812-1&amp;folderTree=20260812-1&amp;documentMeta=20260812-1&amp;documentDrop=20260812-1&amp;sliderMaker=20260812-1&amp;scholarUpgrades=20261014-stream-2&amp;pvHeaderSettings=20260815-1&amp;mainHeaderBackground=20260815-1&amp;mainHeaderScale=20260815-1&amp;headerFileActions=20260823-1&amp;listQuickMenu=20260823-1&amp;footnoteAnchorMenu=20260823-1&amp;imageInsertMenu=20260825-link-1&amp;verticalEditToolbar=20260823-2&amp;headerHeadingDisplay=20260825-1&amp;documentTheme=20260825-1&amp;fastSafetyTimeout=20260825-1&amp;fastCompleteStreaming=20260825-1&amp;fastLimitsUi=20260825-2&amp;aiDetailsToggle=20260825-1&amp;splitTab=20260825-1&amp;img2Math=20260909-webdav-1&amp;editorShiftSize=20260909-2&amp;editorShiftOrientation=20260911-vertical-1&amp;mermaidEditorResize=20260911-1&amp;aiJenaFloating=20260912-mobile-resize-1&amp;pvLiveEdit=20260911-1&amp;dataImageFold=20260912-1&amp;editorListTab=20260912-3&amp;headingHotkeys=20260912-2&amp;toolbarRecovery=20260912-list-outdent-9&amp;aiJenaGeneralAnswer=20260912-original-6&amp;aiJenaAnswerThemeNames=20260912-1&amp;aiJenaDefaultLayout=20260912-alt2-1&amp;aiJenaRealtimeRecord=20260912-2&amp;aiJenaFloatingCompactPosition=20260912-3&amp;aiJenaHeaderUtilities=20260912-2&amp;scrollSync=20260915-active-mode-1&amp;cmGutter=20260918-remove-1&amp;codeCopy=20260920-2&amp;editorPlaceholder=20260920-1&amp;printPdf=20260928-progress-cancel-2&amp;lineCopy=20260922-1&amp;localHtmlAssets=20260925-js-runtime-1&amp;nonprinting=20260925-3&amp;infographicAuto=20261005-5&amp;featureToolNames=20261006-1"
     charset="utf-8"
     defer>
 </script>
 <script src="./js/ai-jena-embedded-bridge.js?v=20260825-cursor-fix" charset="utf-8" defer></script>
 <script
-    src="./sidebarAI/scholar-ai-upgrades.js?v=20260817-quick-progress-1"
+    src="./sidebarAI/scholar-ai-upgrades.js?v=20261014-scholar-stream-2"
     charset="utf-8"
     onload="window.__scholarAIUpgradeScriptState='loaded'"
     onerror="window.__scholarAIUpgradeScriptState='error'"

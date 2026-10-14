@@ -266,7 +266,9 @@
     }
 
     async function complete(request) {
-      request = request || {};
+      request = Object.assign({}, request || {});
+      var streamed = false, onText = request.onText;
+      if (typeof onText === 'function') request.onText = function (delta) { streamed = true; return onText(delta); };
       var provider = normalizeProvider(request.provider || getProvider());
       if (activeController) activeController.abort();
       var controller = new AbortController();
@@ -275,11 +277,13 @@
         async function runLMStudio() {
           var synced = await syncLMStudioLoadedModel();
           var model = synced.model;
-          var localResult = await makeLMStudioClient({ model: model }).complete({
+          var client = makeLMStudioClient({ model: model });
+          var localResult = await client[request.onText ? "stream" : "complete"]({
             prompt: request.prompt,
             systemInstruction: request.systemInstruction,
             model: model,
-            signal: controller.signal
+            signal: controller.signal,
+            onToken: request.onText
           });
           return { provider: 'lmstudio', model: localResult.model || model, text: localResult.text || '' };
         }
@@ -292,7 +296,8 @@
             request.systemInstruction,
             !!request.useSearch,
             model,
-            controller.signal
+            controller.signal,
+            request.onText
           );
           return {
             provider: 'aistudio',
@@ -306,7 +311,7 @@
           if (typeof callDeepseek !== 'function') throw new Error('DeepSeek 호출 함수를 사용할 수 없습니다.');
           var key = String(storage.getItem('ss_deepseek_api_key') || '').trim();
           if (!key) throw new Error('DeepSeek API Key가 없습니다. 설정에서 키를 저장하세요.');
-          var result = await callDeepseek(request.prompt, request.systemInstruction, request.useSearch, model, controller.signal, key);
+          var result = await callDeepseek(request.prompt, request.systemInstruction, request.useSearch, model, controller.signal, key, request.onText);
           return {
             provider: 'deepseek',
             model: model,
@@ -319,7 +324,7 @@
           if (typeof callOpenAI !== 'function') throw new Error('OpenAI 호출 함수를 사용할 수 없습니다.');
           var key = String(storage.getItem('ss_openai_api_key') || '').trim();
           if (!key) throw new Error('OpenAI API Key가 없습니다. 설정에서 키를 저장하세요.');
-          var result = await callOpenAI(request.prompt, request.systemInstruction, request.useSearch, model, controller.signal, key);
+          var result = await callOpenAI(request.prompt, request.systemInstruction, request.useSearch, model, controller.signal, key, request.onText);
           return {
             provider: 'openai',
             model: model,
@@ -331,7 +336,7 @@
           var model = String(modelOverride || getModel('ollama') || '').trim();
           if (typeof callOllama !== 'function') throw new Error('Ollama 호출 함수를 사용할 수 없습니다.');
           if (!model) throw new Error('Ollama 모델을 선택하세요. 설정에서 모델 확인을 먼저 실행할 수 있습니다.');
-          var result = await callOllama(request.prompt, request.systemInstruction, request.useSearch, model, controller.signal);
+          var result = await callOllama(request.prompt, request.systemInstruction, request.useSearch, model, controller.signal, request.onText);
           return {
             provider: 'ollama',
             model: (result && result.model) || model,
@@ -350,7 +355,7 @@
           try {
             return await runLMStudio();
           } catch (error) {
-            if (isAbortError(error)) throw error;
+            if (isAbortError(error) || streamed) throw error;
             lmError = friendlyError(error, 'lmstudio');
           }
         }

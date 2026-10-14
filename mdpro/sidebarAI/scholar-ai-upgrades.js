@@ -10,6 +10,7 @@
   var LS_RESPONSE_MODE = 'ss_viewer_scholar_ai_response_mode';
   var activePresentation = 'default';
   var specialRunning = false;
+  var specialRunEpoch = 0;
   var quickProgressTimer = null;
   var quickProgressHideTimer = null;
   var quickProgressValue = 0;
@@ -91,6 +92,8 @@
     else if (wasRunning && !specialRunning) finishQuickProgress(completed);
   }
   function stopUpgradedRun() {
+    specialRunEpoch++;
+    if (window.ScholarAIReplacement) window.ScholarAIReplacement.cancel();
     if (!specialRunning) {
       if (baseStop) return baseStop();
       return;
@@ -108,7 +111,7 @@
       .trim();
   }
   function parseEnvelope(raw, answerFirst) {
-    var text = String(raw || '').replace(/\r\n/g, '\n').trim();
+    var text = String(raw || '').replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').replace(/\r\n/g, '\n').trim();
     var explanation = '';
     var answer = '';
     var re = /\[\s*(EXPLANATION|RESULT|REASONING|ANSWER|설명|결과|답변)\s*(?::[^\]]*)?\]/ig;
@@ -152,7 +155,7 @@
     if (typeof window.scholarAISetResultTab === 'function') {
       window.scholarAISetResultTab(parsed.answer ? 'insert' : 'explanation');
     }
-    if (options.presentation === 'slides') renderSlides(parsed.answer);
+    if (options.presentation === 'slides' && !options.streaming) renderSlides(parsed.answer);
     return parsed;
   }
   async function runSpecial(options) {
@@ -167,6 +170,9 @@
       alert('ScholarAI API를 사용할 수 없습니다. AI 연동 설정을 확인하세요.');
       return;
     }
+    var replacement = null, streamRaw = '';
+    try { if (options.presentation === 'translation' && window.ScholarAIReplacement) replacement = window.ScholarAIReplacement.begin(); } catch (error) { alert(error.message); return; }
+    var runEpoch = ++specialRunEpoch;
     setRunning(true, options.stage || 'ScholarAI 실행 중...');
     setPresentation(options.presentation);
     var modelId = getCallback('getScholarAIModelId');
@@ -178,11 +184,18 @@
         options.system,
         false,
         modelId ? modelId() : null,
-        options.requestOptions || {}
+        Object.assign({}, options.requestOptions || {}, {onText: function (delta) {
+          if (runEpoch !== specialRunEpoch) return;
+          streamRaw += delta;
+          var partial = applyResult(streamRaw.replace(/\[[^\]]*$/, '').replace(/<[^>]*$/, ''), Object.assign({}, options, {streaming:true, answerFirst:false}));
+          if (replacement) window.ScholarAIReplacement.update(replacement, partial.answer);
+        }})
       );
+      if (runEpoch !== specialRunEpoch) return;
       var raw = response && response.text != null ? response.text : response;
       var text = typeof raw === 'string' ? raw : JSON.stringify(raw || '');
-      applyResult(text, options);
+      var parsed = applyResult(text, options);
+      if (replacement) window.ScholarAIReplacement.finish(replacement,parsed.answer);
       completed = true;
       if (typeof window.scholarAIHistoryAdd === 'function') {
         window.scholarAIHistoryAdd(options.historyLabel || 'ScholarAI', text);
@@ -190,12 +203,14 @@
       }
       return text;
     } catch (error) {
+      if (runEpoch !== specialRunEpoch) return;
+      if (replacement) window.ScholarAIReplacement.cancel(replacement);
       var message = error && error.message ? error.message : String(error || 'Unknown error');
       var result = el('scholar-ai-result');
       if (result) result.value = /abort/i.test(message) ? 'Stopped by user.' : 'Error: ' + message;
       if (typeof window.scholarAISetResultTab === 'function') window.scholarAISetResultTab('explanation');
     } finally {
-      setRunning(false, null, completed);
+      if (runEpoch === specialRunEpoch) setRunning(false, null, completed);
     }
   }
 

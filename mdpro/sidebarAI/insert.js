@@ -53,6 +53,7 @@
 
   function toggleScholarAIInsertMenu() {
     var menu = document.getElementById('scholar-ai-insert-menu');
+    refreshInsertMode();
     if (menu) menu.classList.toggle('open');
   }
 
@@ -61,15 +62,128 @@
     if (menu) menu.classList.remove('open');
   }
 
-  function handleScholarAIInsertClick() {
-    var isEdit = document.getElementById('content-viewport') && document.getElementById('content-viewport').classList.contains('viewer-edit-active');
-    var ta = document.getElementById('viewer-edit-ta');
-    if (isEdit && ta) {
-      setSelectionState({ cursorPos: ta.selectionStart });
-    }
-    setResultTabInsert();
-    toggleScholarAIInsertMenu();
+  var modeKey = 'ss_scholar_ai_insert_mode';
+  var labels = {0:'커서위치삽입',1:'문서 한줄 아래에 삽입',2:'선택 내용 대체',3:'ToGenslide',4:'Mermaid 삽입',6:'번역 각주 삽입'};
+  var selectedMode = 0;
+  try { var stored = Number(localStorage.getItem(modeKey)); if (labels[stored]) selectedMode = stored; } catch (_) {}
+  function refreshInsertMode() {
+    var button = document.getElementById('scholar-ai-insert-mode-button');
+    if (button) button.textContent = labels[selectedMode];
+    var menu = document.getElementById('scholar-ai-insert-menu');
+    if (menu) menu.querySelectorAll('[data-insert-mode]').forEach(function (item) {
+      var active = Number(item.dataset.insertMode) === selectedMode;
+      item.classList.toggle('selected', active);
+      item.setAttribute('aria-pressed', String(active));
+    });
   }
+  function selectInsertMode(mode) {
+    if (!labels[mode]) return;
+    selectedMode = mode;
+    try { localStorage.setItem(modeKey, String(mode)); } catch (_) {}
+    refreshInsertMode();
+    closeScholarAIInsertMenu();
+  }
+  function handleScholarAIInsertClick() { return scholarAIInsertDoc(selectedMode); }
+  function preserveScroll(target) {
+    var nodes = [], node = target;
+    while (node) { nodes.push([node, node.scrollLeft, node.scrollTop]); node = node.parentElement; }
+    ['content-viewport','viewer-edit-wrap'].forEach(function (id) {
+      var n = document.getElementById(id); if (n) nodes.push([n,n.scrollLeft,n.scrollTop]);
+    });
+    var x = window.scrollX, y = window.scrollY;
+    function restore() {
+      nodes.forEach(function (entry) { entry[0].scrollLeft = entry[1]; entry[0].scrollTop = entry[2]; });
+      if (window.scrollTo) window.scrollTo(x,y);
+    }
+    return function () { restore(); if (window.requestAnimationFrame) window.requestAnimationFrame(function () { restore(); window.requestAnimationFrame(restore); }); };
+  }
+  var captured = null, live = null;
+  function captureReplacement(target, start, end, passage) {
+    captured = { target:target, start:start, end:end, original:String(target.value).slice(start,end), passage:passage, base:String(target.value) };
+  }
+  function capturePassage() {
+    captured = null;
+    try {
+      var tx = resolveReplacement();
+      var passage = document.getElementById('scholar-ai-selected');
+      captured = Object.assign(tx, {passage:String(passage.value || ''),base:String(tx.target.value)});
+    } catch (_) { /* Ambiguous rendered selections must be selected in the editor. */ }
+  }
+  function resolveReplacement() {
+    var passageEl = document.getElementById('scholar-ai-selected');
+    var passage = passageEl ? String(passageEl.value || '') : '';
+    var target = document.getElementById('viewer-edit-ta');
+    if (captured && captured.passage === passage) {
+      if (!captured.target.isConnected || captured.target.disabled || captured.target.readOnly || String(captured.target.value) !== captured.base) throw new Error('선택 이후 원문이 변경되었습니다. 원문을 다시 선택하세요.');
+      return Object.assign({}, captured);
+    }
+    var viewport = document.getElementById('content-viewport');
+    var viewing = viewport && !viewport.classList.contains('viewer-edit-active');
+    var raw = target && String(viewing && typeof window.__rawText === 'string' ? window.__rawText : (target.value || window.__rawText || ''));
+    var start = passage && raw ? raw.indexOf(passage) : -1;
+    if (start < 0 || raw.indexOf(passage,start+1) >= 0) throw new Error('문서 내 일치하는 위치가 없거나 여러 곳입니다. 원문을 다시 선택하세요.');
+    if (!target || target.disabled || target.readOnly) throw new Error('편집할 문서를 먼저 여세요.');
+    if (String(target.value) !== raw) target.value = raw;
+    return {target:target,start:start,end:start+passage.length,original:passage};
+  }
+  function activateDocumentEditor(tx) {
+    var vp = document.getElementById('content-viewport');
+    if (tx.target === document.getElementById('viewer-edit-ta') && vp && !vp.classList.contains('viewer-edit-active')) {
+      var restore = preserveScroll(tx.target);
+      vp.classList.add('viewer-edit-active');
+      var wrap = document.getElementById('viewer-edit-wrap'); if (wrap) wrap.style.display = 'flex';
+      tx.target.style.display = 'block';
+      var edit = document.getElementById('viewer-btn-edit'), view = document.getElementById('viewer-btn-view');
+      if (edit) edit.style.display = 'none'; if (view) view.style.display = 'inline-block';
+      if (window.viewerBuildNav) window.viewerBuildNav(); restore();
+    }
+  }
+  function writeReplacement(tx, text) {
+    var raw = String(tx.target.value);
+    var current = tx.current == null ? tx.original : tx.current;
+    if (raw.slice(tx.start,tx.start+current.length) !== current || raw.slice(0,tx.start) !== tx.before || raw.slice(tx.start+current.length) !== tx.after) throw new Error('작성 중 문서가 변경되었습니다. 원문을 다시 선택하세요.');
+    var restore = preserveScroll(tx.target);
+    tx.target.value = tx.before + text + tx.after;
+    tx.current = text;
+    if (tx.target === document.getElementById('viewer-edit-ta')) window.__rawText = tx.target.value;
+    tx.target.dispatchEvent(new Event('input',{bubbles:true}));
+    restore();
+  }
+  function beginReplacement() {
+    var checkbox = document.getElementById('scholar-ai-live-replace');
+    if (!checkbox || !checkbox.checked) return null;
+    if (live) throw new Error('실시간 작성이 이미 실행 중입니다.');
+    var tx = resolveReplacement();
+    var raw = String(tx.target.value);
+    tx.before = raw.slice(0,tx.start); tx.after = raw.slice(tx.end); tx.current = tx.original;
+    activateDocumentEditor(tx);
+    live = tx;
+    writeReplacement(tx,'');
+    return tx;
+  }
+  function updateReplacement(tx,text) { if (tx && live === tx) { try { writeReplacement(tx,text); } catch (error) { cancelReplacement(); throw error; } } }
+  function finishReplacement(tx,text) {
+    if (!tx || live !== tx) return;
+    if (!String(text || '').trim()) { cancelReplacement(); return; }
+    writeReplacement(tx,text); live = null; captured = null;
+  }
+  function cancelReplacement(expected) {
+    if (expected && live !== expected) return;
+    var tx = live; live = null;
+    if (!tx) return;
+    // Restore only our owned range; never overwrite unrelated user edits.
+    var raw = String(tx.target.value), start = tx.start;
+    if (raw.slice(start,start+tx.current.length) === tx.current) {
+      var restore = preserveScroll(tx.target);
+      tx.target.value = raw.slice(0,start)+tx.original+raw.slice(start+tx.current.length);
+      if (tx.target === document.getElementById('viewer-edit-ta')) window.__rawText = tx.target.value;
+      tx.target.dispatchEvent(new Event('input',{bubbles:true})); restore();
+    }
+  }
+  window.scholarAISelectInsertMode = selectInsertMode;
+  window.ScholarAIReplacement = {isActive:function () { return !!live; },capture:captureReplacement,capturePassage:capturePassage,resolve:resolveReplacement,begin:beginReplacement,update:updateReplacement,finish:finishReplacement,cancel:cancelReplacement};
+  window.scholarAIRefreshInsertMode = refreshInsertMode;
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded',refreshInsertMode); else refreshInsertMode();
 
   function showInsertNotice(message, isError) {
     if (typeof window.showToast === 'function') {
@@ -205,6 +319,7 @@
 
   function insertIntoTextControl(target, text, appendMode) {
     if (!target) return false;
+    var restoreScroll = preserveScroll(target);
     var raw = String(target.value || '');
     var s = isFinite(target.selectionStart) ? target.selectionStart : raw.length;
     var e = isFinite(target.selectionEnd) ? target.selectionEnd : s;
@@ -216,13 +331,14 @@
     var next = appendMode ? (before + selected + '\n\n' + text + after) : (before + text + after);
     target.value = next;
     var caret = appendMode ? (s + selected.length + 2 + text.length) : (s + text.length);
-    if (typeof target.focus === 'function') target.focus();
+    if (typeof target.focus === 'function') target.focus({ preventScroll: true });
     if (typeof target.setSelectionRange === 'function') target.setSelectionRange(caret, caret);
     try {
       var evCtor = (target.ownerDocument && target.ownerDocument.defaultView && target.ownerDocument.defaultView.Event) || Event;
       target.dispatchEvent(new evCtor('input', { bubbles: true }));
       target.dispatchEvent(new evCtor('change', { bubbles: true }));
     } catch (e2) {}
+    restoreScroll();
     return true;
   }
 
@@ -259,8 +375,18 @@
       return;
     }
 
+    if (mode === 2) {
+      try {
+        var tx = resolveReplacement(), rawReplacement = String(tx.target.value);
+        tx.before = rawReplacement.slice(0,tx.start); tx.after = rawReplacement.slice(tx.end); tx.current = tx.original;
+        activateDocumentEditor(tx);
+        writeReplacement(tx,resultText); captured = null;
+      } catch (error) { alert(error.message); }
+      return;
+    }
     var state = getSelectionState();
     var ta = document.getElementById('viewer-edit-ta');
+    var restoreDocumentScroll = preserveScroll(ta);
     var isEdit = document.getElementById('content-viewport') && document.getElementById('content-viewport').classList.contains('viewer-edit-active');
     var viewerBuildNav = typeof window.viewerBuildNav === 'function' ? window.viewerBuildNav : function () {};
 
@@ -311,6 +437,7 @@
     }
     if (!target) return;
 
+    var restoreScroll = preserveScroll(target);
     var start;
     var end;
     var raw = String(target.value || '');
@@ -346,16 +473,15 @@
       selEnd: null,
       lastSelectionTarget: target
     });
-    target.focus();
+    target.focus({ preventScroll: true });
     if (typeof target.setSelectionRange === 'function') target.setSelectionRange(insertEnd, insertEnd);
-    var lines = (target.value.substring(0, insertEnd).match(/\n/g) || []).length;
-    var lineHeight = parseInt(getComputedStyle(target).lineHeight, 10) || 20;
-    if (isFinite(target.scrollTop)) target.scrollTop = Math.max(0, lines * lineHeight - target.clientHeight / 2);
     try {
       var evCtor = (target.ownerDocument && target.ownerDocument.defaultView && target.ownerDocument.defaultView.Event) || Event;
       target.dispatchEvent(new evCtor('input', { bubbles: true }));
       target.dispatchEvent(new evCtor('change', { bubbles: true }));
     } catch (e) {}
+    restoreScroll();
+    restoreDocumentScroll();
   }
 
   window.SidebarAIInsert = {
