@@ -106,6 +106,7 @@
       </div>
       <div class="scholar-ai-run-row">
         <button type="button" id="scholar-ai-run-btn" class="sa-btn" style="background:#4f8ef7;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px" onclick="scholarAIRun()">Run</button>
+<label class="scholar-ai-live-label"><input type="checkbox" id="scholar-ai-live-replace"> 실시간 작성 · 선택 내용 대체</label>
         <button type="button" id="scholar-ai-stop-btn" class="sa-btn ghost" style="padding:6px 12px;font-size:12px" onclick="scholarAIStop()" disabled>Stop</button>
         <div id="scholar-ai-progress-wrap" class="scholar-ai-progress-wrap" aria-live="polite"><div class="scholar-ai-progress-bar"><div id="scholar-ai-progress-fill" class="scholar-ai-progress-fill"></div></div><span id="scholar-ai-progress-pct" class="scholar-ai-progress-pct">0%</span></div>
       </div>
@@ -117,14 +118,14 @@
     </div>
     <div class="scholar-ai-footer">
       <div class="scholar-ai-insert-wrap">
-        <button type="button" class="sa-btn ghost" onclick="handleScholarAIInsertClick()">Insert into document</button>
+        <button type="button" class="sa-btn ghost" onclick="handleScholarAIInsertClick()" title="선택한 기능 실행">←</button><button type="button" id="scholar-ai-insert-mode-button" class="sa-btn ghost" onclick="toggleScholarAIInsertMenu()">커서위치삽입</button>
         <div class="scholar-ai-insert-menu" id="scholar-ai-insert-menu">
-          <button type="button" onclick="scholarAIInsertDoc(0); closeScholarAIInsertMenu()">Insert at cursor</button>
-          <button type="button" onclick="scholarAIInsertDoc(1); closeScholarAIInsertMenu()">Append to document</button>
-          <button type="button" onclick="scholarAIInsertDoc(2); closeScholarAIInsertMenu()">Replace selection</button>
-          <button type="button" id="scholar-ai-insert-translation-footnotes" style="display:none" onclick="scholarAIInsertDoc(6); closeScholarAIInsertMenu()">번역 + 주요 용어 각주 삽입</button>
-          <button type="button" onclick="scholarAIInsertDoc(3); closeScholarAIInsertMenu()">ToGenslide</button>
-          <button type="button" onclick="scholarAIInsertDoc(4); closeScholarAIInsertMenu()">Mermaid(ME)</button>
+          <button type="button" data-insert-mode="0" onclick="scholarAISelectInsertMode(0)">Insert at cursor</button>
+          <button type="button" data-insert-mode="1" onclick="scholarAISelectInsertMode(1)">Append to document</button>
+          <button type="button" data-insert-mode="2" onclick="scholarAISelectInsertMode(2)">Replace selection</button>
+          <button type="button" id="scholar-ai-insert-translation-footnotes" style="display:none" data-insert-mode="6" onclick="scholarAISelectInsertMode(6)">번역 + 주요 용어 각주 삽입</button>
+          <button type="button" data-insert-mode="3" onclick="scholarAISelectInsertMode(3)">ToGenslide</button>
+          <button type="button" data-insert-mode="4" onclick="scholarAISelectInsertMode(4)">Mermaid(ME)</button>
         </div>
       </div>
       <button type="button" id="scholar-ai-to-genslide-btn" class="sa-btn" style="display:none;background:#f59e0b;color:#111827;border:none" onclick="scholarAIToGenSlide()" title="Send slide HTML to GenSlide">ToGenslide</button>
@@ -364,6 +365,7 @@
       </div>
       <div class="scholar-ai-run-row">
         <button type="button" id="scholar-ai-run-btn" class="sa-btn" style="background:#4f8ef7;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px" onclick="scholarAIRun()">Run</button>
+<label class="scholar-ai-live-label"><input type="checkbox" id="scholar-ai-live-replace"> 실시간 작성 · 선택 내용 대체</label>
         <button type="button" id="scholar-ai-stop-btn" class="sa-btn ghost" style="padding:6px 12px;font-size:12px" onclick="scholarAIStop()" disabled>Stop</button>
         <div id="scholar-ai-progress-wrap" class="scholar-ai-progress-wrap" aria-live="polite"><div class="scholar-ai-progress-bar"><div id="scholar-ai-progress-fill" class="scholar-ai-progress-fill"></div></div><span id="scholar-ai-progress-pct" class="scholar-ai-progress-pct">0%</span></div>
       </div>
@@ -375,14 +377,14 @@
     </div>
     <div class="scholar-ai-footer">
       <div class="scholar-ai-insert-wrap">
-        <button type="button" class="sa-btn ghost" onclick="handleScholarAIInsertClick()">Insert into document</button>
+        <button type="button" class="sa-btn ghost" onclick="handleScholarAIInsertClick()" title="선택한 기능 실행">←</button><button type="button" id="scholar-ai-insert-mode-button" class="sa-btn ghost" onclick="toggleScholarAIInsertMenu()">커서위치삽입</button>
         <div class="scholar-ai-insert-menu" id="scholar-ai-insert-menu">
-          <button type="button" onclick="scholarAIInsertDoc(0); closeScholarAIInsertMenu()">Insert at cursor</button>
-          <button type="button" onclick="scholarAIInsertDoc(1); closeScholarAIInsertMenu()">Append to document</button>
-          <button type="button" onclick="scholarAIInsertDoc(2); closeScholarAIInsertMenu()">Replace selection</button>
-          <button type="button" id="scholar-ai-insert-translation-footnotes" style="display:none" onclick="scholarAIInsertDoc(6); closeScholarAIInsertMenu()">번역 + 주요 용어 각주 삽입</button>
-          <button type="button" onclick="scholarAIInsertDoc(3); closeScholarAIInsertMenu()">ToGenslide</button>
-          <button type="button" onclick="scholarAIInsertDoc(4); closeScholarAIInsertMenu()">Mermaid(ME)</button>
+          <button type="button" data-insert-mode="0" onclick="scholarAISelectInsertMode(0)">Insert at cursor</button>
+          <button type="button" data-insert-mode="1" onclick="scholarAISelectInsertMode(1)">Append to document</button>
+          <button type="button" data-insert-mode="2" onclick="scholarAISelectInsertMode(2)">Replace selection</button>
+          <button type="button" id="scholar-ai-insert-translation-footnotes" style="display:none" data-insert-mode="6" onclick="scholarAISelectInsertMode(6)">번역 + 주요 용어 각주 삽입</button>
+          <button type="button" data-insert-mode="3" onclick="scholarAISelectInsertMode(3)">ToGenslide</button>
+          <button type="button" data-insert-mode="4" onclick="scholarAISelectInsertMode(4)">Mermaid(ME)</button>
         </div>
       </div>
       <button type="button" id="scholar-ai-to-genslide-btn" class="sa-btn" style="display:none;background:#f59e0b;color:#111827;border:none" onclick="scholarAIToGenSlide()" title="Send slide HTML to GenSlide">ToGenslide</button>
@@ -1435,6 +1437,7 @@
   var __aiDocSelTimer = null;
  
   function syncAiPanelsFromDocumentSelection() {
+    if (window.ScholarAIReplacement && window.ScholarAIReplacement.isActive()) return;
     var viewer = getViewerMarkdownRoot();
     var taPassage = document.getElementById('scholar-ai-selected');
     var sspPrompt = document.getElementById('ssp-prompt');
@@ -1466,7 +1469,9 @@
       __scholarAILastSelectionDoc = pick.doc || null;
     }
 
+    if (pick.target && window.ScholarAIReplacement) window.ScholarAIReplacement.capture(pick.target,pick.start,pick.end,pick.text);
     if (taPassage) taPassage.value = pick.text;
+    if (!pick.target && window.ScholarAIReplacement) window.ScholarAIReplacement.capturePassage();
     if (sspPrompt) sspPrompt.value = pick.text;
   }
 
@@ -2068,6 +2073,7 @@
     scholarAISetHistoryCollapsed(!collapsed);
   }
   function scholarAIInitHistoryPanel() {
+    if (window.scholarAIRefreshInsertMode) window.scholarAIRefreshInsertMode();
     var collapsed = true;
     try {
       collapsed = (localStorage.getItem(LS_SA_HISTORY_COLLAPSED) || '1') !== '0';
@@ -2174,6 +2180,8 @@
   }
 
   function scholarAIStop() {
+    scholarAIRunEpoch++;
+    if (window.ScholarAIReplacement) window.ScholarAIReplacement.cancel();
     if (!__scholarAIRunning) return;
     var abortFn = getCallback('abortCurrentTask');
     if (typeof abortFn === 'function') {
@@ -2258,10 +2266,10 @@
   }
 
   function scholarAIParseExplanationResult(raw) {
-    var text = String(raw || '').replace(/\r\n/g, '\n').trim();
+    var text = String(raw || '').replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').replace(/\r\n/g, '\n').trim();
     if (!text) return { explanation: '', result: '' };
 
-    var markerRe = /\[\s*(EXPLANATION|RESULT|설명|결과)\s*(?::[^\]]*)?\]/ig;
+    var markerRe = /\[\s*(EXPLANATION|REASONING|RESULT|ANSWER|설명|결과|답변)\s*(?::[^\]]*)?\]/ig;
     var marks = [];
     var m = null;
     while ((m = markerRe.exec(text)) !== null) {
@@ -2276,8 +2284,8 @@
         var cur = marks[i];
         var next = marks[i + 1];
         var seg = text.slice(cur.end, next ? next.idx : text.length).trim();
-        if (cur.key === 'EXPLANATION') explanation += (explanation ? '\n\n' : '') + seg;
-        if (cur.key === 'RESULT') result += (result ? '\n\n' : '') + seg;
+        if (/^(EXPLANATION|REASONING)$/.test(cur.key)) explanation += (explanation ? '\n\n' : '') + seg;
+        if (/^(RESULT|ANSWER|답변)$/.test(cur.key)) result += (result ? '\n\n' : '') + seg;
       }
       return { explanation: explanation.trim(), result: scholarAINormalizeResultText(result) };
     }
@@ -2321,6 +2329,7 @@
     return parsed.result || '';
   }
 
+  var scholarAIRunEpoch = 0;
   async function scholarAIRun() {
     var sel = document.getElementById('scholar-ai-selected');
     var promptEl = document.getElementById('scholar-ai-prompt');
@@ -2331,6 +2340,10 @@
     if (!passage) { alert('Please provide selected text to analyze.'); return; }
     var callScholarAI = getCallback('callScholarAI') || getCallback('callGemini');
     if (typeof callScholarAI !== 'function') { alert('ScholarAI API is not available. Please check your settings.'); return; }
+    var replacement = null;
+    try { replacement = window.ScholarAIReplacement && window.ScholarAIReplacement.begin(); } catch (error) { alert(error.message); return; }
+    var streamRaw = '';
+    var runEpoch = ++scholarAIRunEpoch;
     if (resultEl) resultEl.value = 'Running ScholarAI...';
     if (insertEl) insertEl.value = '';
     scholarAISetRunningState(true);
@@ -2343,8 +2356,15 @@
       var tonePreset = scholarAIGetTonePreset();
       var toneInstruction = scholarAIGetToneInstruction(tonePreset);
       if (toneInstruction) sys += '\n\n' + toneInstruction;
+      sys += '\nStream the final document text FIRST, starting immediately with [RESULT]. Only AFTER the complete result, use [EXPLANATION] for any explanation. Never include explanation or reasoning in [RESULT].';
       var modelId = invokeSync('getScholarAIModelId') || null;
-      var res = await callScholarAI(fullPrompt, sys, false, modelId);
+      var res = await callScholarAI(fullPrompt, sys, false, modelId, {onText: function (delta) {
+        if (runEpoch !== scholarAIRunEpoch) return;
+        streamRaw += delta;
+        var partial = scholarAIApplyResultText(streamRaw.replace(/\[[^\]]*$/, '').replace(/<[^>]*$/, ''));
+        if (replacement) window.ScholarAIReplacement.update(replacement, partial.result);
+      }});
+      if (runEpoch !== scholarAIRunEpoch) return;
       if (res && res.fallbackFrom === 'lmstudio') {
         scholarAISetProviderStatus('LM Studio 실패로 AI Studio를 사용했습니다: ' + (res.fallbackReason || '연결 오류'), true);
       } else if (res && res.provider === 'deepseek' && res.model) {
@@ -2356,10 +2376,13 @@
       var text = res && res.text ? res.text : (res || '');
       var finalText = typeof text === 'string' ? text : JSON.stringify(text);
       scholarAIApplyResultText(finalText);
+      if (replacement) window.ScholarAIReplacement.finish(replacement,scholarAIParseExplanationResult(finalText).result);
       scholarAIHistoryAdd(userQ || passage.substring(0, 80), finalText);
       scholarAIHistoryRender();
       scholarAIStopProgress(true);
     } catch (e) {
+      if (runEpoch !== scholarAIRunEpoch) return;
+      if (replacement) window.ScholarAIReplacement.cancel(replacement);
       var msg = (e && e.message) ? String(e.message) : String(e || '');
       scholarAIStopProgress(false);
       if (resultEl) {
@@ -2374,7 +2397,7 @@
       if (insertEl) insertEl.value = '';
       scholarAISetResultTab('explanation');
     } finally {
-      scholarAISetRunningState(false);
+      if (runEpoch === scholarAIRunEpoch) scholarAISetRunningState(false);
     }
   }
   function scholarAICopyResult() {
@@ -2770,7 +2793,7 @@
       var next = appendMode ? (before + selected + '\n\n' + text + after) : (before + text + after);
       target.value = next;
       var caret = appendMode ? (s + selected.length + 2 + text.length) : (s + text.length);
-      if (typeof target.focus === 'function') target.focus();
+      if (typeof target.focus === 'function') target.focus({ preventScroll: true });
       if (typeof target.setSelectionRange === 'function') target.setSelectionRange(caret, caret);
       try {
         var evCtor = (target.ownerDocument && target.ownerDocument.defaultView && target.ownerDocument.defaultView.Event) || Event;
@@ -2888,11 +2911,8 @@
     __scholarAICursorPos = insertEnd;
     __scholarAISelStart = __scholarAISelEnd = null;
     __scholarAILastSelectionTarget = target;
-    target.focus();
+    target.focus({ preventScroll: true });
     if (typeof target.setSelectionRange === 'function') target.setSelectionRange(insertEnd, insertEnd);
-    var lines = (target.value.substring(0, insertEnd).match(/\n/g) || []).length;
-    var lineHeight = parseInt(getComputedStyle(target).lineHeight, 10) || 20;
-    if (isFinite(target.scrollTop)) target.scrollTop = Math.max(0, lines * lineHeight - target.clientHeight / 2);
     try {
       var evCtor = (target.ownerDocument && target.ownerDocument.defaultView && target.ownerDocument.defaultView.Event) || Event;
       target.dispatchEvent(new evCtor('input', { bubbles: true }));

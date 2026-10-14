@@ -1372,3 +1372,6 @@ body.theme-light #scholar-ai-sidebar .scholar-ai-translation-control { border-co
 body.theme-light #scholar-ai-sidebar .scholar-ai-translation-btn { color: #1d4ed8; }
 body.theme-light #scholar-ai-sidebar #scholar-ai-translation-direction { background: #eff6ff; color: #1e3a8a; }
 body.theme-light #scholar-ai-sidebar .scholar-ai-slide-preview { background: #f8fafc; border-color: #cbd5e1; }
+
+.scholar-ai-live-label { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; flex-wrap: wrap; }
+.scholar-ai-insert-menu button.selected { background: #dbeafe; color: #1d4ed8; font-weight: 700; }

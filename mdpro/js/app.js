@@ -16351,22 +16351,26 @@ function getScholarAIProviderRuntime() {
     }
     scholarAIProviderRuntime = window.ScholarAIProvider.create({
         storage: localStorage,
-        callAIStudio: callAIStudioText,
-        callOllama: function (prompt, systemInstruction, useSearch, modelOverride, signal) {
-            return callOllamaChatText([{ role: 'user', content: String(prompt || '') }], systemInstruction, modelOverride, signal);
+        callAIStudio: function (prompt, systemInstruction, useSearch, model, signal, onText) {
+            if (!onText) return callAIStudioText(prompt,systemInstruction,useSearch,model,signal);
+            return callAIStudioChat([{role:'user',content:prompt}],systemInstruction,model,signal,'quick',false,null,function (event) { if (event.type === 'message.delta') onText(event.content); });
         },
-        callDeepseek: function (prompt, systemInstruction, useSearch, modelOverride, signal, keyOverride, baseUrlOverride) {
+        callOllama: function (prompt, systemInstruction, useSearch, modelOverride, signal, onText) {
+            return callOllamaChatText([{ role: 'user', content: String(prompt || '') }], systemInstruction, modelOverride, signal, 'quick', onText ? function (event) { if (event.type === 'message.delta') onText(event.content); } : undefined);
+        },
+        callDeepseek: function (prompt, systemInstruction, useSearch, modelOverride, signal, keyOverride, onText) {
             return callDeepseekChatText(
                 [{ role: 'user', content: String(prompt || '') }],
                 systemInstruction,
                 modelOverride,
                 signal,
                 keyOverride,
-                baseUrlOverride
+                undefined,
+                {onText:onText}
             );
         },
-        callOpenAI: function (prompt, systemInstruction, useSearch, modelOverride, signal, keyOverride) {
-            return callOpenAIText(prompt, systemInstruction, useSearch, modelOverride, signal, keyOverride);
+        callOpenAI: function (prompt, systemInstruction, useSearch, modelOverride, signal, keyOverride, onText) {
+            return callOpenAIChatText([{role:"user",content:prompt}], systemInstruction, modelOverride, signal, "quick", keyOverride, onText);
         }
     });
     return scholarAIProviderRuntime;
@@ -17403,6 +17407,31 @@ function parseDeepseekTextFromResponse(data) {
     return '';
 }
 
+async function readScholarTextStream(response, extract, onText) {
+    const reader = response.body.getReader(), decoder = new TextDecoder();
+    let buffer = '', text = '';
+    function consume(line) {
+        if (!line.startsWith('data:')) return;
+        const payload = line.slice(5).trim();
+        if (!payload || payload === '[DONE]') return;
+        const data = JSON.parse(payload);
+        if (data.error || data.type === 'error' || data.type === 'response.failed') throw new Error(data.error?.message || data.response?.error?.message || 'AI 스트리밍 오류');
+        const delta = extract(data);
+        if (delta) { text += delta; onText(delta); }
+    }
+    try {
+        while (true) {
+            const chunk = await reader.read();
+            buffer += decoder.decode(chunk.value || new Uint8Array(),{stream:!chunk.done});
+            const lines = buffer.split(/\r?\n/); buffer = lines.pop(); lines.forEach(consume);
+            if (chunk.done) break;
+        }
+        if (buffer) consume(buffer);
+        if (!text.trim()) throw new Error('AI 응답이 비어 있습니다.');
+        return {text:text};
+    } finally { await reader.cancel(); }
+}
+
 async function callDeepseekChatText(
     messages,
     systemInstruction,
@@ -17437,7 +17466,7 @@ async function callDeepseekChatText(
     const requestBody = {
         model: normalizedModel,
         messages: payloadMessages,
-        stream: false,
+        stream: typeof opts.onText === 'function',
         max_tokens: maxTokens,
         thinking: { type: reasoningMode ? 'enabled' : 'disabled' }
     };
@@ -17461,6 +17490,7 @@ async function callDeepseekChatText(
     if (!response.ok) {
         throw await createDeepseekApiError(response, 'DeepSeek 생성 오류');
     }
+    if (opts.onText) return readScholarTextStream(response,function (data) { return data.choices?.[0]?.delta?.content || ''; },opts.onText);
     const data = await response.json();
     const text = parseDeepseekTextFromResponse(data);
     if (!text) throw new Error('DeepSeek 응답이 비어 있습니다.');
@@ -17566,7 +17596,7 @@ function parseOpenAIResponseText(data) {
     return parts.join('');
 }
 
-async function callOpenAIChatText(messages, systemInstruction, modelOverride, signal, responseMode, keyOverride) {
+async function callOpenAIChatText(messages, systemInstruction, modelOverride, signal, responseMode, keyOverride, onText) {
     const state = getOpenAIApiState();
     const key = String(keyOverride || state.key || '').trim();
     if (!key) throw new Error('OpenAI API Key가 없습니다. 앱 설정에서 키를 저장하세요.');
@@ -17589,6 +17619,7 @@ async function callOpenAIChatText(messages, systemInstruction, modelOverride, si
             return { role: item.role === 'assistant' ? 'assistant' : 'user', content: content };
         }),
         max_output_tokens: maxOutputTokens,
+        stream: typeof onText === 'function',
         store: false
     };
     if (systemInstruction) payload.instructions = String(systemInstruction);
@@ -17606,6 +17637,7 @@ async function callOpenAIChatText(messages, systemInstruction, modelOverride, si
         signal: signal
     });
     if (!response.ok) throw await createOpenAIApiError(response, 'OpenAI 생성 오류');
+    if (onText) return readScholarTextStream(response,function (data) { return data.type === 'response.output_text.delta' ? data.delta : ''; },onText);
     const data = await response.json();
     const text = parseOpenAIResponseText(data);
     if (!text) throw new Error('OpenAI 응답이 비어 있습니다.');
@@ -18642,7 +18674,8 @@ function ensureSidebarAILoaded() {
                     responseMode: special.mode,
                     reasoning: special.reasoning,
                     maxTokens: special.maxOutputTokens,
-                    timeoutMs: special.timeoutMs
+                    timeoutMs: special.timeoutMs,
+                    onText: special.onText
                 });
             },
             listScholarAIGeminiModels: function () { return listAIStudioTextModels(); },
@@ -18888,7 +18921,7 @@ function ensureSidebarAILoaded() {
     };
     const script = document.createElement('script');
     const base = getDocumentBaseUrl();
-    const aiSidebarScriptVersion = '20260824-lm-load-1';
+    const aiSidebarScriptVersion = '20261014-scholar-stream-2';
     try {
         const u = new URL('./sidebarAI/sidebar-ai.js', base);
         u.searchParams.set('v', aiSidebarScriptVersion);

@@ -81,6 +81,7 @@
       </div>
       <div class="scholar-ai-run-row">
         <button type="button" id="scholar-ai-run-btn" class="sa-btn" style="background:#4f8ef7;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px" onclick="scholarAIRun()">Run</button>
+<label class="scholar-ai-live-label"><input type="checkbox" id="scholar-ai-live-replace"> 실시간 작성 · 선택 내용 대체</label>
         <button type="button" id="scholar-ai-stop-btn" class="sa-btn ghost" style="padding:6px 12px;font-size:12px" onclick="scholarAIStop()" disabled>Stop</button>
         <div id="scholar-ai-progress-wrap" class="scholar-ai-progress-wrap" aria-live="polite">
           <div class="scholar-ai-progress-bar">
@@ -97,14 +98,14 @@
     </div>
     <div class="scholar-ai-footer">
       <div class="scholar-ai-insert-wrap">
-        <button type="button" class="sa-btn ghost" onclick="handleScholarAIInsertClick()">Insert into document</button>
+        <button type="button" class="sa-btn ghost" onclick="handleScholarAIInsertClick()" title="선택한 기능 실행">←</button><button type="button" id="scholar-ai-insert-mode-button" class="sa-btn ghost" onclick="toggleScholarAIInsertMenu()">커서위치삽입</button>
         <div class="scholar-ai-insert-menu" id="scholar-ai-insert-menu">
-          <button type="button" onclick="scholarAIInsertDoc(0); closeScholarAIInsertMenu()">Insert at cursor</button>
-          <button type="button" onclick="scholarAIInsertDoc(1); closeScholarAIInsertMenu()">Append to document</button>
-          <button type="button" onclick="scholarAIInsertDoc(2); closeScholarAIInsertMenu()">Replace selection</button>
-          <button type="button" id="scholar-ai-insert-translation-footnotes" style="display:none" onclick="scholarAIInsertDoc(6); closeScholarAIInsertMenu()">번역 + 주요 용어 각주 삽입</button>
-          <button type="button" onclick="scholarAIInsertDoc(3); closeScholarAIInsertMenu()">ToGenslide</button>
-          <button type="button" onclick="scholarAIInsertDoc(4); closeScholarAIInsertMenu()">Mermaid(ME)</button>
+          <button type="button" data-insert-mode="0" onclick="scholarAISelectInsertMode(0)">Insert at cursor</button>
+          <button type="button" data-insert-mode="1" onclick="scholarAISelectInsertMode(1)">Append to document</button>
+          <button type="button" data-insert-mode="2" onclick="scholarAISelectInsertMode(2)">Replace selection</button>
+          <button type="button" id="scholar-ai-insert-translation-footnotes" style="display:none" data-insert-mode="6" onclick="scholarAISelectInsertMode(6)">번역 + 주요 용어 각주 삽입</button>
+          <button type="button" data-insert-mode="3" onclick="scholarAISelectInsertMode(3)">ToGenslide</button>
+          <button type="button" data-insert-mode="4" onclick="scholarAISelectInsertMode(4)">Mermaid(ME)</button>
         </div>
       </div>
       <button type="button" id="scholar-ai-to-genslide-btn" class="sa-btn" style="display:none;background:#f59e0b;color:#111827;border:none" onclick="scholarAIToGenSlide()" title="Send slide HTML to GenSlide">ToGenslide</button>
