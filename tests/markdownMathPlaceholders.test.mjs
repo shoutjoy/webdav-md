@@ -13,6 +13,19 @@ async function load() {
   return window;
 }
 
+test('R member access inside code never consumes subsequent math', async () => {
+  const root = await load();
+  for (const code of ['`nmds_result$points`', '``nmds_result$points `literal` ``', '```r\nnmds_result$points\n```', '~~~r\nnmds_result$points\n~~~']) {
+    const source = code + '\n\n좌표 $x_i$ 및 $y_i$';
+    for (const html of [root.MathRender.renderMarkdownSync(root.marked, source), root.AIChatMarkdown.toHtml(source)]) {
+      assert.match(html, /<code[^>]*>nmds_result\$points/);
+      assert.ok(html.includes('$x_i$'));
+      assert.ok(html.includes('$y_i$'));
+      assert.doesNotMatch(html, /MATHSEG/);
+    }
+  }
+});
+
 test('documents and Jena retain quoted placeholders and intentional deletion', async () => {
   const root = await load();
   const source = '시스템은 "~~와 관련성을 보일 가능성이 높다", "~~의 경향성을 시사한다". ~~취소선~~';

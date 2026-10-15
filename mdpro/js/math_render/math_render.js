@@ -321,7 +321,9 @@
         },
         protectMathSegments: function (md) {
             var src = String(md || '');
-            var chunks = src.split(/(```[\s\S]*?```)/g);
+            // Code spans (including multi-backtick spans) and fenced blocks own
+            // their dollar signs; never pair them with a later math delimiter.
+            var codePattern = /`{3,}[^\n]*\n[\s\S]*?\n`{3,}|~{3,}[^\n]*\n[\s\S]*?\n~{3,}|(`+)(?!`)[\s\S]*?\1(?!`)/g;
             var slots = [];
 
             function escapeHtml(value) {
@@ -399,9 +401,14 @@
                 return out.join('');
             }
 
-            var protectedText = chunks.map(function (chunk) {
-                return /^```[\s\S]*```$/.test(chunk) ? chunk : protectChunk(chunk);
-            }).join('');
+            var cursor = 0;
+            var protectedText = '';
+            src.replace(codePattern, function (code, ticks, offset) {
+                protectedText += protectChunk(src.slice(cursor, offset)) + code;
+                cursor = offset + code.length;
+                return code;
+            });
+            protectedText += protectChunk(src.slice(cursor));
 
             return {
                 text: protectedText,

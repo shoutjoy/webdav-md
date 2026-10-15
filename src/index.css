@@ -130,7 +130,12 @@ body { margin: 0; background: #e9edf3; }
 .dark .mdpro-stage { border-color:#334155; background:#0f172a; }
 .mdpro-stage-bar { height: 38px; display: flex; align-items: center; gap: 9px; padding: 0 12px; color: #334155; background: linear-gradient(180deg,#e2e8f0,#cbd5e1); border-bottom: 1px solid #bac5d3; font-size: 11px; letter-spacing: .08em; }
 .dark .mdpro-stage-bar { color:#dbe5f3; background:linear-gradient(180deg,#202938,#151c28); border-bottom-color:#303b4c; }
-.system-usage { display:flex; flex-wrap:wrap; flex-shrink:0; gap:4px 12px; cursor:default; letter-spacing:0; font-size:11px; font-variant-numeric:tabular-nums; }
+.mdpro-stage-bar:has(.system-memory-result) { height:auto; min-height:38px; padding-top:6px; padding-bottom:6px; }
+.system-usage { display:flex; align-items:center; flex-wrap:wrap; min-width:0; max-width:100%; gap:4px 12px; cursor:default; letter-spacing:0; font-size:11px; font-variant-numeric:tabular-nums; }
+.system-usage > .system-memory-result { flex-basis:100%; white-space:normal; overflow-wrap:anywhere; }
+.system-memory-cleanup { cursor:pointer; font:inherit; }
+.system-memory-cleanup:disabled { cursor:wait; }
+.system-memory-cleanup:focus-visible { outline:2px solid #7c9cff; outline-offset:2px; }
 .system-usage > span { white-space:nowrap; }
 .system-usage b { display:inline-block; min-width:4ch; text-align:right; }
 @media (max-width:600px) {
