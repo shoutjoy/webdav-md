@@ -1251,6 +1251,7 @@ body.ai-chat-history-resizing { cursor: ew-resize !important; user-select: none 
 .ai-chat-generated-image-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .ai-chat-image-gallery button { width: 100%; padding: 7px 9px; border: 0; border-top: 1px solid #526d96; background: #29415f; color: #beddff; font-size: 11px; font-weight: 700; cursor: pointer; }
 .ai-chat-generated-image-actions button + button { border-left: 1px solid #526d96; }
+.ai-chat-generated-image-actions button:last-child { grid-column: 1 / -1; }
 .ai-chat-image-gallery button:hover { background: #365678; }
 .ai-chat-image-gallery button:disabled { opacity: .55; cursor: wait; }
 .ai-chat-panel.image-model-selected .ai-chat-mode-row { border-color: #7b6a34; background: #2b2d3b; }

@@ -4936,6 +4936,41 @@
     }
   }
 
+  async function copyGeneratedImage(image) {
+    if (!image || !image.data) return setStatus('복사할 이미지 데이터가 없습니다.', 'error');
+    if (!navigator.clipboard || !navigator.clipboard.write || typeof ClipboardItem === 'undefined') {
+      return setStatus('이 환경에서는 이미지 복사를 지원하지 않습니다. HTTPS 또는 localhost에서 열거나 이미지 저장을 이용해 주세요.', 'error');
+    }
+    try {
+      // Start the clipboard write in the click gesture; conversion can finish asynchronously.
+      var pngBlob = new Promise(function (resolve, reject) {
+        var source = new Image();
+        source.onload = function () {
+          try {
+            var canvas = document.createElement('canvas');
+            canvas.width = source.naturalWidth;
+            canvas.height = source.naturalHeight;
+            var context = canvas.getContext('2d');
+            if (!context) throw new Error('이미지 변환을 준비하지 못했습니다.');
+            context.drawImage(source, 0, 0);
+            canvas.toBlob(function (blob) {
+              if (blob) resolve(blob);
+              else reject(new Error('이미지를 PNG로 변환하지 못했습니다.'));
+            }, 'image/png');
+          } catch (error) { reject(error); }
+        };
+        source.onerror = function () { reject(new Error('복사할 이미지를 읽지 못했습니다.')); };
+        source.src = 'data:' + String(image.mimeType || 'image/png') + ';base64,' + image.data;
+      });
+      // Observe conversion errors even when clipboard access is rejected first.
+      pngBlob.catch(function () {});
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': pngBlob })]);
+      setStatus('이미지를 복사했습니다. 일반 문서나 Word에 Ctrl+V로 붙여넣으세요.', 'ok');
+    } catch (error) {
+      setStatus('이미지를 복사하지 못했습니다. 클립보드 권한을 확인하거나 이미지 저장을 이용해 주세요.', 'error');
+    }
+  }
+
   function saveGeneratedImage(image, index) {
     if (!image || !image.data) return setStatus('저장할 이미지 데이터가 없습니다.', 'error');
     var mimeType = String(image.mimeType || 'image/png');
@@ -5620,6 +5655,12 @@
             imageActions.appendChild(save);
             imageActions.appendChild(insertImage);
             imageActions.appendChild(uploadInsertImage);
+            var copyImage = document.createElement('button');
+            copyImage.type = 'button';
+            copyImage.textContent = '이미지 복사';
+            copyImage.title = '이미지 자체를 클립보드에 복사하여 일반 문서나 Word에 붙여넣기';
+            copyImage.addEventListener('click', function () { copyGeneratedImage(image); });
+            imageActions.appendChild(copyImage);
             figure.appendChild(imageActions);
             gallery.appendChild(figure);
           });
