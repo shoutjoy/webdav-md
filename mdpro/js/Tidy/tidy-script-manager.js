@@ -6,7 +6,7 @@
     var FILE_HEADER = 'mdviewer-tidy-script:v1';
     var sourceUrl = document.currentScript && document.currentScript.src ? document.currentScript.src : '';
     var managerUrl = sourceUrl
-        ? new URL('./tidy-script-manager.html', sourceUrl).href
+        ? new URL('./tidy-script-manager.html?v=20261016-ai-tools-1', sourceUrl).href
         : './js/Tidy/tidy-script-manager.html';
     var deps = {};
     var scripts = [];

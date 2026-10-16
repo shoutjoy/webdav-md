@@ -1448,7 +1448,7 @@ function requestMermaidFromImage() {
   editor.value = '';
   mermaidImageGenerate.disabled = true;
   setMermaidImageStatus('AI가 이미지 구조를 분석하고 있습니다…');
-  window.parent.postMessage({ type: 'mdv-analyze-image-to-mermaid', requestId: mermaidImageRequestId, image: mermaidReferenceImage, prompt: String(mermaidImagePrompt && mermaidImagePrompt.value || '').trim() }, '*');
+  window.parent.postMessage({ type: 'mdv-analyze-image-to-mermaid', requestId: mermaidImageRequestId, image: mermaidReferenceImage, aiSelection: window.parent.AIToolProviders.read('mermaid'), prompt: String(mermaidImagePrompt && mermaidImagePrompt.value || '').trim() }, '*');
 }
 
 function sendRenderedSvgToImageInsert() {
@@ -1931,3 +1931,8 @@ applyEditorScale();
 applyPreviewThemeUI();
 applyPreviewScale();
 renderWithStartupRecovery();
+
+// Keep image analysis on the provider/model selected in this editor.
+if (window.parent !== window && window.parent.AIToolProviders) {
+  window.parent.AIToolProviders.mount(document.getElementById('image-to-mermaid'), 'mermaid');
+}
