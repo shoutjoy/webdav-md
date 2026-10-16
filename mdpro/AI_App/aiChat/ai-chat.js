@@ -5655,12 +5655,29 @@
             imageActions.appendChild(save);
             imageActions.appendChild(insertImage);
             imageActions.appendChild(uploadInsertImage);
+            var editImage = document.createElement('button');
+            editImage.type = 'button';
+            editImage.textContent = '이미지 편집';
+            editImage.title = '이 이미지를 별도 편집 창에서 프롬프트로 수정';
+            editImage.disabled = state.running;
+            editImage.addEventListener('click', function () { openGeneratedImageEditor(image, imageIndex); });
+            imageActions.appendChild(editImage);
             var copyImage = document.createElement('button');
             copyImage.type = 'button';
             copyImage.textContent = '이미지 복사';
             copyImage.title = '이미지 자체를 클립보드에 복사하여 일반 문서나 Word에 붙여넣기';
             copyImage.addEventListener('click', function () { copyGeneratedImage(image); });
             imageActions.appendChild(copyImage);
+            var enlargeImage = document.createElement('button');
+            enlargeImage.type = 'button';
+            enlargeImage.textContent = '크게 보기';
+            enlargeImage.addEventListener('click', function () { openGeneratedImagePreview(image, imageIndex); });
+            imageActions.appendChild(enlargeImage);
+            var fmaImage = document.createElement('button');
+            fmaImage.type = 'button';
+            fmaImage.textContent = 'FMA 보기';
+            fmaImage.addEventListener('click', function () { openGeneratedImageInFma(image, imageIndex); });
+            imageActions.appendChild(fmaImage);
             figure.appendChild(imageActions);
             gallery.appendChild(figure);
           });
@@ -5909,8 +5926,8 @@
     }
   }
 
-  function confirmAndOpenImageInFma(dataUrl, name) {
-    if (!dataUrl || !root.confirm('FMA Viewer를 열까요?')) return;
+  function confirmAndOpenImageInFma(dataUrl, name, skipConfirmation) {
+    if (!dataUrl || (!skipConfirmation && !root.confirm('FMA Viewer를 열까요?'))) return false;
     var imageName = String(name || 'AI-Jena-image.png');
     try {
       getBridge().openAIDataImagesInFma([{
@@ -5918,8 +5935,10 @@
         dataUrl: dataUrl,
         name: imageName
       }], imageName);
+      return true;
     } catch (error) {
       setStatus(error && error.message ? error.message : 'FMA Viewer로 이미지를 열지 못했습니다.', 'error');
+      return false;
     }
   }
 
@@ -6277,6 +6296,139 @@
     var error = new Error('응답 생성을 중지했습니다.');
     error.name = 'AbortError';
     throw error;
+  }
+
+  function openGeneratedImageInFma(image, imageIndex) {
+    if (!image || !image.data) return false;
+    return confirmAndOpenImageInFma(
+      'data:' + (image.mimeType || 'image/png') + ';base64,' + image.data,
+      'AI-generated-' + (imageIndex + 1) + '.png', true
+    );
+  }
+
+  function openGeneratedImagePreview(image, imageIndex) {
+    if (!image || !image.data) return;
+    var dialog = document.createElement('dialog');
+    dialog.className = 'ai-chat-image-preview';
+    dialog.setAttribute('aria-label', '이미지 크게 보기');
+    var preview = document.createElement('img');
+    preview.src = 'data:' + (image.mimeType || 'image/png') + ';base64,' + image.data;
+    preview.alt = '생성 이미지 ' + (imageIndex + 1) + ' 크게 보기';
+    var actions = document.createElement('div');
+    actions.className = 'ai-chat-image-editor-actions';
+    var fma = document.createElement('button');
+    fma.type = 'button';
+    fma.textContent = 'FMA 보기';
+    fma.addEventListener('click', function () {
+      if (openGeneratedImageInFma(image, imageIndex)) {
+        dialog.close();
+        var editor = document.getElementById('ai-chat-image-editor');
+        if (editor) editor.close();
+      }
+    });
+    var close = document.createElement('button');
+    close.type = 'button';
+    close.textContent = '닫기';
+    close.addEventListener('click', function () { dialog.close(); });
+    actions.append(fma, close);
+    dialog.append(actions, preview);
+    dialog.addEventListener('close', function () { dialog.remove(); });
+    document.body.appendChild(dialog);
+    dialog.showModal();
+    close.focus();
+  }
+
+  function openGeneratedImageEditor(image, imageIndex) {
+    if (!image || !image.data || state.running) return;
+    var previous = document.getElementById('ai-chat-image-editor');
+    if (previous) return;
+    var source = image;
+    var busy = false;
+    var dialog = document.createElement('dialog');
+    dialog.id = 'ai-chat-image-editor';
+    dialog.className = 'ai-chat-image-editor';
+    dialog.setAttribute('aria-label', '이미지 편집');
+    var title = document.createElement('h2');
+    title.textContent = '이미지 편집';
+    var preview = document.createElement('img');
+    preview.alt = '편집할 이미지';
+    function updatePreview() {
+      preview.src = 'data:' + (source.mimeType || 'image/png') + ';base64,' + source.data;
+    }
+    updatePreview();
+    var label = document.createElement('label');
+    label.textContent = '선택한 이미지에서 변경할 내용을 입력하세요.';
+    var prompt = document.createElement('textarea');
+    prompt.id = 'ai-chat-image-edit-prompt';
+    prompt.rows = 3;
+    prompt.placeholder = '예: 내용을 유지하고 3×2 배치를 2×3 세로 배치로 바꿔줘';
+    label.htmlFor = prompt.id;
+    var status = document.createElement('p');
+    status.setAttribute('role', 'status');
+    status.textContent = '선택한 이미지를 기준으로 편집합니다. 결과에서 이어서 편집할 수 있습니다.';
+    var actions = document.createElement('div');
+    actions.className = 'ai-chat-image-editor-actions';
+    function button(text, handler) {
+      var control = document.createElement('button');
+      control.type = 'button';
+      control.textContent = text;
+      control.addEventListener('click', handler);
+      actions.appendChild(control);
+      return control;
+    }
+    var edit = button('편집 실행', async function () {
+      var instruction = prompt.value.trim();
+      if (busy || state.running) return;
+      if (!instruction) { prompt.focus(); return; }
+      busy = true;
+      Array.from(actions.children).forEach(function (control) { control.disabled = true; });
+      prompt.disabled = true;
+      status.textContent = '선택한 이미지를 편집하는 중...';
+      setRunning(true);
+      var revision = generationStopRevision;
+      try {
+        var result = await getBridge().complete({
+          provider: 'aistudio',
+          model: isGeminiImageModel(state.geminiModel) ? state.geminiModel : IMG_GEN_FALLBACK_MODEL,
+          mode: 'quick',
+          messages: [{ role: 'user', content: '첨부한 이미지를 원본으로 편집하세요. 요청하지 않은 내용은 유지하세요. 편집 요청: ' + instruction,
+            attachments: [{ kind: 'image', name: 'edit-source.png', type: source.mimeType || 'image/png',
+              dataUrl: 'data:' + (source.mimeType || 'image/png') + ';base64,' + source.data }] }],
+          systemInstruction: 'Edit the supplied image according to the user request and return the edited image.'
+        });
+        if (revision !== generationStopRevision) throw new Error('이미지 편집이 중지되었습니다.');
+        var images = result && Array.isArray(result.images) ? result.images.filter(function (item) { return item && item.data; }) : [];
+        if (!images.length) throw new Error('편집된 이미지가 반환되지 않았습니다. 요청을 수정하여 다시 시도하세요.');
+        state.messages.push({ role: 'assistant', content: '이미지 편집: ' + instruction, images: images, createdAt: Date.now() });
+        saveHistory();
+        source = images[0];
+        updatePreview();
+        prompt.value = '';
+        status.textContent = '편집 완료. 아래 프롬프트로 현재 결과를 이어서 편집할 수 있습니다. 결과는 대화에도 저장되었습니다.';
+      } catch (error) {
+        status.textContent = error && error.message ? error.message : '이미지를 편집하지 못했습니다.';
+      } finally {
+        busy = false;
+        setRunning(false);
+        renderMessages();
+        Array.from(actions.children).forEach(function (control) { control.disabled = false; });
+        prompt.disabled = false;
+        prompt.focus();
+      }
+    });
+    button('이미지 저장', function () { saveGeneratedImage(source, imageIndex); });
+    button('문서삽입', function () { insertGeneratedImageIntoDocument(source, imageIndex, false); });
+    button('크게 보기', function () { openGeneratedImagePreview(source, imageIndex); });
+    button('FMA 보기', function () {
+      if (openGeneratedImageInFma(source, imageIndex)) dialog.close();
+    });
+    button('닫기', function () { dialog.close(); });
+    dialog.addEventListener('cancel', function (event) { if (busy) event.preventDefault(); });
+    dialog.addEventListener('close', function () { dialog.remove(); });
+    dialog.append(title, preview, label, prompt, status, actions);
+    document.body.appendChild(dialog);
+    dialog.showModal();
+    prompt.focus();
   }
 
   async function sendMessage() {
