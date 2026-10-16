@@ -301,6 +301,7 @@
       return [
         '[필수 답변 문체 규칙]',
         '선택된 답변 문체는 객관적이고 전문적인 한국어 학술 문체이다. 이 규칙은 선택 사항이나 참고 사항이 아니라 최종 답변 전체에 반드시 적용해야 하는 출력 제약이다.',
+        '본문은 한국어로 작성하고 문장 종결은 -이다, -한다, -하였다, -로 나타났다 등의 학술 서술형을 사용한다. -습니다, -입니다, -해요 등의 존댓말을 섞지 않는다. 예: 이 결과는 두 변수의 관련성을 시사한다.',
         customPrompt || '상투적인 -이다/-한다 종결을 반복하지 말고 문맥에 맞는 학술적 서술어와 시제를 다양하게 사용한다.',
         academicContext ? '전문용어를 정확하게 사용하고 주장, 근거, 해석을 명확하게 구분한다.' : '과장된 표현을 피하고 논리적이며 객관적으로 서술한다.',
         '제목, 목록, 표, 인용문, 코드처럼 종결어미가 없는 요소를 제외한 모든 한국어 서술문에 이 문체를 일관되게 적용한다.',
@@ -4577,6 +4578,7 @@
       }
       var result = await getBridge().complete({
         provider: state.provider,
+        responseStyle: state.generalAnswer ? '' : normalizeWritingStyle(state.writingStyle),
         model: activeProviderModel(),
         mode: academicSearch ? 'quick' : state.responseMode,
         academicSearch: academicSearch,
@@ -6390,6 +6392,7 @@
       }
       var result = await getBridge().complete({
         provider: state.provider,
+        responseStyle: state.generalAnswer ? '' : normalizeWritingStyle(state.writingStyle),
         model: activeProviderModel(),
         mode: academicSearchActive ? 'quick' : state.responseMode,
         academicSearch: academicSearchActive,
