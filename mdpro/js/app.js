@@ -1634,12 +1634,14 @@ function applyOpenAICompatibleProviderPreset() {
 
 // Only select the NPU model after the local server confirms it is installed.
 window.connectAIJenaNPU = async function (protocol) {
-    if (protocol === 'ollama-npu') {
+    if (!protocol || protocol === 'ollama-npu') {
         const models = await listNPUModels();
         const previous = localStorage.getItem('ss_ai_chat_npu_model');
         const model = models.includes(previous) ? previous : models[0];
         localStorage.setItem('ss_ai_chat_npu_model', model);
+        migrateLegacyOllamaNPUSettings();
         localStorage.setItem('ss_ai_chat_provider', 'ollama-npu');
+        if (window.AIChat && typeof window.AIChat.syncSettings === 'function') window.AIChat.syncSettings();
         return model;
     }
     if (protocol === 'openai-compatible') {
@@ -1658,34 +1660,16 @@ window.connectAIJenaNPU = async function (protocol) {
         if (window.AIChat && typeof window.AIChat.syncSettings === 'function') window.AIChat.syncSettings();
         return connection.modelId;
     }
-    const baseUrl = 'http://127.0.0.1:13305';
-    const modelId = 'qwen3-it-4b-FLM:latest';
-    const models = await listOllamaModels({ baseUrl }, true);
-    if (!models.includes(modelId)) {
-        throw new Error('NPU 모델이 설치되지 않았습니다. lemonade pull qwen3-it-4b-FLM을 실행하세요.');
-    }
-    if (getOllamaSettings().baseUrl !== baseUrl) {
-        localStorage.setItem('ss_ollama_before_npu_v1', JSON.stringify({
-            baseUrl: getOllamaSettings().baseUrl,
-            model: localStorage.getItem('ss_ai_chat_ollama_model') || '',
-            generation: localStorage.getItem('ss_ai_chat_ollama_generation_v1')
-        }));
-    }
-    localStorage.setItem(OLLAMA_BASE_URL_KEY, baseUrl);
-    localStorage.setItem('ss_ai_chat_ollama_model', modelId);
-    localStorage.setItem('ss_ai_chat_provider', 'ollama');
-    localStorage.setItem('ss_ai_chat_ollama_generation_v1', JSON.stringify(
-        Object.assign({}, getOllamaSettings(), { contextLength: 16384 })
-    ));
-    saveStoredModelList(OLLAMA_MODELS_KEY, models);
-    loadOllamaSettingsToUI();
-    if (window.AIChat && typeof window.AIChat.syncSettings === 'function') window.AIChat.syncSettings();
-    return modelId;
+    throw new Error('지원하지 않는 NPU 연결 방식입니다.');
 };
 
 window.restoreAIJenaOllama = function () {
-    let previous = {};
-    try { previous = JSON.parse(localStorage.getItem('ss_ollama_before_npu_v1') || '{}'); } catch (_) {}
+    migrateLegacyOllamaNPUSettings();
+    const previous = {
+        baseUrl: localStorage.getItem(OLLAMA_BASE_URL_KEY),
+        model: localStorage.getItem('ss_ai_chat_ollama_model'),
+        generation: localStorage.getItem('ss_ai_chat_ollama_generation_v1')
+    };
     localStorage.setItem(OLLAMA_BASE_URL_KEY, previous.baseUrl || 'http://127.0.0.1:11434');
     localStorage.setItem('ss_ai_chat_ollama_model', previous.model || '');
     localStorage.setItem('ss_ai_chat_provider', 'ollama');
@@ -5071,6 +5055,7 @@ function toggleMode(mode, options) {
     if (typeof window.refreshEditorFormatGutter === 'function') {
         requestAnimationFrame(window.refreshEditorFormatGutter);
     }
+    requestAnimationFrame(applyEditorHorizontalShift);
 }
 
 const DEDICATED_LOCAL_VIEWER_EXTENSIONS = new Set([
@@ -10116,27 +10101,29 @@ function applyEditorHorizontalShift() {
     const editorDocWrap = document.getElementById('editor-doc-wrap');
     const a4Pages = document.getElementById('a4-pages');
     const display = document.getElementById('editor-shift-display');
-    const viewport = document.getElementById('content-viewport');
+    const viewport = document.getElementById(isEditMode ? 'content-viewport' : 'viewer-container');
     if (!editorDocWrap || !viewport) {
         if (display) display.textContent = '0px';
         return;
     }
 
-    const isA4 = viewport.classList.contains('a4-active') && a4Pages && !a4Pages.hidden;
-    const shiftTarget = isA4 ? a4Pages : editorDocWrap;
-    const inactiveTarget = isA4 ? editorDocWrap : a4Pages;
+    const isA4 = isEditMode && viewport.classList.contains('a4-active') && a4Pages && !a4Pages.hidden;
+    const viewTarget = document.getElementById('viewer');
+    const shiftTarget = isEditMode ? (isA4 ? a4Pages : editorDocWrap) : viewTarget;
+    if (!shiftTarget) return;
     const viewportWidth = Number(viewport.clientWidth) || 0;
     const targetWidth = Number(shiftTarget.offsetWidth) || 0;
-    const maxShift = isA4
+    const maxShift = isA4 || !isEditMode
         ? Math.max(80, Math.floor(Math.abs(viewportWidth - targetWidth) / 2 + viewportWidth * 0.25))
         : Math.max(0, Math.floor((viewportWidth - targetWidth) / 2) - 8);
     const clamped = Math.max(-maxShift, Math.min(maxShift, Number(editorHorizontalShiftPx) || 0));
     editorHorizontalShiftPx = clamped;
 
-    if (inactiveTarget) {
-        inactiveTarget.style.transform = '';
-        inactiveTarget.style.transition = '';
-    }
+    [editorDocWrap, a4Pages, viewTarget].forEach(target => {
+        if (!target || target === shiftTarget) return;
+        target.style.transform = '';
+        target.style.transition = '';
+    });
     shiftTarget.style.transform = `translateX(${editorHorizontalShiftPx}px)`;
     shiftTarget.style.transition = 'transform 120ms ease';
     if (display) display.textContent = `${editorHorizontalShiftPx}px`;
@@ -10202,8 +10189,10 @@ function initEditorShiftFloat(control) {
 
 function syncEditorShiftFloatPosition() {
     const control = document.getElementById('editor-shift-float');
-    const viewport = document.getElementById('content-viewport');
+    const viewport = document.getElementById(isEditMode ? 'content-viewport' : 'viewer-container');
     if (!control || !viewport) return;
+    const host = document.getElementById('drop-zone');
+    if (host && control.parentNode !== host) host.appendChild(control);
 
     const viewportRect = viewport.getBoundingClientRect();
     const sidebarEl = document.getElementById('sidebar');
@@ -15750,6 +15739,11 @@ async function applyAiFeatureVisibility() {
     applyTemplateVisibility(settings || { templateVisible: false });
 }
 
+function isAiJenaPanelOpen() {
+    const panel = document.getElementById('ai-chat-panel');
+    return !!panel && panel.classList.contains('open');
+}
+
 function setAiSidebarWrapVisible(w, isLoading) {
     const wrap = document.getElementById('ai-right-sidebar-wrap');
     const inner = document.getElementById('ai-right-sidebar-inner');
@@ -15768,7 +15762,7 @@ function setAiSidebarWrapVisible(w, isLoading) {
         'flex-direction:column',
         'position:fixed',
         'top:' + topOffset + 'px',
-        'right:0',
+        isAiJenaPanelOpen() ? 'left:0' : 'right:0',
         'bottom:0',
         'z-index:' + overlayZ,
         'pointer-events:auto',
@@ -15837,7 +15831,7 @@ function refreshAiRightSidebarWrap() {
         'flex-direction:column',
         'position:fixed',
         'top:' + topOffset + 'px',
-        'right:0',
+        isAiJenaPanelOpen() ? 'left:0' : 'right:0',
         'bottom:0',
         'z-index:' + overlayZ,
         'pointer-events:auto',
@@ -16058,6 +16052,7 @@ window.openSspimgAIFromHeader = openSspimgAIFromHeader;
 window.openImageUploadTool = openImageUploadTool;
 window.viewerSSPCropFromPanel = viewerSSPCropFromPanel;
 window.refreshAiRightSidebarWrap = refreshAiRightSidebarWrap;
+window.addEventListener('ai-jena-layout-change', refreshAiRightSidebarWrap);
 if (!window.__aiSidebarResizeBound) {
     window.__aiSidebarResizeBound = true;
     window.addEventListener('resize', function () {
@@ -16620,6 +16615,29 @@ function getScholarAIProviderRuntime() {
     }
     scholarAIProviderRuntime = window.ScholarAIProvider.create({
         storage: localStorage,
+        getCredential: function (provider) { return getProtectedAiCredential(provider, 'ss_' + provider + '_api_key'); },
+        getSharedModel: function (provider) {
+            if (provider === 'litertlm') return getLiteRTLMSettings().model;
+            if (provider === 'ollama-npu') return localStorage.getItem('ss_ai_chat_npu_model') || '';
+            return getStoredOpenAICompatibleConnection().modelId || '';
+        },
+        callSharedProvider: async function (request, signal) {
+            let streamed = false;
+            const result = await completeSharedAIProvider({
+                provider: request.provider, model: request.model,
+                messages: [{ role: 'user', content: String(request.prompt || '') }],
+                systemInstruction: request.systemInstruction,
+                mode: request.responseMode || 'quick',
+                onStreamEvent: request.onText ? function (event) {
+                    if (event.type === 'message.delta') { streamed = true; request.onText(event.content); }
+                } : undefined
+            }, signal);
+            if (request.onText && !streamed && result.text) request.onText(result.text);
+            return result;
+        },
+        listOllamaModels: function (signal) { return listOllamaModels({ signal: signal }); },
+        isAIStudioConfigured: function () { return !!getProtectedAiCredential('gemini', 'ss_gemini_api_key'); },
+        listAIStudioModels: function () { return listAIStudioTextModels(); },
         callAIStudio: function (prompt, systemInstruction, useSearch, model, signal, onText) {
             if (!onText) return callAIStudioText(prompt,systemInstruction,useSearch,model,signal);
             return callAIStudioChat([{role:'user',content:prompt}],systemInstruction,model,signal,'quick',false,null,function (event) { if (event.type === 'message.delta') onText(event.content); });
@@ -16724,7 +16742,27 @@ function normalizeOllamaGenerationSettings(value) {
     };
 }
 
+// Older NPU presets overwrote the regular Ollama endpoint and model cache.
+// Repair only that recognizable legacy configuration; preserve custom servers.
+function migrateLegacyOllamaNPUSettings() {
+    let endpoint;
+    try { endpoint = new URL(localStorage.getItem(OLLAMA_BASE_URL_KEY) || ''); } catch (_) { return; }
+    if (!/^(?:localhost|127\.0\.0\.1|\[?::1\]?)$/i.test(endpoint.hostname) || endpoint.port !== '13305') return;
+    const selected = localStorage.getItem('ss_ai_chat_ollama_model') || '';
+    const backup = localStorage.getItem('ss_ollama_before_npu_v1');
+    if (!backup && !/-FLM(?::[^:]*)?$/i.test(selected)) return;
+    let previous = {};
+    try { previous = JSON.parse(backup || '{}') || {}; } catch (_) {}
+    localStorage.setItem(OLLAMA_BASE_URL_KEY, previous.baseUrl || 'http://127.0.0.1:11434');
+    localStorage.setItem('ss_ai_chat_ollama_model', previous.model || '');
+    if (previous.generation != null) localStorage.setItem('ss_ai_chat_ollama_generation_v1', previous.generation);
+    else localStorage.removeItem('ss_ai_chat_ollama_generation_v1');
+    saveStoredModelList(OLLAMA_MODELS_KEY, []);
+    localStorage.removeItem('ss_ollama_before_npu_v1');
+}
+
 function getOllamaSettings() {
+    migrateLegacyOllamaNPUSettings();
     const fallback = 'http://127.0.0.1:11434';
     let storedBaseUrl = String(localStorage.getItem(OLLAMA_BASE_URL_KEY) || fallback).trim().replace(/\/+$/, '');
     try {
@@ -16916,6 +16954,28 @@ async function listNPUModels(signal) {
     localStorage.setItem('ss_ai_chat_npu_model_details', JSON.stringify(rows));
     saveStoredModelList('ss_ai_chat_npu_models', models);
     return models;
+}
+
+// Keep the current UI tone ahead of long app prompts and near the latest
+// question for local templates that give little weight to the system role.
+function applyLocalAIChatResponseStyle(request) {
+    if (!request || !['ollama', 'ollama-npu'].includes(request.provider)
+        || !['academic', 'polite'].includes(request.responseStyle)) return request;
+    const tone = request.responseStyle === 'academic'
+        ? '한국어 학술체. 본문은 객관적으로 서술하고 -이다/-한다/-하였다 등의 종결을 사용한다. -습니다/-해요를 섞지 않는다. 예: 이 결과는 관련성을 시사한다.'
+        : '한국어 존댓말. 본문은 -습니다/-입니다/-하세요 등의 정중한 종결을 사용한다. -이다/-한다 또는 반말을 섞지 않는다. 예: 이 결과는 관련성을 시사합니다.';
+    const instruction = '[현재 답변 문체] ' + tone
+        + ' 이전 답변이나 참고 자료의 언어와 문체를 따라 하지 말고 현재 설정을 적용한다. 단, 이번 사용자 요청이 특정 언어·문체나 원문 그대로의 인용·출력을 명시하면 그 요청을 우선한다. 코드·수식·고유명사·인용 원문은 보존한다. 이 지침을 답변에 출력하지 않는다.';
+    const messages = normalizeAIChatMessages(request.messages).map(message => Object.assign({}, message));
+    for (let index = messages.length - 1; index >= 0; index--) {
+        if (messages[index].role !== 'user') continue;
+        messages[index].content = String(messages[index].content || '') + '\n\n' + instruction;
+        break;
+    }
+    return Object.assign({}, request, {
+        messages: messages,
+        systemInstruction: instruction + '\n\n' + String(request.systemInstruction || '')
+    });
 }
 
 async function callNPUChat(request, signal) {
@@ -17261,6 +17321,7 @@ async function listOllamaModels(settingsOverride, allowEmpty) {
     settings.baseUrl = normalizeOllamaBaseUrl(settings.baseUrl);
     const data = await requestLocalAIJson(settings.baseUrl + '/api/tags', {
         method: 'GET',
+        signal: settings.signal,
         headers: { Accept: 'application/json' }
     });
 
@@ -18768,6 +18829,44 @@ function aiChatDataUrlToFile(dataUrl, name) {
     return new File([bytes], name || 'ai-image.png', { type: match[1] || 'image/png' });
 }
 
+async function completeSharedAIProvider(request, signal) {
+    if (request.provider === 'ollama-npu') return await callNPUChat(request, signal);
+    if (request.provider === 'openai-compatible') {
+        const connection = getStoredOpenAICompatibleConnection();
+        const model = String(request.model || connection.modelId || '').trim();
+        if (!model) throw new Error('OrcaRouter / OpenAI 호환 모델을 선택하세요.');
+        const messages = normalizeAIChatMessages(request.messages);
+        if (localStorage.getItem(compatibleResidencyKey(connection, model)) === '1') {
+            await manageOpenAICompatibleResidency(connection, model, true, signal);
+        }
+        const data = await requestOpenAICompatibleChat(connection, model, messages, request.systemInstruction, request, signal);
+        const choice = data && data.choices && data.choices[0] || {};
+        const message = choice.message || {};
+        return {
+            provider: 'openai-compatible',
+            model: String(data.model || model),
+            text: String(message.content || choice.text || ''),
+            reasoning: String(message.reasoning_content || message.reasoning || ''),
+            finishReason: choice.finish_reason || '',
+            usage: data.usage || null,
+            responseId: data.id || null
+        };
+    }
+    if (request.provider === 'litertlm') {
+        const settings = getLiteRTLMSettings();
+        const messages = normalizeAIChatMessages(request.messages);
+        if (request.systemInstruction) messages.unshift({ role: 'system', content: String(request.systemInstruction) });
+        const body = { model: request.model || settings.model, messages: messages, stream: false, max_tokens: settings.maxGen, temperature: settings.temperature, top_p: settings.topP, top_k: settings.topK, sampler: settings.sampler, thinking: settings.thinking };
+        if (settings.streaming !== false && typeof request.onStreamEvent === 'function') {
+            return await streamLiteRTLMChat(body, settings, signal, request.onStreamEvent);
+        }
+        const result = await requestLiteRTLM('/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body), signal: signal });
+        const choice = result.data && result.data.choices && result.data.choices[0] || {};
+        return { provider: 'litertlm', model: result.data.model || body.model, text: String(choice.message && choice.message.content || choice.text || ''), reasoning: String(choice.message && choice.message.reasoning_content || ''), finishReason: choice.finish_reason || '', usage: result.data.usage || null, contextLength: settings.contextLength, maxOutputTokens: settings.maxGen, responseId: result.data.id || null };
+    }
+
+}
+
 window.AIChatBridge = Object.freeze({
     setOpenAICompatibleResidency: async function (model, enabled) {
         const connection = getStoredOpenAICompatibleConnection();
@@ -18821,6 +18920,7 @@ window.AIChatBridge = Object.freeze({
     getCachedNPUModels: function () { return readStoredModelList('ss_ai_chat_npu_models'); },
     refreshNPUModels: listNPUModels,
     getCachedOllamaModels: function () {
+        migrateLegacyOllamaNPUSettings();
         return readStoredModelList(OLLAMA_MODELS_KEY);
     },
     getCachedLiteRTLMModels: function () {
@@ -18933,44 +19033,13 @@ window.AIChatBridge = Object.freeze({
         return true;
     },
     complete: async function (request) {
-        request = request || {};
+        request = applyLocalAIChatResponseStyle(request || {});
         if (aiChatAbortController) aiChatAbortController.abort();
         const controller = new AbortController();
         aiChatAbortController = controller;
         try {
-            if (request.provider === 'ollama-npu') return await callNPUChat(request, controller.signal);
-            if (request.provider === 'openai-compatible') {
-                const connection = getStoredOpenAICompatibleConnection();
-                const model = String(request.model || connection.modelId || '').trim();
-                if (!model) throw new Error('OrcaRouter / OpenAI 호환 모델을 선택하세요.');
-                const messages = normalizeAIChatMessages(request.messages);
-                if (localStorage.getItem(compatibleResidencyKey(connection, model)) === '1') {
-                    await manageOpenAICompatibleResidency(connection, model, true, controller.signal);
-                }
-                const data = await requestOpenAICompatibleChat(connection, model, messages, request.systemInstruction, request, controller.signal);
-                const choice = data && data.choices && data.choices[0] || {};
-                const message = choice.message || {};
-                return {
-                    provider: 'openai-compatible',
-                    model: String(data.model || model),
-                    text: String(message.content || choice.text || ''),
-                    reasoning: String(message.reasoning_content || message.reasoning || ''),
-                    finishReason: choice.finish_reason || '',
-                    usage: data.usage || null,
-                    responseId: data.id || null
-                };
-            }
-            if (request.provider === 'litertlm') {
-                const settings = getLiteRTLMSettings();
-                const messages = normalizeAIChatMessages(request.messages);
-                if (request.systemInstruction) messages.unshift({ role: 'system', content: String(request.systemInstruction) });
-                const body = { model: request.model || settings.model, messages: messages, stream: false, max_tokens: settings.maxGen, temperature: settings.temperature, top_p: settings.topP, top_k: settings.topK, sampler: settings.sampler, thinking: settings.thinking };
-                if (settings.streaming !== false && typeof request.onStreamEvent === 'function') {
-                    return await streamLiteRTLMChat(body, settings, controller.signal, request.onStreamEvent);
-                }
-                const result = await requestLiteRTLM('/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body), signal: controller.signal });
-                const choice = result.data && result.data.choices && result.data.choices[0] || {};
-                return { provider: 'litertlm', model: result.data.model || body.model, text: String(choice.message && choice.message.content || choice.text || ''), reasoning: String(choice.message && choice.message.reasoning_content || ''), finishReason: choice.finish_reason || '', usage: result.data.usage || null, contextLength: settings.contextLength, maxOutputTokens: settings.maxGen, responseId: result.data.id || null };
+            if (['ollama-npu', 'openai-compatible', 'litertlm'].includes(request.provider)) {
+                return await completeSharedAIProvider(request, controller.signal);
             }
             if (request.provider === 'aistudio') {
                 return await callAIStudioChat(request.messages, request.systemInstruction, request.model, controller.signal, request.academicSearch ? 'quick' : request.mode, request.academicSearch, request.academicEvidenceCount, request.onStreamEvent, request.internetSearch === true);
@@ -19458,7 +19527,7 @@ function ensureSidebarAILoaded() {
     };
     const script = document.createElement('script');
     const base = getDocumentBaseUrl();
-    const aiSidebarScriptVersion = '20261014-scholar-tone-4';
+    const aiSidebarScriptVersion = '20261016-scholar-status-font-1';
     try {
         const u = new URL('./sidebarAI/sidebar-ai.js', base);
         u.searchParams.set('v', aiSidebarScriptVersion);
