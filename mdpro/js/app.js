@@ -9893,25 +9893,7 @@ async function deleteMermaidHistoryFromInDb(id, targetWindow) {
 }
 
 function getMermaidVisionProviderSelection() {
-    let provider = String(localStorage.getItem('ss_ai_chat_provider') || 'lmstudio');
-    const modelKeys = {
-        aistudio: 'ss_ai_chat_gemini_model', openai: 'ss_ai_chat_openai_model', deepseek: 'ss_ai_chat_deepseek_model',
-        'openai-compatible': 'ss_ai_chat_openai_compatible_model', ollama: 'ss_ai_chat_ollama_model',
-        litertlm: 'ss_ai_chat_litertlm_model', lmstudio: 'ss_ai_chat_lmstudio_model'
-    };
-    let model = String(localStorage.getItem(modelKeys[provider] || '') || '');
-    if (provider !== 'openai' && provider !== 'aistudio') {
-        const openAIState = typeof getOpenAIApiState === 'function' ? getOpenAIApiState() : null;
-        const hasOpenAI = !!String(openAIState && openAIState.key || '').trim();
-        const hasGemini = typeof getProtectedAiCredential === 'function'
-            ? !!String(getProtectedAiCredential('gemini', 'ss_gemini_api_key') || '').trim()
-            : !!String(localStorage.getItem('ss_gemini_api_key') || '').trim();
-        if (hasOpenAI) { provider = 'openai'; model = String(localStorage.getItem(modelKeys.openai) || 'gpt-5.6-sol'); }
-        else if (hasGemini) { provider = 'aistudio'; model = String(localStorage.getItem(modelKeys.aistudio) || 'gemini-2.5-flash'); }
-        else throw new Error('이미지 분석이 가능한 OpenAI 또는 AI Studio API 키가 필요합니다. AI Jena 설정에서 연결해 주세요.');
-    }
-    if (provider === 'aistudio' && /(?:image|tts|audio|veo|lyria)/i.test(model)) model = 'gemini-2.5-flash';
-    return { provider: provider, model: model };
+    return window.AIToolProviders.read('mermaid');
 }
 
 async function analyzeImageToMermaidForEditor(data, targetWindow) {
@@ -9922,7 +9904,8 @@ async function analyzeImageToMermaidForEditor(data, targetWindow) {
         if (!window.AIChatBridge || typeof window.AIChatBridge.complete !== 'function') throw new Error('AI Jena 연결 모듈이 준비되지 않았습니다.');
         const image = data.image || {};
         if (!/^data:image\//i.test(String(image.dataUrl || ''))) throw new Error('분석할 이미지 데이터가 없습니다.');
-        const selected = getMermaidVisionProviderSelection();
+        const selected = data.aiSelection || getMermaidVisionProviderSelection();
+        if (!selected.model) throw new Error('이미지 분석에 사용할 모델을 선택하세요.');
         const streamReply = function (streamEvent) {
             if (!streamEvent || streamEvent.type !== 'message.delta' || !streamEvent.content || !targetWindow || targetWindow.closed) return;
             targetWindow.postMessage({ type: 'mdv-image-to-mermaid-stream', requestId: data.requestId, delta: String(streamEvent.content) }, '*');
@@ -12272,6 +12255,7 @@ async function generateImg2Math() {
         if (status) status.textContent = 'AI Jena 연결과 수식 인식 모델을 확인하고 있습니다.';
         if (!window.AIChatBridge || typeof window.AIChatBridge.complete !== 'function') throw new Error('AI Jena 연결 모듈이 준비되지 않았습니다.');
         const selected = getImg2MathProviderSelection();
+        if (!selected.model) throw new Error('수식 인식에 사용할 모델을 선택하세요.');
         updateImg2MathAiModelStatus(selected);
         const inputDescription = img2MathImage && sourceText ? '이미지와 텍스트' : (img2MathImage ? '이미지' : '텍스트');
         if (status) status.textContent = formatImg2MathAiModel(selected) + ' 모델이 ' + inputDescription + '의 수식 구조를 분석하고 있습니다.';
@@ -12309,7 +12293,8 @@ function formatImg2MathAiModel(selection) {
         lmstudio: 'LM Studio',
         ollama: 'Ollama',
         deepseek: 'DeepSeek',
-        litertlm: 'LiteRTLM',
+        litertlm: 'LiteRT-LM',
+        'ollama-npu': 'Ollama NPU · Lemonade',
         'openai-compatible': 'OpenAI 호환 API'
     };
     const provider = String(selection && selection.provider || '').trim();
@@ -12318,20 +12303,7 @@ function formatImg2MathAiModel(selection) {
 }
 
 function getImg2MathProviderSelection() {
-    const configured = getMermaidVisionProviderSelection();
-    if (!img2MathAiSelection) {
-        try {
-            const saved = JSON.parse(localStorage.getItem(IMG2MATH_MODEL_SELECTION_KEY) || 'null');
-            if (saved && typeof saved === 'object') {
-                img2MathAiSelection = { provider: String(saved.provider || ''), model: String(saved.model || '') };
-            }
-        } catch (_error) { }
-    }
-    if (img2MathAiSelection && img2MathAiSelection.provider === configured.provider && img2MathAiSelection.model) {
-        return { provider: configured.provider, model: img2MathAiSelection.model };
-    }
-    img2MathAiSelection = { provider: configured.provider, model: configured.model };
-    return img2MathAiSelection;
+    return window.AIToolProviders.read('img2math');
 }
 
 function updateImg2MathAiModelStatus(selection) {
@@ -12350,39 +12322,12 @@ function updateImg2MathAiModelStatus(selection) {
 
 async function populateImg2MathModelSelect() {
     const select = document.getElementById('img2math-model-select');
-    if (!select) return;
-    select.disabled = true;
-    select.innerHTML = '<option>모델 불러오는 중…</option>';
-    try {
-        const selected = getImg2MathProviderSelection();
-        let models = [selected.model].filter(Boolean);
-        const cachedModelMethods = {
-            aistudio: 'getCachedGeminiModels',
-            openai: 'getCachedOpenAIModels'
-        };
-        const method = cachedModelMethods[selected.provider];
-        if (method && window.AIChatBridge && typeof window.AIChatBridge[method] === 'function') {
-            const result = await Promise.resolve(window.AIChatBridge[method]());
-            models = models.concat(Array.isArray(result) ? result : (Array.isArray(result && result.models) ? result.models : []));
-        }
-        models = Array.from(new Set(models.map(function (model) { return String(model || '').trim(); }).filter(Boolean)));
-        if (!models.length) throw new Error('선택 가능한 수식 인식 모델이 없습니다.');
-        select.replaceChildren();
-        models.forEach(function (model) {
-            const option = document.createElement('option');
-            option.value = model;
-            option.textContent = model;
-            select.appendChild(option);
-        });
-        select.value = models.includes(selected.model) ? selected.model : models[0];
-        img2MathAiSelection = { provider: selected.provider, model: select.value };
-        select.disabled = false;
-        updateImg2MathAiModelStatus(img2MathAiSelection);
-    } catch (error) {
-        select.innerHTML = '<option>모델 설정 필요</option>';
-        select.disabled = true;
-        updateImg2MathAiModelStatus();
-    }
+    const container = document.getElementById('img2math-ai-provider')?.parentNode;
+    if (!select || !container) return;
+    window.AIToolProviders.mount(container, 'img2math', {
+        modelSelect: select,
+        onChange: selection => { img2MathAiSelection = selection; updateImg2MathAiModelStatus(selection); }
+    });
 }
 
 function getImg2MathSelectedDocumentText() {
@@ -12556,12 +12501,6 @@ function bindImg2MathPopup() {
     document.getElementById('img2math-generate').onclick = generateImg2Math;
     document.getElementById('img2math-insert').onclick = insertImg2MathResult;
     document.getElementById('img2math-import-selection').onclick = importSelectedTextIntoImg2Math;
-    document.getElementById('img2math-model-select').onchange = function (event) {
-        const configured = getMermaidVisionProviderSelection();
-        img2MathAiSelection = { provider: configured.provider, model: String(event.target.value || '').trim() };
-        localStorage.setItem(IMG2MATH_MODEL_SELECTION_KEY, JSON.stringify(img2MathAiSelection));
-        updateImg2MathAiModelStatus(img2MathAiSelection);
-    };
     file.onchange = function () { setImg2MathImage(file.files && file.files[0]); file.value = ''; };
     drop.onclick = function (event) { if (!event.target.closest('button')) file.click(); };
     ['dragenter', 'dragover'].forEach(function (name) { drop.addEventListener(name, function (event) { event.preventDefault(); drop.classList.add('border-teal-400'); }); });
@@ -18867,6 +18806,44 @@ async function completeSharedAIProvider(request, signal) {
 
 }
 
+async function completeLocalImageToolRequest(request, signal) {
+    if (request.provider === 'deepseek') throw new Error('DeepSeek의 현재 연결은 이미지 입력을 지원하지 않습니다. 이미지 지원 모델을 선택하세요.');
+    const rows = normalizeAIChatMessages(request.messages);
+    const imagesOf = row => row.attachments.filter(item => item.kind === 'image' && /^data:image\//i.test(item.dataUrl || ''));
+    let url, headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+    let settings;
+    if (request.provider === 'ollama') settings = { baseUrl: normalizeOllamaBaseUrl(getOllamaSettings().baseUrl) };
+    else if (request.provider === 'ollama-npu') settings = { baseUrl: getNPUBaseUrl() };
+    else if (request.provider === 'openai-compatible') settings = getStoredOpenAICompatibleConnection();
+    else if (request.provider === 'litertlm') settings = getLiteRTLMSettings();
+    else if (request.provider === 'lmstudio') settings = getScholarAIProviderRuntime().getLMStudioConfig();
+    else throw new Error('이미지 입력 공급자를 선택하세요.');
+    if (!request.model) throw new Error('이미지 인식에 사용할 모델을 선택하세요.');
+    if (settings.apiKey) headers.Authorization = 'Bearer ' + settings.apiKey;
+    const ollama = request.provider === 'ollama';
+    const messages = rows.map(row => {
+        const images = imagesOf(row);
+        if (ollama) return Object.assign({ role: row.role, content: row.content }, images.length ? { images: images.map(image => image.dataUrl.slice(image.dataUrl.indexOf(',') + 1)) } : {});
+        return { role: row.role, content: images.length ? [{ type: 'text', text: row.content }].concat(images.map(image => ({ type: 'image_url', image_url: { url: image.dataUrl } }))) : row.content };
+    });
+    if (request.systemInstruction) messages.unshift({ role: 'system', content: request.systemInstruction });
+    const body = { model: request.model, messages, stream: false };
+    if (!ollama) body.max_tokens = 2048;
+    let data;
+    if (request.provider === 'litertlm') {
+        data = (await requestLiteRTLM('/chat/completions', { method: 'POST', headers, body: JSON.stringify(body), signal })).data;
+    } else {
+        url = settings.baseUrl.replace(/\/+$/, '') + (ollama ? '/api/chat' : '/chat/completions');
+        const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal });
+        if (!response.ok) throw new Error('이미지 인식 요청 실패 · 이미지 지원 모델인지 확인하세요. ' + await readOpenAICompatibleError(response));
+        data = await response.json();
+    }
+    if (data.error) throw new Error(String(data.error.message || data.error));
+    const text = ollama ? data.message && data.message.content : data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    if (!text) throw new Error('이미지 인식 응답이 비어 있습니다. 이미지 지원 모델을 선택하세요.');
+    return { provider: request.provider, model: data.model || request.model, text: String(text) };
+}
+
 window.AIChatBridge = Object.freeze({
     setOpenAICompatibleResidency: async function (model, enabled) {
         const connection = getStoredOpenAICompatibleConnection();
@@ -19038,6 +19015,9 @@ window.AIChatBridge = Object.freeze({
         const controller = new AbortController();
         aiChatAbortController = controller;
         try {
+            if (!['aistudio', 'openai'].includes(request.provider) && (request.messages || []).some(message => (message.attachments || []).some(item => item.kind === 'image'))) {
+                return await completeLocalImageToolRequest(request, controller.signal);
+            }
             if (['ollama-npu', 'openai-compatible', 'litertlm'].includes(request.provider)) {
                 return await completeSharedAIProvider(request, controller.signal);
             }
@@ -19114,6 +19094,11 @@ window.AIChatBridge = Object.freeze({
                 };
             }
             const synced = await getScholarAIProviderRuntime().syncLMStudioLoadedModel();
+            if (request.model) {
+                const selected = synced.models.find(item => item.id === request.model || item.key === request.model);
+                if (!selected) throw new Error('선택한 LM Studio 모델을 먼저 Load하세요.');
+                synced.model = selected.id;
+            }
             if (controller.signal.aborted) {
                 const abortError = new Error('AI Jena request aborted');
                 abortError.name = 'AbortError';

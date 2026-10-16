@@ -823,13 +823,17 @@
       });
     });
 
+    const providerHost = window.opener && !window.opener.closed && window.opener.parent;
+    if (providerHost && providerHost.AIToolProviders) {
+      providerHost.AIToolProviders.mount(dom.aiPromptInput.parentNode, 'svg');
+    }
     // Reuse the document's configured AI provider; never embed API credentials here.
     async function callGeminiForSvg(promptText) {
       const host = window.opener && !window.opener.closed && window.opener.parent;
       if (!host || !host.AIChatBridge || !host.getMermaidVisionProviderSelection) {
         throw new Error('문서의 Mermaid 편집기에서 변환기를 열고 AI Jena 연결을 설정해 주세요.');
       }
-      const selected = host.getMermaidVisionProviderSelection();
+      const selected = host.AIToolProviders.read('svg');
       const result = await host.AIChatBridge.complete({
         provider: selected.provider, model: selected.model, mode: 'quick',
         messages: [{ role: 'user', content: promptText }],
