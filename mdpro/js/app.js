@@ -1636,7 +1636,9 @@ function isLemonadeConnection(connection) {
 
 function openAICompatibleRequestUrl(connection, path) {
     const directLemonade = isLemonadeConnection(connection) && shouldUseDirectLemonadeConnection();
-    const baseUrl = isLemonadeConnection(connection) && !directLemonade ? LEMONADE_PROXY_BASE_URL : connection.baseUrl;
+    const baseUrl = directLemonade
+        ? LEMONADE_DEFAULT_BASE_URL
+        : (isLemonadeConnection(connection) ? LEMONADE_PROXY_BASE_URL : connection.baseUrl);
     return String(baseUrl || '').replace(/\/+$/, '') + '/' + String(path || '').replace(/^\/+/, '');
 }
 
