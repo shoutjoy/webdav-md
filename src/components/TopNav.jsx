@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertCircle, ArrowLeft, Check, Copy, FilePlus, FolderPlus, FolderOpen, LogOut, Menu, PanelLeft, RefreshCw, Upload, X } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Check, Copy, FilePlus, FolderPlus, FolderOpen, Link2, LogOut, Menu, PanelLeft, RefreshCw, Upload, X } from 'lucide-react';
 
 const WD_DOCK_POSITION_KEY = 'webdav-wd-dock-position-v3';
 const VIEWPORT_MARGIN = 16;
@@ -9,7 +9,7 @@ const clampDockPosition = (x, y, width, height) => ({
   y: Math.min(Math.max(VIEWPORT_MARGIN, y), Math.max(VIEWPORT_MARGIN, window.innerHeight - height - VIEWPORT_MARGIN)),
 });
 
-export default function TopNav({ currentPath, publicUrl, loading, error, copiedKey, fileInputRef, onGoBack, onUpload, onNewFile, onNewFolder, onRefresh, explorerOpen, mobileWdocRect, onToggleExplorer, onOpenFolderUrl, onCopyFolderUrl, onDisconnect, onRecentWork, autosaveEnabled, onAutosaveChange }) {
+export default function TopNav({ currentPath, publicUrl, loading, error, copiedKey, fileInputRef, onGoBack, onUpload, onNewFile, onNewFolder, onRefresh, explorerOpen, mobileWdocRect, onToggleExplorer, onOpenFolderUrl, onCopyFolderUrl, onDisconnect, onRecentWork, autosaveEnabled, onAutosaveChange, onReconnectPanels }) {
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState(() => {
     try {
@@ -144,11 +144,16 @@ export default function TopNav({ currentPath, publicUrl, loading, error, copiedK
           <button onClick={onDisconnect} className="rounded-md p-1.5 text-red-600 hover:bg-red-50" title="연결 종료"><LogOut size={16}/></button>
         </div>
         <div className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] text-slate-500"><span>접속 URL</span><span className="min-w-0 flex-1 truncate font-mono text-slate-700 dark:text-slate-200">{publicUrl}</span><button onClick={onCopyFolderUrl} disabled={loading} className="rounded p-1 hover:bg-slate-100" title="URL 복사">{copiedKey === 'folder' ? <Check size={14} className="text-green-600"/> : <Copy size={14}/>}</button></div>
-        <label className="flex cursor-pointer items-center gap-2 border-t border-slate-200 px-2.5 py-2 text-xs dark:border-slate-700">
-          <input type="checkbox" checked={autosaveEnabled} onChange={(event) => onAutosaveChange(event.target.checked)} className="accent-indigo-600" />
-          <span className="font-medium">WebDAV 자동저장</span>
-          <span className="text-slate-400">입력 후 1.5초</span>
-        </label>
+        <div className="flex items-center gap-2 border-t border-slate-200 px-2.5 py-2 text-xs dark:border-slate-700">
+          <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+            <input type="checkbox" checked={autosaveEnabled} onChange={(event) => onAutosaveChange(event.target.checked)} className="accent-indigo-600" />
+            <span className="font-medium">WebDAV 자동저장</span>
+            <span className="text-slate-400">입력 후 1.5초</span>
+          </label>
+          <button type="button" onClick={onReconnectPanels} className="flex shrink-0 items-center gap-1 rounded-md border border-indigo-300 px-2 py-1 font-semibold text-indigo-700 hover:bg-indigo-50 dark:border-indigo-500 dark:text-indigo-200 dark:hover:bg-indigo-950" title="WebDAV 탐색기와 MDPRO를 원래 분할 화면으로 다시 연결" aria-label="WebDAV와 MDPRO 다시 연결">
+            <Link2 size={14}/><span>다시 연결</span>
+          </button>
+        </div>
       </div>}
     </div>
     {error && <div className="fixed bottom-5 left-1/2 z-50 flex max-w-[min(760px,90vw)] -translate-x-1/2 items-center rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-xl"><AlertCircle size={17} className="mr-2 shrink-0"/>{error}</div>}

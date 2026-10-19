@@ -183,13 +183,32 @@ test('Lemonade image models use the image generation endpoint and existing AI Je
   assert.doesNotMatch(chatScript, /\/연결 중\$\/\.test\(liveStream\.stage\)/);
 });
 
+test('AI Jena edits generated images with the active Lemonade image model', () => {
+  assert.match(chatScript, /var useLemonade = state\.provider === 'lemonade' && isLemonadeImageModel\(state\.lemonadeModel\)/);
+  assert.match(chatScript, /provider: useLemonade \? 'lemonade' : 'aistudio'/);
+  assert.match(chatScript, /model: useLemonade \? state\.lemonadeModel/);
+  assert.match(appScript, /latest\.attachments[\s\S]*item\.kind === 'image'/);
+  assert.match(appScript, /form\.append\('image',[\s\S]*openAICompatibleRequestUrl\(connection, 'images\/edits'\)/);
+});
+
+test('ImgG switches from Lemonade to AI Studio image models', () => {
+  assert.match(chatScript, /var IMG_GEN_PRIMARY_MODEL = 'gemini-3\.1-flash-image-preview'/);
+  assert.match(chatScript, /function selectGeminiImageModel\(model\)[\s\S]*state\.provider = 'aistudio'/);
+  assert.match(chatScript, /function selectGeminiImageModel\(model\)[\s\S]*cachedModels[\s\S]*filter\(isGeminiImageModel\)[\s\S]*IMG_GEN_PRIMARY_MODEL[\s\S]*IMG_GEN_FALLBACK_MODEL/);
+  assert.match(chatScript, /function toggleImgGenMode\(\)[\s\S]*selectGeminiImageModel\(IMG_GEN_PRIMARY_MODEL\)/);
+  assert.match(chatScript, /function selectGeminiImageModel\(model\)[\s\S]*refreshModels\(false\)/);
+  assert.match(chatScript, /if \(imgGenPreviousState\)[\s\S]*models\.filter\(isGeminiImageModel\)/);
+  assert.match(chatScript, /imgGenPreviousState = \{[\s\S]*model: activeProviderModel\(\)/);
+  assert.match(chatScript, /var restoredModel = String\(previous\.model[\s\S]*restoredSelect\.value = restoredModel/);
+});
+
 test('selection import reflows by the AI Jena composer width', () => {
   assert.match(chatStyles, /\.ai-chat-composer \{[^}]*container-type:\s*inline-size/s);
   assert.match(chatStyles, /@container \(max-width: 430px\)[\s\S]*\.ai-chat-panel:not\(\.layout-floating\) \.ai-chat-compose-actions/);
   assert.match(chatStyles, /\.ai-chat-import-selection \{[\s\S]*grid-column:\s*span 4[\s\S]*text-overflow:\s*clip/);
   assert.match(chatStyles, /\.ai-chat-realtime-toolbar \{[\s\S]*grid-column:\s*span 3/);
   assert.match(markup, /ai-chat\.css\?v=20261019-settings-cleanup-1/);
-  assert.match(appScript, /ai-chat\.js\?v=20261019-settings-cleanup-1/);
+  assert.match(appScript, /ai-chat\.js\?v=20261019-img-gen-preview-1/);
 });
 
 test('AI Jena exposes and applies FAST, quick, reasoning, and hard output token limits', () => {

@@ -33,3 +33,13 @@ test('Mermaid theme toggle exposes an icon and an accessible light or dark actio
   assert.match(source, /button\.setAttribute\('aria-label', button\.title\)/);
   assert.match(source, /Mermaid를 .*'라이트' : '다크'.*테마로 보기/);
 });
+
+test('Mermaid nodes grow with long mixed-language labels and refresh SVG bounds', () => {
+  assert.match(source, /function fitMermaidNodeLabels\(svg\)/);
+  assert.match(source, /label\.style\.whiteSpace = 'nowrap'/);
+  assert.match(source, /const requiredWidth = Math\.ceil\(measuredWidth \+ 36\)/);
+  assert.match(source, /rect\.setAttribute\('width', String\(nextWidth\)\)/);
+  assert.match(source, /foreignObject\.setAttribute\('width', String\(nextWidth\)\)/);
+  assert.match(source, /contentRoot\.getBBox\(\)/);
+  assert.match(source, /fitMermaidNodeLabels\(svg\)/);
+});

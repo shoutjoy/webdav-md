@@ -1320,6 +1320,15 @@ export default function App() {
     window.addEventListener('pointerup', handlePointerUp);
   };
 
+  const reconnectWebdavAndMdpro = () => {
+    const panels = splitContainerRef.current?.querySelectorAll('.webdav-explorer-panel, .mdpro-stage');
+    panels?.forEach((panel) => {
+      panel.classList.remove('is-floating-panel', 'is-panel-holding', 'is-panel-ready');
+      for (const key of ['left', 'top', 'width', 'height']) panel.style[key] = '';
+    });
+    showToast('WebDAV와 MDPRO를 원래 분할 화면으로 다시 연결했습니다.');
+  };
+
   // 파일 다운로드
   const handleDownload = async (fileName) => {
     const client = clientRef.current;
@@ -2163,6 +2172,7 @@ export default function App() {
             localStorage.setItem(AUTOSAVE_ENABLED_KEY, String(enabled));
             showToast(enabled ? 'WebDAV 자동저장을 켰습니다.' : 'WebDAV 자동저장을 껐습니다.');
           }}
+          onReconnectPanels={reconnectWebdavAndMdpro}
         />
 
         <div
@@ -2312,7 +2322,7 @@ export default function App() {
             loading={editorLoading}
             saving={isWebDavSaving}
             explorerWidth={isExplorerOpen && !isExplorerCompact ? explorerWidth : 0}
-            panelResizeEnabled={isExplorerOpen && isExplorerCompact}
+            panelResizeEnabled
             onSave={handleSaveFile}
             autosaveEnabled={autosaveEnabled}
             onSaveAs={handleSaveFileAs}
