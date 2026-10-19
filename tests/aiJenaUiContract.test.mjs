@@ -47,7 +47,7 @@ test('AI Jena exposes both Lemonade providers and their runtime bridges', () => 
   assert.match(appScript, /model\.downloaded !== false/);
   assert.match(appScript, /function openAICompatibleRequestUrl\(connection, path\)/);
   assert.match(appScript, /function shouldUseDirectLemonadeConnection\(\)[\s\S]*hostname === 'shoutjoy\.github\.io'/);
-  assert.match(appScript, /directLemonade[\s\S]*LEMONADE_PROXY_BASE_URL : connection\.baseUrl/);
+  assert.match(appScript, /directLemonade[\s\S]*\? LEMONADE_DEFAULT_BASE_URL[\s\S]*LEMONADE_PROXY_BASE_URL : connection\.baseUrl/);
   assert.match(markup, /lemonadePagesDirect=20261019-1/);
   assert.match(appScript, /const LEMONADE_MODELS_KEY = 'ss_lemonade_models_v1'/);
   assert.match(appScript, /const OPENAI_COMPATIBLE_MODELS_SOURCE_KEY = 'ss_openai_compatible_models_source_v1'/);
