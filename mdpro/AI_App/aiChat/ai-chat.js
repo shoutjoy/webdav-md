@@ -134,7 +134,7 @@
   var DEFAULT_CHAT_WIDTH = 380;
   var MIN_CHAT_WIDTH = 340;
   var DEFAULT_POPUP_HEIGHT = 585;
-  var IMG_GEN_PRIMARY_MODEL = 'gemini-3-pro-image-preview';
+  var IMG_GEN_PRIMARY_MODEL = 'gemini-3.1-flash-image-preview';
   var IMG_GEN_FALLBACK_MODEL = 'gemini-2.5-flash-image';
   var DEFAULT_GEMINI_MODELS = [
     'gemini-3.5-flash-lite',
@@ -3432,18 +3432,63 @@
     syncImgGenButton();
   }
 
+  function selectGeminiImageModel(model) {
+    var selectedModel = String(model || IMG_GEN_PRIMARY_MODEL).trim() || IMG_GEN_PRIMARY_MODEL;
+    state.provider = 'aistudio';
+    state.geminiModel = selectedModel;
+    state.responseMode = 'quick';
+    state.fastMode = false;
+    storageSet(PROVIDER_KEY, state.provider);
+    storageSet(GEMINI_MODEL_KEY, state.geminiModel);
+    storageSet(RESPONSE_MODE_KEY, state.responseMode);
+    storageSet(FAST_MODE_KEY, '0');
+
+    // Paint the AI Studio image choices immediately, even when the previous
+    // provider (for example Lemonade) still owns an in-flight model refresh.
+    modelRefreshRevision += 1;
+    var cachedModels = [];
+    try { cachedModels = getBridge().getCachedGeminiModels(); } catch (_) {}
+    updateProviderUI();
+    var imageModels = (cachedModels || []).filter(isGeminiImageModel).concat([
+      IMG_GEN_PRIMARY_MODEL,
+      IMG_GEN_FALLBACK_MODEL
+    ]);
+    setModelOptions(Array.from(new Set(imageModels)), selectedModel, false);
+    state.geminiModel = selectedModel;
+    storageSet(GEMINI_MODEL_KEY, state.geminiModel);
+    updateHeaderModel();
+    updateModelModeUI();
+    setResponseMode('quick');
+    setFastMode(false, false);
+    refreshModels(false);
+    saveHistory();
+  }
+
   function toggleImgGenMode() {
     if (!imgGenPreviousState) {
-      imgGenPreviousState = { provider: state.provider, geminiModel: state.geminiModel, responseMode: state.responseMode, fastMode: state.fastMode };
+      imgGenPreviousState = {
+        provider: state.provider,
+        model: activeProviderModel(),
+        geminiModel: state.geminiModel,
+        responseMode: state.responseMode,
+        fastMode: state.fastMode
+      };
       selectGeminiImageModel(IMG_GEN_PRIMARY_MODEL);
       syncImgGenButton();
-      setStatus('imgGen ON · Nano Banana Pro Preview로 전환했습니다. 생성할 이미지를 입력하세요.', 'ok');
+      setStatus('imgGen ON · gemini-3.1-flash-image-preview로 전환했습니다. 생성할 이미지를 입력하세요.', 'ok');
       return;
     }
     var previous = imgGenPreviousState;
     imgGenPreviousState = null;
     state.provider = previous.provider;
     state.geminiModel = previous.geminiModel;
+    if (previous.provider === 'ollama') state.ollamaModel = previous.model;
+    else if (previous.provider === 'ollama-npu') state.npuModel = previous.model;
+    else if (previous.provider === 'litertlm') state.litertlmModel = previous.model;
+    else if (previous.provider === 'deepseek') state.deepseekModel = previous.model;
+    else if (previous.provider === 'openai') state.openaiModel = previous.model;
+    else if (previous.provider === 'openai-compatible') state.openaiCompatibleModel = previous.model;
+    else if (previous.provider === 'lemonade') state.lemonadeModel = previous.model;
     state.responseMode = previous.responseMode;
     state.fastMode = previous.fastMode;
     storageSet(PROVIDER_KEY, state.provider);
@@ -3451,9 +3496,47 @@
     storageSet(RESPONSE_MODE_KEY, state.responseMode);
     storageSet(FAST_MODE_KEY, state.fastMode ? '1' : '0');
     updateProviderUI();
+    var restoredModel = String(previous.model || '').trim();
+    var restoredSelect = document.getElementById('ai-chat-model');
+    if (restoredSelect && restoredModel) {
+      var restoredValues = Array.from(restoredSelect.options).map(function (option) { return option.value; });
+      if (restoredValues.indexOf(restoredModel) < 0) {
+        var restoredOption = document.createElement('option');
+        restoredOption.value = restoredModel;
+        restoredOption.textContent = previous.provider === 'aistudio' ? geminiModelLabel(restoredModel) : restoredModel;
+        restoredSelect.appendChild(restoredOption);
+      }
+      restoredSelect.value = restoredModel;
+      if (previous.provider === 'aistudio') {
+        state.geminiModel = restoredModel;
+        storageSet(GEMINI_MODEL_KEY, restoredModel);
+      } else if (previous.provider === 'ollama') {
+        state.ollamaModel = restoredModel;
+        storageSet(OLLAMA_MODEL_KEY, restoredModel);
+      } else if (previous.provider === 'ollama-npu') {
+        state.npuModel = restoredModel;
+        storageSet(NPU_MODEL_KEY, restoredModel);
+      } else if (previous.provider === 'litertlm') {
+        state.litertlmModel = restoredModel;
+        storageSet(LITERTLM_MODEL_KEY, restoredModel);
+      } else if (previous.provider === 'deepseek') {
+        state.deepseekModel = restoredModel;
+        storageSet(DEEPSEEK_MODEL_KEY, restoredModel);
+      } else if (previous.provider === 'openai') {
+        state.openaiModel = restoredModel;
+        storageSet(OPENAI_MODEL_KEY, restoredModel);
+      } else if (previous.provider === 'openai-compatible') {
+        state.openaiCompatibleModel = restoredModel;
+        storageSet(OPENAI_COMPATIBLE_MODEL_KEY, restoredModel);
+      } else if (previous.provider === 'lemonade') {
+        state.lemonadeModel = restoredModel;
+        storageSet(LEMONADE_MODEL_KEY, restoredModel);
+      }
+    }
     setResponseMode(state.responseMode);
     setFastMode(state.fastMode, false);
     syncImgGenButton();
+    refreshModels(false);
     setStatus('imgGen OFF · 이전 AI 공급자와 모델로 돌아왔습니다.', 'ok');
   }
 
@@ -3512,6 +3595,7 @@
       'gemini-2.5-flash-lite': 'Gemini 2.5 Flash Lite',
       'gemini-3.1-flash-lite-image': '🍌 Nano Banana 2 Lite · 이미지',
       'gemini-3.1-flash-image': '🍌 Nano Banana 2 · 이미지',
+      'gemini-3.1-flash-image-preview': '🍌 Nano Banana 2 Preview · 이미지',
       'gemini-3-pro-image': '🍌 Nano Banana Pro · 이미지',
       'gemini-3-pro-image-preview': '🍌 Nano Banana Pro Preview · 이미지',
       'gemini-2.5-flash-image': '🍌 Nano Banana · 이미지'
@@ -3799,6 +3883,12 @@
         var models = await bridge.refreshGeminiModels();
         if (state.provider !== requestedProvider || refreshRevision !== modelRefreshRevision) return;
         models = mergeGeminiModels(models);
+        if (imgGenPreviousState) {
+          models = Array.from(new Set(models.filter(isGeminiImageModel).concat([
+            IMG_GEN_PRIMARY_MODEL,
+            IMG_GEN_FALLBACK_MODEL
+          ])));
+        }
         setModelOptions(models, state.geminiModel, false);
         var modelSelect = document.getElementById('ai-chat-model');
         if (modelSelect && modelSelect.value) state.geminiModel = modelSelect.value;
@@ -6708,9 +6798,10 @@
       setRunning(true);
       var revision = generationStopRevision;
       try {
+        var useLemonade = state.provider === 'lemonade' && isLemonadeImageModel(state.lemonadeModel);
         var result = await getBridge().complete({
-          provider: 'aistudio',
-          model: isGeminiImageModel(state.geminiModel) ? state.geminiModel : IMG_GEN_FALLBACK_MODEL,
+          provider: useLemonade ? 'lemonade' : 'aistudio',
+          model: useLemonade ? state.lemonadeModel : (isGeminiImageModel(state.geminiModel) ? state.geminiModel : IMG_GEN_FALLBACK_MODEL),
           mode: 'quick',
           messages: [{ role: 'user', content: '첨부한 이미지를 원본으로 편집하세요. 요청하지 않은 내용은 유지하세요. 편집 요청: ' + instruction,
             attachments: [{ kind: 'image', name: 'edit-source.png', type: source.mimeType || 'image/png',

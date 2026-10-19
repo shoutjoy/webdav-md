@@ -344,9 +344,20 @@
                     <div class="shared-api-actions">
                         <button id="btnApplySharedApiKey" class="shared-api-apply" type="button">AI API Key 적용</button>
                         <button id="btnToggleAiKeyUsage" class="shared-api-stop" type="button">키 사용 중지</button>
+                        <button id="btnLemonadeImgSettings" type="button" aria-expanded="false" aria-controls="fmaLemonadeSettings">Lemonade IMG model 적용</button>
                         <small id="sharedApiKeyStatus">앱별 전용 키가 있으면 해당 앱은 전용 키를 우선 사용합니다.</small>
                     </div>
                 </label>
+
+                <div id="fmaLemonadeSettings" class="settings-field" hidden>
+                    <span>Lemonade 이미지 모델</span>
+                    <div class="shared-api-actions">
+                        <select id="fmaLemonadeImageModel" aria-label="Lemonade 이미지 모델"><option value="Flux-2-Klein-4B">Flux-2-Klein-4B</option></select>
+                        <button id="btnRefreshLemonadeImages" type="button">모델 목록</button>
+                        <button id="btnApplyLemonadeImage" class="shared-api-apply" type="button">적용 · Load</button>
+                    </div>
+                    <small id="fmaLemonadeStatus" role="status" aria-live="polite">API 키 없이 로컬 Lemonade를 사용합니다. 모델을 선택한 뒤 적용하면 먼저 불러옵니다.</small>
+                </div>
 
                 <label class="settings-check">
                     <input id="enableAiUpscale" type="checkbox">
@@ -2021,6 +2032,7 @@
     <script src="js/video/videoEditor.js?v=20260802-1"></script>
     <script src="js/image/crop.js?v=20260802-1"></script>
     <script src="js/image/imageUpscale.js?v=20260908-image-app-links-4"></script>
+    <script src="js/image/lemonadeSettings.js?v=20261019-1"></script>
     <script src="js/ai/aiJena.js?v=20260806-ai-settings-1"></script>
     <script src="js/image/imageEditor.js?v=20260802-1"></script>
     <script src="js/image/backgroundMaskEditor.js?v=20260802-1"></script>

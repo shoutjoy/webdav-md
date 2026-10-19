@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'webdav-viewer-v15-lemonade-pages-direct-url';
+const CACHE_VERSION = 'webdav-viewer-v16-lemonade-image-edit';
 const APP_SHELL = ['./', './manifest.webmanifest', './webdav.svg', './webdav-maskable.svg'];
 
 self.addEventListener('install', (event) => {

@@ -300,9 +300,10 @@ function initAiJenaFeature() {
 }
 
 function updateAiJenaKeyStatus() {
-    const hasKey = Boolean(getAiStudioApiKey());
+    const lemonadeModel = window.getFmaLemonadeImageModel?.();
+    const hasKey = Boolean(lemonadeModel || getAiStudioApiKey());
     const usageEnabled = isAiKeyUsageEnabled();
-    const ready = Boolean(getUsableAiStudioApiKey());
+    const ready = Boolean(lemonadeModel || getUsableAiStudioApiKey());
     document.querySelectorAll(".ai-jena-image-button").forEach(button => {
         button.style.display = hasKey ? "inline-flex" : "none";
         button.disabled = !ready;
@@ -310,18 +311,18 @@ function updateAiJenaKeyStatus() {
         button.classList.toggle("unavailable", !ready);
         button.innerText = ready ? "✦ AI Jena" : "✦";
         button.title = ready
-            ? "AI Studio 키 연결됨 · 이 이미지로 AI Jena 열기"
+            ? `${lemonadeModel ? "Lemonade · " + lemonadeModel : "AI Studio 키 연결됨"} · 이 이미지로 AI Jena 열기`
             : usageEnabled ? "" : "AI API 키 사용이 중지되어 있습니다.";
     });
     if (dom.aiJenaKeyStatus) {
-        dom.aiJenaKeyStatus.innerText = ready ? "● AI Studio 키 연결됨" : "○ AI Studio 키 필요";
+        dom.aiJenaKeyStatus.innerText = lemonadeModel ? `● Lemonade · ${lemonadeModel}` : ready ? "● AI Studio 키 연결됨" : "○ AI Studio 키 필요";
         dom.aiJenaKeyStatus.classList.toggle("ready", ready);
     }
 }
 
 async function openAiJena(imageIndex = currentIndex) {
     updateAiJenaKeyStatus();
-    if (!getUsableAiStudioApiKey()) {
+    if (!window.getFmaLemonadeImageModel?.() && !getUsableAiStudioApiKey()) {
         return;
     }
     aiJenaState.open = true;
@@ -1884,7 +1885,7 @@ function finishAiJenaProgress(percent, message) {
 
 async function requestAiJenaImage(prompt, signal) {
     const apiKey = getUsableAiStudioApiKey();
-    if (!apiKey) throw new Error("AI Studio API 키가 없거나 사용이 중지되어 있습니다.");
+    if (!window.getFmaLemonadeImageModel?.() && !apiKey) throw new Error("AI Studio API 키가 없거나 사용이 중지되어 있습니다.");
     const input = [];
     if (aiJenaState.sourceItem) {
         const payload = await getAiImagePayload(aiJenaState.sourceItem);
@@ -1908,6 +1909,7 @@ async function requestAiJenaImage(prompt, signal) {
         input.push({ type: "image", mime_type: reference.mimeType, data });
     }
     input.push({ type: "text", text: prompt });
+    if (window.getFmaLemonadeImageModel?.()) return window.requestFmaLemonadeImage(input, signal);
     const response = await fetch(AI_UPSCALE_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },

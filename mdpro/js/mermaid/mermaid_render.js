@@ -434,14 +434,64 @@
         }
     }
 
+    function fitMermaidNodeLabels(svg) {
+        if (!svg || !svg.querySelectorAll) return;
+        const nodes = svg.querySelectorAll('g.node');
+        for (let i = 0; i < nodes.length; i++) {
+            const node = nodes[i];
+            const foreignObject = node.querySelector('foreignObject');
+            const rect = node.querySelector('rect');
+            if (!foreignObject || !rect) continue;
+
+            const label = foreignObject.querySelector('.nodeLabel,.label,div,span,p') || foreignObject.firstElementChild;
+            if (!label) continue;
+            label.style.whiteSpace = 'nowrap';
+            label.style.width = 'max-content';
+            label.style.maxWidth = 'none';
+
+            let measuredWidth = Math.max(Number(label.scrollWidth) || 0, Number(label.offsetWidth) || 0);
+            try {
+                const labelBounds = label.getBoundingClientRect();
+                measuredWidth = Math.max(measuredWidth, Number(labelBounds.width) || 0);
+            } catch (_) {}
+
+            const rectWidth = Number(rect.getAttribute('width')) || 0;
+            const foreignWidth = Number(foreignObject.getAttribute('width')) || 0;
+            const requiredWidth = Math.ceil(measuredWidth + 36);
+            const nextWidth = Math.max(rectWidth, foreignWidth, requiredWidth);
+            if (!Number.isFinite(nextWidth) || nextWidth <= 0 || nextWidth <= rectWidth + 1) continue;
+
+            const rectX = Number(rect.getAttribute('x')) || 0;
+            const centerX = rectX + (rectWidth / 2);
+            rect.setAttribute('x', String(centerX - (nextWidth / 2)));
+            rect.setAttribute('width', String(nextWidth));
+            foreignObject.setAttribute('x', String(centerX - (nextWidth / 2)));
+            foreignObject.setAttribute('width', String(nextWidth));
+            node.setAttribute('data-mdv-label-fitted', '1');
+        }
+    }
+
     function expandMermaidSvgBounds(svg) {
         if (!svg || svg.getAttribute('data-mdv-bounds-expanded') === '1') return;
         svg.setAttribute('data-mdv-bounds-expanded', '1');
         svg.style.overflow = 'visible';
         svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
 
-        const rawViewBox = String(svg.getAttribute('viewBox') || '').trim();
-        const viewBox = rawViewBox.split(/[\s,]+/).map(Number);
+        fitMermaidNodeLabels(svg);
+
+        let viewBox = [];
+        try {
+            const contentRoot = svg.querySelector('g');
+            const bounds = contentRoot && contentRoot.getBBox ? contentRoot.getBBox() : null;
+            if (bounds && [bounds.x, bounds.y, bounds.width, bounds.height].every(Number.isFinite)
+                && bounds.width > 0 && bounds.height > 0) {
+                viewBox = [bounds.x, bounds.y, bounds.width, bounds.height];
+            }
+        } catch (_) {}
+        if (!viewBox.length) {
+            const rawViewBox = String(svg.getAttribute('viewBox') || '').trim();
+            viewBox = rawViewBox.split(/[\s,]+/).map(Number);
+        }
         if (viewBox.length === 4 && viewBox.every(Number.isFinite) && viewBox[2] > 0 && viewBox[3] > 0) {
             const padX = Math.max(14, Math.min(30, viewBox[2] * 0.025));
             const padY = Math.max(14, Math.min(30, viewBox[3] * 0.025));
@@ -961,6 +1011,7 @@
             }
         }
         const node = canvas || wrapper.querySelector('.mermaid') || wrapper;
+        polishMermaidSvg(node, getMermaidTheme(wrapper));
         if (wrapper.getAttribute('data-mermaid-mode') === 'fixed') addFixedMermaidControls(node);
         else addMermaidControls(node);
         return node;
@@ -1125,6 +1176,7 @@
         setDisplayMode: setDisplayMode,
         getDisplayMode: getMermaidDisplayMode,
         setBlockTheme: setMermaidBlockTheme,
+        fitNodeLabels: fitMermaidNodeLabels,
         getCacheStats: function () {
             return Object.assign({}, mermaidCacheStats, { size: mermaidSvgCache.size });
         },

@@ -158,7 +158,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260914-serpapi-vault-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?v=20261019-settings-cleanup-1',
+    aiChat: './AI_App/aiChat/ai-chat.js?v=20261019-img-gen-preview-1',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260925-nonprinting-3'
@@ -1922,20 +1922,45 @@ async function generateLemonadeImage(connection, model, messages, signal) {
     });
     const prompt = String(latest && latest.content || '').trim();
     if (!prompt) throw new Error('생성할 이미지를 설명하세요.');
-    const response = await fetch(openAICompatibleRequestUrl(connection, 'images/generations'), {
-        method: 'POST',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer ' + connection.apiKey },
-        body: JSON.stringify({
-            model: model,
-            prompt: prompt,
-            size: connection.imageSize || '512x512',
-            n: 1,
-            steps: connection.imageSteps || 4,
-            cfg_scale: connection.imageCfgScale == null ? 1 : connection.imageCfgScale,
-            response_format: 'b64_json'
-        }),
-        signal: signal
-    });
+    const source = latest && Array.isArray(latest.attachments)
+        ? latest.attachments.find(function (item) { return item && item.kind === 'image' && /^data:image\//i.test(String(item.dataUrl || '')); })
+        : null;
+    let response;
+    if (source) {
+        const match = String(source.dataUrl).match(/^data:([^;,]+);base64,(.+)$/i);
+        if (!match) throw new Error('Lemonade 편집에 사용할 이미지 형식이 올바르지 않습니다.');
+        const bytes = Uint8Array.from(atob(match[2]), function (char) { return char.charCodeAt(0); });
+        const form = new FormData();
+        form.append('model', model);
+        form.append('prompt', prompt);
+        form.append('size', connection.imageSize || '512x512');
+        form.append('n', '1');
+        form.append('steps', String(connection.imageSteps || 4));
+        form.append('cfg_scale', String(connection.imageCfgScale == null ? 1 : connection.imageCfgScale));
+        form.append('response_format', 'b64_json');
+        form.append('image', new Blob([bytes], { type: match[1] || source.type || 'image/png' }), source.name || 'ai-jena-edit-source.png');
+        response = await fetch(openAICompatibleRequestUrl(connection, 'images/edits'), {
+            method: 'POST',
+            headers: { Accept: 'application/json', Authorization: 'Bearer ' + connection.apiKey },
+            body: form,
+            signal: signal
+        });
+    } else {
+        response = await fetch(openAICompatibleRequestUrl(connection, 'images/generations'), {
+            method: 'POST',
+            headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer ' + connection.apiKey },
+            body: JSON.stringify({
+                model: model,
+                prompt: prompt,
+                size: connection.imageSize || '512x512',
+                n: 1,
+                steps: connection.imageSteps || 4,
+                cfg_scale: connection.imageCfgScale == null ? 1 : connection.imageCfgScale,
+                response_format: 'b64_json'
+            }),
+            signal: signal
+        });
+    }
     if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
     const payload = await response.json();
     const images = (Array.isArray(payload && payload.data) ? payload.data : []).map(function (item) {

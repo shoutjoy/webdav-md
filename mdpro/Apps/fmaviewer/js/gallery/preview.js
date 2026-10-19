@@ -222,9 +222,8 @@ function renderDynamicMeta(i) {
 
         const aiJenaBtn = document.createElement("button");
         aiJenaBtn.className = "meta-action-button ai-jena-header-button ai-jena-image-button";
-        const aiJenaReady = typeof getUsableAiStudioApiKey === "function" &&
-            Boolean(getUsableAiStudioApiKey());
-        const aiJenaHasKey = typeof getAiStudioApiKey === "function" && Boolean(getAiStudioApiKey());
+        const aiJenaReady = Boolean(window.getFmaLemonadeImageModel?.() || (typeof getUsableAiStudioApiKey === "function" && getUsableAiStudioApiKey()));
+        const aiJenaHasKey = Boolean(window.getFmaLemonadeImageModel?.() || (typeof getAiStudioApiKey === "function" && getAiStudioApiKey()));
         aiJenaBtn.classList.toggle("ready", aiJenaReady);
         aiJenaBtn.classList.toggle("unavailable", !aiJenaReady);
         aiJenaBtn.style.display = aiJenaHasKey ? "inline-flex" : "none";
