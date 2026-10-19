@@ -1601,6 +1601,11 @@ let openAICompatibleModels = [];
 const LEMONADE_DEFAULT_MODEL = 'Gemma-4-E4B-it-GGUF';
 const LEMONADE_PROXY_BASE_URL = '/api/lemonade/v1';
 
+function shouldUseDirectLemonadeConnection() {
+    const hostname = String(window.location && window.location.hostname || '').toLowerCase();
+    return hostname === 'shoutjoy.github.io';
+}
+
 function isLemonadeImageModel(modelOrId) {
     const source = modelOrId && typeof modelOrId === 'object' ? modelOrId : { id: modelOrId };
     const id = String(source.id || source.model || source.name || '').trim();
@@ -1630,7 +1635,8 @@ function isLemonadeConnection(connection) {
 }
 
 function openAICompatibleRequestUrl(connection, path) {
-    const baseUrl = isLemonadeConnection(connection) ? LEMONADE_PROXY_BASE_URL : connection.baseUrl;
+    const directLemonade = isLemonadeConnection(connection) && shouldUseDirectLemonadeConnection();
+    const baseUrl = isLemonadeConnection(connection) && !directLemonade ? LEMONADE_PROXY_BASE_URL : connection.baseUrl;
     return String(baseUrl || '').replace(/\/+$/, '') + '/' + String(path || '').replace(/^\/+/, '');
 }
 
