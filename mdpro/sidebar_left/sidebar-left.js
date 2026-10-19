@@ -185,7 +185,7 @@
             '  <div id="storage-sync-status" class="hidden text-[10px] px-2 py-1 rounded border" role="status" aria-live="polite"></div>',
             '  <div class="relative search-container" id="search-container">',
             '    <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 search-icon-only"></i>',
-            '    <input type="text" id="db-search" oninput="scheduleStorageSearch()" placeholder="문서 제목·본문 검색..." class="w-full pl-9 pr-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-md text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500">',
+            '    <input type="search" id="db-search" name="mdpro-sidebar-filter" value="" readonly autocomplete="new-password" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-form-type="other" oninput="scheduleStorageSearch()" placeholder="문서 제목·본문 검색..." class="w-full pl-9 pr-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-md text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-500">',
             '  </div>',
             '</div>',
             '<div id="db-list" class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1"></div>',
@@ -216,6 +216,33 @@
             else sidebar.insertAdjacentHTML('afterbegin', getSidebarShellHtml());
         }
         sidebar.dataset.sidebarLeftReady = '1';
+        const searchInput = sidebar.querySelector('#db-search');
+        if (searchInput && searchInput.dataset.autofillGuardReady !== '1') {
+            searchInput.dataset.autofillGuardReady = '1';
+            searchInput.defaultValue = '';
+            searchInput.value = '';
+            searchInput.readOnly = true;
+
+            let manuallyActivated = false;
+            const discardAutofill = function () {
+                if (!manuallyActivated && searchInput.value) {
+                    searchInput.value = '';
+                    if (typeof window.scheduleStorageSearch === 'function') window.scheduleStorageSearch();
+                }
+            };
+            const unlockManualInput = function () {
+                manuallyActivated = true;
+                searchInput.value = '';
+                searchInput.readOnly = false;
+                clearInterval(autofillGuardTimer);
+            };
+
+            searchInput.addEventListener('pointerdown', unlockManualInput, { once: true });
+            searchInput.addEventListener('keydown', unlockManualInput, { once: true });
+            searchInput.addEventListener('input', discardAutofill);
+            const autofillGuardTimer = setInterval(discardAutofill, 100);
+            setTimeout(function () { clearInterval(autofillGuardTimer); }, 10000);
+        }
         if (typeof window.refreshFeatureToolNameSettings === 'function') window.refreshFeatureToolNameSettings();
     }
 

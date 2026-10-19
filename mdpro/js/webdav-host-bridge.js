@@ -5,10 +5,6 @@
     let savedDocumentText = '';
     let lastReportedDocumentText = '';
 
-    function requestExplorer() {
-        window.parent.postMessage({ type: 'webdav-toggle-explorer' }, location.origin);
-    }
-
     function currentDocumentText() {
         const editor = document.getElementById('viewer-edit-ta');
         return editor && typeof editor.value === 'string' ? editor.value : '';
@@ -72,6 +68,10 @@
     }
 
     function installUi() {
+        // Remove the legacy control if an older cached bridge inserted it before
+        // this version loaded. WebDAV stays available from the host floating UI.
+        document.getElementById('mdpro-webdav-sidebar-button')?.remove();
+
         const exportButton = document.getElementById('header-export-file-button');
         if (exportButton && !document.getElementById('header-webdav-save-button')) {
             const wrap = document.createElement('div');
@@ -128,18 +128,6 @@
             exportButton.insertAdjacentElement('afterend', wrap);
             if (window.lucide && typeof window.lucide.createIcons === 'function') window.lucide.createIcons();
         }
-        const sidebar = document.getElementById('sidebar');
-        if (sidebar && !document.getElementById('mdpro-webdav-sidebar-button')) {
-            const button = document.createElement('button');
-            button.id = 'mdpro-webdav-sidebar-button';
-            button.type = 'button';
-            button.className = 'mdpro-webdav-sidebar-button';
-            button.innerHTML = '<span aria-hidden="true">☁</span><span>WebDAV</span>';
-            button.title = 'WebDAV 탐색기 열기/접기';
-            button.addEventListener('click', requestExplorer);
-            sidebar.prepend(button);
-        }
-
         const explorerBar = document.querySelector('#sidebar .webdav-explorer-bar, .webdav-explorer-bar');
         if (explorerBar && !document.getElementById('mdpro-toc-popup-button')) {
             const button = document.createElement('button');

@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'webdav-viewer-v2';
+const CACHE_VERSION = 'webdav-viewer-v12-sspimg-lemonade';
 const APP_SHELL = ['./', './manifest.webmanifest', './webdav.svg', './webdav-maskable.svg'];
 
 self.addEventListener('install', (event) => {

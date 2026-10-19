@@ -82,8 +82,8 @@ test('realtime document answers remain available as collapsed AI Jena records', 
   assert.match(aiChatSource, /className = 'ai-chat-document-answer-record'/);
   assert.match(aiChatSource, /문서에 작성된 답변 · 기록 펼쳐보기/);
   assert.match(cssSource, /\.ai-chat-document-answer-record\s*\{/);
-  assert.match(appSource, /ai-chat\.js\?v=20260912-floating-visible-viewport-1/);
-  assert.match(indexSource, /ai-chat\.css\?v=20260912-floating-settings-up-1/);
+  assert.match(appSource, /ai-chat\.js\?v=20261019-lemonade-image-models-1/);
+  assert.match(indexSource, /ai-chat\.css\?v=20261019-lemonade-load-progress-1/);
   assert.match(indexSource, /aiJenaRealtimeRecord=20260912-2/);
 });
 

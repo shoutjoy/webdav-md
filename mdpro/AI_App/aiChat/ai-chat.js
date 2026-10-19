@@ -75,7 +75,11 @@
   var DEEPSEEK_MODEL_KEY = 'ss_ai_chat_deepseek_model';
   var OPENAI_MODEL_KEY = 'ss_ai_chat_openai_model';
   var OPENAI_COMPATIBLE_MODEL_KEY = 'ss_ai_chat_openai_compatible_model';
+  var LEMONADE_MODEL_KEY = 'ss_ai_chat_lemonade_model';
+  var MODEL_TOKEN_PROFILE_KEY = 'ss_ai_chat_model_token_profile';
+  var LEMONADE_DEFAULT_MODEL = 'Gemma-4-E4B-it-GGUF';
   var OLLAMA_MODEL_KEY = 'ss_ai_chat_ollama_model';
+  var NPU_MODEL_KEY = 'ss_ai_chat_npu_model';
   var LITERTLM_MODEL_KEY = 'ss_ai_chat_litertlm_model';
   var WRITING_STYLE_KEY = 'ss_ai_chat_writing_style';
   var GENERAL_ANSWER_KEY = 'ss_ai_chat_general_answer';
@@ -84,6 +88,7 @@
   var ANSWER_APPEARANCE_DEFAULT_REVISION_KEY = 'ss_ai_chat_answer_appearance_default_revision';
   var WRITING_STYLE_DEFAULT_REVISION_KEY = 'ss_ai_chat_writing_style_default_revision';
   var INSERT_EXPAND_KEY = 'ss_ai_chat_insert_actions_expanded';
+  var AUTO_CONTINUE_KEY = 'ss_ai_chat_auto_continue_enabled';
   var DOCUMENT_INSERT_OPTIONS = [
     { mode: 'replace', label: '대체 삽입', shortLabel: '대체', title: '선택한 내용을 AI 답변(Markdown 원문)으로 대체합니다.' },
     { mode: 'cursor', label: '커서 위치에 삽입 · Ctrl+I', shortLabel: '커서', title: '현재 커서 위치에 Markdown 원문을 삽입합니다.' },
@@ -117,7 +122,7 @@
   var CURRENT_CONVERSATION_KEY = 'ss_ai_chat_current_conversation_id';
   var MIGRATION_KEY = 'ss_ai_chat_idb_migrated_v1';
   var SQLITE_SYNC_KEYS = new Set([
-    ENABLED_KEY, PROVIDER_KEY, GEMINI_MODEL_KEY, DEEPSEEK_MODEL_KEY, OPENAI_MODEL_KEY, OPENAI_COMPATIBLE_MODEL_KEY,
+    ENABLED_KEY, PROVIDER_KEY, GEMINI_MODEL_KEY, DEEPSEEK_MODEL_KEY, OPENAI_MODEL_KEY, OPENAI_COMPATIBLE_MODEL_KEY, LEMONADE_MODEL_KEY,
     OLLAMA_MODEL_KEY, LITERTLM_MODEL_KEY, WRITING_STYLE_KEY, GENERAL_ANSWER_KEY, ANSWER_APPEARANCE_KEY, ANSWER_FONT_SIZE_KEY, RESPONSE_MODE_KEY, FAST_MODE_KEY, SENTENCE_ONLY_KEY, REALTIME_DOC_WRITE_KEY, REALTIME_DOC_TARGET_KEY, SHOW_REASONING_KEY,
     ACADEMIC_SEARCH_KEY, ACADEMIC_COUNT_KEY, INTERNET_SEARCH_KEY, LAYOUT_KEY, START_LAYOUT_KEY
   ]);
@@ -175,6 +180,7 @@
     answerAppearance: 'plain-light',
     answerFontSize: 14,
     insertActionsExpanded: false,
+    autoContinueEnabled: false,
     responseMode: 'quick',
     fastMode: false,
     sentenceOnly: false,
@@ -186,10 +192,12 @@
     academicSearchCount: 10,
     geminiModel: 'gemini-3.5-flash-lite',
     ollamaModel: '',
+    npuModel: '',
     litertlmModel: '',
     deepseekModel: 'deepseek-v4-flash',
     openaiModel: 'gpt-5.6-sol',
     openaiCompatibleModel: 'orcarouter/free',
+    lemonadeModel: LEMONADE_DEFAULT_MODEL,
     lmModel: '',
     lmContextLength: 0,
     messages: [],
@@ -230,6 +238,9 @@
   var pendingAttachments = [];
   var MAX_ATTACHMENTS = 8;
   var attachmentLoading = false;
+  var autoContinuationRunToken = 0;
+  var autoContinuationStepCount = 0;
+  var MAX_AUTO_CONTINUATION_STEPS = 12;
 
   function storageGet(key, fallback) {
     try {
@@ -320,6 +331,23 @@
       '내부 chain-of-thought, 비공개 추론 과정, 작업 계획을 그대로 노출하지 말고, 검증 가능한 근거와 정리된 판단 이유만 사용자용 설명으로 제시한다.',
       '[/추론 모드 심층 답변 규칙]'
     ].join(' ');
+  }
+
+  function nativeQualityAnswerInstruction(latestRequest) {
+    var nativeStyle = state.writingStyle === 'academic'
+      ? '한국어 학술체를 사용하되 정확성과 가독성을 우선하고, 사용자가 지정한 다른 문체가 있으면 그 요청을 따른다.'
+      : '자연스럽고 전문적인 한국어 존댓말을 사용하되, 사용자가 지정한 다른 문체가 있으면 그 요청을 따른다.';
+    var mermaidRequested = /\bmermaid\b|머메이드|다이어그램|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram/i.test(String(latestRequest || ''));
+    return [
+      '사용자의 실제 질문과 요청한 형식·언어·분량을 우선하여 정확하고 완결된 최종 답변을 작성한다.',
+      '사용자가 짧게 요청하지 않았다면 핵심 설명, 근거, 예외와 실무적으로 필요한 세부사항을 임의로 생략하거나 지나치게 압축하지 않는다.',
+      '모델의 강점을 그대로 활용하고 작업 계획, 프롬프트 해설, 자기평가 같은 메타 발언은 출력하지 않는다.',
+      nativeStyle,
+      sentenceOnlyInstruction(),
+      reasoningAnswerInstruction(),
+      '이전 대화가 제공되면 최신 요청과 충돌하지 않는 범위에서 자연스럽게 이어서 답한다.',
+      mermaidRequested ? MERMAID_DARK_MODE_PROMPT_RULE : ''
+    ].filter(Boolean).join(' ');
   }
 
   function saveBuiltInPromptRules() {
@@ -455,6 +483,7 @@
       deepseekModel: state.deepseekModel,
       openaiModel: state.openaiModel,
       openaiCompatibleModel: state.openaiCompatibleModel,
+      lemonadeModel: state.lemonadeModel,
       messages: state.messages.slice(-MAX_STORED_MESSAGES)
     };
   }
@@ -498,6 +527,7 @@
       deepseekModel: record.deepseekModel || state.deepseekModel,
       openaiModel: record.openaiModel || state.openaiModel,
       openaiCompatibleModel: record.openaiCompatibleModel || state.openaiCompatibleModel,
+      lemonadeModel: record.lemonadeModel || state.lemonadeModel,
       messages: Array.isArray(record.messages) ? record.messages.slice(-MAX_STORED_MESSAGES) : []
     };
   }
@@ -542,6 +572,7 @@
         deepseekModel: conversation.deepseekModel || '',
         openaiModel: conversation.openaiModel || '',
         openaiCompatibleModel: conversation.openaiCompatibleModel || '',
+        lemonadeModel: conversation.lemonadeModel || '',
         createdAt: conversation.createdAt || 0,
         updatedAt: conversation.updatedAt || 0
       });
@@ -628,7 +659,7 @@
     });
     if (record && record.provider) {
       var nextProvider = String(record.provider || '').toLowerCase();
-      state.provider = nextProvider === 'aistudio' || nextProvider === 'ollama' || nextProvider === 'litertlm' || nextProvider === 'deepseek' || nextProvider === 'openai-compatible' || nextProvider === 'openai' ? nextProvider : 'lmstudio';
+      state.provider = nextProvider === 'aistudio' || nextProvider === 'ollama' || nextProvider === 'ollama-npu' || nextProvider === 'litertlm' || nextProvider === 'lemonade' || nextProvider === 'deepseek' || nextProvider === 'openai-compatible' || nextProvider === 'openai' ? nextProvider : 'lmstudio';
     }
     if (record && record.responseMode) state.responseMode = record.responseMode === 'reasoning' ? 'reasoning' : 'quick';
     if (record && typeof record.showReasoning === 'boolean') state.showReasoning = record.showReasoning;
@@ -639,6 +670,7 @@
     if (record && record.deepseekModel) state.deepseekModel = record.deepseekModel;
     if (record && record.openaiModel) state.openaiModel = record.openaiModel;
     if (record && record.openaiCompatibleModel) state.openaiCompatibleModel = record.openaiCompatibleModel;
+    if (record && record.lemonadeModel) state.lemonadeModel = record.lemonadeModel;
     storageSet(CURRENT_CONVERSATION_KEY, state.conversationId);
     storageSet(PROVIDER_KEY, state.provider);
     storageSet(RESPONSE_MODE_KEY, state.responseMode);
@@ -650,6 +682,7 @@
     storageSet(DEEPSEEK_MODEL_KEY, state.deepseekModel);
     storageSet(OPENAI_MODEL_KEY, state.openaiModel);
     storageSet(OPENAI_COMPATIBLE_MODEL_KEY, state.openaiCompatibleModel);
+    storageSet(LEMONADE_MODEL_KEY, state.lemonadeModel);
     updateProviderUI();
     setResponseMode(state.responseMode);
     setShowReasoning(state.showReasoning);
@@ -672,7 +705,7 @@
             titleCustomized: false, pinned: false, pinnedAt: 0,
             provider: state.provider, responseMode: state.responseMode, showReasoning: state.showReasoning,
             academicSearchEnabled: state.academicSearchEnabled, academicSearchCount: state.academicSearchCount,
-            geminiModel: state.geminiModel, ollamaModel: state.ollamaModel, deepseekModel: state.deepseekModel, openaiModel: state.openaiModel, openaiCompatibleModel: state.openaiCompatibleModel,
+            geminiModel: state.geminiModel, ollamaModel: state.ollamaModel, deepseekModel: state.deepseekModel, openaiModel: state.openaiModel, openaiCompatibleModel: state.openaiCompatibleModel, lemonadeModel: state.lemonadeModel,
             messages: legacy
           };
           await requestPromise(conversationStore('readwrite').put(migrated));
@@ -691,7 +724,7 @@
           titleCustomized: false, pinned: false, pinnedAt: 0,
           provider: state.provider, responseMode: state.responseMode, showReasoning: state.showReasoning,
           academicSearchEnabled: state.academicSearchEnabled, academicSearchCount: state.academicSearchCount,
-          geminiModel: state.geminiModel, ollamaModel: state.ollamaModel, deepseekModel: state.deepseekModel, openaiModel: state.openaiModel, openaiCompatibleModel: state.openaiCompatibleModel, messages: []
+          geminiModel: state.geminiModel, ollamaModel: state.ollamaModel, deepseekModel: state.deepseekModel, openaiModel: state.openaiModel, openaiCompatibleModel: state.openaiCompatibleModel, lemonadeModel: state.lemonadeModel, messages: []
         };
         state.conversations = [current];
         await requestPromise(conversationStore('readwrite').put(current));
@@ -793,7 +826,7 @@
       + '    </button>'
       + '    <div id="ai-chat-provider-controls" class="ai-chat-provider-controls collapsed">'
       + '      <div class="ai-chat-provider-row">'
-      + '        <label>AI 공급자<select id="ai-chat-provider"><option value="lmstudio">LM Studio</option><option value="litertlm">LiteRT-LM</option><option value="aistudio">AI Studio (Gemini)</option><option value="ollama">Ollama</option><option value="deepseek">DeepSeek (유료)</option><option value="openai-compatible">OrcaRouter / OpenAI 호환</option><option value="openai">OpenAI · ChatGPT 모델 (유료 API)</option></select></label>'
+      + '        <label>AI 공급자<select id="ai-chat-provider"><option value="lmstudio">LM Studio</option><option value="litertlm">LiteRT-LM</option><option value="aistudio">AI Studio (Gemini)</option><option value="ollama">Ollama</option><option value="lemonade">Lemonade</option><option value="ollama-npu">Lemonade NPU</option><option value="deepseek">DeepSeek (유료)</option><option value="openai-compatible">OrcaRouter / OpenAI 호환</option><option value="openai">OpenAI · ChatGPT 모델 (유료 API)</option></select></label>'
       + '        <label>모델<select id="ai-chat-model"></select></label>'
       + '        <button type="button" id="ai-chat-refresh-model" title="현재 모델 새로고침">↻</button>'
       + '      </div>'
@@ -804,10 +837,20 @@
       + '        <label class="ai-chat-insert-expand-toggle" title="켜면 각 AI 답변 아래에 삽입 방식을 펼쳐 표시합니다."><input type="checkbox" id="ai-chat-insert-expand"><span>삽입방식</span></label>'
       + '      </div>'
       + '      <details class="ai-chat-fast-settings-details">'
-      + '        <summary>FAST 세부 설정</summary>'
-      + '        <div class="ai-chat-fast-limits ai-chat-provider-fast-limits" aria-label="FAST 응답 설정">'
+      + '        <summary>세부 설정 · 모드별 출력 토큰</summary>'
+      + '        <div class="ai-chat-fast-limits ai-chat-provider-fast-limits" aria-label="AI Jena 모드별 응답 설정">'
       + '          <label>FAST TOK <input id="ai-chat-fast-token-limit" type="number" min="1" step="1" value="3000" inputmode="numeric" aria-label="FAST 최대 토큰"></label>'
-      + '          <label>LIMIT TIME <input id="ai-chat-fast-time-limit" type="number" min="1" step="1" value="120" inputmode="numeric" aria-label="FAST 제한 시간(초)"><span>초</span></label>'
+      + '          <label>즉시 TOK <input id="ai-chat-quick-token-limit" type="number" min="1" step="1" value="4096" inputmode="numeric" aria-label="즉시 모드 최대 토큰"></label>'
+      + '          <label>추론 TOK <input id="ai-chat-reasoning-token-limit" type="number" min="1" step="1" value="8192" inputmode="numeric" aria-label="추론 모드 최대 토큰"></label>'
+      + '          <label>MAX TOK <input id="ai-chat-max-token-limit" type="number" min="1" step="1" value="8192" inputmode="numeric" aria-label="전체 최대 출력 토큰"></label>'
+      + '          <label>LIMIT TIME <input id="ai-chat-fast-time-limit" type="number" min="1" step="1" value="180" inputmode="numeric" aria-label="FAST 제한 시간(초)"><span>초</span></label>'
+      + '        </div>'
+      + '        <div id="ai-chat-lemonade-lifecycle" class="ai-chat-model-lifecycle-controls" hidden>'
+      + '          <button type="button" id="ai-chat-lemonade-load-model" title="선택한 Lemonade 모델을 메모리에 로드">선택 모델 Load</button>'
+      + '          <div id="ai-chat-lemonade-load-progress" class="ai-chat-model-load-progress" hidden role="progressbar" aria-label="Lemonade 모델 로딩 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">'
+      + '            <div class="ai-chat-model-load-progress-head"><span id="ai-chat-lemonade-load-progress-label">모델 로딩 준비</span><strong id="ai-chat-lemonade-load-progress-percent">0%</strong></div>'
+      + '            <div class="ai-chat-model-load-progress-track"><span id="ai-chat-lemonade-load-progress-bar"></span></div>'
+      + '          </div>'
       + '        </div>'
       + '      </details>'
       + '    </div>'
@@ -959,6 +1002,7 @@
       event.target.value = '';
     });
     document.getElementById('ai-chat-refresh-model').addEventListener('click', function () { refreshModels(false); });
+    document.getElementById('ai-chat-lemonade-load-model').addEventListener('click', loadSelectedLemonadeModel);
     document.getElementById('ai-chat-provider-toggle').addEventListener('click', function () {
       syncFastLimitControls();
       setProviderControlsOpen(!state.providerControlsOpen);
@@ -972,6 +1016,9 @@
     });
     syncFastLimitControls();
     document.getElementById('ai-chat-fast-token-limit').addEventListener('change', saveFastLimitControls);
+    document.getElementById('ai-chat-quick-token-limit').addEventListener('change', saveFastLimitControls);
+    document.getElementById('ai-chat-reasoning-token-limit').addEventListener('change', saveFastLimitControls);
+    document.getElementById('ai-chat-max-token-limit').addEventListener('change', saveFastLimitControls);
     document.getElementById('ai-chat-fast-time-limit').addEventListener('change', saveFastLimitControls);
     document.getElementById('ai-chat-layout-menu-button').addEventListener('click', function (event) {
       event.stopPropagation();
@@ -1046,7 +1093,18 @@
       finishAcademicCountEdit(true);
     });
     document.getElementById('ai-chat-provider').addEventListener('change', function (event) {
-      state.provider = (event.target.value === 'aistudio' || event.target.value === 'ollama' || event.target.value === 'litertlm' || event.target.value === 'deepseek' || event.target.value === 'openai-compatible' || event.target.value === 'openai') ? event.target.value : 'lmstudio';
+      var selectedProvider = event.target.value;
+      if (selectedProvider === 'lemonade') {
+        state.provider = 'lemonade';
+        state.lemonadeModel = storageGet(LEMONADE_MODEL_KEY, storageGet('ss_openai_compatible_model_id_lemonade', LEMONADE_DEFAULT_MODEL)) || LEMONADE_DEFAULT_MODEL;
+        storageSet(LEMONADE_MODEL_KEY, state.lemonadeModel);
+      } else {
+        state.provider = (selectedProvider === 'aistudio' || selectedProvider === 'ollama' || selectedProvider === 'ollama-npu' || selectedProvider === 'litertlm' || selectedProvider === 'deepseek' || selectedProvider === 'openai-compatible' || selectedProvider === 'openai') ? selectedProvider : 'lmstudio';
+        if (selectedProvider === 'openai-compatible') {
+          state.openaiCompatibleModel = storageGet('ss_openai_compatible_model_id_orcarouter', 'orcarouter/free') || 'orcarouter/free';
+          storageSet(OPENAI_COMPATIBLE_MODEL_KEY, state.openaiCompatibleModel);
+        }
+      }
       storageSet(PROVIDER_KEY, state.provider);
       updateProviderUI();
       refreshModels(false);
@@ -1057,6 +1115,7 @@
       if (state.provider === 'litertlm') {
         state.litertlmModel = event.target.value || '';
         storageSet(LITERTLM_MODEL_KEY, state.litertlmModel);
+        applyModelTokenProfile(state.litertlmModel, true);
         updateHeaderModel(); saveHistory(); return;
       }
       if (state.provider === 'deepseek') {
@@ -1078,12 +1137,28 @@
         saveHistory();
         return;
       }
-      if (state.provider === 'ollama') {
-        state.ollamaModel = event.target.value || '';
-        storageSet(OLLAMA_MODEL_KEY, state.ollamaModel);
+      if (state.provider === 'lemonade') {
+        state.lemonadeModel = event.target.value || LEMONADE_DEFAULT_MODEL;
+        storageSet(LEMONADE_MODEL_KEY, state.lemonadeModel);
+        storageSet('ss_openai_compatible_model_id_lemonade', state.lemonadeModel);
+        applyModelTokenProfile(state.lemonadeModel, true);
         updateHeaderModel();
         saveHistory();
         return;
+      }
+      if (state.provider === 'ollama') {
+        state.ollamaModel = event.target.value || '';
+        storageSet(OLLAMA_MODEL_KEY, state.ollamaModel);
+        applyModelTokenProfile(state.ollamaModel, true);
+        updateHeaderModel();
+        saveHistory();
+        return;
+      }
+      if (state.provider === 'ollama-npu') {
+        state.npuModel = event.target.value || '';
+        storageSet(NPU_MODEL_KEY, state.npuModel);
+        applyModelTokenProfile(state.npuModel, true);
+        updateHeaderModel(); saveHistory(); return;
       }
       state.geminiModel = event.target.value || DEFAULT_GEMINI_MODELS[0];
       storageSet(GEMINI_MODEL_KEY, state.geminiModel);
@@ -2147,7 +2222,7 @@
   }
 
   function getThinkingStage(elapsedSeconds) {
-    if (state.provider === 'aistudio' && isGeminiImageModel(state.geminiModel)) {
+    if (isActiveImageModel()) {
       if (elapsedSeconds < 2) return 'Nano Banana에 연결하는 중';
       if (elapsedSeconds < 8) return '이미지 구성을 준비하는 중';
       if (elapsedSeconds < 30) return '이미지를 생성하는 중';
@@ -2252,7 +2327,7 @@
         + (liveStream.maxOutputTokens ? ' / 최대 ' + formatStreamNumber(liveStream.maxOutputTokens) : '') + ' tok';
     }
     if (speedEl) speedEl.textContent = measuredTps ? measuredTps.toFixed(1) + ' tok/s' : '첫 토큰 대기';
-    var showLiveReasoning = state.responseMode === 'reasoning' && state.showReasoning;
+    var showLiveReasoning = state.responseMode === 'reasoning' && state.showReasoning && state.provider !== 'lemonade';
     if (reasoningWrap) reasoningWrap.hidden = !showLiveReasoning;
     if (reasoningBody) {
       reasoningBody.classList.toggle('waiting', !liveStream.reasoning);
@@ -2286,11 +2361,7 @@
   function handleStreamEvent(event) {
     if (!liveStream || !event || !event.type) return;
     var type = String(event.type);
-    var providerLabel = event.provider === 'ollama' || state.provider === 'ollama'
-      ? 'Ollama'
-      : (event.provider === 'litertlm' || state.provider === 'litertlm'
-          ? 'LiteRT-LM'
-          : (event.provider === 'aistudio' || state.provider === 'aistudio' ? 'AI Studio' : 'LM Studio'));
+    var providerLabel = providerDisplayName(event.provider || state.provider);
     if (type === 'request.start') {
       liveStream.contextLength = Math.max(0, Number(event.context_length) || 0);
       liveStream.maxOutputTokens = Math.max(0, Number(event.max_output_tokens) || 0);
@@ -2320,7 +2391,7 @@
       liveStream.stage = '대화 문맥 처리 ' + Math.round((Number(event.progress) || 0) * 100) + '%';
       liveStream.progress = 15 + Math.max(0, Math.min(1, Number(event.progress) || 0)) * 20;
     } else if (type === 'prompt_processing.end') {
-      liveStream.stage = state.responseMode === 'quick'
+      liveStream.stage = state.responseMode === 'quick' || state.provider === 'lemonade'
         ? '문맥 처리 완료 · 첫 응답 토큰 대기'
         : '문맥 처리 완료 · 첫 추론 토큰 대기';
       liveStream.progress = Math.max(liveStream.progress, 35);
@@ -2357,7 +2428,7 @@
       var exactTokenRatio = liveStream.maxOutputTokens
         ? liveStream.exactOutputTokens / liveStream.maxOutputTokens
         : 0;
-      liveStream.stage = exactTokenRatio >= 0.92 && (state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'litertlm')
+      liveStream.stage = exactTokenRatio >= 0.92 && (state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'litertlm' || state.provider === 'lemonade' || state.provider === 'openai-compatible')
         ? '출력 한도 근접 · 이어쓰기 준비'
         : '응답 완료';
       liveStream.progress = 100;
@@ -2389,7 +2460,7 @@
     thinkingProgress = 2;
     liveStream = {
       phase: 'connecting',
-      stage: (state.provider === 'ollama' ? 'Ollama' : (state.provider === 'aistudio' ? 'AI Studio' : 'LM Studio')) + ' 연결 중',
+      stage: providerDisplayName(state.provider) + ' 연결 중',
       progress: 2,
       contextLength: state.lmContextLength || 0,
       maxOutputTokens: 0,
@@ -2493,37 +2564,118 @@
     try { return root.LocalAI.loadConfig(root.localStorage); } catch (_) { return null; }
   }
 
+  function configuredModeOutputLimit(mode, fastMode) {
+    var config = readLocalFastConfig() || {};
+    var hardMax = Math.max(1, Number(config.maxTokens) || 8192);
+    var modeMax = fastMode
+      ? (Number(config.fastMaxTokens) || 3000)
+      : (mode === 'reasoning'
+          ? (Number(config.reasoningMaxTokens) || 8192)
+          : (Number(config.quickMaxTokens) || 4096));
+    return Math.max(1, Math.min(hardMax, modeMax));
+  }
+
+  function activeModeOutputLimit() {
+    return configuredModeOutputLimit(state.responseMode, state.fastMode);
+  }
+
+  function tokenProfileForModel(model) {
+    var normalized = String(model || '').toLowerCase().replace(/[_\s]+/g, '-');
+    var profile = { fastMaxTokens: 3000, quickMaxTokens: 4096, reasoningMaxTokens: 6144, maxTokens: 8192, fastTimeoutMs: 180000 };
+    if (/31b/.test(normalized)) {
+      profile = { fastMaxTokens: 1024, quickMaxTokens: 3072, reasoningMaxTokens: 4096, maxTokens: 6144, fastTimeoutMs: 180000 };
+    } else if (/26b/.test(normalized)) {
+      profile = { fastMaxTokens: 1536, quickMaxTokens: 3072, reasoningMaxTokens: 4096, maxTokens: 6144, fastTimeoutMs: 180000 };
+    } else if (/12b/.test(normalized)) {
+      profile = { fastMaxTokens: 2048, quickMaxTokens: 4096, reasoningMaxTokens: 4096, maxTokens: 6144, fastTimeoutMs: 180000 };
+    } else if (/(?:e4b|[^0-9]4b)(?:[^0-9]|$)/.test(normalized)) {
+      profile = { fastMaxTokens: 3000, quickMaxTokens: 4096, reasoningMaxTokens: 4096, maxTokens: 6144, fastTimeoutMs: 180000 };
+    }
+    return profile;
+  }
+
+  function applyModelTokenProfile(model, force) {
+    var modelId = String(model || '').trim();
+    if (!modelId || !root.LocalAI || typeof root.LocalAI.saveConfig !== 'function') return false;
+    var profileKey = state.provider + ':' + modelId.toLowerCase();
+    var previousProfileKey = storageGet(MODEL_TOKEN_PROFILE_KEY, '');
+    if (!force && !previousProfileKey) {
+      storageSet(MODEL_TOKEN_PROFILE_KEY, profileKey);
+      return false;
+    }
+    if (!force && previousProfileKey === profileKey) return false;
+    try {
+      var profile = tokenProfileForModel(modelId);
+      var current = readLocalFastConfig() || {};
+      root.LocalAI.saveConfig(Object.assign({}, current, profile), root.localStorage);
+      storageSet(MODEL_TOKEN_PROFILE_KEY, profileKey);
+      syncFastLimitControls();
+      if (typeof root.loadScholarAIProviderSettingsUI === 'function') root.loadScholarAIProviderSettingsUI();
+      if (root.MDPCredentialVault && typeof root.MDPCredentialVault.notifySettingsChanged === 'function') {
+        root.MDPCredentialVault.notifySettingsChanged();
+      }
+      setStatus('모델별 토큰 설정 적용 · FAST ' + profile.fastMaxTokens + ' · 즉시 ' + profile.quickMaxTokens + ' · 추론 ' + profile.reasoningMaxTokens + ' · MAX ' + profile.maxTokens + ' · 180초', 'ok');
+      return true;
+    } catch (error) {
+      console.warn('AI Jena model token profile failed:', error);
+      return false;
+    }
+  }
+
+  function usesLocalNativeQualityMode() {
+    return state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'lemonade';
+  }
+
   function syncFastLimitControls() {
     var config = readLocalFastConfig() || {};
     var tokenInput = document.getElementById('ai-chat-fast-token-limit');
+    var quickTokenInput = document.getElementById('ai-chat-quick-token-limit');
+    var reasoningTokenInput = document.getElementById('ai-chat-reasoning-token-limit');
+    var maxTokenInput = document.getElementById('ai-chat-max-token-limit');
     var timeInput = document.getElementById('ai-chat-fast-time-limit');
     if (tokenInput) tokenInput.value = String(Math.max(1, Number(config.fastMaxTokens) || 3000));
-    if (timeInput) timeInput.value = String(Math.max(1, Math.round((Number(config.fastTimeoutMs) || 120000) / 1000)));
+    if (quickTokenInput) quickTokenInput.value = String(Math.max(1, Number(config.quickMaxTokens) || 4096));
+    if (reasoningTokenInput) reasoningTokenInput.value = String(Math.max(1, Number(config.reasoningMaxTokens) || 8192));
+    if (maxTokenInput) maxTokenInput.value = String(Math.max(1, Number(config.maxTokens) || 8192));
+    if (timeInput) timeInput.value = String(Math.max(1, Math.round((Number(config.fastTimeoutMs) || 180000) / 1000)));
     var layoutTokenInput = document.getElementById('ai-chat-layout-fast-token-limit');
     var layoutTimeInput = document.getElementById('ai-chat-layout-fast-time-limit');
     if (layoutTokenInput) layoutTokenInput.value = tokenInput ? tokenInput.value : '3000';
-    if (layoutTimeInput) layoutTimeInput.value = timeInput ? timeInput.value : '120';
+    if (layoutTimeInput) layoutTimeInput.value = timeInput ? timeInput.value : '180';
   }
 
   function saveFastLimitControls() {
     if (!root.LocalAI || typeof root.LocalAI.saveConfig !== 'function') return;
     var tokenInput = document.getElementById('ai-chat-fast-token-limit');
+    var quickTokenInput = document.getElementById('ai-chat-quick-token-limit');
+    var reasoningTokenInput = document.getElementById('ai-chat-reasoning-token-limit');
+    var maxTokenInput = document.getElementById('ai-chat-max-token-limit');
     var timeInput = document.getElementById('ai-chat-fast-time-limit');
-    var fastMaxTokens = Math.max(1, Math.round(Number(tokenInput && tokenInput.value) || 3000));
-    var fastTimeoutSeconds = Math.max(1, Math.round(Number(timeInput && timeInput.value) || 120));
+    var maxTokens = Math.max(1, Math.round(Number(maxTokenInput && maxTokenInput.value) || 8192));
+    var fastMaxTokens = Math.min(maxTokens, Math.max(1, Math.round(Number(tokenInput && tokenInput.value) || 3000)));
+    var quickMaxTokens = Math.min(maxTokens, Math.max(1, Math.round(Number(quickTokenInput && quickTokenInput.value) || 4096)));
+    var reasoningMaxTokens = Math.min(maxTokens, Math.max(1, Math.round(Number(reasoningTokenInput && reasoningTokenInput.value) || 8192)));
+    var fastTimeoutSeconds = Math.max(1, Math.round(Number(timeInput && timeInput.value) || 180));
     try {
       var current = readLocalFastConfig() || {};
       root.LocalAI.saveConfig(Object.assign({}, current, {
+        maxTokens: maxTokens,
         fastMaxTokens: fastMaxTokens,
+        quickMaxTokens: quickMaxTokens,
+        reasoningMaxTokens: reasoningMaxTokens,
         fastTimeoutMs: fastTimeoutSeconds * 1000
       }), root.localStorage);
       if (tokenInput) tokenInput.value = String(fastMaxTokens);
+      if (quickTokenInput) quickTokenInput.value = String(quickMaxTokens);
+      if (reasoningTokenInput) reasoningTokenInput.value = String(reasoningMaxTokens);
+      if (maxTokenInput) maxTokenInput.value = String(maxTokens);
       if (timeInput) timeInput.value = String(fastTimeoutSeconds);
+      updateModeHelp();
       if (typeof root.loadScholarAIProviderSettingsUI === 'function') root.loadScholarAIProviderSettingsUI();
       if (root.MDPCredentialVault && typeof root.MDPCredentialVault.notifySettingsChanged === 'function') {
         root.MDPCredentialVault.notifySettingsChanged();
       }
-      setStatus('FAST 설정 저장 · ' + fastMaxTokens + ' tokens · ' + fastTimeoutSeconds + '초', 'ok');
+      setStatus('토큰 설정 저장 · FAST ' + fastMaxTokens + ' · 즉시 ' + quickMaxTokens + ' · 추론 ' + reasoningMaxTokens + ' · MAX ' + maxTokens, 'ok');
     } catch (error) {
       setStatus('FAST 설정을 저장하지 못했습니다: ' + (error && error.message ? error.message : error), 'error');
       syncFastLimitControls();
@@ -2537,6 +2689,8 @@
       summary.textContent = 'AI 공급자 · LM Studio · ' + (state.lmModel || '로드 모델 확인 필요');
     } else if (state.provider === 'ollama') {
       summary.textContent = 'AI 공급자 · Ollama · ' + (state.ollamaModel || '모델 확인 필요');
+    } else if (state.provider === 'ollama-npu') {
+      summary.textContent = 'AI 공급자 · Lemonade NPU · ' + (state.npuModel || '모델 확인 필요');
     } else if (state.provider === 'litertlm') {
       summary.textContent = 'AI 공급자 · LiteRT-LM · ' + (state.litertlmModel || '모델 확인 필요');
     } else if (state.provider === 'deepseek') {
@@ -2545,9 +2699,26 @@
       summary.textContent = 'AI 공급자 · OpenAI · ' + openaiModelLabel(state.openaiModel || DEFAULT_OPENAI_MODELS[0]);
     } else if (state.provider === 'openai-compatible') {
       summary.textContent = 'AI 공급자 · OrcaRouter / OpenAI 호환 · ' + (state.openaiCompatibleModel || '모델 확인 필요');
+    } else if (state.provider === 'lemonade') {
+      summary.textContent = 'AI 공급자 · Lemonade · ' + (state.lemonadeModel || '모델 확인 필요');
     } else {
       summary.textContent = 'AI 공급자 · AI Studio · ' + geminiModelLabel(state.geminiModel);
     }
+  }
+
+  function providerDisplayName(provider) {
+    var names = {
+      lmstudio: 'LM Studio',
+      litertlm: 'LiteRT-LM',
+      aistudio: 'AI Studio',
+      ollama: 'Ollama',
+      'ollama-npu': 'Lemonade NPU',
+      lemonade: 'Lemonade',
+      deepseek: 'DeepSeek',
+      'openai-compatible': 'OrcaRouter / OpenAI 호환',
+      openai: 'OpenAI'
+    };
+    return names[String(provider || '').toLowerCase()] || 'AI';
   }
 
   function normalizeAcademicCount(value) {
@@ -2589,7 +2760,7 @@
   function beginAcademicCountEdit() {
     var wrap = document.getElementById('ai-chat-academic-count-wrap');
     var input = document.getElementById('ai-chat-academic-count-input');
-    var imageModel = state.provider === 'aistudio' && isGeminiImageModel(state.geminiModel);
+    var imageModel = isActiveImageModel();
     if (!wrap || !input || state.running || imageModel || !(state.academicSearchEnabled || state.internetSearchEnabled)) return;
     wrap.classList.add('editing');
     input.hidden = false;
@@ -2623,7 +2794,7 @@
       return;
     }
     if (state.fastMode) {
-      help.textContent = 'FAST · 최소 컨텍스트 · 설명 없이 답만 출력';
+      help.textContent = 'FAST · 최대 ' + activeModeOutputLimit().toLocaleString('ko-KR') + ' TOK · 최소 컨텍스트 · 설명 없이 답만 출력';
       return;
     }
     if (state.internetSearchEnabled) {
@@ -2641,8 +2812,8 @@
       ? (state.showReasoning ? '추론 ON · 실시간 추론 표시' : '추론 ON · 추론 내용 숨김')
       : '추론 OFF';
     help.textContent = state.responseMode === 'reasoning'
-      ? reasoningInfo + contextInfo + ' · 최대 5분 대기'
-      : reasoningInfo + ' · 빠른 답변';
+      ? reasoningInfo + contextInfo + ' · 최대 ' + activeModeOutputLimit().toLocaleString('ko-KR') + ' TOK · 최대 5분 대기'
+      : reasoningInfo + ' · 최대 ' + activeModeOutputLimit().toLocaleString('ko-KR') + ' TOK · 네이티브 품질 답변';
   }
 
   function updateAcademicSearchUI() {
@@ -2651,7 +2822,7 @@
     var countWrap = document.getElementById('ai-chat-academic-count-wrap');
     var countSelect = document.getElementById('ai-chat-academic-count');
     var countInput = document.getElementById('ai-chat-academic-count-input');
-    var imageModel = state.provider === 'aistudio' && isGeminiImageModel(state.geminiModel);
+    var imageModel = isActiveImageModel();
     if (button) {
       button.classList.toggle('active', state.academicSearchEnabled);
       button.setAttribute('aria-pressed', state.academicSearchEnabled ? 'true' : 'false');
@@ -3080,6 +3251,7 @@
     var generalAnswer = document.getElementById('ai-chat-general-answer');
     var answerAppearance = document.getElementById('ai-chat-answer-appearance');
     var refresh = document.getElementById('ai-chat-refresh-model');
+    var lemonadeLoad = document.getElementById('ai-chat-lemonade-load-model');
     var importSelection = document.getElementById('ai-chat-import-selection');
     var academicToggle = document.getElementById('ai-chat-academic-toggle');
     var internetToggle = document.getElementById('ai-chat-internet-toggle');
@@ -3097,8 +3269,9 @@
     if (generalAnswer) generalAnswer.disabled = state.running;
     if (answerAppearance) answerAppearance.disabled = state.running;
     if (refresh) refresh.disabled = state.running;
+    if (lemonadeLoad) lemonadeLoad.disabled = state.running;
     if (importSelection) importSelection.disabled = state.running || state.storageInitializing;
-    var imageModel = state.provider === 'aistudio' && isGeminiImageModel(state.geminiModel);
+    var imageModel = isActiveImageModel();
     for (var i = 0; i < modeButtons.length; i++) modeButtons[i].disabled = state.running || imageModel;
     if (showReasoning) showReasoning.disabled = state.running || imageModel;
     if (fastMode) fastMode.disabled = state.running || imageModel;
@@ -3117,6 +3290,8 @@
         : 'LM Studio · 로드 모델 확인 필요';
     } else if (state.provider === 'ollama') {
       header.textContent = 'Ollama · ' + (state.ollamaModel || '모델 확인 필요');
+    } else if (state.provider === 'ollama-npu') {
+      header.textContent = 'Lemonade NPU · ' + (state.npuModel || '모델 확인 필요');
     } else if (state.provider === 'litertlm') {
       header.textContent = 'LiteRT-LM · ' + (state.litertlmModel || '모델 확인 필요');
     } else if (state.provider === 'deepseek') {
@@ -3125,22 +3300,24 @@
       header.textContent = 'OpenAI · ' + openaiModelLabel(state.openaiModel || DEFAULT_OPENAI_MODELS[0]);
     } else if (state.provider === 'openai-compatible') {
       header.textContent = 'OrcaRouter / OpenAI 호환 · ' + (state.openaiCompatibleModel || '모델 확인 필요');
+    } else if (state.provider === 'lemonade') {
+      header.textContent = 'Lemonade · ' + (state.lemonadeModel || '모델 확인 필요');
     } else {
       header.textContent = 'AI Studio · ' + geminiModelLabel(state.geminiModel);
     }
-    header.textContent += state.provider === 'aistudio' && isGeminiImageModel(state.geminiModel)
+    header.textContent += isActiveImageModel()
       ? ' · 이미지 생성'
       : (state.fastMode ? ' · FAST' : (state.responseMode === 'reasoning' ? ' · 추론' : ' · 즉시응답'));
-    if (state.generalAnswer && !(state.provider === 'aistudio' && isGeminiImageModel(state.geminiModel))) {
+    if (state.generalAnswer && !isActiveImageModel()) {
       header.textContent += ' · original';
     }
-    if (state.responseMode === 'reasoning' && !state.showReasoning && !(state.provider === 'aistudio' && isGeminiImageModel(state.geminiModel))) {
+    if (state.responseMode === 'reasoning' && !state.showReasoning && !isActiveImageModel()) {
       header.textContent += ' · 내용 숨김';
     }
-    if (state.academicSearchEnabled && !(state.provider === 'aistudio' && isGeminiImageModel(state.geminiModel))) {
+    if (state.academicSearchEnabled && !isActiveImageModel()) {
       header.textContent += ' · 학술검색';
     }
-    if (state.internetSearchEnabled && !(state.provider === 'aistudio' && isGeminiImageModel(state.geminiModel))) {
+    if (state.internetSearchEnabled && !isActiveImageModel()) {
       header.textContent += ' · 인터넷';
     }
     updateProviderSummary();
@@ -3150,13 +3327,25 @@
     return /(?:^|-)image(?:-|$)/i.test(String(model || ''));
   }
 
+  function isLemonadeImageModel(model) {
+    try { return !!getBridge().isLemonadeImageModel(model); }
+    catch (_) { return /(?:^|[-_.])(flux(?:-?2)?|stable[-_.]?diffusion|sd(?:xl)?(?:[-_.]|$)|qwen[-_.]?image|z[-_.]?image|krea)(?:[-_.]|$)/i.test(String(model || '')); }
+  }
+
+  function isActiveImageModel() {
+    return (state.provider === 'aistudio' && isGeminiImageModel(state.geminiModel))
+      || (state.provider === 'lemonade' && isLemonadeImageModel(state.lemonadeModel));
+  }
+
   function activeProviderModel() {
     if (state.provider === 'aistudio') return state.geminiModel;
     if (state.provider === 'ollama') return state.ollamaModel;
+    if (state.provider === 'ollama-npu') return state.npuModel;
     if (state.provider === 'litertlm') return state.litertlmModel;
     if (state.provider === 'deepseek') return state.deepseekModel;
     if (state.provider === 'openai') return state.openaiModel;
     if (state.provider === 'openai-compatible') return state.openaiCompatibleModel;
+    if (state.provider === 'lemonade') return state.lemonadeModel;
     return null;
   }
 
@@ -3218,7 +3407,7 @@
   }
 
   function updateModelModeUI() {
-    var imageModel = state.provider === 'aistudio' && isGeminiImageModel(state.geminiModel);
+    var imageModel = isActiveImageModel();
     var panel = document.getElementById('ai-chat-panel');
     var input = document.getElementById('ai-chat-input');
     var showReasoning = document.getElementById('ai-chat-show-reasoning');
@@ -3249,6 +3438,7 @@
         if (state.provider === 'deepseek') option.textContent = deepseekModelLabel(model);
         else if (state.provider === 'openai') option.textContent = openaiModelLabel(model);
         else if (state.provider === 'aistudio') option.textContent = geminiModelLabel(model);
+        else if (state.provider === 'lemonade' && isLemonadeImageModel(model)) option.textContent = '🖼 ' + model + ' · 이미지 생성';
         else option.textContent = model;
         select.appendChild(option);
       });
@@ -3259,7 +3449,9 @@
 
   function updateProviderUI() {
     var provider = document.getElementById('ai-chat-provider');
+    var lemonadeLifecycle = document.getElementById('ai-chat-lemonade-lifecycle');
     if (provider) provider.value = state.provider;
+    if (lemonadeLifecycle) lemonadeLifecycle.hidden = state.provider !== 'lemonade';
     if (state.provider === 'lmstudio') {
       setModelOptions(state.lmModel ? [state.lmModel] : [], state.lmModel, true);
     } else if (state.provider === 'ollama') {
@@ -3269,6 +3461,13 @@
       var ollamaModelSelect = document.getElementById('ai-chat-model');
       if (ollamaModelSelect && ollamaModelSelect.value) state.ollamaModel = ollamaModelSelect.value;
       storageSet(OLLAMA_MODEL_KEY, state.ollamaModel || '');
+    } else if (state.provider === 'ollama-npu') {
+      var cachedNPUModels = [];
+      try { cachedNPUModels = getBridge().getCachedNPUModels(); } catch (_) {}
+      setModelOptions(cachedNPUModels, state.npuModel, false);
+      var npuModelSelect = document.getElementById('ai-chat-model');
+      state.npuModel = npuModelSelect && npuModelSelect.value ? npuModelSelect.value : '';
+      storageSet(NPU_MODEL_KEY, state.npuModel);
     } else if (state.provider === 'litertlm') {
       var cachedLiteRTLMModels = [];
       try { cachedLiteRTLMModels = getBridge().getCachedLiteRTLMModels(); } catch (_) {}
@@ -3300,6 +3499,14 @@
       var compatibleSelect = document.getElementById('ai-chat-model');
       if (compatibleSelect && compatibleSelect.value) state.openaiCompatibleModel = compatibleSelect.value;
       storageSet(OPENAI_COMPATIBLE_MODEL_KEY, state.openaiCompatibleModel || 'orcarouter/free');
+    } else if (state.provider === 'lemonade') {
+      var cachedLemonadeModels = [];
+      try { cachedLemonadeModels = getBridge().getCachedLemonadeModels(); } catch (_) {}
+      if (!cachedLemonadeModels.length && state.lemonadeModel) cachedLemonadeModels = [state.lemonadeModel];
+      setModelOptions(cachedLemonadeModels, state.lemonadeModel, false);
+      var lemonadeSelect = document.getElementById('ai-chat-model');
+      if (lemonadeSelect && lemonadeSelect.value) state.lemonadeModel = lemonadeSelect.value;
+      storageSet(LEMONADE_MODEL_KEY, state.lemonadeModel || LEMONADE_DEFAULT_MODEL);
     } else {
       var cached = DEFAULT_GEMINI_MODELS;
       try { cached = getBridge().getCachedGeminiModels(); } catch (e) {}
@@ -3315,6 +3522,52 @@
     updateModelModeUI();
   }
 
+  async function loadSelectedLemonadeModel() {
+    if (state.provider !== 'lemonade' || state.running) return;
+    var button = document.getElementById('ai-chat-lemonade-load-model');
+    var model = String(state.lemonadeModel || '').trim();
+    if (!model) {
+      setStatus('먼저 Lemonade 모델을 선택하세요.', 'error');
+      return;
+    }
+    var progress = document.getElementById('ai-chat-lemonade-load-progress');
+    var progressBar = document.getElementById('ai-chat-lemonade-load-progress-bar');
+    var progressPercent = document.getElementById('ai-chat-lemonade-load-progress-percent');
+    var progressLabel = document.getElementById('ai-chat-lemonade-load-progress-label');
+    var percent = 5;
+    var progressTimer = 0;
+    function showProgress(nextPercent, label, failed) {
+      percent = Math.max(0, Math.min(100, Math.round(Number(nextPercent) || 0)));
+      if (progress) {
+        progress.hidden = false;
+        progress.classList.toggle('failed', !!failed);
+        progress.setAttribute('aria-valuenow', String(percent));
+      }
+      if (progressBar) progressBar.style.width = percent + '%';
+      if (progressPercent) progressPercent.textContent = percent + '%';
+      if (progressLabel) progressLabel.textContent = label;
+    }
+    try {
+      if (button) button.disabled = true;
+      showProgress(percent, '서버에 모델 Load 요청 전송', false);
+      progressTimer = root.setInterval(function () {
+        var increment = percent < 40 ? 4 : (percent < 70 ? 2 : 1);
+        showProgress(Math.min(92, percent + increment), percent < 45 ? '모델 파일 확인 및 준비 중' : (percent < 75 ? '모델을 메모리에 적재하는 중' : '추론 엔진을 초기화하는 중'), false);
+      }, 500);
+      setStatus(model + ' 모델을 메모리에 로드하는 중...', 'loading');
+      var result = await getBridge().loadLemonadeModel(model);
+      showProgress(100, '모델 Load 완료', false);
+      setStatus('Lemonade 모델 Load 완료 · ' + String(result && result.model || model), 'ok');
+      await refreshModels(true);
+    } catch (error) {
+      showProgress(percent, '모델 Load 실패', true);
+      setStatus('Lemonade 모델 Load 실패: ' + String(error && error.message || error), 'error');
+    } finally {
+      if (progressTimer) root.clearInterval(progressTimer);
+      if (button) button.disabled = state.running;
+    }
+  }
+
   async function refreshModels(silent) {
     if (!state.open && silent) return;
     var requestedProvider = state.provider;
@@ -3327,6 +3580,7 @@
         state.lmModel = lm && lm.model ? lm.model : '';
         state.lmContextLength = Math.max(0, Number(lm && lm.contextLength) || 0);
         setModelOptions(lm && lm.models ? lm.models : [], state.lmModel, true);
+        applyModelTokenProfile(state.lmModel, false);
         setStatus(state.lmModel ? '현재 LM Studio 로드 모델을 자동으로 사용합니다.' : 'LM Studio에 로드된 LLM이 없습니다.', state.lmModel ? 'ok' : 'error');
       } else if (state.provider === 'ollama') {
         var ollamaModels = silent ? bridge.getCachedOllamaModels() : await bridge.refreshOllamaModels();
@@ -3335,10 +3589,20 @@
         var ollamaSelect = document.getElementById('ai-chat-model');
         state.ollamaModel = ollamaSelect && ollamaSelect.value ? ollamaSelect.value : '';
         storageSet(OLLAMA_MODEL_KEY, state.ollamaModel);
+        applyModelTokenProfile(state.ollamaModel, false);
         setStatus(state.ollamaModel
           ? 'Ollama 모델을 사용합니다: ' + state.ollamaModel
           : 'Ollama 모델이 없습니다. 로컬 서버와 설정 주소를 확인하세요.',
           state.ollamaModel ? 'ok' : 'error');
+      } else if (state.provider === 'ollama-npu') {
+        var npuModels = silent ? bridge.getCachedNPUModels() : await bridge.refreshNPUModels();
+        if (state.provider !== requestedProvider) return;
+        setModelOptions(npuModels || [], state.npuModel, false);
+        var npuSelect = document.getElementById('ai-chat-model');
+        state.npuModel = npuSelect && npuSelect.value ? npuSelect.value : '';
+        storageSet(NPU_MODEL_KEY, state.npuModel);
+        applyModelTokenProfile(state.npuModel, false);
+        setStatus(state.npuModel ? 'Lemonade NPU 연결 완료: ' + state.npuModel : '설치된 Lemonade NPU 모델이 없습니다.', state.npuModel ? 'ok' : 'error');
       } else if (state.provider === 'litertlm') {
         var liteModels = silent ? bridge.getCachedLiteRTLMModels() : await bridge.refreshLiteRTLMModels();
         if (state.provider !== requestedProvider) return;
@@ -3346,6 +3610,7 @@
         var liteSelect = document.getElementById('ai-chat-model');
         state.litertlmModel = liteSelect && liteSelect.value ? liteSelect.value : '';
         storageSet(LITERTLM_MODEL_KEY, state.litertlmModel);
+        applyModelTokenProfile(state.litertlmModel, false);
         setStatus(state.litertlmModel ? 'LiteRT-LM 연결 완료: ' + state.litertlmModel : 'LiteRT-LM 모델이 없습니다.', state.litertlmModel ? 'ok' : 'error');
       } else if (state.provider === 'deepseek') {
         var deepseekModels = silent ? bridge.getCachedDeepseekModels() : await bridge.refreshDeepseekModels();
@@ -3374,13 +3639,27 @@
           state.openaiModel ? 'ok' : 'error'
         );
       } else if (state.provider === 'openai-compatible') {
-        var compatibleModels = silent ? bridge.getCachedOpenAICompatibleModels() : await bridge.refreshOpenAICompatibleModels();
+        var compatibleModels = silent
+          ? bridge.getCachedOpenAICompatibleModels()
+          : await bridge.refreshOpenAICompatibleModels();
         if (state.provider !== requestedProvider) return;
         setModelOptions(compatibleModels || [], state.openaiCompatibleModel, false);
         var compatibleModelSelect = document.getElementById('ai-chat-model');
         state.openaiCompatibleModel = compatibleModelSelect && compatibleModelSelect.value ? compatibleModelSelect.value : '';
         storageSet(OPENAI_COMPATIBLE_MODEL_KEY, state.openaiCompatibleModel);
-        setStatus(state.openaiCompatibleModel ? 'OrcaRouter / OpenAI 호환 모델: ' + state.openaiCompatibleModel : '사용 가능한 OpenAI 호환 모델이 없습니다.', state.openaiCompatibleModel ? 'ok' : 'error');
+        setStatus(state.openaiCompatibleModel ? 'OrcaRouter / OpenAI 호환 모델: ' + state.openaiCompatibleModel : '사용 가능한 OrcaRouter / OpenAI 호환 모델이 없습니다.', state.openaiCompatibleModel ? 'ok' : 'error');
+      } else if (state.provider === 'lemonade') {
+        var lemonadeModels = silent ? bridge.getCachedLemonadeModels() : await bridge.refreshLemonadeModels();
+        if (state.provider !== requestedProvider) return;
+        setModelOptions(lemonadeModels || [], state.lemonadeModel, false);
+        var lemonadeModelSelect = document.getElementById('ai-chat-model');
+        state.lemonadeModel = lemonadeModelSelect && lemonadeModelSelect.value ? lemonadeModelSelect.value : '';
+        storageSet(LEMONADE_MODEL_KEY, state.lemonadeModel);
+        storageSet('ss_openai_compatible_model_id_lemonade', state.lemonadeModel);
+        applyModelTokenProfile(state.lemonadeModel, false);
+        setStatus(state.lemonadeModel
+          ? (isLemonadeImageModel(state.lemonadeModel) ? 'Lemonade 이미지 생성 모델: ' : 'Lemonade 채팅 모델: ') + state.lemonadeModel
+          : '사용 가능한 Lemonade 모델이 없습니다.', state.lemonadeModel ? 'ok' : 'error');
       } else {
         var models = silent && bridge.hasGeminiModelCatalog() ? bridge.getCachedGeminiModels() : await bridge.refreshGeminiModels();
         if (state.provider !== requestedProvider) return;
@@ -3403,6 +3682,9 @@
       } else if (state.provider === 'ollama') {
         state.ollamaModel = '';
         setModelOptions([], '', false);
+      } else if (state.provider === 'ollama-npu') {
+        state.npuModel = '';
+        setModelOptions([], '', false);
       } else if (state.provider === 'litertlm') {
         state.litertlmModel = '';
         setModelOptions([], '', false);
@@ -3411,6 +3693,12 @@
         setModelOptions([], '', false);
       } else if (state.provider === 'openai') {
         state.openaiModel = '';
+        setModelOptions([], '', false);
+      } else if (state.provider === 'openai-compatible') {
+        state.openaiCompatibleModel = '';
+        setModelOptions([], '', false);
+      } else if (state.provider === 'lemonade') {
+        state.lemonadeModel = '';
         setModelOptions([], '', false);
       }
       setStatus(error && error.message ? error.message : String(error), 'error');
@@ -4163,7 +4451,7 @@
     if (provider === 'aistudio') {
       return responseNearOutputLimit(message, result) && answer.length >= 240 && !answerEndsCleanly(answer);
     }
-    if (provider === 'lmstudio' || provider === 'ollama') {
+    if (provider === 'lmstudio' || provider === 'ollama' || provider === 'lemonade' || provider === 'openai-compatible') {
       return responseNearOutputLimit(message, result) && answer.length >= 240;
     }
     if (academicSearch && /포함 여부:\s*아니오/.test(String(message.checklist || ''))) return true;
@@ -4224,11 +4512,92 @@
     return parts.join('\n\n');
   }
 
-  async function continueAssistantAnswer(messageIndex) {
+  function continuationSuggestion(messageIndex, message) {
+    var answer = combinedAssistantContent(messageIndex) || String(message && message.content || '').trim();
+    var academicTotalParts = Number(message && message.academicTotalParts) || 0;
+    var academicPart = Math.max(1, Number(message && message.academicPart) || 1);
+    if (academicTotalParts > 1) {
+      var nextPart = message.academicPartComplete === true && academicPart < academicTotalParts ? academicPart + 1 : academicPart;
+      if (nextPart === 2) return '같은 방향의 주장과 연구 비교 절을 작성';
+      if (nextPart === 3) return '다른 결과와 종합 해석 절을 작성';
+      var missingAcademic = academicPartMissingItems(answer, nextPart);
+      if (missingAcademic.length) return missingAcademic.join(', ') + ' 내용을 작성';
+    }
+    var checklist = String(message && message.checklist || '');
+    var missing = checklist.split(/\r?\n/).filter(function (line) {
+      return /포함 여부:\s*아니오/.test(line);
+    }).map(function (line) {
+      return line.replace(/^\s*\d+[.)]\s*/, '').replace(/\s*포함 여부:\s*아니오\s*$/, '').trim();
+    }).filter(Boolean);
+    if (missing.length) return missing.slice(0, 2).join(', ') + ' 부분을 이어서 작성';
+    var sourceUser = findSourceUserMessage(messageIndex);
+    var requestedHeadings = [];
+    String(sourceUser && sourceUser.content || '').replace(/^\s*(?:#{1,6}\s+|\d+[.)]\s+)([^\n]{3,100})/gm, function (_, heading) {
+      requestedHeadings.push(String(heading || '').replace(/[*_`]/g, '').trim());
+      return _;
+    });
+    var normalizedAnswer = normalizeRepeatedText(answer);
+    var missingHeading = requestedHeadings.find(function (heading) {
+      return heading && normalizedAnswer.indexOf(normalizeRepeatedText(heading)) < 0;
+    });
+    if (missingHeading) return '“' + missingHeading + '” 항목부터 작성';
+    var answerHeadings = [];
+    answer.replace(/^\s*#{1,6}\s+([^\n]+)/gm, function (_, heading) {
+      answerHeadings.push(String(heading || '').replace(/[*_`]/g, '').trim());
+      return _;
+    });
+    var lastHeading = answerHeadings.length ? answerHeadings[answerHeadings.length - 1] : '';
+    if (lastHeading) return '“' + lastHeading + '” 절에서 끊긴 문장을 완성하고 남은 내용을 작성';
+    return answerEndsCleanly(answer)
+      ? '원래 요청에서 아직 다루지 않은 다음 항목을 작성'
+      : '마지막으로 끊긴 문장을 완성하고 그 다음 내용을 이어서 작성';
+  }
+
+  function setAutoContinueEnabled(enabled, persist) {
+    state.autoContinueEnabled = !!enabled;
+    if (persist !== false) storageSet(AUTO_CONTINUE_KEY, state.autoContinueEnabled ? '1' : '0');
+    document.querySelectorAll('.ai-chat-auto-continue input[type="checkbox"]').forEach(function (checkbox) {
+      checkbox.checked = state.autoContinueEnabled;
+    });
+    if (!state.autoContinueEnabled) {
+      autoContinuationRunToken += 1;
+      autoContinuationStepCount = 0;
+    }
+  }
+
+  function beginAutoContinuationRun() {
+    autoContinuationRunToken += 1;
+    autoContinuationStepCount = 0;
+    return autoContinuationRunToken;
+  }
+
+  function scheduleAutoContinuation(message, resetRun) {
+    if (!state.autoContinueEnabled || !message || !message.continuationAvailable) return;
+    if (resetRun) beginAutoContinuationRun();
+    var runToken = autoContinuationRunToken;
+    setTimeout(function () {
+      if (!state.autoContinueEnabled || state.running || runToken !== autoContinuationRunToken) return;
+      var messageIndex = state.messages.indexOf(message);
+      if (messageIndex < 0 || !message.continuationAvailable) return;
+      continueAssistantAnswer(messageIndex, continuationSuggestion(messageIndex, message), true);
+    }, 350);
+  }
+
+  async function continueAssistantAnswer(messageIndex, requestedNextContent, automatic) {
     if (state.running || state.storageInitializing) return;
+    if (automatic) {
+      if (!state.autoContinueEnabled) return;
+      if (autoContinuationStepCount >= MAX_AUTO_CONTINUATION_STEPS) {
+        setAutoContinueEnabled(false, true);
+        setStatus('Auto 승인 안전 상한(12회)에 도달해 자동 이어쓰기를 중지했습니다.', 'error');
+        return;
+      }
+      autoContinuationStepCount += 1;
+    }
     var requestRevision = generationStopRevision;
     var target = state.messages[messageIndex];
     if (!target || target.role !== 'assistant' || target.error) return;
+    var autoContinuationTarget = null;
     var sourceUser = findSourceUserMessage(messageIndex);
     var academicSearch = !!(sourceUser && Array.isArray(sourceUser.academicSources) && sourceUser.academicSources.length);
     var originalStatus = extractModelStatus(combinedAssistantContent(messageIndex) || String(target.content || '').trim());
@@ -4247,13 +4616,20 @@
       return line.replace(/^\s*\d+[.)]\s*/, '').replace(/\s*포함 여부:\s*아니오\s*$/, '');
     });
     var evidence = '';
+    var nextContentInstruction = String(requestedNextContent || '').trim();
     var continuationEvidenceProfile = null;
     if (academicSearch) {
       var continuationEvidencePlan = academicEvidencePlan(sourceUser.academicSources);
       evidence = continuationEvidencePlan.evidence;
       continuationEvidenceProfile = continuationEvidencePlan.profile;
     }
-    var continuationPromptParts = splitAcademic
+    var continuationPromptParts = nextContentInstruction
+      ? [
+          '다음에 작성할 내용: ' + nextContentInstruction,
+          '직전 답변의 마지막 연결 지점(재출력 금지):\n' + answerTail,
+          '위에서 지정한 다음 내용만 직전 문장에 자연스럽게 이어서 작성하세요. 이미 작성한 내용, 분석 계획, 추론, 작업 설명은 출력하지 말고 첫 토큰부터 완성된 한국어 본문을 작성하세요.'
+        ]
+      : splitAcademic
       ? [
           academicPartTask(requestedPart),
           requestedPart === currentPart && !currentPartComplete
@@ -4276,7 +4652,12 @@
           ].join(' ')
         ];
     var continuationPrompt = continuationPromptParts.join('\n\n');
-    var continuationMessages = splitAcademic
+    var continuationMessages = nextContentInstruction
+      ? [
+          { role: 'assistant', content: answerTail },
+          { role: 'user', content: continuationPrompt }
+        ]
+      : splitAcademic
       ? [{ role: 'user', content: continuationPrompt }]
       : [
           { role: 'user', content: String(sourceUser && sourceUser.content || '원래 사용자 요청') },
@@ -4285,6 +4666,11 @@
         ];
     setRunning(true);
     startThinkingProgress();
+    realtimeDocAccumulated = '';
+    realtimeDocWritten = '';
+    realtimeDocActive = false;
+    realtimeDocExclusive = false;
+    if (state.realtimeDocWrite) beginRealtimeDocForCurrentGeneration();
     renderMessages();
     target.continuationAvailable = false;
     renderMessages();
@@ -4294,13 +4680,17 @@
         provider: state.provider,
         model: activeProviderModel(),
         mode: 'quick',
+        disableThinking: true,
+        maxOutputTokens: configuredModeOutputLimit('quick', false),
         academicSearch: academicSearch,
         continuation: true,
         splitAcademicResponse: splitAcademic,
         previousResponseId: null,
         messages: continuationMessages,
-        onStreamEvent: state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'litertlm' || state.provider === 'aistudio' ? handleStreamEvent : undefined,
-        systemInstruction: academicSearch
+        onStreamEvent: state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'litertlm' || state.provider === 'aistudio' || state.provider === 'lemonade' || state.provider === 'openai-compatible' ? handleStreamEvent : undefined,
+        systemInstruction: nextContentInstruction
+          ? '직전 답변의 문체와 형식을 그대로 유지한다. 사용자가 지정한 다음 부분의 완성된 한국어 본문만 즉시 출력한다. 추론, 계획, 설명, 기존 내용의 반복은 출력하지 않는다.'
+          : academicSearch
           ? academicContinuationInstruction(evidence, splitAcademic ? requestedPart : 0, continuationEvidenceProfile)
           : [
               writingStyleInstruction({ academic: false }),
@@ -4324,6 +4714,13 @@
         continuedStatus.notice = '모델이 새 내용을 추가하지 않고 기존 답변을 반복했습니다. 기존 답변은 변경되지 않았습니다. “이어서 작성”을 다시 누르면 아직 작성되지 않은 내용만 요청합니다.';
       }
       assertGenerationActive(requestRevision);
+      if (realtimeDocActive) {
+        try {
+          var realtimeBridge = getBridge();
+          if (typeof realtimeBridge.finishRealtimeDocStream === 'function') realtimeBridge.finishRealtimeDocStream(continued);
+          realtimeDocActive = false;
+        } catch (_) {}
+      }
 
 
       var combinedAnswer = [originalAnswer, continued].filter(Boolean).join('\n\n');
@@ -4358,6 +4755,7 @@
         : (continuedStatus.notice ? true : shouldOfferContinuation(continuationProbe, result, academicSearch));
       target.continuationAvailable = false;
       state.messages.push(additionalMessage);
+      if (additionalMessage.continuationAvailable && continued) autoContinuationTarget = additionalMessage;
       state.messages = state.messages.slice(-MAX_STORED_MESSAGES);
       setStatus(
         additionalMessage.continuationAvailable
@@ -4366,16 +4764,26 @@
         additionalMessage.continuationAvailable ? '' : 'ok'
       );
     } catch (error) {
+      if (realtimeDocActive) {
+        try {
+          var failedRealtimeBridge = getBridge();
+          if (typeof failedRealtimeBridge.cancelRealtimeDocStream === 'function') failedRealtimeBridge.cancelRealtimeDocStream();
+        } catch (_) {}
+        realtimeDocActive = false;
+      }
       target.continuationAvailable = true;
       var message = error && error.message ? error.message : String(error);
       if ((error && error.name === 'AbortError') || /abort|중지/i.test(message)) setStatus('이어서 작성을 중지했습니다.', '');
       else setStatus(message, 'error');
+      if (automatic || state.autoContinueEnabled) setAutoContinueEnabled(false, true);
     } finally {
       stopThinkingProgress();
       setRunning(false);
       saveHistory();
       renderMessages();
       updateHeaderModel();
+      if (autoContinuationTarget) scheduleAutoContinuation(autoContinuationTarget, false);
+      else if (!target.continuationAvailable) autoContinuationStepCount = 0;
     }
   }
 
@@ -4818,13 +5226,18 @@
   }
 
   function formatInternetEvidence(results) {
+    var remainingCharacters = state.responseMode === 'reasoning' ? 12000 : 7000;
     return results.map(function (item, index) {
-      return '[' + (index + 1) + '] ' + item.title + '\nURL: ' + item.url
+      if (remainingCharacters <= 0) return '';
+      var chunk = '[' + (index + 1) + '] ' + item.title + '\nURL: ' + item.url
         + '\n출처: ' + (item.source || '알 수 없음') + (item.date ? ' / 날짜: ' + item.date : '')
-        + '\n요약: ' + (item.snippet || '검색 결과 요약 없음')
-        + (item.content ? '\n페이지 본문 일부: ' + item.content.slice(0, 1400) : '')
+        + '\n요약: ' + (item.snippet || '검색 결과 요약 없음').slice(0, 700)
+        + (item.content ? '\n페이지 본문 일부: ' + item.content.slice(0, 900) : '')
         + '\n엔진: ' + (item.engine || 'web') + ' / 채널: ' + (item.channel || 'general');
-    }).join('\n\n');
+      var visible = chunk.slice(0, remainingCharacters);
+      remainingCharacters -= visible.length + 2;
+      return visible;
+    }).filter(Boolean).join('\n\n');
   }
 
   function escapeMarkdownText(value) {
@@ -4873,6 +5286,7 @@
     return [
       MERMAID_GENERATION_RULE,
       '아래 인터넷 검색 근거만 외부 사실의 출처로 사용하여 한국어로 답하라.',
+      '검색 근거는 사용자 질문을 보조하는 자료이며, 질문의 범위·구조·의도를 검색 문서의 문장에 맞춰 축소하거나 바꾸지 마라.',
       writingStyleInstruction({ academic: false }),
       sentenceOnlyInstruction(),
       reasoningAnswerInstruction(),
@@ -5255,11 +5669,56 @@
                 ? '분할 답변 ' + message.academicPart + '/' + message.academicTotalParts + '이 출력 제한으로 중단되었습니다. 이 파트의 새 내용만 이어서 작성할까요?'
                 : '답변이 끝나기 전에 내용이 끊긴 것 같습니다. 이어서 할까요?');
           continuation.appendChild(continuationText);
+          var continuationSuggestionLabel = document.createElement('strong');
+          continuationSuggestionLabel.className = 'ai-chat-continuation-suggestion-label';
+          continuationSuggestionLabel.textContent = 'AI가 파악한 다음 작성 내용 · 승인하거나 수정';
+          continuation.appendChild(continuationSuggestionLabel);
+          var autoApproveLabel = document.createElement('label');
+          autoApproveLabel.className = 'ai-chat-auto-continue';
+          var autoApproveCheckbox = document.createElement('input');
+          autoApproveCheckbox.type = 'checkbox';
+          autoApproveCheckbox.checked = state.autoContinueEnabled;
+          autoApproveCheckbox.disabled = state.running;
+          autoApproveCheckbox.setAttribute('aria-label', 'Auto 승인');
+          var autoApproveText = document.createElement('span');
+          autoApproveText.textContent = 'Auto 승인 · 완성될 때까지 제안대로 계속';
+          autoApproveLabel.appendChild(autoApproveCheckbox);
+          autoApproveLabel.appendChild(autoApproveText);
+          continuation.appendChild(autoApproveLabel);
+          var continuationDirective = document.createElement('textarea');
+          continuationDirective.className = 'ai-chat-continuation-directive';
+          continuationDirective.rows = 2;
+          continuationDirective.placeholder = '다음에 작성할 내용을 지정하세요. 예: 5. 평가 기준부터 작성';
+          continuationDirective.value = continuationSuggestion(messageIndex, message);
+          continuationDirective.setAttribute('aria-label', '다음에 작성할 내용');
+          continuation.appendChild(continuationDirective);
+          autoApproveCheckbox.addEventListener('change', function () {
+            setAutoContinueEnabled(autoApproveCheckbox.checked, true);
+            if (!autoApproveCheckbox.checked || state.running) return;
+            var directive = String(continuationDirective.value || '').trim();
+            if (!directive) {
+              setAutoContinueEnabled(false, true);
+              setStatus('다음에 작성할 내용을 먼저 입력하세요.', 'error');
+              continuationDirective.focus();
+              return;
+            }
+            beginAutoContinuationRun();
+            continueAssistantAnswer(messageIndex, directive, false);
+          });
           var continueButton = document.createElement('button');
           continueButton.type = 'button';
-          continueButton.textContent = hasNextAcademicPart ? '다음 답변 작성' : '이어서 작성';
+          continueButton.textContent = '제안대로 이어쓰기';
           continueButton.disabled = state.running;
-          continueButton.addEventListener('click', function () { continueAssistantAnswer(messageIndex); });
+          continueButton.addEventListener('click', function () {
+            var directive = String(continuationDirective.value || '').trim();
+            if (!directive) {
+              setStatus('다음에 작성할 내용을 먼저 입력하세요.', 'error');
+              continuationDirective.focus();
+              return;
+            }
+            if (state.autoContinueEnabled) beginAutoContinuationRun();
+            continueAssistantAnswer(messageIndex, directive, false);
+          });
           continuation.appendChild(continueButton);
           var dismissContinuation = document.createElement('button');
           dismissContinuation.type = 'button';
@@ -5267,6 +5726,7 @@
           dismissContinuation.textContent = '여기서 마침';
           dismissContinuation.disabled = state.running;
           dismissContinuation.addEventListener('click', function () {
+            if (state.autoContinueEnabled) setAutoContinueEnabled(false, true);
             message.continuationAvailable = false;
             saveHistory();
             renderMessages();
@@ -5397,27 +5857,23 @@
 
   function conversationMarkdown() {
     var currentTitle = titleFromMessages(state.messages);
-    var providerLabel = state.provider === 'lmstudio'
-      ? 'LM Studio'
-      : state.provider === 'ollama'
-      ? 'Ollama'
-      : state.provider === 'deepseek'
-      ? 'DeepSeek'
-      : state.provider === 'openai'
-      ? 'OpenAI'
-      : state.provider === 'openai-compatible'
-      ? 'OrcaRouter / OpenAI 호환'
-      : 'AI Studio (Gemini)';
+    var providerLabel = providerDisplayName(state.provider);
     var modelLabel = state.provider === 'lmstudio'
       ? (state.lmModel || '확인되지 않음')
       : state.provider === 'ollama'
       ? (state.ollamaModel || '확인되지 않음')
+      : state.provider === 'ollama-npu'
+      ? (state.npuModel || '확인되지 않음')
+      : state.provider === 'litertlm'
+      ? (state.litertlmModel || '확인되지 않음')
       : state.provider === 'deepseek'
       ? (state.deepseekModel || '확인되지 않음')
       : state.provider === 'openai'
       ? (state.openaiModel || '확인되지 않음')
       : state.provider === 'openai-compatible'
       ? (state.openaiCompatibleModel || '확인되지 않음')
+      : state.provider === 'lemonade'
+      ? (state.lemonadeModel || '확인되지 않음')
       : state.geminiModel;
     var lines = [
       '# AI Jena 대화',
@@ -5488,7 +5944,7 @@
       id: newId(), title: '새 대화', createdAt: Date.now(), updatedAt: Date.now(),
       provider: state.provider, responseMode: state.responseMode, showReasoning: state.showReasoning,
       academicSearchEnabled: state.academicSearchEnabled, academicSearchCount: state.academicSearchCount,
-      geminiModel: state.geminiModel, ollamaModel: state.ollamaModel, deepseekModel: state.deepseekModel, openaiModel: state.openaiModel, openaiCompatibleModel: state.openaiCompatibleModel, messages: []
+      geminiModel: state.geminiModel, ollamaModel: state.ollamaModel, deepseekModel: state.deepseekModel, openaiModel: state.openaiModel, openaiCompatibleModel: state.openaiCompatibleModel, lemonadeModel: state.lemonadeModel, messages: []
     };
     if (state.dbReady) {
       await requestPromise(conversationStore('readwrite').put(record));
@@ -5970,12 +6426,9 @@
     realtimeDocWritten = '';
     realtimeDocActive = false;
     realtimeDocExclusive = false;
-    if (state.realtimeDocWrite) {
-      beginRealtimeDocForCurrentGeneration();
-    }
     try {
-      var academicSearchActive = !state.fastMode && state.academicSearchEnabled && !(state.provider === 'aistudio' && isGeminiImageModel(state.geminiModel));
-      var internetSearchActive = !state.fastMode && state.internetSearchEnabled && !(state.provider === 'aistudio' && isGeminiImageModel(state.geminiModel));
+      var academicSearchActive = !state.fastMode && state.academicSearchEnabled && !isActiveImageModel();
+      var internetSearchActive = !state.fastMode && state.internetSearchEnabled && !isActiveImageModel();
       var splitAcademicResponse = false;
       var academicEvidence = '';
       var academicProfile = null;
@@ -6080,10 +6533,51 @@
           'loading'
         );
       }
-      var result = await getBridge().complete({
+      var localNativeQuality = usesLocalNativeQualityMode()
+        && !academicSearchActive
+        && !internetSearchActive
+        && !state.fastMode
+        && !state.realtimeDocWrite;
+      var requestMessages = academicSearchActive
+        ? [{ role: 'user', content: academicModelInput(text, pendingUser.academicQuery, splitAcademicResponse ? 1 : 0, !!reusableAcademic, academicProfile) }]
+        : contextMessages({ reasoningMode: state.responseMode === 'reasoning' });
+      var requestSystemInstruction = academicSearchActive
+        ? academicSystemInstruction(academicEvidence, splitAcademicResponse ? 1 : 0, academicProfile)
+        : internetSearchActive
+          ? (nativeInternetSearch ? nativeInternetSystemInstruction() : internetSystemInstruction(internetEvidence))
+        : state.fastMode || state.realtimeDocWrite
+          ? [
+            state.realtimeDocWrite
+              ? ('현재 활성 문서에 실시간으로 직접 작성하는 모드입니다. ' + (pendingUser && pendingUser.selectedDocText ? '문서에서 [선택한 문서 텍스트]를 대체하여 들어갈 완성된 최종 내용만 첫 단어부터 작성하세요.' : '문서에 바로 들어갈 최종 본문 내용만 첫 단어부터 작성하세요.') + ' [EXPLANATION]이나 [ANSWER] 같은 태그, 목차, 서론 설명, 인사말, 메타 발언을 일절 출력하지 말고 바로 본문만 작성하세요.')
+              : 'FAST mode. Use only the latest user message and answer directly with no explanation, rationale, preface, checklist, or meta-commentary.',
+            'Keep the response concise and do not restate the request.',
+            writingStyleInstruction({ academic: false }),
+            sentenceOnlyInstruction(),
+            MERMAID_DARK_MODE_PROMPT_RULE,
+            'For a Mermaid request, return exactly one fenced mermaid code block and nothing else.'
+          ].join(' ')
+        : state.generalAnswer
+          ? originalAnswerInstruction()
+          : localNativeQuality
+            ? nativeQualityAnswerInstruction(text)
+          : [
+            'You are a capable conversational assistant. Answer in Korean unless the user requests another language.',
+            writingStyleInstruction({ academic: false }),
+            sentenceOnlyInstruction(),
+            reasoningAnswerInstruction(),
+            MERMAID_DARK_MODE_PROMPT_RULE,
+            'This is a continuous multi-turn conversation. Use the previous conversation as context for every new message.',
+            'Resolve follow-up references such as "위 질문", "그것", "그중", "두 번째", "더 자세히", and "계속" from the previous user and assistant messages instead of asking the user to repeat them.',
+            'When the latest request changes or corrects an earlier request, follow the latest request while preserving still-relevant context.',
+            'Follow the requested format, tone, and length precisely. Give a complete, accurate, polished final answer with all requested code or details.',
+            'Give the final answer directly without exposing private internal reasoning, step-by-step deliberation, planning, checklists, or meta-commentary.'
+          ].join(' ');
+      var streamHandler = state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'litertlm' || state.provider === 'aistudio' || state.provider === 'lemonade' || state.provider === 'openai-compatible' ? handleStreamEvent : undefined;
+      var baseRequest = {
         provider: state.provider,
         model: activeProviderModel(),
         mode: academicSearchActive ? 'quick' : state.responseMode,
+        maxOutputTokens: activeModeOutputLimit(),
         academicSearch: academicSearchActive,
         internetSearch: nativeInternetSearch,
         splitAcademicResponse: splitAcademicResponse,
@@ -6091,42 +6585,59 @@
         academicEvidenceCount: academicProfile ? academicProfile.count : 0,
         academicEvidenceTokens: academicProfile ? academicProfile.fullEvidenceTokens : 0,
         retainForContinuation: true,
-        preserveModelStyle: state.generalAnswer && !academicSearchActive && !internetSearchActive && !state.fastMode && !state.realtimeDocWrite,
-        messages: academicSearchActive
-          ? [{ role: 'user', content: academicModelInput(text, pendingUser.academicQuery, splitAcademicResponse ? 1 : 0, !!reusableAcademic, academicProfile) }]
-          : contextMessages({ reasoningMode: state.responseMode === 'reasoning' }),
-        onStreamEvent: state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'litertlm' || state.provider === 'aistudio' ? handleStreamEvent : undefined,
-        systemInstruction: academicSearchActive
-          ? academicSystemInstruction(academicEvidence, splitAcademicResponse ? 1 : 0, academicProfile)
-          : internetSearchActive
-            ? (nativeInternetSearch ? nativeInternetSystemInstruction() : internetSystemInstruction(internetEvidence))
-          : state.fastMode || state.realtimeDocWrite
-            ? [
-              state.realtimeDocWrite
-                ? ('현재 활성 문서에 실시간으로 직접 작성하는 모드입니다. ' + (pendingUser && pendingUser.selectedDocText ? '문서에서 [선택한 문서 텍스트]를 대체하여 들어갈 완성된 최종 내용만 첫 단어부터 작성하세요.' : '문서에 바로 들어갈 최종 본문 내용만 첫 단어부터 작성하세요.') + ' [EXPLANATION]이나 [ANSWER] 같은 태그, 목차, 서론 설명, 인사말, 메타 발언을 일절 출력하지 말고 바로 본문만 작성하세요.')
-                : 'FAST mode. Use only the latest user message and answer directly with no explanation, rationale, preface, checklist, or meta-commentary.',
-              'Keep the response concise and do not restate the request.',
-              writingStyleInstruction({ academic: false }),
-              sentenceOnlyInstruction(),
-              MERMAID_DARK_MODE_PROMPT_RULE,
-              'For a Mermaid request, return exactly one fenced mermaid code block and nothing else.'
-            ].join(' ')
-          : state.generalAnswer
-            ? originalAnswerInstruction()
-            : [
-              'You are a capable conversational assistant. Answer in Korean unless the user requests another language.',
-              writingStyleInstruction({ academic: false }),
-              sentenceOnlyInstruction(),
-              reasoningAnswerInstruction(),
-              MERMAID_DARK_MODE_PROMPT_RULE,
-              'This is a continuous multi-turn conversation. Use the previous conversation as context for every new message.',
-              'Resolve follow-up references such as "위 질문", "그것", "그중", "두 번째", "더 자세히", and "계속" from the previous user and assistant messages instead of asking the user to repeat them.',
-              'When the latest request changes or corrects an earlier request, follow the latest request while preserving still-relevant context.',
-              'Follow the requested format, tone, and length precisely. Give a complete, accurate, polished final answer with all requested code or details.',
-              'Always return two clearly tagged sections: [EXPLANATION]a short user-facing summary of the basis or approach[/EXPLANATION] followed by [ANSWER]the final answer[/ANSWER].',
-              'The explanation is not hidden chain-of-thought: keep it concise and never expose private internal reasoning, step-by-step deliberation, planning, checklists, or meta-commentary.'
-            ].join(' ')
-      });
+        disableThinking: state.provider === 'lemonade',
+        preserveModelStyle: (state.generalAnswer || localNativeQuality) && !academicSearchActive && !internetSearchActive && !state.fastMode && !state.realtimeDocWrite,
+        messages: requestMessages,
+        onStreamEvent: streamHandler,
+        systemInstruction: requestSystemInstruction
+      };
+      var separateRealtimeReasoning = state.realtimeDocWrite
+        && state.responseMode === 'reasoning'
+        && !state.fastMode
+        && !academicSearchActive
+        && !internetSearchActive
+        && (state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'litertlm' || state.provider === 'lemonade' || state.provider === 'ollama-npu');
+      var result;
+      if (separateRealtimeReasoning) {
+        setStatus('추론 TOK를 사용해 문서 작성 내용을 먼저 검토하는 중...', 'loading');
+        var planningResult = await getBridge().complete(Object.assign({}, baseRequest, {
+          mode: 'reasoning',
+          maxOutputTokens: configuredModeOutputLimit('reasoning', false),
+          preserveModelStyle: false,
+          systemInstruction: [
+            '실시간 문서 작성 전의 별도 검토 단계입니다.',
+            '원래 요청을 분석하여 최종 본문에 반영할 핵심 논점, 순서, 누락 방지 조건을 간결한 내부 작업 메모로 정리하세요.',
+            '완성된 최종 본문을 쓰지 말고, 검토 결과만 짧게 작성하세요.'
+          ].join(' ')
+        }));
+        assertGenerationActive(requestRevision);
+        var planningMemo = String(planningResult && planningResult.text || '').trim().slice(0, 1600);
+        if (liveStream) {
+          liveStream.answer = '';
+          liveStream.exactOutputTokens = 0;
+          liveStream.exactReasoningTokens = 0;
+          liveStream.hasExactStats = false;
+          liveStream.firstTokenAt = 0;
+          liveStream.stage = '추론 완료 · 최종 답변 스트림을 시작하는 중';
+          liveStream.progress = 35;
+        }
+        beginRealtimeDocForCurrentGeneration();
+        result = await getBridge().complete(Object.assign({}, baseRequest, {
+          mode: 'quick',
+          disableThinking: true,
+          maxOutputTokens: configuredModeOutputLimit('quick', false),
+          systemInstruction: [
+            requestSystemInstruction,
+            planningMemo ? '사전 검토 요약(최종 본문에는 언급하지 않음):\n' + planningMemo : '',
+            '추론 단계는 이미 끝났습니다. 이제 별도의 즉시 TOK 예산으로 최종 본문만 실시간 출력하세요.'
+          ].filter(Boolean).join('\n\n')
+        }));
+        result.reasoning = String(planningResult && (planningResult.reasoning || planningResult.text) || '');
+        result.reasoningUsage = planningResult && planningResult.usage || null;
+      } else {
+        if (state.realtimeDocWrite) beginRealtimeDocForCurrentGeneration();
+        result = await getBridge().complete(baseRequest);
+      }
       if (nativeInternetSearch) {
         pendingUser.internetSources = normalizeInternetSources(result && result.internetSources);
         pendingUser.internetSearchEngine = 'Google Search · Gemini grounding';
@@ -6141,7 +6652,7 @@
       var reasoningStatus = extractModelStatus(result && result.reasoning ? String(result.reasoning) : '');
       if (reasoningStatus.notice && !responseStatus.notice) responseStatus.notice = reasoningStatus.notice;
       var reasoningText = reasoningStatus.answer;
-      var preserveModelAnswer = state.generalAnswer && !academicSearchActive && !internetSearchActive && !state.fastMode && !state.realtimeDocWrite;
+      var preserveModelAnswer = (state.generalAnswer || localNativeQuality) && !academicSearchActive && !internetSearchActive && !state.fastMode && !state.realtimeDocWrite;
       var separatedResponse = separateEmbeddedReasoning(responseStatus.answer, reasoningText, preserveModelAnswer);
       responseStatus.answer = separatedResponse.answer;
       reasoningText = separatedResponse.reasoning;
@@ -6227,7 +6738,7 @@
       }
       if (result.provider === 'lmstudio' && result.model) state.lmModel = result.model;
       var localContinuationReady = assistantMessage.continuationAvailable
-        && (result.provider === 'lmstudio' || result.provider === 'ollama')
+        && (result.provider === 'lmstudio' || result.provider === 'ollama' || result.provider === 'lemonade' || result.provider === 'openai-compatible')
         && !splitAcademicResponse;
       setStatus(
         (localContinuationReady
@@ -6261,6 +6772,9 @@
       saveHistory();
       renderMessages();
       updateHeaderModel();
+      if (typeof assistantMessage !== 'undefined' && assistantMessage && assistantMessage.continuationAvailable) {
+        scheduleAutoContinuation(assistantMessage, true);
+      }
       if (input) input.focus();
     }
   }
@@ -6268,6 +6782,7 @@
   function stopMessage() {
     generationStopRevision += 1;
     if (state.running) setStatus('응답 중지를 요청하는 중...', 'loading');
+    if (state.autoContinueEnabled) setAutoContinueEnabled(false, true);
     if (academicAbortController) academicAbortController.abort();
     if (internetAbortController) internetAbortController.abort();
     try { getBridge().abort(); } catch (e) {}
@@ -6321,7 +6836,7 @@
     setHeaderUtilitiesVisible(storageGet(HEADER_UTILITIES_KEY, '0') === '1');
     bindPreserveEditorSelectionOnPanel();
     var savedProvider = storageGet(PROVIDER_KEY, 'lmstudio');
-    state.provider = savedProvider === 'aistudio' || savedProvider === 'ollama' || savedProvider === 'litertlm' || savedProvider === 'deepseek' || savedProvider === 'openai-compatible' || savedProvider === 'openai'
+    state.provider = savedProvider === 'aistudio' || savedProvider === 'ollama' || savedProvider === 'ollama-npu' || savedProvider === 'litertlm' || savedProvider === 'lemonade' || savedProvider === 'deepseek' || savedProvider === 'openai-compatible' || savedProvider === 'openai'
       ? savedProvider
       : (savedProvider === 'lmstudio' ? 'lmstudio' : 'lmstudio');
     state.providerControlsOpen = storageGet(PROVIDER_CONTROLS_KEY, '0') === '1';
@@ -6347,6 +6862,7 @@
     state.answerFontSize = normalizeAnswerFontSize(storageGet(ANSWER_FONT_SIZE_KEY, '14'));
     state.insertActionsExpanded = storageGet(INSERT_EXPAND_KEY, '0') === '1';
     setInsertActionsExpanded(state.insertActionsExpanded, false);
+    state.autoContinueEnabled = storageGet(AUTO_CONTINUE_KEY, '0') === '1';
     state.responseMode = storageGet(RESPONSE_MODE_KEY, 'quick') === 'reasoning' ? 'reasoning' : 'quick';
     state.fastMode = storageGet(FAST_MODE_KEY, '0') === '1';
     state.sentenceOnly = storageGet(SENTENCE_ONLY_KEY, '0') === '1';
@@ -6362,9 +6878,11 @@
     state.academicSearchCount = normalizeAcademicCount(storageGet(ACADEMIC_COUNT_KEY, '10'));
     state.geminiModel = storageGet(GEMINI_MODEL_KEY, DEFAULT_GEMINI_MODELS[0]);
     state.ollamaModel = storageGet(OLLAMA_MODEL_KEY, '');
+    state.npuModel = storageGet(NPU_MODEL_KEY, '');
     state.deepseekModel = storageGet(DEEPSEEK_MODEL_KEY, DEFAULT_DEEPSEEK_MODELS[0]);
     state.openaiModel = storageGet(OPENAI_MODEL_KEY, DEFAULT_OPENAI_MODELS[0]);
-    state.openaiCompatibleModel = storageGet(OPENAI_COMPATIBLE_MODEL_KEY, storageGet('ss_openai_compatible_model_id', 'orcarouter/free'));
+    state.openaiCompatibleModel = storageGet('ss_openai_compatible_model_id_orcarouter', storageGet(OPENAI_COMPATIBLE_MODEL_KEY, 'orcarouter/free'));
+    state.lemonadeModel = storageGet(LEMONADE_MODEL_KEY, storageGet('ss_openai_compatible_model_id_lemonade', LEMONADE_DEFAULT_MODEL));
     // AI Jena starts from the user-selected start layout. Popup/fullscreen
     // positions are restored from the last saved coordinates.
     var startLayoutDefaultRevision = storageGet(START_LAYOUT_DEFAULT_REVISION_KEY, '');
@@ -6418,14 +6936,16 @@
     },
     syncSettings: function () {
       var provider = storageGet(PROVIDER_KEY, state.provider);
-      state.provider = provider === 'aistudio' || provider === 'ollama' || provider === 'litertlm' || provider === 'deepseek' || provider === 'openai-compatible' || provider === 'openai'
+      state.provider = provider === 'aistudio' || provider === 'ollama' || provider === 'ollama-npu' || provider === 'litertlm' || provider === 'lemonade' || provider === 'deepseek' || provider === 'openai-compatible' || provider === 'openai'
         ? provider : 'lmstudio';
       state.geminiModel = storageGet(GEMINI_MODEL_KEY, state.geminiModel);
       state.ollamaModel = storageGet(OLLAMA_MODEL_KEY, state.ollamaModel);
+      state.npuModel = storageGet(NPU_MODEL_KEY, state.npuModel);
       state.litertlmModel = storageGet(LITERTLM_MODEL_KEY, state.litertlmModel);
       state.deepseekModel = storageGet(DEEPSEEK_MODEL_KEY, state.deepseekModel);
       state.openaiModel = storageGet(OPENAI_MODEL_KEY, state.openaiModel);
-      state.openaiCompatibleModel = storageGet(OPENAI_COMPATIBLE_MODEL_KEY, storageGet('ss_openai_compatible_model_id', state.openaiCompatibleModel));
+      state.openaiCompatibleModel = storageGet('ss_openai_compatible_model_id_orcarouter', storageGet(OPENAI_COMPATIBLE_MODEL_KEY, state.openaiCompatibleModel));
+      state.lemonadeModel = storageGet(LEMONADE_MODEL_KEY, storageGet('ss_openai_compatible_model_id_lemonade', state.lemonadeModel));
       state.writingStyle = normalizeWritingStyle(storageGet(WRITING_STYLE_KEY, state.writingStyle));
       state.generalAnswer = storageGet(GENERAL_ANSWER_KEY, state.generalAnswer ? '1' : '0') === '1';
       state.answerAppearance = normalizeAnswerAppearance(storageGet(ANSWER_APPEARANCE_KEY, state.answerAppearance));

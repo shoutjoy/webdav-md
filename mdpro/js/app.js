@@ -156,7 +156,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260914-serpapi-vault-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?v=20260914-full-article-text-4',
+    aiChat: './AI_App/aiChat/ai-chat.js?v=20261019-lemonade-image-models-1',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260925-nonprinting-3'
@@ -1473,6 +1473,7 @@ function relocateAiIntegrationSettingsIntoAiUse() {
     if (!card || !slot) return;
     const deepseek = document.getElementById('deepseek-settings-card');
     const openaiCompatible = document.getElementById('openai-compatible-settings-card');
+    const lemonadeSettings = document.getElementById('lemonade-settings-card');
     const aiStudio = document.getElementById('ai-studio-settings-card');
     const openai = document.getElementById('openai-settings-card');
     const aiChatSettings = document.getElementById('ai-chat-settings');
@@ -1527,6 +1528,7 @@ function relocateAiIntegrationSettingsIntoAiUse() {
         [ollamaSettings, 'ai-settings-rack--ollama'],
         [liteRTLMSettings, 'ai-settings-rack--litertlm'],
         [openaiCompatible, 'ai-settings-rack--compatible'],
+        [lemonadeSettings, 'ai-settings-rack--lemonade'],
         [aiStudio, 'ai-settings-rack--aistudio'],
         [deepseek, 'ai-settings-rack--deepseek'],
         [openai, 'ai-settings-rack--openai']
@@ -1542,6 +1544,7 @@ function relocateAiIntegrationSettingsIntoAiUse() {
         ollamaSettings,
         liteRTLMSettings,
         openaiCompatible,
+        lemonadeSettings,
         aiStudio,
         deepseek,
         openai,
@@ -1571,11 +1574,13 @@ function initializeAiSettingsDetailsToggles() {
 }
 
 const OPENAI_COMPATIBLE_DEFAULTS = Object.freeze({
-    provider: 'openai-compatible',
+    provider: 'orcarouter',
     baseUrl: 'https://api.orcarouter.ai/v1',
     modelId: 'deepseek/deepseek-v4-flash-free'
 });
+const LEMONADE_DEFAULT_BASE_URL = 'http://localhost:13305/api/v1';
 const OPENAI_COMPATIBLE_PROVIDER_URLS = Object.freeze({
+    orcarouter: 'https://api.orcarouter.ai/v1',
     'openai-compatible': 'https://api.orcarouter.ai/v1',
     openrouter: 'https://openrouter.ai/api/v1',
     groq: 'https://api.groq.com/openai/v1',
@@ -1587,8 +1592,45 @@ const OPENAI_COMPATIBLE_PROVIDER_URLS = Object.freeze({
     fireworks: 'https://api.fireworks.ai/inference/v1'
 });
 const OPENAI_COMPATIBLE_MODELS_KEY = 'ss_openai_compatible_models_v1';
+const OPENAI_COMPATIBLE_MODELS_SOURCE_KEY = 'ss_openai_compatible_models_source_v1';
+const LEMONADE_MODELS_KEY = 'ss_lemonade_models_v1';
 const OPENAI_COMPATIBLE_FREE_ONLY_KEY = 'ss_openai_compatible_free_only';
 let openAICompatibleModels = [];
+const LEMONADE_DEFAULT_MODEL = 'Gemma-4-E4B-it-GGUF';
+const LEMONADE_PROXY_BASE_URL = '/api/lemonade/v1';
+
+function isLemonadeImageModel(modelOrId) {
+    const source = modelOrId && typeof modelOrId === 'object' ? modelOrId : { id: modelOrId };
+    const id = String(source.id || source.model || source.name || '').trim();
+    const labels = Array.isArray(source.labels) ? source.labels.map(function (label) { return String(label).toLowerCase(); }) : [];
+    const recipe = String(source.recipe || '').toLowerCase();
+    if (labels.includes('image') || recipe === 'sd-cpp' || recipe === 'thenoise') return true;
+    return /(?:^|[-_.])(flux(?:-?2)?|stable[-_.]?diffusion|sd(?:xl)?(?:[-_.]|$)|qwen[-_.]?image|z[-_.]?image|krea)(?:[-_.]|$)/i.test(id);
+}
+
+function readCachedLemonadeModelRecords() {
+    try { return normalizeOpenAICompatibleModels(JSON.parse(localStorage.getItem(LEMONADE_MODELS_KEY) || '[]')); }
+    catch (_) { return []; }
+}
+
+function findCachedLemonadeModel(modelId) {
+    const id = String(modelId || '').trim();
+    return readCachedLemonadeModelRecords().find(function (item) { return item.id === id; }) || { id: id };
+}
+
+function isLemonadeConnection(connection) {
+    const provider = String(connection && connection.provider || localStorage.getItem('ss_openai_compatible_provider') || '').toLowerCase();
+    if (provider === 'lemonade') return true;
+    try {
+        const url = new URL(String(connection && connection.baseUrl || ''));
+        return ['localhost', '127.0.0.1', '::1', '[::1]'].includes(url.hostname.toLowerCase()) && url.port === '13305';
+    } catch (_) { return false; }
+}
+
+function openAICompatibleRequestUrl(connection, path) {
+    const baseUrl = isLemonadeConnection(connection) ? LEMONADE_PROXY_BASE_URL : connection.baseUrl;
+    return String(baseUrl || '').replace(/\/+$/, '') + '/' + String(path || '').replace(/^\/+/, '');
+}
 
 function normalizeOpenAICompatibleBaseUrl(value) {
     const raw = String(value || '').trim() || OPENAI_COMPATIBLE_DEFAULTS.baseUrl;
@@ -1621,6 +1663,8 @@ function applyOpenAICompatibleProviderPreset() {
     const baseUrl = document.getElementById('openai-compatible-base-url');
     if (!provider || !baseUrl) return;
     baseUrl.value = OPENAI_COMPATIBLE_PROVIDER_URLS[provider.value] || OPENAI_COMPATIBLE_DEFAULTS.baseUrl;
+    const apiKey = document.getElementById('openai-compatible-api-key');
+    const modelId = document.getElementById('openai-compatible-model-id');
     validateOpenAICompatibleBaseUrlUI();
 }
 
@@ -1674,6 +1718,8 @@ function normalizeOpenAICompatibleModels(payload) {
 }
 
 function readOpenAICompatibleModelsCache() {
+    const source = String(localStorage.getItem(OPENAI_COMPATIBLE_MODELS_SOURCE_KEY) || '');
+    if (source !== OPENAI_COMPATIBLE_DEFAULTS.baseUrl) return [];
     try { return normalizeOpenAICompatibleModels(JSON.parse(localStorage.getItem(OPENAI_COMPATIBLE_MODELS_KEY) || '[]')); }
     catch (_) { return []; }
 }
@@ -1718,15 +1764,39 @@ function applyOpenAICompatibleModelFilter() {
     localStorage.setItem(OPENAI_COMPATIBLE_FREE_ONLY_KEY, !checkbox || checkbox.checked ? '1' : '0');
     const visible = renderOpenAICompatibleModelMenu(openAICompatibleModels);
     setOpenAICompatibleStatus((checkbox && checkbox.checked ? '무료 모델 ' : '전체 모델 ') + visible.length + '개 표시', visible.length ? 'ok' : '');
+    if (window.AIChat && typeof window.AIChat.syncSettings === 'function') window.AIChat.syncSettings();
+}
+
+function getAIChatOpenAICompatibleModelIds(providerHint) {
+    const lemonade = providerHint === 'lemonade';
+    let models = [];
+    try {
+        models = lemonade
+            ? normalizeOpenAICompatibleModels(JSON.parse(localStorage.getItem(LEMONADE_MODELS_KEY) || '[]'))
+            : readOpenAICompatibleModelsCache();
+    } catch (_) {}
+    if (!lemonade && localStorage.getItem(OPENAI_COMPATIBLE_FREE_ONLY_KEY) !== '0') {
+        models = models.filter(isOpenAICompatibleFreeModel);
+    }
+    return models.map(function (item) { return item.id; });
+}
+
+function getAIChatLemonadeModelRecords() {
+    return readCachedLemonadeModelRecords().map(function (item) {
+        return Object.assign({}, item, { kind: isLemonadeImageModel(item) ? 'image' : 'chat' });
+    });
 }
 
 function getOpenAICompatibleFormConnection() {
+    const provider = document.getElementById('openai-compatible-provider');
     const baseUrl = document.getElementById('openai-compatible-base-url');
     const apiKey = document.getElementById('openai-compatible-api-key');
     const modelId = document.getElementById('openai-compatible-model-id');
+    const providerId = String(provider && provider.value || OPENAI_COMPATIBLE_DEFAULTS.provider);
     const key = String(apiKey && apiKey.value || '').trim();
     if (!key) throw new Error('OrcaRouter API Key를 먼저 입력하세요.');
     return {
+        provider: providerId,
         baseUrl: normalizeOpenAICompatibleBaseUrl(baseUrl && baseUrl.value),
         apiKey: key,
         modelId: String(modelId && modelId.value || '').trim()
@@ -1734,18 +1804,124 @@ function getOpenAICompatibleFormConnection() {
 }
 
 function getStoredOpenAICompatibleConnection() {
-    const key = String(localStorage.getItem('ss_openai_compatible_api_key') || '').trim();
+    const provider = OPENAI_COMPATIBLE_DEFAULTS.provider;
+    const legacyIsOrcaRouter = localStorage.getItem('ss_openai_compatible_provider') !== 'lemonade';
+    const key = String(localStorage.getItem('ss_openai_compatible_api_key_orcarouter') || (legacyIsOrcaRouter ? localStorage.getItem('ss_openai_compatible_api_key') : '') || '').trim();
     if (!key) throw new Error('OrcaRouter / OpenAI 호환 API Key가 없습니다. 설정에서 API Key를 저장하세요.');
     return {
-        baseUrl: normalizeOpenAICompatibleBaseUrl(localStorage.getItem('ss_openai_compatible_base_url') || OPENAI_COMPATIBLE_DEFAULTS.baseUrl),
+        provider: provider,
+        baseUrl: normalizeOpenAICompatibleBaseUrl(localStorage.getItem('ss_openai_compatible_base_url_orcarouter') || (legacyIsOrcaRouter ? localStorage.getItem('ss_openai_compatible_base_url') : '') || OPENAI_COMPATIBLE_DEFAULTS.baseUrl),
         apiKey: key,
-        modelId: String(localStorage.getItem('ss_ai_chat_openai_compatible_model') || localStorage.getItem('ss_openai_compatible_model_id') || OPENAI_COMPATIBLE_DEFAULTS.modelId).trim()
+        modelId: String(localStorage.getItem('ss_openai_compatible_model_id_orcarouter') || (legacyIsOrcaRouter ? localStorage.getItem('ss_openai_compatible_model_id') : '') || OPENAI_COMPATIBLE_DEFAULTS.modelId).trim()
     };
+}
+
+function getStoredLemonadeConnection() {
+    const outputTokens = Number(localStorage.getItem('ss_openai_compatible_max_output_tokens_lemonade'));
+    return {
+        provider: 'lemonade',
+        baseUrl: normalizeOpenAICompatibleBaseUrl(localStorage.getItem('ss_openai_compatible_base_url_lemonade') || LEMONADE_DEFAULT_BASE_URL),
+        apiKey: 'lemonade',
+        modelId: String(localStorage.getItem('ss_openai_compatible_model_id_lemonade') || LEMONADE_DEFAULT_MODEL).trim(),
+        contextTokens: Math.max(512, Number(localStorage.getItem('ss_openai_compatible_context_tokens_lemonade')) || 8192),
+        maxOutputTokens: Number.isFinite(outputTokens) && outputTokens > 0 ? Math.floor(outputTokens) : 0,
+        temperature: Math.max(0, Math.min(2, Number(localStorage.getItem('ss_openai_compatible_temperature_lemonade')) || 0.4)),
+        topP: Math.max(0.01, Math.min(1, Number(localStorage.getItem('ss_openai_compatible_top_p_lemonade')) || 0.9)),
+        imageSize: String(localStorage.getItem('ss_lemonade_image_size') || '512x512'),
+        imageSteps: Math.max(1, Math.min(100, Math.round(Number(localStorage.getItem('ss_lemonade_image_steps')) || 4))),
+        imageCfgScale: Math.max(0, Math.min(30, Number(localStorage.getItem('ss_lemonade_image_cfg_scale')) || 1))
+    };
+}
+
+async function generateLemonadeImage(connection, model, messages, signal) {
+    const latest = (Array.isArray(messages) ? messages : []).slice().reverse().find(function (message) {
+        return message && message.role === 'user' && String(message.content || '').trim();
+    });
+    const prompt = String(latest && latest.content || '').trim();
+    if (!prompt) throw new Error('생성할 이미지를 설명하세요.');
+    const response = await fetch(openAICompatibleRequestUrl(connection, 'images/generations'), {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer ' + connection.apiKey },
+        body: JSON.stringify({
+            model: model,
+            prompt: prompt,
+            size: connection.imageSize || '512x512',
+            n: 1,
+            steps: connection.imageSteps || 4,
+            cfg_scale: connection.imageCfgScale == null ? 1 : connection.imageCfgScale,
+            response_format: 'b64_json'
+        }),
+        signal: signal
+    });
+    if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
+    const payload = await response.json();
+    const images = (Array.isArray(payload && payload.data) ? payload.data : []).map(function (item) {
+        const data = String(item && (item.b64_json || item.b64Json) || '').replace(/^data:[^;,]+;base64,/i, '');
+        return data ? { mimeType: String(item && (item.mime_type || item.mimeType) || 'image/png'), data: data } : null;
+    }).filter(Boolean);
+    if (!images.length) throw new Error('Lemonade 이미지 응답에서 이미지 데이터를 찾지 못했습니다.');
+    return { provider: 'lemonade', model: model, text: '요청한 이미지를 생성했습니다.', reasoning: '', images: images, finishReason: 'stop', usage: payload.usage || null };
+}
+
+function lemonadeImageSizeForRatio(ratio, fallback) {
+    const saved = /^\d+x\d+$/i.test(String(fallback || '')) ? String(fallback).toLowerCase() : '512x512';
+    const shortSide = Math.max(256, Math.min(1024, Number(saved.split('x')[0]) || 512));
+    const sizes = {
+        '1:1': shortSide + 'x' + shortSide,
+        '16:9': Math.round(shortSide * 1.5 / 64) * 64 + 'x' + Math.round(shortSide * 0.875 / 64) * 64,
+        '9:16': Math.round(shortSide * 0.875 / 64) * 64 + 'x' + Math.round(shortSide * 1.5 / 64) * 64,
+        '4:3': Math.round(shortSide * 1.25 / 64) * 64 + 'x' + Math.round(shortSide * 0.9375 / 64) * 64,
+        '3:4': Math.round(shortSide * 0.9375 / 64) * 64 + 'x' + Math.round(shortSide * 1.25 / 64) * 64
+    };
+    return sizes[String(ratio || '')] || saved;
+}
+
+async function generateLemonadeSspImage(prompt, options, signal) {
+    const connection = getStoredLemonadeConnection();
+    const model = String(options && options.modelId || localStorage.getItem('ss_image_model_lemonade') || 'Flux-2-Klein-4B').trim();
+    if (!isLemonadeImageModel(findCachedLemonadeModel(model))) throw new Error('Lemonade 이미지 생성 모델을 선택하세요.');
+    const seedImage = options && options.seedImage;
+    const size = lemonadeImageSizeForRatio(options && options.aspectRatio, connection.imageSize);
+    const styleInstruction = options && options.noText
+        ? 'Purely visual output only. Do not include text, letters, numbers, captions, watermarks, or typography.'
+        : 'Create a clean academic or document-style visual with clear structure and restrained colors.';
+    const imagePrompt = [String(prompt || '').trim(), styleInstruction].filter(Boolean).join('\n\n');
+    let response;
+    if (typeof seedImage === 'string' && /^data:image\//i.test(seedImage)) {
+        const match = seedImage.match(/^data:([^;,]+);base64,(.+)$/i);
+        if (!match) throw new Error('Lemonade 편집에 사용할 이미지 형식이 올바르지 않습니다.');
+        const bytes = Uint8Array.from(atob(match[2]), function (char) { return char.charCodeAt(0); });
+        const form = new FormData();
+        form.append('model', model);
+        form.append('prompt', imagePrompt || 'Edit this image while preserving its main subject.');
+        form.append('size', size);
+        form.append('n', '1');
+        form.append('steps', String(connection.imageSteps || 4));
+        form.append('cfg_scale', String(connection.imageCfgScale == null ? 1 : connection.imageCfgScale));
+        form.append('response_format', 'b64_json');
+        form.append('image', new Blob([bytes], { type: match[1] || 'image/png' }), 'sspimg-source.png');
+        response = await fetch(openAICompatibleRequestUrl(connection, 'images/edits'), {
+            method: 'POST', headers: { Accept: 'application/json', Authorization: 'Bearer ' + connection.apiKey }, body: form, signal: signal
+        });
+    } else {
+        response = await fetch(openAICompatibleRequestUrl(connection, 'images/generations'), {
+            method: 'POST',
+            headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer ' + connection.apiKey },
+            body: JSON.stringify({ model: model, prompt: imagePrompt, size: size, n: 1, steps: connection.imageSteps || 4, cfg_scale: connection.imageCfgScale == null ? 1 : connection.imageCfgScale, response_format: 'b64_json' }),
+            signal: signal
+        });
+    }
+    if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
+    const payload = await response.json();
+    const item = Array.isArray(payload && payload.data) ? payload.data[0] : null;
+    const encoded = String(item && (item.b64_json || item.b64Json) || '').replace(/^data:[^;,]+;base64,/i, '');
+    if (!encoded) throw new Error('Lemonade 이미지 응답에서 이미지 데이터를 찾지 못했습니다.');
+    return 'data:' + String(item && (item.mime_type || item.mimeType) || 'image/png') + ';base64,' + encoded;
 }
 
 async function fetchOpenAICompatibleModels(connection) {
     const active = connection || getStoredOpenAICompatibleConnection();
-    const response = await fetch(active.baseUrl + '/models', {
+    const response = await fetch(openAICompatibleRequestUrl(active, 'models'), {
         method: 'GET',
         headers: { Accept: 'application/json', Authorization: 'Bearer ' + active.apiKey }
     });
@@ -1753,6 +1929,7 @@ async function fetchOpenAICompatibleModels(connection) {
     const models = normalizeOpenAICompatibleModels(await response.json());
     openAICompatibleModels = models;
     localStorage.setItem(OPENAI_COMPATIBLE_MODELS_KEY, JSON.stringify(models));
+    localStorage.setItem(OPENAI_COMPATIBLE_MODELS_SOURCE_KEY, active.baseUrl);
     return models.map(function (item) { return item.id; });
 }
 
@@ -1765,6 +1942,115 @@ async function readOpenAICompatibleError(response) {
         try { message = String(await response.text() || message); } catch (_) {}
     }
     return message;
+}
+
+async function streamOpenAICompatibleChat(connection, body, signal, onStreamEvent) {
+    const emit = typeof onStreamEvent === 'function' ? onStreamEvent : function () {};
+    const provider = connection.provider === 'lemonade' ? 'lemonade' : 'openai-compatible';
+    emit({
+        type: 'request.start',
+        provider: provider,
+        context_length: Number(connection.contextTokens) || 0,
+        max_output_tokens: Number(body.max_tokens) || 0,
+        estimated_input_tokens: estimateAIChatTokens(body.messages.map(function (item) { return item.content || ''; }).join('\n\n')),
+        render_interval_ms: provider === 'lemonade' ? 160 : 80
+    });
+    emit({ type: 'transport.start', provider: provider });
+    const response = await fetch(openAICompatibleRequestUrl(connection, 'chat/completions'), {
+        method: 'POST',
+        headers: { Accept: 'text/event-stream, application/json', 'Content-Type': 'application/json', Authorization: 'Bearer ' + connection.apiKey },
+        body: JSON.stringify(Object.assign({}, body, { stream: true, stream_options: { include_usage: true } })),
+        signal: signal
+    });
+    if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
+    if (!response.body) throw new Error('OpenAI 호환 스트림 응답 본문이 없습니다.');
+    emit({ type: 'chat.start', provider: provider });
+    emit({ type: 'prompt_processing.start', provider: provider });
+    let text = '';
+    let reasoning = '';
+    let finishReason = '';
+    let responseId = null;
+    let responseModel = body.model;
+    let usage = null;
+    let buffer = '';
+    let answerStarted = false;
+    let reasoningStarted = false;
+    let reasoningEnded = false;
+    let promptEnded = false;
+    function processPayload(payload) {
+        const value = String(payload || '').trim();
+        if (!value || value === '[DONE]') return;
+        let data;
+        try { data = JSON.parse(value); } catch (_) { return; }
+        if (data.error) throw new Error(String(data.error.message || data.error));
+        responseId = data.id || responseId;
+        responseModel = data.model || responseModel;
+        usage = data.usage || usage;
+        const choice = data.choices && data.choices[0] || {};
+        const delta = choice.delta || choice.message || {};
+        const reasoningDelta = String(delta.reasoning_content || delta.reasoning || '');
+        const answerDelta = typeof delta.content === 'string' ? delta.content : String(choice.text || '');
+        if (!promptEnded && (reasoningDelta || answerDelta)) {
+            promptEnded = true;
+            emit({ type: 'prompt_processing.end', provider: provider });
+        }
+        if (reasoningDelta) {
+            if (!reasoningStarted) {
+                reasoningStarted = true;
+                emit({ type: 'reasoning.start', provider: provider });
+            }
+            reasoning += reasoningDelta;
+            emit({ type: 'reasoning.delta', provider: provider, content: reasoningDelta });
+        }
+        if (answerDelta) {
+            if (reasoningStarted && !reasoningEnded) {
+                reasoningEnded = true;
+                emit({ type: 'reasoning.end', provider: provider });
+            }
+            if (!answerStarted) {
+                answerStarted = true;
+                emit({ type: 'message.start', provider: provider });
+            }
+            text += answerDelta;
+            emit({ type: 'message.delta', provider: provider, content: answerDelta });
+        }
+        finishReason = choice.finish_reason || finishReason;
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        buffer += decoder.decode(chunk.value, { stream: true }).replace(/\r\n/g, '\n');
+        let boundary;
+        while ((boundary = buffer.indexOf('\n')) >= 0) {
+            const line = buffer.slice(0, boundary);
+            buffer = buffer.slice(boundary + 1);
+            if (line.startsWith('data:')) processPayload(line.slice(5));
+            else if (line.trim().startsWith('{')) processPayload(line);
+        }
+    }
+    buffer += decoder.decode();
+    if (buffer.trim()) processPayload(buffer.replace(/^data:\s*/i, ''));
+    if (reasoningStarted && !reasoningEnded) emit({ type: 'reasoning.end', provider: provider });
+    if (answerStarted) emit({ type: 'message.end', provider: provider });
+    const completionTokens = Number(usage && (usage.completion_tokens || usage.output_tokens)) || 0;
+    emit({
+        type: 'chat.end',
+        provider: provider,
+        result: { stats: { total_output_tokens: completionTokens, reasoning_output_tokens: Number(usage && usage.reasoning_tokens) || 0 } }
+    });
+    return {
+        provider: provider,
+        model: provider === 'lemonade' ? body.model : responseModel,
+        text: text,
+        reasoning: reasoning,
+        finishReason: finishReason,
+        usage: usage,
+        contextLength: Number(connection.contextTokens) || null,
+        maxOutputTokens: Number(body.max_tokens) || null,
+        responseId: responseId
+    };
 }
 
 async function checkOpenAICompatibleModels() {
@@ -1799,7 +2085,7 @@ async function testOpenAICompatibleConnection() {
         setOpenAICompatibleStatus('선택 모델에 실제 응답을 요청하는 중...', '');
         const connection = getOpenAICompatibleFormConnection();
         if (!connection.modelId) throw new Error('연결 테스트에 사용할 모델을 선택하세요.');
-        const response = await fetch(connection.baseUrl + '/chat/completions', {
+        const response = await fetch(openAICompatibleRequestUrl(connection, 'chat/completions'), {
             method: 'POST',
             headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer ' + connection.apiKey },
             body: JSON.stringify({ model: connection.modelId, messages: [{ role: 'user', content: 'Reply with OK only.' }], max_tokens: 8, stream: false })
@@ -1831,10 +2117,39 @@ function loadOpenAICompatibleSettingsUI(settings) {
     const baseUrl = document.getElementById('openai-compatible-base-url');
     const apiKey = document.getElementById('openai-compatible-api-key');
     const modelId = document.getElementById('openai-compatible-model-id');
-    if (provider) provider.value = source.openaiCompatibleProvider || localStorage.getItem('ss_openai_compatible_provider') || OPENAI_COMPATIBLE_DEFAULTS.provider;
+    if (provider) {
+        provider.value = source.openaiCompatibleProvider || localStorage.getItem('ss_openai_compatible_provider') || OPENAI_COMPATIBLE_DEFAULTS.provider;
+        if (provider.value === 'lemonade' || !provider.value) provider.value = OPENAI_COMPATIBLE_DEFAULTS.provider;
+    }
     if (baseUrl) baseUrl.value = source.openaiCompatibleBaseUrl || localStorage.getItem('ss_openai_compatible_base_url') || OPENAI_COMPATIBLE_DEFAULTS.baseUrl;
     if (apiKey) apiKey.value = source.openaiCompatibleApiKey || localStorage.getItem('ss_openai_compatible_api_key') || '';
     if (modelId) modelId.value = source.openaiCompatibleModelId || localStorage.getItem('ss_openai_compatible_model_id') || OPENAI_COMPATIBLE_DEFAULTS.modelId;
+    if (!provider || provider.value !== 'lemonade') {
+        if (baseUrl) localStorage.setItem('ss_openai_compatible_base_url_orcarouter', baseUrl.value);
+        if (apiKey && apiKey.value.trim()) localStorage.setItem('ss_openai_compatible_api_key_orcarouter', apiKey.value.trim());
+        if (modelId && modelId.value.trim()) {
+            localStorage.setItem('ss_openai_compatible_model_id_orcarouter', modelId.value.trim());
+            localStorage.setItem('ss_ai_chat_openai_compatible_model', modelId.value.trim());
+        }
+    }
+    if (localStorage.getItem('ss_orcarouter_lemonade_separation_revision') !== 'orcarouter-default-v4') {
+        if (provider) provider.value = OPENAI_COMPATIBLE_DEFAULTS.provider;
+        if (baseUrl) baseUrl.value = OPENAI_COMPATIBLE_DEFAULTS.baseUrl;
+        localStorage.setItem('ss_openai_compatible_provider', OPENAI_COMPATIBLE_DEFAULTS.provider);
+        localStorage.setItem('ss_openai_compatible_base_url', OPENAI_COMPATIBLE_DEFAULTS.baseUrl);
+        localStorage.setItem('ss_openai_compatible_base_url_orcarouter', OPENAI_COMPATIBLE_DEFAULTS.baseUrl);
+        localStorage.removeItem('ss_ai_chat_openai_compatible_provider');
+        localStorage.setItem('ss_ai_chat_provider', 'openai-compatible');
+        localStorage.removeItem(OPENAI_COMPATIBLE_MODELS_KEY);
+        localStorage.removeItem(OPENAI_COMPATIBLE_MODELS_SOURCE_KEY);
+        localStorage.setItem('ss_orcarouter_lemonade_separation_revision', 'orcarouter-default-v4');
+        Promise.resolve(setAiSettings({
+            openaiCompatibleProvider: OPENAI_COMPATIBLE_DEFAULTS.provider,
+            openaiCompatibleBaseUrl: OPENAI_COMPATIBLE_DEFAULTS.baseUrl,
+            openaiCompatibleApiKey: String(apiKey && apiKey.value || '').trim(),
+            openaiCompatibleModelId: String(modelId && modelId.value || OPENAI_COMPATIBLE_DEFAULTS.modelId).trim()
+        })).catch(function () {});
+    }
     const freeOnly = document.getElementById('openai-compatible-free-models-only');
     if (freeOnly) freeOnly.checked = localStorage.getItem(OPENAI_COMPATIBLE_FREE_ONLY_KEY) !== '0';
     openAICompatibleModels = readOpenAICompatibleModelsCache();
@@ -1862,6 +2177,11 @@ async function saveOpenAICompatibleSettings() {
     localStorage.setItem('ss_openai_compatible_base_url', data.openaiCompatibleBaseUrl);
     localStorage.setItem('ss_openai_compatible_api_key', data.openaiCompatibleApiKey);
     localStorage.setItem('ss_openai_compatible_model_id', data.openaiCompatibleModelId);
+    if (data.openaiCompatibleProvider !== 'lemonade') {
+        localStorage.setItem('ss_openai_compatible_base_url_orcarouter', data.openaiCompatibleBaseUrl);
+        localStorage.setItem('ss_openai_compatible_api_key_orcarouter', data.openaiCompatibleApiKey);
+        localStorage.setItem('ss_openai_compatible_model_id_orcarouter', data.openaiCompatibleModelId);
+    }
     localStorage.setItem('ss_ai_chat_openai_compatible_model', data.openaiCompatibleModelId);
     if (baseUrl) baseUrl.value = data.openaiCompatibleBaseUrl;
     if (modelId) modelId.value = data.openaiCompatibleModelId;
@@ -1885,6 +2205,160 @@ async function resetOpenAICompatibleSettings() {
     renderOpenAICompatibleModelMenu(openAICompatibleModels);
     await saveOpenAICompatibleSettings();
     showToast('OrcaRouter 기본 구성으로 초기화했습니다.');
+}
+
+function setLemonadeStatus(message, state) {
+    const status = document.getElementById('lemonade-connection-status');
+    if (!status) return;
+    status.textContent = String(message || '');
+    status.className = 'text-[11px] min-h-[1rem] ' + (state === 'error'
+        ? 'text-red-600 dark:text-red-400'
+        : state === 'ok' ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400');
+}
+
+function getLemonadeFormConnection() {
+    const value = function (id) { const node = document.getElementById(id); return node ? node.value : ''; };
+    return {
+        provider: 'lemonade',
+        baseUrl: normalizeOpenAICompatibleBaseUrl(value('lemonade-base-url') || LEMONADE_DEFAULT_BASE_URL),
+        apiKey: 'lemonade',
+        modelId: String(value('lemonade-model-id') || LEMONADE_DEFAULT_MODEL).trim(),
+        contextTokens: Math.max(-1, Math.round(Number(value('lemonade-context-tokens')) || 8192)),
+        maxOutputTokens: Math.round(Number(value('lemonade-output-tokens'))) === -1 ? -1 : Math.max(1, Math.round(Number(value('lemonade-output-tokens')) || 2048)),
+        temperature: Math.max(0, Math.min(2, Number(value('lemonade-temperature')) || 0)),
+        topP: Math.max(0, Math.min(1, Number(value('lemonade-top-p')) || 0.9)),
+        timeoutSeconds: Math.max(30, Math.min(3600, Math.round(Number(value('lemonade-timeout-seconds')) || 580))),
+        imageSize: String(value('lemonade-image-size') || '512x512'),
+        imageSteps: Math.max(1, Math.min(100, Math.round(Number(value('lemonade-image-steps')) || 4))),
+        imageCfgScale: Math.max(0, Math.min(30, Number(value('lemonade-image-cfg-scale')) || 1))
+    };
+}
+
+function loadLemonadeSettingsUI() {
+    if (!document.getElementById('lemonade-settings-card')) return;
+    const values = {
+        'lemonade-base-url': localStorage.getItem('ss_openai_compatible_base_url_lemonade') || LEMONADE_DEFAULT_BASE_URL,
+        'lemonade-model-id': localStorage.getItem('ss_openai_compatible_model_id_lemonade') || LEMONADE_DEFAULT_MODEL,
+        'lemonade-context-tokens': localStorage.getItem('ss_openai_compatible_context_tokens_lemonade') || '8192',
+        'lemonade-output-tokens': localStorage.getItem('ss_openai_compatible_max_output_tokens_lemonade') || '-1',
+        'lemonade-temperature': localStorage.getItem('ss_openai_compatible_temperature_lemonade') || '0.4',
+        'lemonade-top-p': localStorage.getItem('ss_openai_compatible_top_p_lemonade') || '0.9',
+        'lemonade-timeout-seconds': localStorage.getItem('ss_openai_compatible_timeout_seconds_lemonade') || '580',
+        'lemonade-image-size': localStorage.getItem('ss_lemonade_image_size') || '512x512',
+        'lemonade-image-steps': localStorage.getItem('ss_lemonade_image_steps') || '4',
+        'lemonade-image-cfg-scale': localStorage.getItem('ss_lemonade_image_cfg_scale') || '1'
+    };
+    Object.keys(values).forEach(function (id) { const node = document.getElementById(id); if (node) node.value = values[id]; });
+}
+
+function renderLemonadeModels(models) {
+    const list = document.getElementById('lemonade-model-list');
+    if (!list) return;
+    list.innerHTML = '';
+    normalizeOpenAICompatibleModels(models).forEach(function (item) {
+        const option = document.createElement('option');
+        option.value = item.id;
+        option.label = isLemonadeImageModel(item) ? item.id + ' · 이미지 생성' : item.id + ' · 채팅';
+        list.appendChild(option);
+    });
+}
+
+async function checkLemonadeModels() {
+    const button = document.getElementById('lemonade-check-models-button');
+    try {
+        if (button) button.disabled = true;
+        setLemonadeStatus('Lemonade 모델 목록을 확인하는 중...', '');
+        const connection = getLemonadeFormConnection();
+        const response = await fetch(openAICompatibleRequestUrl(connection, 'models'), { headers: { Accept: 'application/json', Authorization: 'Bearer lemonade' } });
+        if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
+        const models = normalizeOpenAICompatibleModels(await response.json());
+        localStorage.setItem(LEMONADE_MODELS_KEY, JSON.stringify(models));
+        renderLemonadeModels(models);
+        setLemonadeStatus('연결됨 · 모델 ' + models.length + '개 확인', 'ok');
+        return models;
+    } catch (error) {
+        setLemonadeStatus('모델 확인 실패: ' + String(error && error.message || error), 'error');
+        return [];
+    } finally { if (button) button.disabled = false; }
+}
+
+async function saveLemonadeSettings() {
+    const connection = getLemonadeFormConnection();
+    const fields = { base_url: connection.baseUrl, api_key: 'lemonade', model_id: connection.modelId, context_tokens: connection.contextTokens, max_output_tokens: connection.maxOutputTokens, temperature: connection.temperature, top_p: connection.topP, timeout_seconds: connection.timeoutSeconds };
+    Object.keys(fields).forEach(function (name) { localStorage.setItem('ss_openai_compatible_' + name + '_lemonade', String(fields[name])); });
+    localStorage.setItem('ss_lemonade_image_size', connection.imageSize);
+    localStorage.setItem('ss_lemonade_image_steps', String(connection.imageSteps));
+    localStorage.setItem('ss_lemonade_image_cfg_scale', String(connection.imageCfgScale));
+    localStorage.setItem('ss_ai_chat_lemonade_model', connection.modelId);
+    if (window.AIChat && typeof window.AIChat.syncSettings === 'function') window.AIChat.syncSettings();
+    setLemonadeStatus('저장됨 · Lemonade 모델: ' + connection.modelId, 'ok');
+    showToast('Lemonade ENV 설정을 저장했습니다.');
+}
+
+async function loadLemonadeModel() {
+    try {
+        const connection = getLemonadeFormConnection();
+        setLemonadeStatus(connection.modelId + ' 모델을 Load하는 중...', '');
+        const imageModel = isLemonadeImageModel(findCachedLemonadeModel(connection.modelId));
+        const loadOptions = imageModel
+            ? { model_name: connection.modelId, width: Number(connection.imageSize.split('x')[0]) || 512, height: Number(connection.imageSize.split('x')[1]) || 512, steps: connection.imageSteps, cfg_scale: connection.imageCfgScale, save_options: true }
+            : { model_name: connection.modelId, ctx_size: connection.contextTokens, save_options: true };
+        const response = await fetch(openAICompatibleRequestUrl(connection, 'load'), { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer lemonade' }, body: JSON.stringify(loadOptions) });
+        if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
+        await saveLemonadeSettings();
+        setLemonadeStatus('모델 Load 완료 · ' + connection.modelId, 'ok');
+    } catch (error) { setLemonadeStatus('모델 Load 실패: ' + String(error && error.message || error), 'error'); }
+}
+
+async function unloadLemonadeModel() {
+    try {
+        const connection = getLemonadeFormConnection();
+        const response = await fetch(openAICompatibleRequestUrl(connection, 'unload'), { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer lemonade' }, body: JSON.stringify({ model_name: connection.modelId }) });
+        if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
+        setLemonadeStatus('모델 Unload 완료 · ' + connection.modelId, 'ok');
+    } catch (error) { setLemonadeStatus('모델 Unload 실패: ' + String(error && error.message || error), 'error'); }
+}
+
+function readCachedNPUModels() {
+    try { return JSON.parse(localStorage.getItem('ss_ai_chat_npu_models') || '[]').filter(Boolean); }
+    catch (_) { return []; }
+}
+
+async function listNPUModels(signal) {
+    const connection = { provider: 'lemonade', baseUrl: LEMONADE_DEFAULT_BASE_URL };
+    const response = await fetch(openAICompatibleRequestUrl(connection, 'models'), { headers: { Accept: 'application/json', Authorization: 'Bearer lemonade' }, signal: signal });
+    if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
+    const data = await response.json();
+    const rows = (Array.isArray(data && data.data) ? data.data : []).filter(function (model) {
+        return model && model.downloaded !== false && model.recipe === 'flm'
+            && (!Array.isArray(model.labels) || model.labels.includes('chat'));
+    });
+    const models = rows.map(function (model) { return String(model.id || ''); }).filter(Boolean);
+    const preferred = models.indexOf('gemma4-it-e2b-FLM');
+    if (preferred > 0) models.unshift(models.splice(preferred, 1)[0]);
+    if (!models.length) throw new Error('Lemonade에 설치된 FastFlowLM NPU 채팅 모델이 없습니다.');
+    localStorage.setItem('ss_ai_chat_npu_models', JSON.stringify(models));
+    return models;
+}
+
+async function callNPUChat(request, signal) {
+    const models = await listNPUModels(signal);
+    const model = String(request.model || models[0] || '');
+    if (!models.includes(model)) throw new Error('설치된 Lemonade NPU 모델을 선택하세요.');
+    const messages = normalizeAIChatMessages(request.messages);
+    if (request.systemInstruction) messages.unshift({ role: 'system', content: String(request.systemInstruction) });
+    const connection = { provider: 'lemonade', baseUrl: LEMONADE_DEFAULT_BASE_URL };
+    const response = await fetch(openAICompatibleRequestUrl(connection, 'chat/completions'), {
+        method: 'POST',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer lemonade' },
+        body: JSON.stringify({ model: model, messages: messages, max_tokens: request.fastMode ? 2048 : 4096, temperature: 0.4, stream: false }),
+        signal: signal
+    });
+    if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
+    const data = await response.json();
+    const choice = data && data.choices && data.choices[0] || {};
+    const message = choice.message || {};
+    return { provider: 'ollama-npu', model: model, text: String(message.content || choice.text || ''), reasoning: String(message.reasoning_content || ''), finishReason: choice.finish_reason || '', usage: data.usage || null, responseId: data.id || null };
 }
 
 function organizeSettingsDashboard() {
@@ -15729,7 +16203,7 @@ function readScholarAIProviderSettingsForm() {
         quickMaxTokens: Number(value('settings-aichat-quick-max-tokens') || 4096),
         reasoningMaxTokens: Number(value('settings-aichat-reasoning-max-tokens') || 8192),
         fastMaxTokens: Number(value('settings-aichat-fast-max-tokens') || 3000),
-        fastTimeoutMs: Number(value('settings-aichat-fast-timeout') || 120) * 1000,
+        fastTimeoutMs: Number(value('settings-aichat-fast-timeout') || 180) * 1000,
         fastSafetyTimeout: !!(document.getElementById('settings-aichat-fast-safety-timeout') && document.getElementById('settings-aichat-fast-safety-timeout').checked),
         fastCompleteStreaming: !!(document.getElementById('settings-aichat-fast-complete-streaming') && document.getElementById('settings-aichat-fast-complete-streaming').checked),
         reasoningLevel: value('settings-aichat-reasoning-level') || 'auto',
@@ -15743,7 +16217,7 @@ function syncAiJenaFastLimitsInSettings(config) {
     const tokenInput = document.getElementById('settings-ai-jena-fast-token-limit');
     const timeInput = document.getElementById('settings-ai-jena-fast-time-limit');
     if (tokenInput) tokenInput.value = Math.max(1, Number(source.fastMaxTokens) || 3000);
-    if (timeInput) timeInput.value = Math.max(1, Math.round((Number(source.fastTimeoutMs) || 120000) / 1000));
+    if (timeInput) timeInput.value = Math.max(1, Math.round((Number(source.fastTimeoutMs) || 180000) / 1000));
 }
 
 function saveAiJenaFastLimitsFromSettings() {
@@ -15751,7 +16225,7 @@ function saveAiJenaFastLimitsFromSettings() {
     const tokenInput = document.getElementById('settings-ai-jena-fast-token-limit');
     const timeInput = document.getElementById('settings-ai-jena-fast-time-limit');
     const fastMaxTokens = Math.max(1, Math.round(Number(tokenInput && tokenInput.value) || 3000));
-    const fastTimeoutSeconds = Math.max(1, Math.round(Number(timeInput && timeInput.value) || 120));
+    const fastTimeoutSeconds = Math.max(1, Math.round(Number(timeInput && timeInput.value) || 180));
     try {
         const current = window.LocalAI.loadConfig(localStorage);
         const config = getScholarAIProviderRuntime().saveLMStudioConfig(Object.assign({}, current, {
@@ -15925,7 +16399,7 @@ function loadScholarAIProviderSettingsUI(legacySettings) {
     setValue('settings-aichat-quick-max-tokens', config.quickMaxTokens || 4096);
     setValue('settings-aichat-reasoning-max-tokens', config.reasoningMaxTokens || 8192);
     setValue('settings-aichat-fast-max-tokens', config.fastMaxTokens || 3000);
-    setValue('settings-aichat-fast-timeout', Math.max(1, Math.round((config.fastTimeoutMs || 120000) / 1000)));
+    setValue('settings-aichat-fast-timeout', Math.max(1, Math.round((config.fastTimeoutMs || 180000) / 1000)));
     syncAiJenaFastLimitsInSettings(config);
     const fastSafetyTimeout = document.getElementById('settings-aichat-fast-safety-timeout');
     if (fastSafetyTimeout) fastSafetyTimeout.checked = config.fastSafetyTimeout !== false;
@@ -16765,7 +17239,11 @@ async function callOllamaChatText(messages, systemInstruction, modelOverride, si
     const estimatedInputTokens = payloadMessages.reduce(function (sum, item) {
         return sum + estimateAIChatTokens(item.content);
     }, 0);
-    const maxOutputTokens = Math.max(1, contextLength - estimatedInputTokens - 256);
+    const contextOutputTokens = Math.max(1, contextLength - estimatedInputTokens - 256);
+    const requestedOutputTokens = Number(settings.maxOutputTokens) > 0
+        ? Math.max(1, Math.round(Number(settings.maxOutputTokens)))
+        : contextOutputTokens;
+    const maxOutputTokens = Math.max(1, Math.min(contextOutputTokens, requestedOutputTokens));
     emit({
         type: 'request.start',
         provider: 'ollama',
@@ -17081,6 +17559,64 @@ function retainAIChatHistory(messages, tokenBudget) {
         break;
     }
     return retainedTurns.reduce(function (all, turn) { return all.concat(turn); }, []);
+}
+
+function clipAIChatRequestMessage(message, tokenBudget, keepTail) {
+    const original = String(message && message.content || '').trim();
+    if (!original || tokenBudget < 48) return null;
+    if (estimateAIChatTokens(original) <= tokenBudget) return Object.assign({}, message, { content: original });
+    const marker = '\n\n[컨텍스트 한도에 맞춰 중간 내용을 생략함]\n\n';
+    let low = 1;
+    let high = original.length;
+    let best = '';
+    while (low <= high) {
+        const middle = Math.floor((low + high) / 2);
+        const headLength = keepTail ? Math.ceil(middle * 0.58) : middle;
+        const tailLength = keepTail ? Math.max(0, middle - headLength) : 0;
+        const candidate = keepTail
+            ? original.slice(0, headLength).trimEnd() + marker + original.slice(Math.max(headLength, original.length - tailLength)).trimStart()
+            : original.slice(0, middle).trimEnd() + marker;
+        if (estimateAIChatTokens(candidate) <= tokenBudget) {
+            best = candidate;
+            low = middle + 1;
+        } else {
+            high = middle - 1;
+        }
+    }
+    return best ? Object.assign({}, message, { content: best }) : null;
+}
+
+function fitOpenAICompatibleMessages(messages, contextLength, requestedOutputTokens, reasoningMode, inputTokenCap) {
+    const source = Array.isArray(messages) ? messages.filter(function (message) {
+        return message && String(message.content || '').trim();
+    }) : [];
+    if (!contextLength || !source.length) return source;
+    const outputReserve = Math.min(
+        Math.max(1, Number(requestedOutputTokens) || (reasoningMode ? 4096 : 3072)),
+        Math.max(256, contextLength - 512)
+    );
+    let inputBudget = Math.max(256, contextLength - outputReserve - 256);
+    if (Number(inputTokenCap) > 0) {
+        inputBudget = Math.min(inputBudget, Math.max(256, Math.round(Number(inputTokenCap))));
+    }
+    const systemMessages = source.filter(function (message) { return message.role === 'system'; });
+    let lastUserIndex = -1;
+    source.forEach(function (message, index) { if (message.role === 'user') lastUserIndex = index; });
+    if (lastUserIndex < 0) return source;
+
+    const systemText = systemMessages.map(function (message) { return message.content; }).join('\n\n');
+    const systemBudget = Math.min(Math.max(384, Math.floor(inputBudget * 0.3)), Math.max(384, inputBudget - 384));
+    const fittedSystem = systemText
+        ? clipAIChatRequestMessage({ role: 'system', content: systemText }, systemBudget, false)
+        : null;
+    const usedSystemTokens = fittedSystem ? estimateAIChatTokens(fittedSystem.content) : 0;
+    const latestBudget = Math.max(256, Math.floor((inputBudget - usedSystemTokens) * 0.68));
+    const fittedLatest = clipAIChatRequestMessage(source[lastUserIndex], latestBudget, true);
+    const usedLatestTokens = fittedLatest ? estimateAIChatTokens(fittedLatest.content) : 0;
+    const historyBudget = Math.max(0, inputBudget - usedSystemTokens - usedLatestTokens);
+    const historyCandidates = source.slice(0, lastUserIndex).filter(function (message) { return message.role !== 'system'; });
+    const fittedHistory = retainAIChatHistory(historyCandidates, historyBudget);
+    return [fittedSystem].concat(fittedHistory, fittedLatest ? [fittedLatest] : []).filter(Boolean);
 }
 
 async function listAIStudioChatModels(apiKeyOverride) {
@@ -18127,12 +18663,59 @@ window.AIChatBridge = Object.freeze({
         return models;
     },
     getCachedOpenAICompatibleModels: function () {
-        const models = readOpenAICompatibleModelsCache().map(function (item) { return item.id; });
-        const selected = String(localStorage.getItem('ss_openai_compatible_model_id') || '').trim();
+        const models = getAIChatOpenAICompatibleModelIds('openai-compatible');
+        const selected = String(localStorage.getItem('ss_openai_compatible_model_id_orcarouter') || '').trim();
+        const includeSelected = localStorage.getItem(OPENAI_COMPATIBLE_FREE_ONLY_KEY) === '0'
+            || isOpenAICompatibleFreeModel(selected);
+        return Array.from(new Set(models.concat(includeSelected && selected ? [selected] : []).filter(Boolean)));
+    },
+    refreshOpenAICompatibleModels: async function () {
+        await fetchOpenAICompatibleModels(getStoredOpenAICompatibleConnection());
+        return getAIChatOpenAICompatibleModelIds('openai-compatible');
+    },
+    getCachedLemonadeModels: function () {
+        const models = getAIChatOpenAICompatibleModelIds('lemonade');
+        const selected = String(localStorage.getItem('ss_ai_chat_lemonade_model') || localStorage.getItem('ss_openai_compatible_model_id_lemonade') || LEMONADE_DEFAULT_MODEL).trim();
         return Array.from(new Set(models.concat(selected ? [selected] : []).filter(Boolean)));
     },
-    refreshOpenAICompatibleModels: function () {
-        return fetchOpenAICompatibleModels(getStoredOpenAICompatibleConnection());
+    getCachedLemonadeModelRecords: function () {
+        return getAIChatLemonadeModelRecords();
+    },
+    isLemonadeImageModel: function (modelId) {
+        return isLemonadeImageModel(findCachedLemonadeModel(modelId));
+    },
+    refreshLemonadeModels: function () {
+        return fetch(openAICompatibleRequestUrl(getStoredLemonadeConnection(), 'models'), { headers: { Accept: 'application/json', Authorization: 'Bearer lemonade' } })
+            .then(async function (response) {
+                if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
+                const models = normalizeOpenAICompatibleModels(await response.json());
+                localStorage.setItem(LEMONADE_MODELS_KEY, JSON.stringify(models));
+                return models.map(function (item) { return item.id; });
+            });
+    },
+    loadLemonadeModel: async function (modelId) {
+        const connection = getStoredLemonadeConnection();
+        const selectedModel = String(modelId || connection.modelId || '').trim();
+        if (!selectedModel) throw new Error('Lemonade 모델을 선택하세요.');
+        const imageModel = isLemonadeImageModel(findCachedLemonadeModel(selectedModel));
+        const loadBody = imageModel
+            ? { model_name: selectedModel, width: Number(String(connection.imageSize || '').split('x')[0]) || 512, height: Number(String(connection.imageSize || '').split('x')[1]) || 512, steps: connection.imageSteps, cfg_scale: connection.imageCfgScale, save_options: true }
+            : { model_name: selectedModel, ctx_size: connection.contextTokens, save_options: true };
+        const response = await fetch(openAICompatibleRequestUrl(connection, 'load'), {
+            method: 'POST',
+            headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer lemonade' },
+            body: JSON.stringify(loadBody)
+        });
+        if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
+        localStorage.setItem('ss_ai_chat_lemonade_model', selectedModel);
+        localStorage.setItem('ss_openai_compatible_model_id_lemonade', selectedModel);
+        return { model: selectedModel };
+    },
+    getCachedNPUModels: function () {
+        return readCachedNPUModels();
+    },
+    refreshNPUModels: function () {
+        return listNPUModels();
     },
     refreshLMStudioModels: async function () {
         const result = await getScholarAIProviderRuntime().syncLMStudioLoadedModel();
@@ -18214,16 +18797,63 @@ window.AIChatBridge = Object.freeze({
         const controller = new AbortController();
         aiChatAbortController = controller;
         try {
-            if (request.provider === 'openai-compatible') {
-                const connection = getStoredOpenAICompatibleConnection();
+            if (request.provider === 'ollama-npu') {
+                return await callNPUChat(request, controller.signal);
+            }
+            if (request.provider === 'openai-compatible' || request.provider === 'lemonade') {
+                const lemonade = request.provider === 'lemonade';
+                const connection = lemonade ? getStoredLemonadeConnection() : getStoredOpenAICompatibleConnection();
                 const model = String(request.model || connection.modelId || '').trim();
-                if (!model) throw new Error('OrcaRouter / OpenAI 호환 모델을 선택하세요.');
-                const messages = normalizeAIChatMessages(request.messages);
+                if (!model) throw new Error(lemonade ? 'Lemonade 모델을 선택하세요.' : 'OrcaRouter / OpenAI 호환 모델을 선택하세요.');
+                if (lemonade && isLemonadeImageModel(findCachedLemonadeModel(model))) {
+                    return await generateLemonadeImage(connection, model, request.messages, controller.signal);
+                }
+                let messages = normalizeAIChatMessages(request.messages);
                 if (request.systemInstruction) messages.unshift({ role: 'system', content: String(request.systemInstruction) });
-                const response = await fetch(connection.baseUrl + '/chat/completions', {
+                const requestedMaxTokens = Number(request.maxOutputTokens) > 0
+                    ? Math.max(1, Math.round(Number(request.maxOutputTokens)))
+                    : 0;
+                const providerMaxTokens = lemonade && Number(connection.maxOutputTokens) > 0
+                    ? Number(connection.maxOutputTokens)
+                    : requestedMaxTokens;
+                const effectiveMaxTokens = requestedMaxTokens > 0
+                    ? Math.min(requestedMaxTokens, providerMaxTokens || requestedMaxTokens)
+                    : Math.max(0, providerMaxTokens);
+                if (lemonade) {
+                    const lemonadeInputTokenCap = request.fastMode
+                        ? 1024
+                        : request.disableThinking === true
+                            ? 1536
+                        : request.mode === 'reasoning'
+                            ? 3072
+                            : 2048;
+                    messages = fitOpenAICompatibleMessages(
+                        messages,
+                        Number(connection.contextTokens) || 8192,
+                        effectiveMaxTokens || 4096,
+                        request.mode === 'reasoning',
+                        lemonadeInputTokenCap
+                    );
+                }
+                const requestBody = {
+                    model: model,
+                    messages: messages,
+                    temperature: lemonade ? connection.temperature : undefined,
+                    top_p: lemonade ? connection.topP : undefined
+                };
+                if (effectiveMaxTokens > 0) requestBody.max_tokens = effectiveMaxTokens;
+                if (lemonade && (request.disableThinking === true || request.mode !== 'reasoning')) {
+                    requestBody.chat_template_kwargs = { enable_thinking: false };
+                    requestBody.enable_thinking = false;
+                    requestBody.thinking = false;
+                }
+                if (typeof request.onStreamEvent === 'function') {
+                    return await streamOpenAICompatibleChat(connection, requestBody, controller.signal, request.onStreamEvent);
+                }
+                const response = await fetch(openAICompatibleRequestUrl(connection, 'chat/completions'), {
                     method: 'POST',
                     headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer ' + connection.apiKey },
-                    body: JSON.stringify({ model: model, messages: messages, stream: false }),
+                    body: JSON.stringify(Object.assign({}, requestBody, { stream: false })),
                     signal: controller.signal
                 });
                 if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
@@ -18231,12 +18861,14 @@ window.AIChatBridge = Object.freeze({
                 const choice = data && data.choices && data.choices[0] || {};
                 const message = choice.message || {};
                 return {
-                    provider: 'openai-compatible',
-                    model: String(data.model || model),
+                    provider: lemonade ? 'lemonade' : 'openai-compatible',
+                    model: lemonade ? model : String(data.model || model),
                     text: String(message.content || choice.text || ''),
                     reasoning: String(message.reasoning_content || message.reasoning || ''),
                     finishReason: choice.finish_reason || '',
                     usage: data.usage || null,
+                    contextLength: Number(connection.contextTokens) || null,
+                    maxOutputTokens: Number(requestBody.max_tokens) || null,
                     responseId: data.id || null
                 };
             }
@@ -18262,7 +18894,8 @@ window.AIChatBridge = Object.freeze({
                     request.model,
                     controller.signal,
                     request.mode,
-                    typeof request.onStreamEvent === 'function' ? request.onStreamEvent : undefined
+                    typeof request.onStreamEvent === 'function' ? request.onStreamEvent : undefined,
+                    { maxOutputTokens: request.maxOutputTokens }
                 );
                 return {
                     provider: 'ollama',
@@ -18358,13 +18991,19 @@ window.AIChatBridge = Object.freeze({
             const configuredReasoning = String(config.reasoningLevel || 'auto').toLowerCase();
             const fastMode = request.fastMode === true;
             const configuredFastMaxTokens = Math.max(1, Number(config.fastMaxTokens) || 3000);
-            const configuredFastTimeoutMs = Math.max(1000, Number(config.fastTimeoutMs) || 120000);
+            const configuredQuickMaxTokens = Math.max(1, Number(config.quickMaxTokens) || 4096);
+            const configuredReasoningMaxTokens = Math.max(1, Number(config.reasoningMaxTokens) || 8192);
+            const requestedModeMaxTokens = Number(request.maxOutputTokens) > 0
+                ? Math.max(1, Math.round(Number(request.maxOutputTokens)))
+                : (fastMode ? configuredFastMaxTokens : (reasoningMode ? configuredReasoningMaxTokens : configuredQuickMaxTokens));
+            const modeMaxTokens = Math.min(configuredMaxTokens, requestedModeMaxTokens);
+            const configuredFastTimeoutMs = Math.max(1000, Number(config.fastTimeoutMs) || 180000);
             const fastSafetyTimeoutMs = config.fastSafetyTimeout === false
                 ? configuredFastTimeoutMs
                 : Math.max(configuredFastTimeoutMs, 120000);
             const requestedOutputTokens = request.academicSearch
                 ? academicMaxTokens
-                : (fastMode ? Math.min(configuredFastMaxTokens, configuredMaxTokens) : (contextLength || configuredMaxTokens));
+                : modeMaxTokens;
             const baseSystemPrompt = [request.systemInstruction || '', modeInstruction].filter(Boolean).join('\n\n');
             const fixedInputTokens = estimateAIChatTokens(baseSystemPrompt) + estimateAIChatTokens(messages[lastUserIndex].content);
             const historyOutputReserve = getAIChatHistoryOutputReserve(contextLength, requestedOutputTokens, reasoningMode);
@@ -18384,7 +19023,7 @@ window.AIChatBridge = Object.freeze({
                 : configuredMaxTokens;
             const requestMaxTokens = Math.max(1, Math.min(
                 contextOutputBudget,
-                request.academicSearch ? academicMaxTokens : (fastMode ? configuredFastMaxTokens : contextOutputBudget)
+                requestedOutputTokens
             ));
             const minimumTimeout = continuationMode
                 ? 600000
@@ -18551,6 +19190,13 @@ function ensureSidebarAILoaded() {
             /**
              */
             generateImage: async function (prompt, options) {
+                const imageProvider = String(options && options.provider || localStorage.getItem('ss_image_provider') || 'aistudio').toLowerCase();
+                if (imageProvider === 'lemonade') {
+                    const ctrl = new AbortController();
+                    window._abortController = ctrl;
+                    try { return await generateLemonadeSspImage(prompt, options || {}, ctrl.signal); }
+                    finally { if (window._abortController === ctrl) window._abortController = null; }
+                }
                 const key = getProtectedAiCredential('gemini', 'ss_gemini_api_key');
                 if (!key || !String(key).trim()) throw new Error('API key is missing. Save your Gemini API key in Settings.');
                 const ctrl = new AbortController();
@@ -18680,24 +19326,47 @@ function ensureSidebarAILoaded() {
                 notifyAiToolSettingsChanged();
                 return result;
             },
-            getImageModelId: function () {
-                const saved = localStorage.getItem('ss_image_model') || 'gemini-3.1-flash-image';
+            getImageModelId: function (provider) {
+                const lemonade = String(provider || localStorage.getItem('ss_image_provider') || '').toLowerCase() === 'lemonade';
+                const saved = localStorage.getItem(lemonade ? 'ss_image_model_lemonade' : 'ss_image_model') || (lemonade ? 'Flux-2-Klein-4B' : 'gemini-3.1-flash-image');
                 if (saved === 'gemini-3.1-flash-image-preview') return 'gemini-3.1-flash-image';
                 if (saved === 'gemini-3-pro-image-preview') return 'gemini-3-pro-image';
                 return saved;
             },
-            setImageModelId: function (id) {
-                const value = String(id || 'gemini-3.1-flash-image').trim().slice(0, 256) || 'gemini-3.1-flash-image';
-                localStorage.setItem('ss_image_model', value);
+            setImageModelId: function (id, provider) {
+                const lemonade = String(provider || localStorage.getItem('ss_image_provider') || '').toLowerCase() === 'lemonade';
+                const fallback = lemonade ? 'Flux-2-Klein-4B' : 'gemini-3.1-flash-image';
+                const value = String(id || fallback).trim().slice(0, 256) || fallback;
+                localStorage.setItem(lemonade ? 'ss_image_model_lemonade' : 'ss_image_model', value);
                 notifyAiToolSettingsChanged();
                 return value;
+            },
+            getSspimgImageProvider: function () {
+                return localStorage.getItem('ss_image_provider') === 'lemonade' ? 'lemonade' : 'aistudio';
+            },
+            setSspimgImageProvider: function (provider) {
+                const value = String(provider || '').toLowerCase() === 'lemonade' ? 'lemonade' : 'aistudio';
+                localStorage.setItem('ss_image_provider', value);
+                notifyAiToolSettingsChanged();
+                return value;
+            },
+            getCachedLemonadeImageModels: function () {
+                return getAIChatLemonadeModelRecords().filter(function (item) { return item.kind === 'image'; }).map(function (item) { return item.id; });
+            },
+            refreshLemonadeImageModels: async function () {
+                const response = await fetch(openAICompatibleRequestUrl(getStoredLemonadeConnection(), 'models'), { headers: { Accept: 'application/json', Authorization: 'Bearer lemonade' } });
+                if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
+                const models = normalizeOpenAICompatibleModels(await response.json());
+                localStorage.setItem(LEMONADE_MODELS_KEY, JSON.stringify(models));
+                return models.filter(isLemonadeImageModel).map(function (item) { return item.id; });
             },
             getSspimgSettings: function () {
                 return {
                     prompt: localStorage.getItem('ss_image_prompt') || '',
                     prompt2: localStorage.getItem('ss_image_prompt_2') || '',
                     ratio: localStorage.getItem('ss_image_ratio') || '1:1',
-                    noText: localStorage.getItem('ss_image_no_text') === 'true'
+                    noText: localStorage.getItem('ss_image_no_text') === 'true',
+                    provider: localStorage.getItem('ss_image_provider') === 'lemonade' ? 'lemonade' : 'aistudio'
                 };
             },
             saveSspimgSettings: function (settings) {
@@ -18706,6 +19375,7 @@ function ensureSidebarAILoaded() {
                 localStorage.setItem('ss_image_prompt_2', String(value.prompt2 || '').slice(0, 65536));
                 localStorage.setItem('ss_image_ratio', String(value.ratio || '1:1').slice(0, 16));
                 localStorage.setItem('ss_image_no_text', value.noText === true ? 'true' : 'false');
+                if (value.provider) localStorage.setItem('ss_image_provider', value.provider === 'lemonade' ? 'lemonade' : 'aistudio');
                 notifyAiToolSettingsChanged();
             },
             abortCurrentTask: function () {
@@ -18736,7 +19406,7 @@ function ensureSidebarAILoaded() {
     };
     const script = document.createElement('script');
     const base = getDocumentBaseUrl();
-    const aiSidebarScriptVersion = '20260824-lm-load-1';
+    const aiSidebarScriptVersion = '20261019-sspimg-lemonade-1';
     try {
         const u = new URL('./sidebarAI/sidebar-ai.js', base);
         u.searchParams.set('v', aiSidebarScriptVersion);
@@ -19018,6 +19688,7 @@ async function loadAiSettingsToUI() {
     const settings = await getAiSettings();
     applyFeatureToolNameVisibility(settings || FIRST_RUN_AI_SETTINGS_DEFAULTS);
     loadOpenAICompatibleSettingsUI(settings);
+    loadLemonadeSettingsUI();
     loadOllamaSettingsToUI();
     loadLiteRTLMSettingsToUI();
     const googleCalendarEnabled = settings && typeof settings.googleCalendarEnabled === 'boolean'

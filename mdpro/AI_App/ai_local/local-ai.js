@@ -26,7 +26,7 @@
     quickMaxTokens: 4096,
     reasoningMaxTokens: 8192,
     fastMaxTokens: 3000,
-    fastTimeoutMs: 120000,
+    fastTimeoutMs: 180000,
     fastSafetyTimeout: true,
     fastCompleteStreaming: true,
     reasoningLevel: 'auto',

@@ -3,7 +3,7 @@ import PanelResizeHandles from './PanelResizeHandles.jsx';
 
 const FMA_WIDTH_KEY = 'webdav-fma-panel-width';
 const APP_BASE_URL = import.meta.env.BASE_URL;
-const MDPRO_URL = `${APP_BASE_URL}mdpro/index.html?webdav=1&editor=cm6&ui=20260912-mobile-header-portal-2&singleScroll=20260913-2&caretSync=20260913-1&modeScroll=20260915-1&codeCopy=20260920-2&selectionWrap=20260920-1&editorPlaceholder=20260920-1&screenCapture=20260920-capture-tool-1&lineCopy=20260922-1`;
+const MDPRO_URL = `${APP_BASE_URL}mdpro/index.html?webdav=1&editor=cm6&ui=20260912-mobile-header-portal-2&singleScroll=20260913-2&caretSync=20260913-1&modeScroll=20260915-1&codeCopy=20260920-2&selectionWrap=20260920-1&editorPlaceholder=20260920-1&screenCapture=20260920-capture-tool-1&lineCopy=20260922-1&aiProviders=20261019-mode-quality-3&sidebarCleanup=20261019-2`;
 const FMA_URL = `${APP_BASE_URL}mdpro/Apps/fmaviewer/index.html?embedded=1`;
 
 export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, onSaveSettingsMset, onLoadSettingsMset, onReadCredentialVault, onWriteCredentialVault, selectedFile, content, binaryContent, fmaImportBatch, loading, saving, explorerWidth, panelResizeEnabled, onSave, onSaveAs, onDocumentChange, onSaveImageToFolder, onClose, onToggleExplorer, onShowDocumentExplorer, onOpenExplorer, onOpenFolderExplorer, onOpenRecentWork, onRequestCreateFile, onOpenTocPopup, onThemeChange, autosaveEnabled }) {
@@ -84,7 +84,7 @@ export default function MdproEditor({ onReadJenaRecords, onSaveJenaRecord, onSav
     if (!frameDocument || frameDocument.getElementById('webdav-host-bridge-script')) return;
     const script = frameDocument.createElement('script');
     script.id = 'webdav-host-bridge-script';
-    script.src = `${APP_BASE_URL}mdpro/js/webdav-host-bridge.js?v=20260912-save-and-close-1`;
+    script.src = `${APP_BASE_URL}mdpro/js/webdav-host-bridge.js?v=20261019-sidebar-cleanup-1`;
     frameDocument.body.appendChild(script);
   };
 
