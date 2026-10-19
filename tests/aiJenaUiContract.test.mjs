@@ -137,6 +137,7 @@ test('Lemonade model can be loaded directly from AI Jena detail settings', () =>
 
 test('AI Jena uses one shared mode-limit panel without duplicate Ollama controls', () => {
   assert.doesNotMatch(chatScript, /id="ai-chat-npu-connect"/);
+  assert.doesNotMatch(chatStyles, /#ai-chat-npu-connect/);
   assert.doesNotMatch(markup, /Lemonade AI · NPU 연결/);
   assert.match(chatScript, /id="ai-chat-mode-limit-settings"/);
   assert.match(chatScript, /modeLimitSettings\.hidden = false/);
@@ -184,8 +185,8 @@ test('selection import reflows by the AI Jena composer width', () => {
   assert.match(chatStyles, /@container \(max-width: 430px\)[\s\S]*\.ai-chat-panel:not\(\.layout-floating\) \.ai-chat-compose-actions/);
   assert.match(chatStyles, /\.ai-chat-import-selection \{[\s\S]*grid-column:\s*span 4[\s\S]*text-overflow:\s*clip/);
   assert.match(chatStyles, /\.ai-chat-realtime-toolbar \{[\s\S]*grid-column:\s*span 3/);
-  assert.match(markup, /ai-chat\.css\?v=20261019-image-preview-settings-3/);
-  assert.match(appScript, /ai-chat\.js\?v=20261019-image-preview-settings-3/);
+  assert.match(markup, /ai-chat\.css\?v=20261019-settings-cleanup-1/);
+  assert.match(appScript, /ai-chat\.js\?v=20261019-settings-cleanup-1/);
 });
 
 test('AI Jena exposes and applies FAST, quick, reasoning, and hard output token limits', () => {

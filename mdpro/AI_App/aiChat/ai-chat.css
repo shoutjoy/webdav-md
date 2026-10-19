@@ -706,7 +706,6 @@ html.ai-chat-page-pushed .ai-chat-panel.layout-popup {
 }
 .ai-chat-provider-row select:disabled { opacity: 1; color: #cfe0fa; -webkit-text-fill-color: #cfe0fa; }
 .ai-chat-provider-row button { width: 34px; height: 34px; padding: 0; font-size: 18px; }
-#ai-chat-npu-connect { grid-column: 1 / -1; width: 100%; height: auto; min-height: 34px; padding: 6px 10px; font-size: 12px; }
 .ai-chat-writing-style-row {
   display: grid;
   grid-template-columns: minmax(0, 180px) auto minmax(0, 160px) auto;
