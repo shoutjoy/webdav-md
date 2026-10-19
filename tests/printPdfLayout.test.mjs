@@ -32,7 +32,9 @@ test('mobile print DOM remains mounted until the browser finishes printing', () 
   assert.match(printFunction, /await waitForPrintLayout\(\)/);
   assert.match(printFunction, /classList\.add\('printing-active'\);\s*await waitForPrintLayout\(\)/s);
   assert.doesNotMatch(printFunction, /setTimeout\(async \(\) =>/);
-  assert.match(printFunction, /matchMedia\('print'\)/);
+  assert.match(printFunction, /printWindow\.matchMedia\('print'\)/);
+  assert.match(printFunction, /syncHostPrintDocument\(\)/);
+  assert.match(printFunction, /printWindow\.print\(\)/);
   assert.match(printFunction, /addEventListener\('afterprint', cleanup/);
   assert.doesNotMatch(printFunction, /setTimeout\(cleanup,\s*1000\)/);
   assert.match(printFunction, /setTimeout\(cleanup,\s*300000\)/);
@@ -82,4 +84,22 @@ test('PDF save confirms, reports progress, and supports cancellation', () => {
   assert.match(pdfSource, /state\.exportJob\.cancelled = true/);
   assert.match(pdfSource, /throwIfPdfCancelled\(job\)/);
   assert.match(pdfSource, /updatePdfProgress\(state, 100, 'PDF 파일을 저장하고 있습니다…'\)/);
+});
+
+test('printing resets the app viewport and removes screen pagination constraints', () => {
+  assert.match(appStyles, /html, body\s*\{[^}]*display:\s*block !important[^}]*width:\s*100% !important[^}]*height:\s*auto !important/s);
+  const preparation = appSource.slice(appSource.indexOf('function syncPrintRootFromViewer()'), appSource.indexOf('function convertPrintMermaidSvgsToImages'));
+  assert.match(preparation, /sheet\.replaceWith\(\.\.\.Array\.from\(content\.childNodes\)\)/);
+  assert.match(preparation, /frame\.replaceWith\(\.\.\.Array\.from\(frame\.childNodes\)\)/);
+});
+
+test('embedded and browser-menu print use a top-level document and clean up their styles', () => {
+  const hostPrint = appSource.slice(appSource.indexOf('function getDocumentPrintWindow()'), appSource.indexOf('function clearPrintRoot()'));
+  assert.match(hostPrint, /window\.top\.document/);
+  assert.match(hostPrint, /copy\.media = 'print'/);
+  assert.match(hostPrint, /host\.document\.body\.appendChild\(root\)/);
+  assert.match(hostPrint, /host\.addEventListener\('beforeprint', handleBeforePrint\)/);
+  assert.match(hostPrint, /host\.removeEventListener\('beforeprint', handleBeforePrint\)/);
+  assert.match(hostPrint, /event\.key\.toLowerCase\(\) === 'p'/);
+  assert.match(hostPrint, /event\.preventDefault\(\)/);
 });

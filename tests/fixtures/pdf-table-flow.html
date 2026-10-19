@@ -1,0 +1,13 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>PDF 표 연속 배치 검증</title>
+<link rel="stylesheet" href="../../mdpro/css/style.css">
+<script src="../../mdpro/vendor/html2canvas/html2canvas.min.js"></script><script src="../../mdpro/vendor/jspdf/jspdf.umd.min.js"></script><script src="../../mdpro/js/export/pdf-export.js?v=table-flow-check"></script>
+</head><body><button id="open">표 연속 배치 검증</button><p id="result"></p><script>
+document.getElementById('open').onclick=async()=>{
+let table='<table style="width:100%"><thead><tr><th>분류</th><th>지표 및 내용</th></tr></thead><tbody>';
+for(let i=0;i<90;i++)table+='<tr data-test-row="'+i+'">'+(i%3===0?'<td rowspan="3">그룹 '+i/3+'</td>':'')+'<td>지표 '+i+' · 표는 제목 바로 아래부터 페이지를 이어서 배치합니다.</td></tr>';
+table+='</tbody><tfoot><tr><td colspan="2">표 끝 · 각 행과 병합 셀 보존</td></tr></tfoot></table>';
+const html='<main class="mdviewer-export-document"><div class="markdown-body"><section class="a4-sheet"><div class="a4-view-content"><p>표 앞의 본문입니다.</p><h2>모형적합도 지수 종합 정리표</h2></div></section><section class="a4-sheet"><div class="a4-view-content">'+table+'<div class="page-break"></div><p>사용자가 지정한 새 페이지</p></div></section></div></main>';
+await PdfExport.openPreview({html,fileName:'pdf-table-flow',documentKey:'pdf-table-flow-fixture'});
+document.getElementById('result').textContent='미리보기 닫힘';
+};
+</script></body></html>

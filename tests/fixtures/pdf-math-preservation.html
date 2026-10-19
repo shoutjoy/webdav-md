@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>PDF 수식 보존 검증</title>
+<link rel="stylesheet" href="../../mdpro/css/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<style>body{background:#e2e8f0;padding:24px;font-family:system-ui}#source{max-width:700px;padding:24px;background:white}#result{white-space:pre-wrap}</style>
+<script>window.MathJax={startup:{typeset:false},tex:{inlineMath:[['$','$']]}};</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="../../mdpro/vendor/html2canvas/html2canvas.min.js"></script>
+<script src="../../mdpro/vendor/jspdf/jspdf.umd.min.js"></script>
+<script src="../../mdpro/js/export/pdf-export.js"></script>
+</head><body>
+<h1>PDF 수식 보존 검증</h1><button id="prepare">검증 문서 준비</button><button id="open" disabled>PDF 미리보기 열기</button><button id="invalid">오류 차단 검증</button><pre id="result"></pre><div id="source" class="markdown-body"></div>
+<script>
+const source=document.getElementById('source');
+const formulas=[String.raw`CR=\frac{(\sum_i\lambda_i)^2}{(\sum_i\lambda_i)^2+\sum_i(1-\lambda_i^2)}`,
+String.raw`AVE=\frac{\sum_i\lambda_i^2}{\sum_i\lambda_i^2+\sum_i(1-\lambda_i^2)}`,
+String.raw`\mathrm{HTMT}_{ij}=\frac{\frac{1}{K_iK_j}\sum_{g=1}^{K_i}\sum_{h=1}^{K_j}r_{ig,jh}}{\sqrt{\left(\frac{2}{K_i(K_i-1)}\sum_{g=1}^{K_i-1}\sum_{h=g+1}^{K_i}r_{ig,ih}\right)\left(\frac{2}{K_j(K_j-1)}\sum_{g=1}^{K_j-1}\sum_{h=g+1}^{K_j}r_{jg,jh}\right)}}`];
+document.getElementById('prepare').onclick=async()=>{
+ source.innerHTML='<h2>MathJax: CR · AVE · HTMT</h2>';
+ for(const formula of formulas){const p=document.createElement('p');p.textContent='\\['+formula+'\\]';source.appendChild(p);}
+ const inline=document.createElement('p');inline.textContent=String.raw`인라인 수식 $r>.80$, $AVE<.50$, $p<.05$ 사이의 한국어 문장과 줄 높이를 보존합니다.`;source.appendChild(inline);
+ await MathJax.startup.promise;await MathJax.typesetPromise([source]);
+ const list=document.createElement('ul');const item=document.createElement('li');item.textContent='목록 안의 긴 HTMT 수식도 페이지 너비에 맞춥니다.';
+ const katexBlock=document.createElement('div');katex.render(formulas[2],katexBlock,{displayMode:true});item.appendChild(katexBlock);list.appendChild(item);source.appendChild(list);
+ const long=document.createElement('p');long.textContent=('페이지 경계에서도 앞뒤 문장을 보존하고 수식은 하나의 객체로 유지합니다. ').repeat(180)+String.raw` $\frac{\alpha_i^2}{1+\beta_j}$ `+('수식 다음의 내용도 빠지지 않습니다. ').repeat(80);source.appendChild(long);
+ const code=document.createElement('pre');code.textContent='코드 속 $keep_me$ 는 수식으로 변환하면 안 됩니다.';source.appendChild(code);
+ document.getElementById('open').disabled=false;document.getElementById('result').textContent='준비 완료: MathJax 6개 + KaTeX 1개 + 원시 TeX 1개 = 수식 8개';
+};
+document.getElementById('open').onclick=async()=>{
+ const before=source.innerHTML;
+ await PdfExport.openPreview({html:'<main class="mdviewer-export-document">'+source.outerHTML+'</main>',fileName:'pdf-math-preservation'});
+ document.getElementById('result').textContent='미리보기 닫힘 · 원본 보존: '+(before===source.innerHTML);
+};
+document.getElementById('invalid').onclick=async()=>{
+ try { await PdfExport.openPreview({html:'<p>잘못된 수식 $\\thisCommandDoesNotExist{x}$</p>',fileName:'must-not-download'}); }
+ catch(error) { document.getElementById('result').textContent='오류 차단됨: '+error.message; }
+};
+</script></body></html>

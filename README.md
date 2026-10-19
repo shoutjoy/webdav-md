@@ -1,5 +1,22 @@
 # React + Vite
 
+## Print and PDF output rules
+
+[docs/PRINT_PDF_RULES.md](docs/PRINT_PDF_RULES.md) defines the mandatory print/PDF contract for this app and ports to MDproViewer or other Markdown apps. It includes rule IDs, long-formula fitting, pagination and content preservation, known implementation gaps, agent instructions, and output verification criteria. Follow it before changing or porting these features; copying the document alone does not establish compliance.
+
+## Mermaid image conversion and document export
+
+MDPRO uses one shared Mermaid export pipeline for view-mode image insertion and document export.
+
+- View mode provides `SVG` and `PNG` image insertion buttons beside `맞춤`.
+- PNG export preserves Mermaid label colors, removes inherited text strokes, and renders at a target scale of 8× (bounded by the browser canvas limit).
+- DOCX export includes both the high-resolution Mermaid image and the original reusable Mermaid source code.
+- PDF export uses the same high-resolution PNG renderer, preserves aspect ratio, and avoids splitting a diagram across pages.
+- Images in the PDF preview can be selected and resized with the mouse before the PDF is saved.
+- Export from edit mode recreates the real view-mode layout off-screen and verifies that every Mermaid wrapper contains a completed SVG before continuing.
+
+Implementation and porting details for MDproViewer or another Markdown application are documented in [docs/MERMAID_IMAGE_EXPORT_TECHNICAL_GUIDE.md](docs/MERMAID_IMAGE_EXPORT_TECHNICAL_GUIDE.md).
+
 ## Windows local app
 
 Download the repository source, install Node.js, then double-click `run-local.cmd`.

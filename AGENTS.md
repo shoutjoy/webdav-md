@@ -1,5 +1,11 @@
 # Repository UI preservation rules
 
+## Required print and PDF contract
+
+- Before changing printing, PDF export, preview pagination, or output handling for math, Mermaid, tables, and images, read and follow `docs/PRINT_PDF_RULES.md` (`MDPRO-PRINT-PDF-CONTRACT`).
+- Preserve its C/P/D rule IDs and required behavior when porting to MDproViewer or another app. Copy and connect the contract to that app's developer instructions, map each rule to its implementation, and verify actual output.
+- Existing clipping fallbacks are documented limitations, not permitted behavior. Report unresolved mandatory rules as partial compliance; do not claim full compliance from a successful build alone.
+
 ## Preserve existing features
 
 - Treat every existing visible control, keyboard shortcut, menu entry, setting, and interaction as part of the product contract.
