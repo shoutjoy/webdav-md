@@ -76,3 +76,13 @@ test('miniPV ED sync follows the current editor caret line', () => {
     assert.match(script, /syncMiniPreviewToLine\(caretLine, syncContext, \{ keepPending: false \}\)/);
     assert.match(script, /document\.addEventListener\('selectionchange'/);
 });
+
+test('miniPV can dock into the left sidebar and restore its previous content', () => {
+    const sidebar = readFileSync(new URL('../mdpro/sidebar_left/sidebar-left.js', import.meta.url), 'utf8');
+    assert.match(sidebar, /toggleMiniPreviewSidebarDock\(\)[^\n]*id="mdpro-sidebar-minipv-button"/);
+    assert.match(sidebar, /id="sidebar-mini-preview-host"/);
+    assert.match(script, /host\.appendChild\(miniPreviewPanel\)/);
+    assert.match(script, /miniPreviewPanel\.classList\.add\('mini-preview-sidebar-docked'\)/);
+    assert.match(script, /window\.MiniPreviewUI\.undockSidebar = undockMiniPreviewFromSidebar/);
+    assert.match(script, /miniPreviewWasEnabledBeforeDock/);
+});

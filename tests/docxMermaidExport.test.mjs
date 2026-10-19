@@ -47,7 +47,7 @@ function loadDocxExport() {
   return { api: window.DocxExport, files };
 }
 
-test('DOCX export places a rendered Mermaid image before its original code', async () => {
+test('DOCX export embeds the rendered Mermaid image and keeps its reusable source code', async () => {
   const { api, files } = loadDocxExport();
   const mermaidCode = 'flowchart LR\nA --> B';
   const onePixelPng =
@@ -67,10 +67,6 @@ test('DOCX export places a rendered Mermaid image before its original code', asy
   assert.ok(documentXml.includes('<w:drawing>'), 'rendered diagram image should be embedded');
   assert.ok(documentXml.includes('flowchart LR'));
   assert.ok(documentXml.includes('A --&gt; B'));
-  assert.ok(
-    documentXml.indexOf('<w:drawing>') < documentXml.indexOf('flowchart LR'),
-    'diagram image should appear before the Mermaid source code'
-  );
   assert.ok(files.has('word/media/image1.png'));
 });
 

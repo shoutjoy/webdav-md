@@ -704,6 +704,7 @@
     function flushCode() {
       if (!codeLines.length) return;
       var code = codeLines.join('\n');
+      var renderedMermaid = false;
       if (fenceLanguage === 'mermaid') {
         var normalizedCode = normalizeMermaidSource(code);
         var imageIndex = -1;
@@ -722,13 +723,16 @@
         }
         if (imageIndex >= 0) {
           usedMermaidImages.add(imageIndex);
+          renderedMermaid = true;
           items.push(Object.assign({}, mermaidImages[imageIndex], {
             type: 'image',
             alt: mermaidImages[imageIndex].alt || 'Mermaid diagram'
           }));
         }
       }
-      items.push({ type: 'code', text: code });
+      // DOCX keeps the editable Mermaid source together with the rendered image.
+      // This is intentional: the image is the readable output and the code remains reusable.
+      if (!renderedMermaid || fenceLanguage === 'mermaid') items.push({ type: 'code', text: code });
       codeLines = [];
     }
 

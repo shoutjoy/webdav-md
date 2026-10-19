@@ -150,9 +150,9 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     docxImport: './js/extendFiles/docx-import.js?v=20260817-dark-table-contrast-1',
     pdfJs: './js/extendFiles/pdfjs-loader.mjs?v=20260815-editable-2',
     pdfOpen: './js/extendFiles/pdf-open.js?v=20260815-editable-1',
-    docxExport: './js/extendFiles/docx-export.js?v=20260922-mermaid-live-image-2',
+    docxExport: './js/extendFiles/docx-export.js?v=20261020-mermaid-image-and-source-1',
     htmlExport: './js/export/html-export.js?v=20260805-image-1',
-    pdfExport: './js/export/pdf-export.js?v=20260928-progress-cancel-2',
+    pdfExport: './js/export/pdf-export.js?v=20261020-image-resize-1',
     html2canvas: './vendor/html2canvas/html2canvas.min.js?v=1.4.1',
     jsPdf: './vendor/jspdf/jspdf.umd.min.js?v=4.2.1',
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
@@ -4688,7 +4688,8 @@ async function renderMarkdown(options) {
             }
         } catch (e) {}
         try {
-            if (snapshot.features.hasMermaid
+            if (!opts.skipMermaidHydration
+                && snapshot.features.hasMermaid
                 && window.MermaidTRT
                 && typeof window.MermaidTRT.renderIn === 'function') {
                 window.MermaidTRT.renderIn(viewer).catch(function () {});
@@ -6168,28 +6169,105 @@ async function resolveDocxExportImage(src) {
     return record && record.blob ? { blob: record.blob } : null;
 }
 
+async function withPreparedMermaidExportViewer(exportLabel, callback) {
+    if (!viewer) return await callback(viewer);
+    const exportViewerContainer = document.getElementById('viewer-container');
+    const savedStyle = viewer.getAttribute('style');
+    const savedContainerStyle = exportViewerContainer ? exportViewerContainer.getAttribute('style') : null;
+    const savedHidden = viewer.hidden;
+    const hadHiddenClass = viewer.classList.contains('hidden');
+    const hadContainerHiddenClass = !!(exportViewerContainer && exportViewerContainer.classList.contains('hidden'));
+    const hadViewerModeClass = document.body.classList.contains('viewer-view-mode');
+    const hasMermaidSource = /```\s*mermaid\b/i.test(String(currentMarkdown || ''));
+    try {
+        // Mermaid needs a laid-out container to calculate node and label geometry. In edit
+        // mode the whole view container and its typography rules are disabled. Recreate the
+        // real view-mode layout off-screen so export uses exactly the visible Mermaid geometry.
+        document.body.classList.add('viewer-view-mode');
+        if (exportViewerContainer) {
+            exportViewerContainer.classList.remove('hidden');
+            exportViewerContainer.style.setProperty('display', 'block', 'important');
+            exportViewerContainer.style.setProperty('position', 'fixed', 'important');
+            exportViewerContainer.style.setProperty('left', '-100000px', 'important');
+            exportViewerContainer.style.setProperty('top', '0', 'important');
+            exportViewerContainer.style.setProperty('width', '960px', 'important');
+            exportViewerContainer.style.setProperty('height', 'auto', 'important');
+            exportViewerContainer.style.setProperty('opacity', '0', 'important');
+            exportViewerContainer.style.setProperty('pointer-events', 'none', 'important');
+            exportViewerContainer.style.setProperty('overflow', 'visible', 'important');
+        }
+        viewer.hidden = false;
+        viewer.classList.remove('hidden');
+        viewer.style.setProperty('display', 'block', 'important');
+        viewer.style.setProperty('width', '100%', 'important');
+        viewer.style.setProperty('height', 'auto', 'important');
+        viewer.style.setProperty('pointer-events', 'none', 'important');
+        viewer.style.setProperty('overflow', 'visible', 'important');
+
+        await renderMarkdown({ force: true, skipMermaidHydration: true });
+        if (window.MermaidTRT && typeof window.MermaidTRT.renderIn === 'function') {
+            await window.MermaidTRT.renderIn(viewer);
+        }
+        await new Promise(function (resolve) {
+            requestAnimationFrame(function () { requestAnimationFrame(resolve); });
+        });
+
+        const wrapperCount = viewer.querySelectorAll('.trt-mermaid-wrapper').length;
+        const renderedSvgCount = viewer.querySelectorAll('.trt-mermaid-wrapper svg').length;
+        if (hasMermaidSource && (wrapperCount === 0 || renderedSvgCount !== wrapperCount)) {
+            throw new Error((exportLabel || 'Export') + ': Mermaid rendering did not complete; raw source export was stopped.');
+        }
+        return await callback(viewer);
+    } finally {
+        if (savedStyle === null) viewer.removeAttribute('style');
+        else viewer.setAttribute('style', savedStyle);
+        if (exportViewerContainer) {
+            if (savedContainerStyle === null) exportViewerContainer.removeAttribute('style');
+            else exportViewerContainer.setAttribute('style', savedContainerStyle);
+            exportViewerContainer.classList.toggle('hidden', hadContainerHiddenClass);
+        }
+        document.body.classList.toggle('viewer-view-mode', hadViewerModeClass);
+        viewer.hidden = savedHidden;
+        viewer.classList.toggle('hidden', hadHiddenClass);
+    }
+}
+
 async function createCurrentDocumentDocxBlob() {
     syncCurrentMarkdownFromEditor();
-    await renderMarkdown({ force: true });
-    if (viewer && window.MermaidTRT && typeof window.MermaidTRT.renderIn === 'function') {
-        try {
-            await window.MermaidTRT.renderIn(viewer);
-        } catch (error) {
-            console.warn('Mermaid render before DOCX export failed:', error);
-        }
-    }
     await loadOptionalScript('docxExport', function () {
         return !!window.DocxExport && typeof window.DocxExport.createBlob === 'function';
     });
-    const mermaidImages = window.DocxExport && typeof window.DocxExport.collectMermaidImages === 'function'
-        ? window.DocxExport.collectMermaidImages(viewer)
-        : [];
-    return window.DocxExport.createBlob({
-        content: String(currentMarkdown || ''),
-        html: getRenderedHtmlForDocxExport(),
-        mermaidImages,
-        baseUrl: document.baseURI,
-        resolveImage: resolveDocxExportImage
+    return await withPreparedMermaidExportViewer('DOCX export', async function () {
+        let mermaidImages = [];
+        if (viewer && window.MermaidTRT && typeof window.MermaidTRT.exportWrapperImage === 'function') {
+            const wrappers = Array.from(viewer.querySelectorAll('.trt-mermaid-wrapper'));
+            mermaidImages = (await Promise.all(wrappers.map(async function (wrapper) {
+                try {
+                    const rendered = await window.MermaidTRT.exportWrapperImage(wrapper, 'png');
+                    return {
+                        type: 'image',
+                        src: rendered.dataUrl,
+                        alt: 'Mermaid diagram',
+                        width: rendered.width,
+                        height: rendered.height,
+                        mermaidSource: String(wrapper.getAttribute('data-mermaid-original-source') || wrapper.getAttribute('data-mermaid-source') || '')
+                    };
+                } catch (error) {
+                    console.warn('Mermaid PNG render for DOCX failed:', error);
+                    return null;
+                }
+            }))).filter(Boolean);
+        }
+        if (!mermaidImages.length && window.DocxExport && typeof window.DocxExport.collectMermaidImages === 'function') {
+            mermaidImages = window.DocxExport.collectMermaidImages(viewer);
+        }
+        return window.DocxExport.createBlob({
+            content: String(currentMarkdown || ''),
+            html: getRenderedHtmlForDocxExport(),
+            mermaidImages,
+            baseUrl: document.baseURI,
+            resolveImage: resolveDocxExportImage
+        });
     });
 }
 
@@ -6197,6 +6275,36 @@ async function exportCurrentDocumentAsDocx() {
     const blob = await createCurrentDocumentDocxBlob();
     downloadBlobFile(blob, getDocxSaveFileName());
     return true;
+}
+
+async function createPdfRenderedElement() {
+    if (!viewer || !viewer.cloneNode) return viewer;
+    const clone = viewer.cloneNode(true);
+    if (!window.MermaidTRT || typeof window.MermaidTRT.exportWrapperImage !== 'function') return clone;
+
+    const sourceWrappers = Array.from(viewer.querySelectorAll('.trt-mermaid-wrapper'));
+    const clonedWrappers = Array.from(clone.querySelectorAll('.trt-mermaid-wrapper'));
+    await Promise.all(sourceWrappers.map(async function (wrapper, index) {
+        const clonedWrapper = clonedWrappers[index];
+        if (!clonedWrapper) return;
+        try {
+            const rendered = await window.MermaidTRT.exportWrapperImage(wrapper, 'png');
+            const figure = document.createElement('figure');
+            figure.className = 'pdf-mermaid-rendered-image';
+            figure.style.cssText = 'display:flex;width:100%;max-height:250mm;margin:12px 0;align-items:center;justify-content:center;break-inside:avoid;page-break-inside:avoid;overflow:hidden;';
+            const image = document.createElement('img');
+            image.src = rendered.dataUrl;
+            image.alt = 'Mermaid diagram';
+            image.width = rendered.width;
+            image.height = rendered.height;
+            image.style.cssText = 'display:block;width:auto;height:auto;max-width:100%;max-height:250mm;margin:0 auto;object-fit:contain;';
+            figure.appendChild(image);
+            clonedWrapper.replaceWith(figure);
+        } catch (error) {
+            console.warn('Mermaid PNG render for PDF failed:', error);
+        }
+    }));
+    return clone;
 }
 
 function showExportTypeDialogFallback() {
@@ -6357,20 +6465,22 @@ async function exportCurrentDocumentByChoice(requestedChoice) {
                 return !!window.jspdf && typeof window.jspdf.jsPDF === 'function';
             })
         ]);
-        await renderMarkdown({ force: true });
-        const htmlResult = await window.HtmlExport.buildExportHtml({
-            content: String(currentMarkdown || ''),
-            fileName: getSaveCandidateFileName(),
-            renderedElement: viewer,
-            baseUrl: document.baseURI,
-            resolveImage: resolveDocxExportImage
-        });
-        return await window.PdfExport.openPreview({
-            html: htmlResult.html,
-            fileName: getSaveCandidateFileName(),
-            documentKey: getPdfExportDocumentKey(),
-            showMergeButton: getPdfMergeVisibleFromSettings(await getAiSettings()),
-            onOpenMerge: openPdfMergeWindow
+        return await withPreparedMermaidExportViewer('PDF export', async function () {
+            const pdfRenderedElement = await createPdfRenderedElement();
+            const htmlResult = await window.HtmlExport.buildExportHtml({
+                content: String(currentMarkdown || ''),
+                fileName: getSaveCandidateFileName(),
+                renderedElement: pdfRenderedElement,
+                baseUrl: document.baseURI,
+                resolveImage: resolveDocxExportImage
+            });
+            return await window.PdfExport.openPreview({
+                html: htmlResult.html,
+                fileName: getSaveCandidateFileName(),
+                documentKey: getPdfExportDocumentKey(),
+                showMergeButton: getPdfMergeVisibleFromSettings(await getAiSettings()),
+                onOpenMerge: openPdfMergeWindow
+            });
         });
     }
     const hasInternalImages = !!(window.ImageDB
@@ -12499,6 +12609,16 @@ function cleanImg2MathLatex(value) {
     return text.replace(/^\s*(?:latex|tex)\s*:\s*/i, '').trim();
 }
 
+function cleanImg2MathSourceText(value) {
+    let text = String(value || '').trim();
+    let previous = '';
+    while (text && text !== previous) {
+        previous = text;
+        text = text.replace(/^\s*\${1,}\s*/, '').replace(/\s*\${1,}\s*$/, '').trim();
+    }
+    return text;
+}
+
 function setImg2MathImage(file) {
     if (!file || !String(file.type || '').startsWith('image/')) {
         showToast('이미지 파일을 선택해 주세요.');
@@ -12581,7 +12701,7 @@ async function generateImg2Math() {
     const prompt = document.getElementById('img2math-prompt');
     const sourceTextInput = document.getElementById('img2math-source-text');
     const output = document.getElementById('img2math-result');
-    const sourceText = String(sourceTextInput && sourceTextInput.value || '').trim();
+    const sourceText = cleanImg2MathSourceText(sourceTextInput && sourceTextInput.value);
     if (!img2MathImage && !sourceText) { if (status) status.textContent = '수식 이미지 또는 수식화할 텍스트를 추가해 주세요.'; return; }
     try {
         button.disabled = true;
@@ -12696,12 +12816,48 @@ function importSelectedTextIntoImg2Math() {
         if (status) status.textContent = '배경 문서에서 가져올 텍스트를 먼저 선택해 주세요.';
         return;
     }
-    img2MathLastDocumentSelection = selected;
+    const cleanedSelection = cleanImg2MathSourceText(selected);
+    img2MathLastDocumentSelection = cleanedSelection;
     if (sourceTextInput) {
-        sourceTextInput.value = selected;
+        sourceTextInput.value = cleanedSelection;
         sourceTextInput.focus();
     }
     if (status) status.textContent = '선택한 텍스트를 수식화할 입력으로 가져왔습니다. 인식 실행을 눌러 LaTeX로 변환하세요.';
+}
+
+async function insertImg2MathPreviewAsImage() {
+    const status = document.getElementById('img2math-status');
+    const button = document.getElementById('img2math-insert-image');
+    const output = document.getElementById('img2math-result');
+    const latex = cleanImg2MathLatex(output && output.value);
+    if (!latex) { showToast('이미지로 삽입할 수식이 없습니다.'); return; }
+    try {
+        if (button) button.disabled = true;
+        if (status) status.textContent = '수식 미리보기를 PNG 이미지로 변환하고 있습니다.';
+        await renderImg2MathPreview();
+        const preview = document.getElementById('img2math-render');
+        if (!preview || !preview.querySelector('mjx-container')) throw new Error('렌더링된 수식 미리보기를 찾지 못했습니다.');
+        await loadOptionalScript('html2canvas', function () { return typeof window.html2canvas === 'function'; });
+        const canvas = await window.html2canvas(preview, {
+            backgroundColor: '#ffffff',
+            scale: Math.max(2, Math.min(3, window.devicePixelRatio || 1)),
+            logging: false,
+            useCORS: true
+        });
+        const dataUrl = canvas.toDataURL('image/png');
+        if (typeof window.openImageInsertModal !== 'function' || typeof window.applyImageInsertDataUrl !== 'function') {
+            throw new Error('이미지 삽입 모듈을 불러오지 못했습니다.');
+        }
+        closeImg2MathPopup();
+        window.openImageInsertModal();
+        window.applyImageInsertDataUrl(dataUrl, 'img2math-formula-' + Date.now() + '.png');
+        setImageInsertStatus('수식 미리보기를 PNG로 가져왔습니다. 문서내부저장 또는 imgBB 업로드 후 삽입하세요.', false);
+        showToast('수식 미리보기를 이미지 삽입창으로 옮겼습니다.');
+    } catch (error) {
+        if (status) status.textContent = '이미지 변환 실패: ' + (error && error.message ? error.message : String(error));
+    } finally {
+        if (button) button.disabled = false;
+    }
 }
 
 function insertImg2MathResult() {
@@ -12834,6 +12990,7 @@ function bindImg2MathPopup() {
     document.getElementById('img2math-clear').onclick = function (event) { event.stopPropagation(); clearImg2MathImage(); };
     document.getElementById('img2math-generate').onclick = generateImg2Math;
     document.getElementById('img2math-insert').onclick = insertImg2MathResult;
+    document.getElementById('img2math-insert-image').onclick = insertImg2MathPreviewAsImage;
     document.getElementById('img2math-import-selection').onclick = importSelectedTextIntoImg2Math;
     file.onchange = function () { setImg2MathImage(file.files && file.files[0]); file.value = ''; };
     drop.onclick = function (event) { if (!event.target.closest('button')) file.click(); };

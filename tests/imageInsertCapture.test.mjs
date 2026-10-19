@@ -10,6 +10,11 @@ test('image insert exposes a screen capture tool next to the gallery action', ()
     assert.match(indexHtml, /onclick="captureScreenForImageInsert\(\)"[\s\S]*>캡쳐도구<\/button>/);
 });
 
+test('image insert panel stays interactive without blocking the editor behind it', () => {
+    assert.match(indexHtml, /id="image-insert-modal"[^>]*\bpointer-events-none\b/);
+    assert.match(indexHtml, /id="image-insert-panel"[^>]*\bpointer-events-auto\b/);
+});
+
 test('screen capture imports one display frame and always stops sharing', () => {
     assert.match(imageInsertJs, /navigator\.mediaDevices\.getDisplayMedia\(\{ video: true, audio: false \}\)/);
     assert.match(imageInsertJs, /context\.drawImage\(video, 0, 0, width, height\)/);

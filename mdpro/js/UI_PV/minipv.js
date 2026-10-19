@@ -54,6 +54,9 @@ let miniPreviewActivePointerId = null;
 let miniPreviewPendingLineSync = null;
 let miniPreviewLineSyncToken = 0;
 let miniPreviewLineSyncUntil = 0;
+let miniPreviewDockedToSidebar = false;
+let miniPreviewSidebarPreviousTab = 'files';
+let miniPreviewWasEnabledBeforeDock = false;
 
 window.MiniPreviewUI = window.MiniPreviewUI || {};
 window.MiniPreviewUI.ready = loadMiniPreviewHtml();
@@ -64,7 +67,7 @@ function bindMiniPreviewElements() {
     // panel inside it makes the header and bottom resize handles scroll behind
     // the toolbars. Mount it at the document level and position it against the
     // editor's visible rectangle instead.
-    if (miniPreviewPanel && miniPreviewPanel.parentElement !== document.body) {
+    if (miniPreviewPanel && !miniPreviewDockedToSidebar && miniPreviewPanel.parentElement !== document.body) {
         document.body.appendChild(miniPreviewPanel);
     }
     miniPreviewContent = document.getElementById('mini-preview-content');
@@ -293,7 +296,7 @@ function clampMiniPreviewLayoutForOpening(layoutInput) {
 
 function applyMiniPreviewLayout(layoutInput, keepFullyVisible) {
     if (!miniPreviewPanel) bindMiniPreviewElements();
-    if (!miniPreviewPanel) return;
+    if (!miniPreviewPanel || miniPreviewDockedToSidebar) return;
     if (miniPreviewFullscreen) {
         const rect = getMiniPreviewContainerRect();
         if (rect) {
@@ -338,6 +341,14 @@ function updateMiniPreviewButton() {
     btn.classList.toggle('border-indigo-500', on);
     btn.classList.toggle('text-indigo-600', on);
     btn.classList.toggle('dark:text-indigo-300', on);
+    const sidebarBtn = document.getElementById('mdpro-sidebar-minipv-button');
+    if (sidebarBtn) {
+        sidebarBtn.setAttribute('aria-pressed', miniPreviewDockedToSidebar ? 'true' : 'false');
+        sidebarBtn.title = miniPreviewDockedToSidebar ? '사이드바 miniPV 닫기' : '왼쪽 사이드바에서 miniPV 열기';
+        sidebarBtn.classList.toggle('bg-indigo-600', miniPreviewDockedToSidebar);
+        sidebarBtn.classList.toggle('text-white', miniPreviewDockedToSidebar);
+        sidebarBtn.classList.toggle('dark:bg-indigo-500', miniPreviewDockedToSidebar);
+    }
 }
 
 function applyMiniPreviewZoom() {
@@ -703,6 +714,7 @@ function updateMiniPreviewFullscreenUi() {
 function toggleMiniPreviewFullscreen(force) {
     if (!miniPreviewPanel) bindMiniPreviewElements();
     if (!miniPreviewPanel || !miniPreviewEnabled) return;
+    if (miniPreviewDockedToSidebar) undockMiniPreviewFromSidebar({ restorePrevious: false, keepEnabled: true });
     const next = (typeof force === 'boolean') ? !!force : !miniPreviewFullscreen;
     if (next === miniPreviewFullscreen) return;
     if (next) {
@@ -903,7 +915,7 @@ function bindMiniPreviewInteractions() {
 
     if (miniPreviewHeader) {
         miniPreviewHeader.addEventListener('pointerdown', function (e) {
-            if (miniPreviewFullscreen) return;
+            if (miniPreviewFullscreen || miniPreviewDockedToSidebar) return;
             const target = e.target;
             if (target && (target.closest('button') || target.closest('a') || target.closest('input'))) return;
             miniPreviewActivePointerId = e.pointerId;
@@ -918,7 +930,7 @@ function bindMiniPreviewInteractions() {
 
     miniPreviewResizeHandles.forEach(function (handle) {
         handle.addEventListener('pointerdown', function (e) {
-            if (miniPreviewFullscreen) return;
+            if (miniPreviewFullscreen || miniPreviewDockedToSidebar) return;
             const layout = clampMiniPreviewLayout(getMiniPreviewLayoutFromLocal() || {});
             miniPreviewActivePointerId = e.pointerId;
             miniPreviewResizing = true;
@@ -1023,10 +1035,10 @@ function bindMiniPreviewInteractions() {
     document.addEventListener('pointercancel', stopMiniPreviewPointer);
 
     window.addEventListener('resize', function () {
-        if (miniPreviewEnabled) applyMiniPreviewLayout(miniPreviewLayoutBeforeFullscreen || getMiniPreviewLayoutFromLocal() || {});
+        if (miniPreviewEnabled && !miniPreviewDockedToSidebar) applyMiniPreviewLayout(miniPreviewLayoutBeforeFullscreen || getMiniPreviewLayoutFromLocal() || {});
     });
     window.addEventListener('ai-jena-layout-change', function () {
-        if (!miniPreviewEnabled || miniPreviewFullscreen) return;
+        if (!miniPreviewEnabled || miniPreviewFullscreen || miniPreviewDockedToSidebar) return;
         applyMiniPreviewLayout(getMiniPreviewLayoutFromLocal() || {});
         // AI JENA animates between layouts, so clamp once more after its final
         // rectangle settles.
@@ -1040,7 +1052,7 @@ function bindMiniPreviewInteractions() {
 
 function startMiniPreviewDrag(clientX, clientY) {
     if (!miniPreviewPanel) bindMiniPreviewElements();
-    if (!miniPreviewPanel) return;
+    if (!miniPreviewPanel || miniPreviewDockedToSidebar) return;
     const panelRect = miniPreviewPanel.getBoundingClientRect();
     const hostRect = getMiniPreviewContainerRect();
     if (!hostRect) return;
@@ -1070,15 +1082,17 @@ function applyMiniPreviewVisibility() {
     }
     const show = !!(miniPreviewEnabled && isEditMode);
     miniPreviewPanel.classList.toggle('hidden', !show);
-        if (show) {
-            bindMiniPreviewInteractions();
+    if (show) {
+        bindMiniPreviewInteractions();
+        if (!miniPreviewDockedToSidebar) {
             applyMiniPreviewLayout(miniPreviewLayoutBeforeFullscreen || getMiniPreviewLayoutFromLocal() || {}, true);
-            updateMiniPreviewFullscreenUi();
-            updateMiniPreviewSyncUi();
-            applyMiniPreviewZoom();
-            renderMiniPreviewContent();
-            applyMiniPreviewLineSync();
-        } else {
+        }
+        updateMiniPreviewFullscreenUi();
+        updateMiniPreviewSyncUi();
+        applyMiniPreviewZoom();
+        renderMiniPreviewContent();
+        applyMiniPreviewLineSync();
+    } else {
         updateMiniPreviewFullscreenUi();
         updateMiniPreviewSyncUi();
         applyMiniPreviewZoom();
@@ -1088,6 +1102,10 @@ function applyMiniPreviewVisibility() {
 
 function toggleMiniPreview() {
     if (!miniPreviewPanel) ensureMiniPreviewHtml();
+    if (miniPreviewDockedToSidebar) {
+        undockMiniPreviewFromSidebar({ restorePrevious: false, keepEnabled: false });
+        return;
+    }
     miniPreviewEnabled = !miniPreviewEnabled;
     setMiniPreviewEnabledToLocal(miniPreviewEnabled);
     applyMiniPreviewVisibility();
@@ -1098,7 +1116,81 @@ function toggleMiniPreview() {
     }
 }
 
+function installMiniPreviewSidebarDockStyles() {
+    if (document.getElementById('mini-preview-sidebar-dock-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'mini-preview-sidebar-dock-styles';
+    style.textContent = [
+        '#sidebar-mini-preview-host:not(.hidden){display:flex}',
+        '#mini-preview-panel.mini-preview-sidebar-docked{position:relative!important;inset:auto!important;left:auto!important;top:auto!important;right:auto!important;width:100%!important;height:100%!important;max-width:none!important;min-width:0!important;min-height:0!important;border-width:0!important;border-radius:0!important;box-shadow:none!important;z-index:auto!important}',
+        '#mini-preview-panel.mini-preview-sidebar-docked #mini-preview-header{cursor:default}',
+        '#mini-preview-panel.mini-preview-sidebar-docked #mini-preview-content{height:calc(100% - 34px)}',
+        '#mini-preview-panel.mini-preview-sidebar-docked .mini-preview-resize-handle{display:none!important}',
+        '#mdpro-sidebar-minipv-button[aria-pressed="true"]{border-color:#6366f1;color:#fff}'
+    ].join('');
+    document.head.appendChild(style);
+}
+
+function setMiniPreviewSidebarContentHidden(hidden) {
+    ['db-list', 'toc-list', 'search-container', 'storage-source-tabs', 'storage-sync-status'].forEach(function (id) {
+        const element = document.getElementById(id);
+        if (!element) return;
+        if (hidden) {
+            element.dataset.miniPreviewWasHidden = element.classList.contains('hidden') ? '1' : '0';
+            element.classList.add('hidden');
+        } else {
+            element.classList.toggle('hidden', element.dataset.miniPreviewWasHidden === '1');
+            delete element.dataset.miniPreviewWasHidden;
+        }
+    });
+}
+
+function undockMiniPreviewFromSidebar(options) {
+    if (!miniPreviewDockedToSidebar) return false;
+    const settings = options || {};
+    const host = document.getElementById('sidebar-mini-preview-host');
+    miniPreviewDockedToSidebar = false;
+    if (host) host.classList.add('hidden');
+    if (miniPreviewPanel) {
+        miniPreviewPanel.classList.remove('mini-preview-sidebar-docked');
+        document.body.appendChild(miniPreviewPanel);
+    }
+    setMiniPreviewSidebarContentHidden(false);
+    if (settings.restorePrevious !== false && typeof window.switchSidebarTab === 'function') {
+        window.switchSidebarTab(miniPreviewSidebarPreviousTab);
+    }
+    miniPreviewEnabled = settings.keepEnabled === true || (settings.restorePrevious !== false && miniPreviewWasEnabledBeforeDock);
+    setMiniPreviewEnabledToLocal(miniPreviewEnabled);
+    applyMiniPreviewVisibility();
+    updateMiniPreviewButton();
+    return true;
+}
+
+function toggleMiniPreviewSidebarDock() {
+    if (miniPreviewDockedToSidebar) {
+        undockMiniPreviewFromSidebar();
+        return;
+    }
+    ensureMiniPreviewHtml();
+    const host = document.getElementById('sidebar-mini-preview-host');
+    if (!host || !miniPreviewPanel) return;
+    installMiniPreviewSidebarDockStyles();
+    miniPreviewWasEnabledBeforeDock = miniPreviewEnabled;
+    miniPreviewSidebarPreviousTab = document.getElementById('toc-list')?.classList.contains('hidden') ? 'files' : 'toc';
+    miniPreviewDockedToSidebar = true;
+    miniPreviewFullscreen = false;
+    miniPreviewEnabled = true;
+    setMiniPreviewEnabledToLocal(true);
+    setMiniPreviewSidebarContentHidden(true);
+    host.classList.remove('hidden');
+    miniPreviewPanel.classList.add('mini-preview-sidebar-docked');
+    host.appendChild(miniPreviewPanel);
+    applyMiniPreviewVisibility();
+    updateMiniPreviewButton();
+}
+
 window.toggleMiniPreview = toggleMiniPreview;
+window.toggleMiniPreviewSidebarDock = toggleMiniPreviewSidebarDock;
 window.toggleMiniPreviewFullscreen = toggleMiniPreviewFullscreen;
 window.miniPreviewAdjustZoom = miniPreviewAdjustZoom;
 window.toggleMiniPreviewViewMode = toggleMiniPreviewViewMode;
@@ -1108,3 +1200,4 @@ window.MiniPreviewUI.ensure = ensureMiniPreviewHtml;
 window.MiniPreviewUI.scrollToLine = syncMiniPreviewToLine;
 window.MiniPreviewUI.isEditorSyncEnabled = isMiniPreviewEditorSyncEnabled;
 window.MiniPreviewUI.getEditorCaretLine = getMiniPreviewEditorCaretLine;
+window.MiniPreviewUI.undockSidebar = undockMiniPreviewFromSidebar;

@@ -34,12 +34,12 @@ test('Mermaid theme toggle exposes an icon and an accessible light or dark actio
   assert.match(source, /Mermaid를 .*'라이트' : '다크'.*테마로 보기/);
 });
 
-test('Mermaid nodes grow with long mixed-language labels and refresh SVG bounds', () => {
-  assert.match(source, /function fitMermaidNodeLabels\(svg\)/);
-  assert.match(source, /label\.style\.whiteSpace = 'nowrap'/);
-  assert.match(source, /const requiredWidth = Math\.ceil\(measuredWidth \+ 36\)/);
-  assert.match(source, /rect\.setAttribute\('width', String\(nextWidth\)\)/);
-  assert.match(source, /foreignObject\.setAttribute\('width', String\(nextWidth\)\)/);
-  assert.match(source, /contentRoot\.getBBox\(\)/);
-  assert.match(source, /fitMermaidNodeLabels\(svg\)/);
+test('document Mermaid rendering matches the ME preview layout contract', () => {
+  assert.match(source, /theme:\s*dark \? 'dark' : 'default'/);
+  assert.match(source, /flowchart:\s*\{ useMaxWidth: true, htmlLabels: true \}/);
+  assert.match(source, /primaryColor:\s*'#111827'[\s\S]*background:\s*'#0b1220'/);
+  assert.doesNotMatch(source, /wrappingWidth|markdownAutoWrap/);
+  assert.doesNotMatch(source, /function expandMermaidSvgBounds/);
+  assert.doesNotMatch(source, /foreignObject\.setAttribute\('width'/);
+  assert.doesNotMatch(source, /foreignObject,foreignObject>div\{overflow:visible/);
 });

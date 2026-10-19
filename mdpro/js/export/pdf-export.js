@@ -144,6 +144,10 @@
       '.pdf-preview-page [data-pdf-source-index]{cursor:pointer;outline-offset:3px}',
       '.pdf-preview-page [data-pdf-source-index]:hover{outline:1px dashed #06b6d4}',
       '.pdf-preview-page .pdf-preview-selected{outline:2px solid #06b6d4!important;background-color:rgba(6,182,212,.08)!important}',
+      '.pdf-preview-page .pdf-preview-selected:has(>img),.pdf-preview-page .pdf-preview-selected:has(img){position:relative}',
+      '.pdf-image-resize-handle{position:absolute;right:-8px;bottom:-8px;width:18px;height:18px;padding:0;border:2px solid #fff;border-radius:5px;background:#0891b2;box-shadow:0 2px 8px rgba(15,23,42,.45);cursor:nwse-resize;z-index:8;touch-action:none}',
+      '.pdf-image-resize-handle::before{content:"";position:absolute;right:3px;bottom:3px;width:7px;height:7px;border-right:2px solid #fff;border-bottom:2px solid #fff}',
+      '.pdf-image-resize-hint{position:absolute;right:16px;bottom:-7px;padding:3px 7px;border-radius:5px;background:#0f172a;color:#fff;font-size:10px;font-weight:800;line-height:1.2;white-space:nowrap;pointer-events:none;z-index:7}',
       '.pdf-preview-page [data-pdf-line-spacing],.pdf-preview-page [data-pdf-line-spacing] *{line-height:var(--pdf-object-line-spacing)!important}',
       '.pdf-forced-fit{max-height:100%!important;overflow:hidden!important}.pdf-forced-fit>img,.pdf-forced-fit>svg,.pdf-forced-fit>canvas{max-height:100%!important;object-fit:contain!important}',
       '.pdf-preview-help{position:sticky;left:16px;bottom:-48px;align-self:flex-start;max-width:560px;margin-top:6px;padding:9px 12px;border:1px solid #475569;border-radius:9px;background:rgba(15,23,42,.94);color:#cbd5e1;font-size:11px;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.24)}',
@@ -377,7 +381,7 @@
         '<button type="button" class="pdf-preview-button pdf-preview-button-primary" data-pdf-download>PDF 파일 저장</button>' +
         '<button type="button" class="pdf-preview-button pdf-preview-button-danger" data-pdf-close>닫기</button>' +
       '</div>' +
-      '<div class="pdf-preview-stage"><div class="pdf-preview-pages" data-pdf-pages></div><div class="pdf-preview-busy" data-pdf-busy><div class="pdf-preview-progress-card"><div class="pdf-preview-progress-message" data-pdf-busy-text>페이지를 나누는 중…</div><div class="pdf-preview-progress-panel" data-pdf-progress-panel hidden><div class="pdf-preview-progress-track" data-pdf-progress-track role="progressbar" aria-label="PDF 변환 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="pdf-preview-progress-bar" data-pdf-progress-bar></span></div><div class="pdf-preview-progress-meta"><strong class="pdf-preview-progress-value" data-pdf-progress-value>0%</strong><button type="button" class="pdf-preview-cancel" data-pdf-cancel>중지</button></div></div></div></div><div class="pdf-preview-help">객체를 선택해 <b>선택 객체 수정</b>으로 PDF에 들어갈 내용을 직접 고치고 줄간격·나누기·붙이기를 조정할 수 있습니다. 모든 편집 작업은 <b>Ctrl+Z</b>로 되돌리고 문서별로 inDB에 자동 저장합니다.</div>' +
+      '<div class="pdf-preview-stage"><div class="pdf-preview-pages" data-pdf-pages></div><div class="pdf-preview-busy" data-pdf-busy><div class="pdf-preview-progress-card"><div class="pdf-preview-progress-message" data-pdf-busy-text>페이지를 나누는 중…</div><div class="pdf-preview-progress-panel" data-pdf-progress-panel hidden><div class="pdf-preview-progress-track" data-pdf-progress-track role="progressbar" aria-label="PDF 변환 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="pdf-preview-progress-bar" data-pdf-progress-bar></span></div><div class="pdf-preview-progress-meta"><strong class="pdf-preview-progress-value" data-pdf-progress-value>0%</strong><button type="button" class="pdf-preview-cancel" data-pdf-cancel>중지</button></div></div></div></div><div class="pdf-preview-help">이미지를 선택하면 오른쪽 아래 조절점을 드래그해 크기를 바꿀 수 있습니다. <b>선택 객체 수정</b>과 줄간격·나누기·붙이기도 사용할 수 있으며, 모든 편집은 <b>Ctrl+Z</b>로 되돌리고 문서별로 inDB에 자동 저장합니다.</div>' +
         '<div class="pdf-export-confirm" data-pdf-confirm hidden role="dialog" aria-modal="true" aria-labelledby="pdf-export-confirm-title"><section class="pdf-export-confirm-card"><h3 id="pdf-export-confirm-title">PDF로 변환하겠습니다.</h3><p>A4 ' + escapeHtml('페이지를 백그라운드에서 순서대로 렌더링합니다. 변환 중에는 진행률을 확인하거나 언제든 중지할 수 있습니다.') + '</p><div class="pdf-export-confirm-actions"><button type="button" class="pdf-preview-button" data-pdf-confirm-cancel>취소</button><button type="button" class="pdf-preview-button pdf-preview-button-primary" data-pdf-confirm-ok>확인</button></div></section></div>' +
         '<div class="pdf-object-editor" data-pdf-object-editor hidden><section class="pdf-object-editor-panel" role="dialog" aria-modal="true" aria-labelledby="pdf-object-editor-title"><h3 id="pdf-object-editor-title">선택 객체 수정</h3><p>이 수정은 원본 Markdown이 아니라 PDF 내보내기용 편집 상태에 저장됩니다. 표·목록 구조를 유지하면서 글자를 직접 고칠 수 있습니다.</p><div class="pdf-object-editor-surface markdown-body" data-pdf-edit-surface contenteditable="true" spellcheck="true"></div><div class="pdf-object-editor-actions"><button type="button" class="pdf-preview-button" data-pdf-edit-cancel>취소</button><button type="button" class="pdf-preview-button pdf-preview-button-primary" data-pdf-edit-apply>수정 적용</button></div></section></div>' +
       '</div>';
@@ -917,6 +921,9 @@
       Array.prototype.slice.call(state.pagesRoot.querySelectorAll('.pdf-preview-selected')).forEach(function (node) {
         node.classList.remove('pdf-preview-selected');
       });
+      Array.prototype.slice.call(state.pagesRoot.querySelectorAll('.pdf-image-resize-handle,.pdf-image-resize-hint')).forEach(function (node) {
+        if (node.parentNode) node.parentNode.removeChild(node);
+      });
     }
 
     function copyIndexSet(indexSet) {
@@ -962,9 +969,100 @@
       if (state.selectedIndex >= 0) {
         Array.prototype.slice.call(state.pagesRoot.querySelectorAll('[data-pdf-source-index="' + state.selectedIndex + '"]')).forEach(function (node) {
           node.classList.add('pdf-preview-selected');
+          if (!node.querySelector('img')) return;
+          var handle = global.document.createElement('button');
+          handle.type = 'button';
+          handle.className = 'pdf-image-resize-handle';
+          handle.setAttribute('aria-label', '이미지 크기 조절');
+          handle.setAttribute('title', '드래그하여 PDF 이미지 크기 조절');
+          handle.setAttribute('data-html2canvas-ignore', 'true');
+          var hint = global.document.createElement('span');
+          hint.className = 'pdf-image-resize-hint';
+          hint.textContent = '드래그하여 크기 조절';
+          hint.setAttribute('data-html2canvas-ignore', 'true');
+          node.appendChild(hint);
+          node.appendChild(handle);
         });
       }
       updateActionButtons();
+    }
+
+    var activeImageResize = null;
+
+    function stopImageResize(commit) {
+      var active = activeImageResize;
+      if (!active) return;
+      activeImageResize = null;
+      global.removeEventListener('pointermove', handleImageResizeMove);
+      global.removeEventListener('pointerup', handleImageResizeEnd);
+      global.removeEventListener('pointercancel', handleImageResizeCancel);
+      if (!commit) {
+        active.image.style.width = active.originalWidth;
+        return;
+      }
+      var widthPercent = active.widthPercent;
+      var sourceIndex = active.sourceIndex;
+      var imageIndex = active.imageIndex;
+      recordPaginationChange(function () {
+        var unit = state.units[sourceIndex] && state.units[sourceIndex].cloneNode(true);
+        if (!unit) return;
+        var image = unit.querySelectorAll('img')[imageIndex];
+        if (!image) return;
+        image.style.width = widthPercent.toFixed(2) + '%';
+        image.style.height = 'auto';
+        image.style.maxWidth = '100%';
+        var baseHtml = state.baseUnits[sourceIndex] && state.baseUnits[sourceIndex].outerHTML;
+        if (unit.outerHTML === baseHtml) state.objectEdits.delete(sourceIndex);
+        else state.objectEdits.set(sourceIndex, unit.outerHTML);
+      });
+    }
+
+    function handleImageResizeMove(event) {
+      var active = activeImageResize;
+      if (!active) return;
+      event.preventDefault();
+      var nextWidth = active.startWidth + (event.clientX - active.startX);
+      var percent = Math.max(10, Math.min(100, (nextWidth / active.contentWidth) * 100));
+      active.widthPercent = percent;
+      active.image.style.width = percent.toFixed(2) + '%';
+      active.image.style.height = 'auto';
+      active.hint.textContent = Math.round(percent) + '%';
+    }
+
+    function handleImageResizeEnd(event) {
+      if (event) event.preventDefault();
+      stopImageResize(true);
+    }
+
+    function handleImageResizeCancel() {
+      stopImageResize(false);
+    }
+
+    function beginImageResize(event, handle) {
+      var sourceNode = handle && handle.closest('[data-pdf-source-index]');
+      var image = sourceNode && sourceNode.querySelector('img');
+      var pageContent = sourceNode && sourceNode.closest('.pdf-page-content');
+      if (!sourceNode || !image || !pageContent) return;
+      event.preventDefault();
+      event.stopPropagation();
+      var images = Array.prototype.slice.call(sourceNode.querySelectorAll('img'));
+      activeImageResize = {
+        sourceIndex: Number(sourceNode.getAttribute('data-pdf-source-index')),
+        imageIndex: Math.max(0, images.indexOf(image)),
+        image: image,
+        hint: sourceNode.querySelector('.pdf-image-resize-hint'),
+        startX: event.clientX,
+        startWidth: image.getBoundingClientRect().width,
+        contentWidth: Math.max(1, pageContent.getBoundingClientRect().width),
+        originalWidth: image.style.width,
+        widthPercent: Math.max(10, Math.min(100, (image.getBoundingClientRect().width / Math.max(1, pageContent.getBoundingClientRect().width)) * 100))
+      };
+      if (handle.setPointerCapture && event.pointerId != null) {
+        try { handle.setPointerCapture(event.pointerId); } catch (_) {}
+      }
+      global.addEventListener('pointermove', handleImageResizeMove, { passive: false });
+      global.addEventListener('pointerup', handleImageResizeEnd, { once: true, passive: false });
+      global.addEventListener('pointercancel', handleImageResizeCancel, { once: true });
     }
 
     function closeObjectEditor() {
@@ -1104,6 +1202,7 @@
 
     var result = new Promise(function (resolve) {
       async function close(value) {
+        stopImageResize(false);
         if (state.persistTimer) await flushPdfEditState();
         else await state.persistPromise.catch(function () { return false; });
         global.removeEventListener('resize', handlePreviewResize);
@@ -1161,11 +1260,16 @@
         });
       });
       state.pagesRoot.addEventListener('click', function (event) {
+        if (event.target.closest('.pdf-image-resize-handle')) return;
         var target = event.target.closest('[data-pdf-source-index]');
         if (!target) return;
         event.preventDefault();
         state.selectedIndex = Number(target.getAttribute('data-pdf-source-index'));
         restoreSelection();
+      });
+      state.pagesRoot.addEventListener('pointerdown', function (event) {
+        var handle = event.target.closest('.pdf-image-resize-handle');
+        if (handle) beginImageResize(event, handle);
       });
       state.cancelButton.addEventListener('click', function () {
         if (!state.exportJob || state.exportJob.finished) return;
