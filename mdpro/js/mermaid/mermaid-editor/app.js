@@ -1454,7 +1454,8 @@ function requestMermaidFromImage() {
 function sendRenderedSvgToImageInsert() {
   const svg = renderDiv.querySelector('svg');
   if (!svg) return alert('먼저 Mermaid 코드를 정상적으로 렌더링해 주세요.');
-  const serialized = new XMLSerializer().serializeToString(svg);
+  const exported = createSvgExportClone(svg);
+  const serialized = new XMLSerializer().serializeToString(exported.svg);
   const dataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(serialized)));
   window.parent.postMessage({ type: 'mdv-open-mermaid-svg-in-image-insert', dataUrl: dataUrl, fileName: 'mermaid-diagram-' + Date.now() + '.svg' }, '*');
 }
@@ -1479,13 +1480,8 @@ async function sendRenderedPngToImageInsert() {
 function getMermaidSvgForConverter() {
   const svg = renderDiv.querySelector('svg');
   if (!svg) return '';
-  const clone = svg.cloneNode(true);
-  const size = getSvgExportSize(svg);
-  clone.setAttribute('width', size.width);
-  clone.setAttribute('height', size.height);
-  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  replaceForeignObjectsWithSvgText(svg, clone);
-  return new XMLSerializer().serializeToString(clone);
+  const exported = createSvgExportClone(svg);
+  return new XMLSerializer().serializeToString(exported.svg);
 }
 
 function openSvgToPngConverterWindow() {
@@ -1600,7 +1596,9 @@ function downloadSVG() {
     alert('\uB80C\uB354\uB9C1\uB41C SVG\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.');
     return;
   }
-  const blob = new Blob([svg.outerHTML], { type: 'image/svg+xml;charset=utf-8' });
+  const exported = createSvgExportClone(svg);
+  const svgText = new XMLSerializer().serializeToString(exported.svg);
+  const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   triggerDownload(url, 'diagram.svg', true);
 }
@@ -1622,82 +1620,90 @@ function triggerDownload(url, fileName, revokeObjectUrl) {
 function getSvgExportSize(svgEl) {
   const rect = svgEl.getBoundingClientRect();
   const viewBox = svgEl.viewBox && svgEl.viewBox.baseVal;
-  let width = rect.width;
-  let height = rect.height;
+  const visualWidth = rect.width > 0 ? rect.width : 0;
+  const visualHeight = rect.height > 0 ? rect.height : 0;
+  let width = viewBox && viewBox.width > 0 ? viewBox.width : visualWidth;
+  let height = viewBox && viewBox.height > 0 ? viewBox.height : visualHeight;
 
-  if (!(width > 0) && viewBox && viewBox.width > 0) width = viewBox.width;
-  if (!(height > 0) && viewBox && viewBox.height > 0) height = viewBox.height;
+  // Never export below the actual on-screen footprint. This also compensates
+  // for preview zoom without allowing a percentage-sized SVG to fall back to
+  // the browser's small 300x150 replaced-element default.
+  if (visualWidth > width && width > 0 && height > 0) {
+    height *= visualWidth / width;
+    width = visualWidth;
+  }
+  if (visualHeight > height && width > 0 && height > 0) {
+    width *= visualHeight / height;
+    height = visualHeight;
+  }
   if (!(width > 0)) width = 1200;
   if (!(height > 0)) height = 800;
 
   return { width: Math.ceil(width), height: Math.ceil(height) };
 }
 
-function replaceForeignObjectsWithSvgText(sourceSvg, exportSvg) {
-  const sourceObjects = sourceSvg.querySelectorAll('foreignObject');
-  const exportObjects = exportSvg.querySelectorAll('foreignObject');
-
-  for (let i = 0; i < exportObjects.length; i++) {
-    const sourceObject = sourceObjects[i];
-    const exportObject = exportObjects[i];
-    const rawText = String(sourceObject && sourceObject.textContent || '').trim();
-    if (!rawText) {
-      exportObject.remove();
-      continue;
-    }
-
-    const paragraphs = sourceObject.querySelectorAll('p');
-    const lines = paragraphs.length
-      ? Array.from(paragraphs).map(function (paragraph) { return String(paragraph.textContent || '').trim(); })
-      : rawText.split(/\r?\n/).map(function (line) { return line.trim(); });
-    const visibleLines = lines.filter(Boolean);
-    if (!visibleLines.length) {
-      exportObject.remove();
-      continue;
-    }
-
-    const labelElement = sourceObject.querySelector('.nodeLabel,.edgeLabel,div,span,p') || sourceObject;
-    const labelStyle = window.getComputedStyle(labelElement);
-    const width = parseFloat(exportObject.getAttribute('width')) || 0;
-    const height = parseFloat(exportObject.getAttribute('height')) || 0;
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    text.setAttribute('x', String(centerX));
-    text.setAttribute('y', String(centerY));
-    text.setAttribute('text-anchor', 'middle');
-    text.setAttribute('fill', labelStyle.color || '#172033');
-    text.setAttribute('font-family', labelStyle.fontFamily || 'sans-serif');
-    text.setAttribute('font-size', labelStyle.fontSize || '15px');
-    text.setAttribute('font-weight', labelStyle.fontWeight || '600');
-    text.setAttribute('xml:space', 'preserve');
-
-    visibleLines.forEach(function (line, lineIndex) {
-      const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
-      tspan.setAttribute('x', String(centerX));
-      tspan.setAttribute('dy', lineIndex === 0 ? String(0.35 - ((visibleLines.length - 1) * 0.6)) + 'em' : '1.2em');
-      tspan.textContent = line;
-      text.appendChild(tspan);
-    });
-    exportObject.replaceWith(text);
+function createSvgExportClone(svgEl) {
+  const size = getSvgExportSize(svgEl);
+  const svgClone = svgEl.cloneNode(true);
+  svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  svgClone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+  svgClone.setAttribute('width', String(size.width));
+  svgClone.setAttribute('height', String(size.height));
+  if (!svgClone.getAttribute('viewBox')) {
+    svgClone.setAttribute('viewBox', '0 0 ' + size.width + ' ' + size.height);
   }
+  svgClone.style.width = size.width + 'px';
+  svgClone.style.height = size.height + 'px';
+  svgClone.style.maxWidth = 'none';
+  svgClone.style.margin = '0';
+  inlineMermaidHtmlLabelStyles(svgEl, svgClone);
+  addMermaidPreviewBackground(svgEl, svgClone);
+  return { svg: svgClone, size: size };
+}
+
+function inlineMermaidHtmlLabelStyles(sourceSvg, exportSvg) {
+  const sourceNodes = sourceSvg.querySelectorAll('foreignObject, foreignObject *');
+  const exportNodes = exportSvg.querySelectorAll('foreignObject, foreignObject *');
+  const properties = [
+    'color', 'background-color', 'font-family', 'font-size', 'font-style',
+    'font-weight', 'line-height', 'letter-spacing', 'text-align', 'white-space',
+    'display', 'align-items', 'justify-content', 'flex-direction', 'box-sizing',
+    'width', 'height', 'max-width', 'padding', 'margin', 'border',
+    'border-radius', 'overflow', 'overflow-wrap', 'word-break'
+  ];
+
+  for (let i = 0; i < exportNodes.length; i++) {
+    const sourceNode = sourceNodes[i];
+    const exportNode = exportNodes[i];
+    if (!sourceNode || !exportNode) continue;
+    const computed = window.getComputedStyle(sourceNode);
+    properties.forEach(function (property) {
+      const value = computed.getPropertyValue(property);
+      if (value) exportNode.style.setProperty(property, value);
+    });
+  }
+}
+
+function addMermaidPreviewBackground(sourceSvg, exportSvg) {
+  const viewBox = sourceSvg.viewBox && sourceSvg.viewBox.baseVal;
+  const background = window.getComputedStyle(renderWrapper || renderDiv).backgroundColor;
+  if (!background || background === 'transparent' || background === 'rgba(0, 0, 0, 0)') return;
+  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+  rect.setAttribute('data-mdv-export-background', '1');
+  rect.setAttribute('x', String(viewBox && Number.isFinite(viewBox.x) ? viewBox.x : 0));
+  rect.setAttribute('y', String(viewBox && Number.isFinite(viewBox.y) ? viewBox.y : 0));
+  rect.setAttribute('width', String(viewBox && viewBox.width > 0 ? viewBox.width : getSvgExportSize(sourceSvg).width));
+  rect.setAttribute('height', String(viewBox && viewBox.height > 0 ? viewBox.height : getSvgExportSize(sourceSvg).height));
+  rect.setAttribute('fill', background);
+  exportSvg.insertBefore(rect, exportSvg.firstChild);
 }
 
 async function createRenderedPngBlob(svgEl) {
   let svgUrl = '';
   try {
-    const size = getSvgExportSize(svgEl);
-    const svgClone = svgEl.cloneNode(true);
-    svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-    svgClone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-    svgClone.setAttribute('width', String(size.width));
-    svgClone.setAttribute('height', String(size.height));
-    if (!svgClone.getAttribute('viewBox')) {
-      svgClone.setAttribute('viewBox', '0 0 ' + size.width + ' ' + size.height);
-    }
-    // Chromium taints canvases that draw SVGs containing HTML foreignObject labels.
-    // Convert Mermaid's HTML labels to native SVG text in the export-only clone.
-    replaceForeignObjectsWithSvgText(svgEl, svgClone);
+    const exported = createSvgExportClone(svgEl);
+    const size = exported.size;
+    const svgClone = exported.svg;
 
     const svgText = new XMLSerializer().serializeToString(svgClone);
     const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
@@ -1708,15 +1714,18 @@ async function createRenderedPngBlob(svgEl) {
     if (typeof img.decode === 'function') await img.decode();
     else await new Promise(function (resolve, reject) { img.onload = resolve; img.onerror = reject; });
 
-    // Export at 2x for crisp text while capping the longest side to a safe canvas size.
-    const exportScale = Math.min(2, 8192 / Math.max(size.width, size.height));
+    // Use at least 4x pixels (and honor HiDPI screens) while keeping the canvas
+    // inside a safe browser limit. The result therefore cannot be softer than
+    // the editor preview at the same displayed size.
+    const requestedScale = Math.max(4, Number(window.devicePixelRatio) || 1);
+    const exportScale = Math.min(requestedScale, 8192 / Math.max(size.width, size.height));
     const canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.round(size.width * exportScale));
     canvas.height = Math.max(1, Math.round(size.height * exportScale));
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Canvas 2D context is unavailable.');
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
     return await new Promise(function (resolve, reject) {

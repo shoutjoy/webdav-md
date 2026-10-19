@@ -39,29 +39,29 @@
     const MERMAID_DARK_THEME_VARIABLES = {
         fontFamily: '"Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo","Segoe UI",sans-serif',
         fontSize: '15px',
-        primaryColor: '#1e293b',
-        primaryTextColor: '#e2e8f0',
-        primaryBorderColor: '#64748b',
+        primaryColor: '#111827',
+        primaryTextColor: '#e5edf7',
+        primaryBorderColor: '#475569',
         lineColor: '#94a3b8',
         secondaryColor: '#172033',
-        tertiaryColor: '#273449',
-        background: '#0f172a',
-        mainBkg: '#1e293b',
+        tertiaryColor: '#1e293b',
+        background: '#0b1220',
+        mainBkg: '#111827',
         secondBkg: '#172033',
-        tertiaryBkg: '#273449',
-        nodeBorder: '#64748b',
-        clusterBkg: '#172033',
-        clusterBorder: '#475569',
-        edgeLabelBackground: '#0f172a',
-        textColor: '#e2e8f0',
+        tertiaryBkg: '#1e293b',
+        nodeBorder: '#475569',
+        clusterBkg: '#0f172a',
+        clusterBorder: '#334155',
+        edgeLabelBackground: '#111827',
+        textColor: '#e5edf7',
         titleColor: '#f8fafc',
-        labelTextColor: '#e2e8f0',
-        actorBkg: '#1e293b',
-        actorBorder: '#64748b',
-        actorTextColor: '#e2e8f0',
-        noteBkgColor: '#422006',
-        noteTextColor: '#ffedd5',
-        noteBorderColor: '#c2410c'
+        labelTextColor: '#e5edf7',
+        actorBkg: '#111827',
+        actorBorder: '#475569',
+        actorTextColor: '#e5edf7',
+        noteBkgColor: '#2d2418',
+        noteTextColor: '#fdecc8',
+        noteBorderColor: '#92400e'
     };
     let mermaidLoadPromise = null;
     let mermaidReady = false;
@@ -138,6 +138,7 @@
             '.trt-mermaid-fixed-controls{position:absolute;top:10px;right:12px;z-index:22;display:flex;align-items:center;gap:5px;}',
             '.trt-mermaid-fixed-controls .trt-mermaid-btn{width:30px;height:30px;border-radius:6px;}',
             '.trt-mermaid-fixed-controls .trt-mermaid-fixed-fit{width:auto;min-width:42px;padding:0 8px;font-size:12px;}',
+            '.trt-mermaid-fixed-controls .trt-mermaid-fixed-export{width:auto;min-width:40px;padding:0 7px;font-size:11px;}',
             '.trt-mermaid-theme-toggle{font-size:16px;font-weight:700;}',
             '.trt-mermaid-fixed-scale{min-width:46px;text-align:center;color:#475569;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums;}',
             '.dark .trt-mermaid-fixed-scale,.trt-mermaid-wrapper[data-mermaid-theme="dark"] .trt-mermaid-fixed-scale{color:#cbd5e1;}',
@@ -192,14 +193,8 @@
             startOnLoad: false,
             suppressErrorRendering: true,
             securityLevel: 'loose',
-            theme: 'base',
-            flowchart: {
-                useMaxWidth: true,
-                htmlLabels: true,
-                padding: 20,
-                nodeSpacing: 50,
-                rankSpacing: 50
-            },
+            theme: dark ? 'dark' : 'default',
+            flowchart: { useMaxWidth: true, htmlLabels: true },
             themeVariables: dark ? MERMAID_DARK_THEME_VARIABLES : MERMAID_LIGHT_THEME_VARIABLES
         });
     }
@@ -434,112 +429,21 @@
         }
     }
 
-    function fitMermaidNodeLabels(svg) {
-        if (!svg || !svg.querySelectorAll) return;
-        const nodes = svg.querySelectorAll('g.node');
-        for (let i = 0; i < nodes.length; i++) {
-            const node = nodes[i];
-            const foreignObject = node.querySelector('foreignObject');
-            const rect = node.querySelector('rect');
-            if (!foreignObject || !rect) continue;
-
-            const label = foreignObject.querySelector('.nodeLabel,.label,div,span,p') || foreignObject.firstElementChild;
-            if (!label) continue;
-            label.style.whiteSpace = 'nowrap';
-            label.style.width = 'max-content';
-            label.style.maxWidth = 'none';
-
-            let measuredWidth = Math.max(Number(label.scrollWidth) || 0, Number(label.offsetWidth) || 0);
-            try {
-                const labelBounds = label.getBoundingClientRect();
-                measuredWidth = Math.max(measuredWidth, Number(labelBounds.width) || 0);
-            } catch (_) {}
-
-            const rectWidth = Number(rect.getAttribute('width')) || 0;
-            const foreignWidth = Number(foreignObject.getAttribute('width')) || 0;
-            const requiredWidth = Math.ceil(measuredWidth + 36);
-            const nextWidth = Math.max(rectWidth, foreignWidth, requiredWidth);
-            if (!Number.isFinite(nextWidth) || nextWidth <= 0 || nextWidth <= rectWidth + 1) continue;
-
-            const rectX = Number(rect.getAttribute('x')) || 0;
-            const centerX = rectX + (rectWidth / 2);
-            rect.setAttribute('x', String(centerX - (nextWidth / 2)));
-            rect.setAttribute('width', String(nextWidth));
-            foreignObject.setAttribute('x', String(centerX - (nextWidth / 2)));
-            foreignObject.setAttribute('width', String(nextWidth));
-            node.setAttribute('data-mdv-label-fitted', '1');
-        }
-    }
-
-    function expandMermaidSvgBounds(svg) {
-        if (!svg || svg.getAttribute('data-mdv-bounds-expanded') === '1') return;
-        svg.setAttribute('data-mdv-bounds-expanded', '1');
-        svg.style.overflow = 'visible';
-        svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-
-        fitMermaidNodeLabels(svg);
-
-        let viewBox = [];
-        try {
-            const contentRoot = svg.querySelector('g');
-            const bounds = contentRoot && contentRoot.getBBox ? contentRoot.getBBox() : null;
-            if (bounds && [bounds.x, bounds.y, bounds.width, bounds.height].every(Number.isFinite)
-                && bounds.width > 0 && bounds.height > 0) {
-                viewBox = [bounds.x, bounds.y, bounds.width, bounds.height];
-            }
-        } catch (_) {}
-        if (!viewBox.length) {
-            const rawViewBox = String(svg.getAttribute('viewBox') || '').trim();
-            viewBox = rawViewBox.split(/[\s,]+/).map(Number);
-        }
-        if (viewBox.length === 4 && viewBox.every(Number.isFinite) && viewBox[2] > 0 && viewBox[3] > 0) {
-            const padX = Math.max(14, Math.min(30, viewBox[2] * 0.025));
-            const padY = Math.max(14, Math.min(30, viewBox[3] * 0.025));
-            svg.setAttribute('viewBox', [
-                viewBox[0] - padX,
-                viewBox[1] - padY,
-                viewBox[2] + (padX * 2),
-                viewBox[3] + (padY * 2)
-            ].join(' '));
-        }
-
-        const foreignObjects = svg.querySelectorAll('foreignObject');
-        for (let i = 0; i < foreignObjects.length; i++) {
-            const foreignObject = foreignObjects[i];
-            const x = Number(foreignObject.getAttribute('x'));
-            const y = Number(foreignObject.getAttribute('y'));
-            const width = Number(foreignObject.getAttribute('width'));
-            const height = Number(foreignObject.getAttribute('height'));
-            if ([x, y, width, height].every(Number.isFinite) && width > 0 && height > 0) {
-                foreignObject.setAttribute('x', String(x - 7));
-                foreignObject.setAttribute('y', String(y - 4));
-                foreignObject.setAttribute('width', String(width + 14));
-                foreignObject.setAttribute('height', String(height + 8));
-            }
-            foreignObject.style.overflow = 'visible';
-        }
-    }
-
     function polishMermaidSvg(node, theme) {
         var svg = node && node.querySelector ? node.querySelector('svg') : null;
         if (!svg) return;
-        expandMermaidSvgBounds(svg);
         if (svg.querySelector('style[data-mdv-mermaid-polish="1"]')) return;
         var dark = theme === 'dark' || (theme !== 'light' && getMermaidTheme(node) === 'dark');
         var lineColor = dark ? '#94a3b8' : '#64748b';
         var textColor = dark ? '#e2e8f0' : '#334155';
-        var shadowColor = dark ? 'rgba(0,0,0,.28)' : 'rgba(15,23,42,.10)';
         svg.style.display = 'block';
         svg.style.marginLeft = 'auto';
         svg.style.marginRight = 'auto';
         var style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
         style.setAttribute('data-mdv-mermaid-polish', '1');
         style.textContent = [
-            '.node rect,.node polygon,.node circle,.node ellipse{filter:drop-shadow(0 8px 18px ' + shadowColor + ');stroke-width:1.4px;}',
-            '.node .label,.nodeLabel,.edgeLabel,.label{font-weight:600;letter-spacing:0;overflow:visible!important;}',
-            'foreignObject,foreignObject>div{overflow:visible!important;}',
-            '.nodeLabel p,.edgeLabel p,.label p{margin:0!important;overflow:visible!important;}',
-            'text,tspan{overflow:visible;}',
+            '.node rect,.node polygon,.node circle,.node ellipse{filter:drop-shadow(0 8px 18px rgba(15,23,42,.10));stroke-width:1.4px;}',
+            '.node .label,.nodeLabel,.edgeLabel,.label{font-weight:600;letter-spacing:0;}',
             '.edgeLabel{border-radius:8px;color:' + textColor + ';}',
             '.flowchart-link{stroke:' + lineColor + ' !important;stroke-width:1.9px;}',
             'marker path,path.arrowMarkerPath{fill:' + lineColor + ' !important;stroke:' + lineColor + ' !important;}',
@@ -727,6 +631,233 @@
         });
     }
 
+    function getMermaidExportSize(svg) {
+        const rect = svg.getBoundingClientRect();
+        const viewBox = svg.viewBox && svg.viewBox.baseVal;
+        let width = viewBox && viewBox.width > 0 ? viewBox.width : rect.width;
+        let height = viewBox && viewBox.height > 0 ? viewBox.height : rect.height;
+        if (!(width > 0)) width = 1200;
+        if (!(height > 0)) height = 800;
+        return { width: Math.ceil(width), height: Math.ceil(height) };
+    }
+
+    function inlineMermaidExportLabelStyles(sourceSvg, exportSvg) {
+        const sourceNodes = sourceSvg.querySelectorAll('foreignObject, foreignObject *');
+        const exportNodes = exportSvg.querySelectorAll('foreignObject, foreignObject *');
+        const properties = [
+            'color', 'background-color', 'font-family', 'font-size', 'font-style',
+            'font-weight', 'line-height', 'letter-spacing', 'text-align', 'white-space',
+            'display', 'align-items', 'justify-content', 'flex-direction', 'box-sizing',
+            'width', 'height', 'max-width', 'padding', 'margin', 'border',
+            'border-radius', 'overflow', 'overflow-wrap', 'word-break'
+        ];
+        for (let i = 0; i < exportNodes.length; i++) {
+            const sourceNode = sourceNodes[i];
+            const exportNode = exportNodes[i];
+            if (!sourceNode || !exportNode) continue;
+            const computed = global.getComputedStyle(sourceNode);
+            properties.forEach(function (property) {
+                const value = computed.getPropertyValue(property);
+                if (value) exportNode.style.setProperty(property, value);
+            });
+        }
+    }
+
+    function createMermaidExportClone(wrapper) {
+        const svg = wrapper && wrapper.querySelector ? wrapper.querySelector('.trt-mermaid-canvas svg') : null;
+        if (!svg) throw new Error('렌더링된 Mermaid SVG를 찾지 못했습니다.');
+        const size = getMermaidExportSize(svg);
+        const clone = svg.cloneNode(true);
+        clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+        clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+        clone.setAttribute('width', String(size.width));
+        clone.setAttribute('height', String(size.height));
+        clone.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+        if (!clone.getAttribute('viewBox')) clone.setAttribute('viewBox', '0 0 ' + size.width + ' ' + size.height);
+        clone.style.width = size.width + 'px';
+        clone.style.height = size.height + 'px';
+        clone.style.maxWidth = 'none';
+        clone.style.margin = '0';
+        clone.style.transform = 'none';
+        inlineMermaidExportLabelStyles(svg, clone);
+
+        const viewBox = svg.viewBox && svg.viewBox.baseVal;
+        const background = global.getComputedStyle(wrapper).backgroundColor;
+        if (background && background !== 'transparent' && background !== 'rgba(0, 0, 0, 0)') {
+            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            rect.setAttribute('data-mdv-export-background', '1');
+            rect.setAttribute('x', String(viewBox && Number.isFinite(viewBox.x) ? viewBox.x : 0));
+            rect.setAttribute('y', String(viewBox && Number.isFinite(viewBox.y) ? viewBox.y : 0));
+            rect.setAttribute('width', String(viewBox && viewBox.width > 0 ? viewBox.width : size.width));
+            rect.setAttribute('height', String(viewBox && viewBox.height > 0 ? viewBox.height : size.height));
+            rect.setAttribute('fill', background);
+            clone.insertBefore(rect, clone.firstChild);
+        }
+        return { svg: clone, size: size };
+    }
+
+    function mermaidBlobToDataUrl(blob) {
+        return new Promise(function (resolve, reject) {
+            const reader = new FileReader();
+            reader.onload = function () { resolve(String(reader.result || '')); };
+            reader.onerror = function () { reject(reader.error || new Error('이미지 변환에 실패했습니다.')); };
+            reader.readAsDataURL(blob);
+        });
+    }
+
+    function wrapMermaidExportLabel(text, maxWidth, font) {
+        const value = String(text || '').replace(/\s+/g, ' ').trim();
+        if (!value) return [];
+        const measureCanvas = document.createElement('canvas');
+        const context = measureCanvas.getContext('2d');
+        if (!context || !(maxWidth > 0)) return [value];
+        context.font = font;
+        const tokens = value.split(/(\s+)/).filter(Boolean);
+        const lines = [];
+        let line = '';
+        tokens.forEach(function (token) {
+            const candidate = line + token;
+            if (line.trim() && context.measureText(candidate).width > maxWidth) {
+                lines.push(line.trim());
+                line = token.trimStart();
+            } else {
+                line = candidate;
+            }
+        });
+        if (line.trim()) lines.push(line.trim());
+        return lines.length ? lines : [value];
+    }
+
+    function replaceMermaidHtmlLabelsForPng(sourceSvg, exportSvg) {
+        const sourceObjects = sourceSvg.querySelectorAll('foreignObject');
+        const exportObjects = exportSvg.querySelectorAll('foreignObject');
+        for (let i = 0; i < exportObjects.length; i++) {
+            const sourceObject = sourceObjects[i];
+            const exportObject = exportObjects[i];
+            if (!sourceObject || !exportObject) continue;
+            const label = sourceObject.querySelector('.nodeLabel,.edgeLabel,p,span,div') || sourceObject;
+            const computed = global.getComputedStyle(label);
+            const x = Number.parseFloat(exportObject.getAttribute('x')) || 0;
+            const y = Number.parseFloat(exportObject.getAttribute('y')) || 0;
+            const width = Number.parseFloat(exportObject.getAttribute('width')) || 0;
+            const height = Number.parseFloat(exportObject.getAttribute('height')) || 0;
+            const fontSize = Number.parseFloat(computed.fontSize) || 16;
+            const fontWeight = computed.fontWeight || '600';
+            const fontFamily = computed.fontFamily || 'Arial, sans-serif';
+            const fontStyle = computed.fontStyle || 'normal';
+            const lineHeight = Number.parseFloat(computed.lineHeight) || fontSize * 1.2;
+            const paddingX = (Number.parseFloat(computed.paddingLeft) || 0) + (Number.parseFloat(computed.paddingRight) || 0);
+            const font = fontStyle + ' ' + fontWeight + ' ' + fontSize + 'px ' + fontFamily;
+            const paragraphs = sourceObject.querySelectorAll('p');
+            let lines = [];
+            const sources = paragraphs.length ? Array.from(paragraphs) : [label];
+            sources.forEach(function (part) {
+                lines = lines.concat(wrapMermaidExportLabel(part.textContent, Math.max(10, width - paddingX), font));
+            });
+            if (!lines.length) {
+                exportObject.remove();
+                continue;
+            }
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            const centerX = x + width / 2;
+            const firstY = y + height / 2 - ((lines.length - 1) * lineHeight / 2);
+            text.setAttribute('x', String(centerX));
+            text.setAttribute('y', String(firstY));
+            text.setAttribute('text-anchor', 'middle');
+            text.setAttribute('dominant-baseline', 'middle');
+            text.setAttribute('fill', computed.color || '#172033');
+            text.setAttribute('font-family', fontFamily);
+            text.setAttribute('font-size', String(fontSize));
+            text.setAttribute('font-weight', fontWeight);
+            text.setAttribute('font-style', fontStyle);
+            text.setAttribute('letter-spacing', computed.letterSpacing || 'normal');
+            text.setAttribute('stroke', 'none');
+            text.setAttribute('stroke-width', '0');
+            text.setAttribute('opacity', '1');
+            text.style.setProperty('fill', computed.color || '#172033', 'important');
+            text.style.setProperty('color', computed.color || '#172033', 'important');
+            text.style.setProperty('stroke', 'none', 'important');
+            text.style.setProperty('stroke-width', '0', 'important');
+            text.style.setProperty('paint-order', 'normal', 'important');
+            lines.forEach(function (line, lineIndex) {
+                const tspan = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+                tspan.setAttribute('x', String(centerX));
+                if (lineIndex > 0) tspan.setAttribute('dy', String(lineHeight));
+                tspan.setAttribute('fill', computed.color || '#172033');
+                tspan.setAttribute('stroke', 'none');
+                tspan.setAttribute('stroke-width', '0');
+                tspan.style.setProperty('fill', computed.color || '#172033', 'important');
+                tspan.style.setProperty('stroke', 'none', 'important');
+                tspan.style.setProperty('stroke-width', '0', 'important');
+                tspan.textContent = line;
+                text.appendChild(tspan);
+            });
+            exportObject.replaceWith(text);
+        }
+    }
+
+    async function exportMermaidWrapperImage(wrapper, format) {
+        const exported = createMermaidExportClone(wrapper);
+        if (format !== 'png') {
+            const svgText = new XMLSerializer().serializeToString(exported.svg);
+            return {
+                dataUrl: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgText),
+                width: exported.size.width,
+                height: exported.size.height,
+                format: 'svg'
+            };
+        }
+        const sourceSvg = wrapper.querySelector('.trt-mermaid-canvas svg');
+        replaceMermaidHtmlLabelsForPng(sourceSvg, exported.svg);
+        const svgText = new XMLSerializer().serializeToString(exported.svg);
+        const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(svgBlob);
+        try {
+            const image = new Image();
+            image.decoding = 'async';
+            image.src = url;
+            if (typeof image.decode === 'function') await image.decode();
+            else await new Promise(function (resolve, reject) { image.onload = resolve; image.onerror = reject; });
+            const scale = Math.min(Math.max(8, Number(global.devicePixelRatio) || 1), 8192 / Math.max(exported.size.width, exported.size.height));
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.max(1, Math.round(exported.size.width * scale));
+            canvas.height = Math.max(1, Math.round(exported.size.height * scale));
+            const context = canvas.getContext('2d');
+            if (!context) throw new Error('Canvas 2D context를 사용할 수 없습니다.');
+            context.imageSmoothingEnabled = true;
+            context.imageSmoothingQuality = 'high';
+            context.drawImage(image, 0, 0, canvas.width, canvas.height);
+            const pngBlob = await new Promise(function (resolve, reject) {
+                canvas.toBlob(function (blob) { blob ? resolve(blob) : reject(new Error('PNG 생성에 실패했습니다.')); }, 'image/png');
+            });
+            return {
+                dataUrl: await mermaidBlobToDataUrl(pngBlob),
+                width: canvas.width,
+                height: canvas.height,
+                format: 'png'
+            };
+        } finally {
+            URL.revokeObjectURL(url);
+        }
+    }
+
+    async function openMermaidWrapperInImageInsert(wrapper, format) {
+        try {
+            const exported = await exportMermaidWrapperImage(wrapper, format);
+            if (typeof global.openImageInsertModal !== 'function' || typeof global.applyImageInsertDataUrl !== 'function') {
+                throw new Error('이미지 삽입 기능을 찾지 못했습니다.');
+            }
+            global.openImageInsertModal();
+            global.applyImageInsertDataUrl(
+                exported.dataUrl,
+                'mermaid-view-' + Date.now() + '.' + exported.format
+            );
+        } catch (error) {
+            console.error('Mermaid image insert failed:', error);
+            if (typeof global.showToast === 'function') global.showToast('Mermaid 이미지 변환 실패: ' + (error && error.message ? error.message : error));
+        }
+    }
+
     function addFixedMermaidControls(node) {
         const wrapper = node && node.closest ? node.closest('.trt-mermaid-wrapper') : null;
         if (!wrapper || wrapper.getAttribute('data-mermaid-mode') !== 'fixed') return;
@@ -764,6 +895,12 @@
             controls.appendChild(button('맞춤', '문서 너비에 맞는 기본 크기', function () {
                 applyFixedMermaidSize(wrapper, 1);
             }, 'trt-mermaid-fixed-fit'));
+            controls.appendChild(button('SVG', '현재 보이는 Mermaid를 SVG 이미지 삽입창으로 보내기', function () {
+                openMermaidWrapperInImageInsert(wrapper, 'svg');
+            }, 'trt-mermaid-fixed-export'));
+            controls.appendChild(button('PNG', '현재 보이는 Mermaid를 PNG 이미지 삽입창으로 보내기', function () {
+                openMermaidWrapperInImageInsert(wrapper, 'png');
+            }, 'trt-mermaid-fixed-export'));
             controls.appendChild(button('', '', function () {
                 toggleMermaidBlockTheme(wrapper);
             }, 'trt-mermaid-theme-toggle'));
@@ -1176,7 +1313,8 @@
         setDisplayMode: setDisplayMode,
         getDisplayMode: getMermaidDisplayMode,
         setBlockTheme: setMermaidBlockTheme,
-        fitNodeLabels: fitMermaidNodeLabels,
+        exportWrapperImage: exportMermaidWrapperImage,
+        openWrapperInImageInsert: openMermaidWrapperInImageInsert,
         getCacheStats: function () {
             return Object.assign({}, mermaidCacheStats, { size: mermaidSvgCache.size });
         },

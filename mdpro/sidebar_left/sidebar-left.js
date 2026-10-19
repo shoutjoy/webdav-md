@@ -172,6 +172,7 @@
             '    </div>',
             '    <div class="flex gap-1 shrink-0">',
             '      <button type="button" onclick="window.parent.postMessage({ type: \'mdpro-open-toc-popup\', content: document.getElementById(\'viewer-edit-ta\')?.value || \'\' }, location.origin)" id="mdpro-toc-popup-button" class="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 dark:text-slate-400" title="목차 팝업 열기" aria-label="목차 팝업 열기"><i data-lucide="list-tree" class="w-4 h-4"></i></button>',
+            '      <button type="button" onclick="toggleMiniPreviewSidebarDock()" id="mdpro-sidebar-minipv-button" class="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 dark:text-slate-400" title="왼쪽 사이드바에서 miniPV 열기" aria-label="왼쪽 사이드바에서 miniPV 열기" aria-pressed="false"><i data-lucide="panel-left-open" class="w-4 h-4"></i></button>',
             '      <button onclick="toggleSidebarCollapse()" class="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded text-slate-500 dark:text-slate-400" title="사이드바 축소/확장"><i id="collapse-icon" data-lucide="chevron-left" class="w-4 h-4"></i></button>',
             '    </div>',
             '  </div>',
@@ -190,6 +191,7 @@
             '</div>',
             '<div id="db-list" class="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1"></div>',
             '<div id="toc-list" class="hidden flex-1 overflow-y-auto custom-scrollbar p-2"></div>',
+            '<div id="sidebar-mini-preview-host" class="hidden flex-1 min-h-0 overflow-hidden"></div>',
             '<div class="p-2 border-t border-slate-200 dark:border-slate-700">',
             '  <div class="flex items-center justify-center gap-2">',
             '    <button type="button" id="btn-github-sync" onclick="pullGithubRepo()" class="hidden h-9 w-9 shrink-0 items-center justify-center bg-indigo-600 hover:bg-indigo-700 rounded-md text-white transition-colors" title="GitHub 저장소 Pull 동기화" aria-label="GitHub 저장소 Pull 동기화"><i data-lucide="refresh-cw" class="w-4 h-4"></i></button>',
@@ -250,6 +252,9 @@
     else installSidebarShell();
 
     function switchSidebarTab(tab, ctx) {
+        if (window.MiniPreviewUI && typeof window.MiniPreviewUI.undockSidebar === 'function') {
+            window.MiniPreviewUI.undockSidebar();
+        }
         activeTab = tab === 'toc' ? 'toc' : 'files';
         const btnFiles = document.getElementById('tab-files');
         const btnToc = document.getElementById('tab-toc');
