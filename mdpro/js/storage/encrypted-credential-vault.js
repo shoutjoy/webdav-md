@@ -369,7 +369,7 @@
             quickOutputLimit: Math.max(1, Number(config.quickMaxTokens) || 4096),
             reasoningOutputLimit: Math.max(1, Number(config.reasoningMaxTokens) || 8192),
             fastOutputLimit: Math.max(1, Number(config.fastMaxTokens) || 3000),
-            fastTimeoutMs: Math.max(1000, Number(config.fastTimeoutMs) || 60000),
+            fastTimeoutMs: Math.max(1000, Number(config.fastTimeoutMs) || 180000),
             reasoningLevel: String(config.reasoningLevel || 'auto'),
             timeoutMs: Math.max(1000, Number(config.timeoutMs) || 580000),
             topP: config.topP == null || config.topP === '' ? null : Number(config.topP)
@@ -435,13 +435,14 @@
                 },
                 {
                     id: 'sspimgAI', label: 'sspimgAI', enabled: settings.sspimgAI === true,
-                    provider: 'aistudio', model: readValue('ss_image_model', 'gemini-3.1-flash-image'),
+                    provider: readValue('ss_image_provider', 'aistudio'), model: readValue(readValue('ss_image_provider', 'aistudio') === 'lemonade' ? 'ss_image_model_lemonade' : 'ss_image_model', readValue('ss_image_provider', 'aistudio') === 'lemonade' ? 'Flux-2-Klein-4B' : 'gemini-3.1-flash-image'),
                     prompt: redactProbableSecrets(readValue('ss_image_prompt', '')), endpoint: '',
                     options: {
                         prompt2: redactProbableSecrets(readValue('ss_image_prompt_2', '')),
                         ratio: readValue('ss_image_ratio', '1:1'),
-                        noText: readValue('ss_image_no_text', 'false') === 'true'
-                    }, protection: protectionFor('gemini')
+                        noText: readValue('ss_image_no_text', 'false') === 'true',
+                        models: { aistudio: readValue('ss_image_model', 'gemini-3.1-flash-image'), lemonade: readValue('ss_image_model_lemonade', 'Flux-2-Klein-4B') }
+                    }, protection: protectionFor(readValue('ss_image_provider', 'aistudio') === 'lemonade' ? '' : 'gemini')
                 },
                 {
                     id: 'aiJena', label: 'AI Jena', enabled: ['1', 'true'].includes(readValue('ss_ai_chat_enabled', '0')),
@@ -547,7 +548,10 @@
         const sspimg = byId.get('sspimgAI');
         if (sspimg) {
             const options = sspimg.options && typeof sspimg.options === 'object' ? sspimg.options : {};
-            writeRestoredValue('ss_image_model', sspimg.model, 256);
+            const models = options.models && typeof options.models === 'object' ? options.models : {};
+            writeRestoredValue('ss_image_provider', sspimg.provider, 32);
+            writeRestoredValue('ss_image_model', models.aistudio || (sspimg.provider !== 'lemonade' ? sspimg.model : ''), 256);
+            writeRestoredValue('ss_image_model_lemonade', models.lemonade || (sspimg.provider === 'lemonade' ? sspimg.model : ''), 256);
             writeRestoredValue('ss_image_prompt', sspimg.prompt, 65536);
             writeRestoredValue('ss_image_prompt_2', options.prompt2, 65536);
             writeRestoredValue('ss_image_ratio', options.ratio, 16);
@@ -593,7 +597,10 @@
             const scholarTone = root.document && root.document.getElementById('scholar-ai-tone-preset');
             if (scholarTone) scholarTone.value = readValue('ss_viewer_scholar_ai_tone_preset', scholarTone.value);
             const sspModel = root.document && root.document.getElementById('ssp-model');
-            if (sspModel) sspModel.value = readValue('ss_image_model', sspModel.value);
+            const sspProvider = root.document && root.document.getElementById('ssp-provider');
+            const sspProviderValue = readValue('ss_image_provider', 'aistudio') === 'lemonade' ? 'lemonade' : 'aistudio';
+            if (sspProvider) sspProvider.value = sspProviderValue;
+            if (sspModel) sspModel.value = readValue(sspProviderValue === 'lemonade' ? 'ss_image_model_lemonade' : 'ss_image_model', sspModel.value);
             const sspPrompt = root.document && root.document.getElementById('ssp-prompt');
             const sspPrompt2 = root.document && root.document.getElementById('ssp-prompt-2');
             const sspNoText = root.document && root.document.getElementById('ssp-no-text');

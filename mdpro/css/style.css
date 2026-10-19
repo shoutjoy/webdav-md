@@ -3907,6 +3907,7 @@ html.ai-chat-page-pushed .app-header .app-header-actions {
 #ai-link-settings-block .ai-settings-rack--ollama { --ai-rack-rgb: 217 119 6; }
 #ai-link-settings-block .ai-settings-rack--litertlm { --ai-rack-rgb: 37 99 235; }
 #ai-link-settings-block .ai-settings-rack--compatible { --ai-rack-rgb: 2 132 199; }
+#ai-link-settings-block .ai-settings-rack--lemonade { --ai-rack-rgb: 249 115 22; }
 #ai-link-settings-block .ai-settings-rack--aistudio { --ai-rack-rgb: 124 58 237; }
 #ai-link-settings-block .ai-settings-rack--deepseek { --ai-rack-rgb: 225 29 72; }
 #ai-link-settings-block .ai-settings-rack--openai { --ai-rack-rgb: 5 150 105; }

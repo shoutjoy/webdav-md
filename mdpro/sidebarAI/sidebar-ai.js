@@ -3561,6 +3561,24 @@ function viewerSSPFsUploadImgbb() {
     var sspPromptInput = document.getElementById('ssp-prompt');
     var sspPrompt2Input = document.getElementById('ssp-prompt-2');
     var sspNoTextInput = document.getElementById('ssp-no-text');
+    var modelSel = document.getElementById('ssp-model');
+    var providerSel = document.getElementById('ssp-provider');
+    if (modelSel && !providerSel) {
+      var providerLabel = document.createElement('label');
+      providerLabel.setAttribute('for', 'ssp-provider');
+      providerLabel.textContent = '이미지 AI 공급자';
+      providerSel = document.createElement('select');
+      providerSel.id = 'ssp-provider';
+      providerSel.innerHTML = '<option value="aistudio">AI Studio (Gemini)</option><option value="lemonade">Lemonade 로컬 이미지</option>';
+      var modelLabel = modelSel.previousElementSibling;
+      if (modelLabel && modelLabel.parentNode) {
+        modelLabel.parentNode.insertBefore(providerLabel, modelLabel);
+        modelLabel.parentNode.insertBefore(providerSel, modelLabel);
+      }
+    }
+    var getImageProvider = getCallback('getSspimgImageProvider');
+    var savedProvider = typeof getImageProvider === 'function' ? getImageProvider() : (savedSspSettings.provider || 'aistudio');
+    if (providerSel) providerSel.value = savedProvider === 'lemonade' ? 'lemonade' : 'aistudio';
     if (sspPromptInput && !sspPromptInput.value) sspPromptInput.value = savedSspSettings.prompt || '';
     if (sspPrompt2Input && !sspPrompt2Input.value) sspPrompt2Input.value = savedSspSettings.prompt2 || '';
     if (sspNoTextInput) sspNoTextInput.checked = savedSspSettings.noText === true;
@@ -3569,12 +3587,17 @@ function viewerSSPFsUploadImgbb() {
       var saveSettings = getCallback('saveSspimgSettings');
       var modelSetter = getCallback('setImageModelId');
       var modelInput = document.getElementById('ssp-model');
-      if (typeof modelSetter === 'function' && modelInput) modelSetter(modelInput.value);
+      var providerInput = document.getElementById('ssp-provider');
+      var providerValue = providerInput && providerInput.value === 'lemonade' ? 'lemonade' : 'aistudio';
+      var providerSetter = getCallback('setSspimgImageProvider');
+      if (typeof providerSetter === 'function') providerSetter(providerValue);
+      if (typeof modelSetter === 'function' && modelInput) modelSetter(modelInput.value, providerValue);
       if (typeof saveSettings === 'function') saveSettings({
         prompt: sspPromptInput ? sspPromptInput.value : '',
         prompt2: sspPrompt2Input ? sspPrompt2Input.value : '',
         ratio: __viewerSSPRatio,
-        noText: !!(sspNoTextInput && sspNoTextInput.checked)
+        noText: !!(sspNoTextInput && sspNoTextInput.checked),
+        provider: providerValue
       });
     }
     document.querySelectorAll('.ssp-ratio-btn').forEach(function (b) {
@@ -3585,17 +3608,57 @@ function viewerSSPFsUploadImgbb() {
         persistSspSettings();
       };
     });
-    var modelSel = document.getElementById('ssp-model');
     var getImgModel = getCallback('getImageModelId');
+    async function refreshSspImageModels(provider, force) {
+      if (!modelSel) return;
+      var selectedProvider = provider === 'lemonade' ? 'lemonade' : 'aistudio';
+      var models = [];
+      if (selectedProvider === 'lemonade') {
+        var cached = getCallback('getCachedLemonadeImageModels');
+        var refresh = getCallback('refreshLemonadeImageModels');
+        try {
+          models = !force && typeof cached === 'function' ? cached() : [];
+          if ((!models || !models.length) && typeof refresh === 'function') models = await refresh();
+        } catch (error) {
+          var status = document.getElementById('ssp-status');
+          if (status) status.textContent = 'Lemonade 이미지 모델 확인 실패: ' + (error && error.message ? error.message : error);
+        }
+      } else {
+        models = ['gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image', 'gemini-3-pro-image', 'gemini-2.5-flash-image', 'imagen-4.0-generate-001'];
+      }
+      modelSel.innerHTML = '';
+      (models || []).forEach(function (id) {
+        var label = selectedProvider === 'lemonade' ? id : ({
+          'gemini-3.1-flash-image': 'Nano Banana 2',
+          'gemini-3.1-flash-lite-image': 'Nano Banana 2 Lite',
+          'gemini-3-pro-image': 'Nano Banana Pro',
+          'gemini-2.5-flash-image': 'Nano Banana',
+          'imagen-4.0-generate-001': 'Imagen 4'
+        }[id] || id);
+        modelSel.add(new Option(label, id));
+      });
+      var selected = typeof getImgModel === 'function' ? getImgModel(selectedProvider) : '';
+      if (selected && !Array.from(modelSel.options).some(function (option) { return option.value === selected; })) modelSel.add(new Option(selected, selected));
+      if (selected) modelSel.value = selected;
+      modelSel.disabled = !modelSel.options.length;
+      var statusEl = document.getElementById('ssp-status');
+      if (statusEl && selectedProvider === 'lemonade' && modelSel.options.length) statusEl.textContent = 'Lemonade 이미지 모델 ' + modelSel.options.length + '개 연결됨';
+    }
     if (modelSel && typeof getImgModel === 'function') {
       try {
-        var savedImageModel = getImgModel() || 'gemini-3.1-flash-image';
+        var savedImageModel = getImgModel(savedProvider) || (savedProvider === 'lemonade' ? 'Flux-2-Klein-4B' : 'gemini-3.1-flash-image');
         if (savedImageModel === 'gemini-3.1-flash-image-preview') savedImageModel = 'gemini-3.1-flash-image';
         if (savedImageModel === 'gemini-3-pro-image-preview') savedImageModel = 'gemini-3-pro-image';
         modelSel.value = savedImageModel;
       } catch (e) {}
       modelSel.onchange = persistSspSettings;
     }
+    if (providerSel) {
+      providerSel.onchange = function () {
+        refreshSspImageModels(providerSel.value, true).then(persistSspSettings);
+      };
+    }
+    refreshSspImageModels(providerSel && providerSel.value || savedProvider, false);
     if (sspPromptInput && !sspPromptInput.__viewerSSPSettingsBound) {
       sspPromptInput.__viewerSSPSettingsBound = true;
       sspPromptInput.addEventListener('blur', persistSspSettings);
@@ -3706,13 +3769,15 @@ function viewerSSPFsUploadImgbb() {
     var progressPct = document.getElementById('ssp-progress-pct');
     var modelSel = document.getElementById('ssp-model');
     var modelId = modelSel ? modelSel.value : 'gemini-3.1-flash-image';
+    var providerSel = document.getElementById('ssp-provider');
+    var imageProvider = providerSel && providerSel.value === 'lemonade' ? 'lemonade' : 'aistudio';
     var noText = document.getElementById('ssp-no-text') && document.getElementById('ssp-no-text').checked;
     var saveSspSettings = getCallback('saveSspimgSettings');
     if (typeof saveSspSettings === 'function') saveSspSettings({
-      prompt: p1, prompt2: p2, ratio: __viewerSSPRatio, noText: !!noText
+      prompt: p1, prompt2: p2, ratio: __viewerSSPRatio, noText: !!noText, provider: imageProvider
     });
     var setImageModel = getCallback('setImageModelId');
-    if (typeof setImageModel === 'function') setImageModel(modelId);
+    if (typeof setImageModel === 'function') setImageModel(modelId, imageProvider);
     var h = getHost();
     if (h && h._aiTaskCancelled !== undefined) h._aiTaskCancelled = false;
     __viewerSSPAbortRequested = false;
@@ -3734,7 +3799,7 @@ function viewerSSPFsUploadImgbb() {
       if (progressVal >= progressMax) clearInterval(progressInterval);
     }, progressMs);
     try {
-      var dataURL = await generateImage(prompt, { seedImage: hasSeed ? seedImage : null, modelId: modelId, aspectRatio: __viewerSSPRatio, noText: noText });
+      var dataURL = await generateImage(prompt, { provider: imageProvider, seedImage: hasSeed ? seedImage : null, modelId: modelId, aspectRatio: __viewerSSPRatio, noText: noText });
       clearInterval(progressInterval);
       if (__viewerSSPAbortRequested) {
         viewerSSPSetProgressVisible(false, 0);

@@ -77,7 +77,7 @@
       '      <input id="settings-aichat-fast-max-tokens" type="number" min="1" step="1" value="3000" class="mt-1 w-full px-2 py-1.5 border rounded bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600">',
       '    </label>',
       '    <label class="text-xs text-slate-600 dark:text-slate-400">LIMIT TIME (초)',
-      '      <input id="settings-aichat-fast-timeout" type="number" min="1" step="1" value="120" class="mt-1 w-full px-2 py-1.5 border rounded bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600">',
+      '      <input id="settings-aichat-fast-timeout" type="number" min="1" step="1" value="180" class="mt-1 w-full px-2 py-1.5 border rounded bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600">',
       '    </label>',
       '  </div>',
       '  <label class="mt-2 flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">',
