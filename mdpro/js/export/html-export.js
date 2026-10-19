@@ -203,24 +203,52 @@
 
   async function collectPageStyles() {
     if (!global.document) return '';
-    var chunks = [];
-    Array.prototype.slice.call(global.document.querySelectorAll('style')).forEach(function (style) {
-      chunks.push(style.outerHTML);
-    });
-    var links = Array.prototype.slice.call(global.document.querySelectorAll('link[rel="stylesheet"]'));
-    await Promise.all(links.map(async function (link) {
+    // Promise.all keeps document order even when downloads finish out of order.
+    var nodes = Array.prototype.slice.call(global.document.querySelectorAll('style,link[rel="stylesheet"]'));
+    var chunks = await Promise.all(nodes.map(async function (link) {
+      if (link.tagName.toLowerCase() === 'style') return link.outerHTML;
       var href = link.href || link.getAttribute('href') || '';
-      if (!href) return;
+      if (!href) return '';
       try {
         var response = await global.fetch(href, { cache: 'force-cache' });
         if (!response.ok) throw new Error('Stylesheet download failed.');
         var css = absolutizeCssUrls(await response.text(), href);
-        chunks.push('<style>\n/* ' + escapeHtml(href) + ' */\n' + css + '\n</style>');
+        return '<style>\n/* ' + escapeHtml(href) + ' */\n' + css + '\n</style>';
       } catch (_) {
-        chunks.push('<link rel="stylesheet" href="' + escapeHtml(resolveUrl(href, global.document.baseURI)) + '">');
+        return '<link rel="stylesheet" href="' + escapeHtml(resolveUrl(href, global.document.baseURI)) + '">';
       }
     }));
     return chunks.join('\n');
+  }
+
+  function exportDocumentStyles(isDark) {
+    var background = isDark ? '#0f172a' : '#ffffff';
+    var foreground = isDark ? '#f1f5f9' : '#1e293b';
+    return '<style id="mdviewer-export-styles">' +
+      'html,html body.mdviewer-export-body{background:' + background + '!important;color:' + foreground + '!important;color-scheme:' + (isDark ? 'dark' : 'light') + ';}' +
+      'body.mdviewer-export-body{display:block!important;height:auto!important;min-height:100vh;margin:0!important;padding:32px 16px!important;overflow:auto!important;}' +
+      '.mdviewer-export-document{max-width:960px;margin:0 auto;}' +
+      'body.mdviewer-export-body .mdviewer-export-document>.markdown-body{display:block!important;position:static!important;width:100%!important;max-width:100%!important;height:auto!important;min-height:0!important;margin:0!important;box-sizing:border-box;overflow:visible!important;transform:none!important;opacity:1!important;background:' + background + '!important;color:' + foreground + '!important;column-count:auto!important;}' +
+      '.mdviewer-export-document pre{white-space:pre-wrap;overflow-wrap:anywhere;}' +
+      (!isDark ? 'html:not(.dark) .mdviewer-export-document pre{background:#f1f5f9!important;color:#0f172a!important;}html:not(.dark) .mdviewer-export-document pre code{background:transparent!important;color:inherit!important;}' : '') +
+      '.mdviewer-export-document .trt-mermaid-wrapper,.mdviewer-export-document .trt-mermaid-viewport,.mdviewer-export-document .trt-mermaid-canvas{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;transform:none!important;}' +
+      '.mdviewer-export-document .trt-mermaid-canvas{width:100%!important;display:block!important;}' +
+      '</style>';
+  }
+
+  function normalizeMermaidExport(root) {
+    Array.prototype.slice.call(root.querySelectorAll('.trt-mermaid-wrapper svg')).forEach(function (svg) {
+      var box = String(svg.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number);
+      if (box.length !== 4 || !box.every(Number.isFinite) || box[2] <= 0 || box[3] <= 0) return;
+      svg.setAttribute('width', String(box[2]));
+      svg.setAttribute('height', String(box[3]));
+      svg.style.setProperty('width', '100%', 'important');
+      svg.style.setProperty('max-width', box[2] + 'px', 'important');
+      svg.style.setProperty('height', 'auto', 'important');
+      svg.style.setProperty('transform', 'none', 'important');
+      svg.style.display = 'block';
+      svg.style.margin = '0 auto';
+    });
   }
 
   function isFullHtmlDocument(content, fileName) {
@@ -269,20 +297,29 @@
       (global.document && (global.document.getElementById('viewer') || global.document.querySelector('.markdown-body')));
     if (!rendered) throw new Error('HTML export content was not found.');
     var clone = rendered.cloneNode(true);
-    Array.prototype.slice.call(clone.querySelectorAll('script,.no-print,button')).forEach(function (node) {
+    ['pointer-events', 'opacity', 'position', 'left', 'top', 'width', 'height', 'min-height', 'max-height', 'transform', 'overflow', 'display'].forEach(function (property) {
+      clone.style.removeProperty(property);
+    });
+    clone.removeAttribute('hidden');
+    clone.classList.remove('hidden');
+    Array.prototype.slice.call(clone.querySelectorAll('script,.no-print,button,.trt-mermaid-controls,.trt-mermaid-fixed-controls')).forEach(function (node) {
       if (node.parentNode) node.parentNode.removeChild(node);
     });
+    normalizeMermaidExport(clone);
     var imageResult = await embedImages(clone, rendered, payload);
     var styles = await collectPageStyles();
-    var rootClass = global.document ? global.document.documentElement.className : '';
+    var documentTheme = rendered.closest && rendered.closest('.document-light-mode,.document-dark-mode');
+    var isDark = documentTheme ? documentTheme.classList.contains('document-dark-mode') :
+      !!(global.document && global.document.documentElement.classList.contains('dark'));
+    var rootClass = isDark ? 'dark' : '';
     var rootStyle = global.document ? (global.document.documentElement.getAttribute('style') || '') : '';
     var html = '<!DOCTYPE html>\n' +
       '<html lang="ko" class="' + escapeHtml(rootClass) + '" style="' + escapeHtml(rootStyle) + '">\n' +
       '<head>\n<meta charset="UTF-8">\n' +
       '<meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
       '<title>' + escapeHtml(fileBase) + '</title>\n' + styles + '\n' +
-      '<style>body{margin:0;padding:32px 16px}.mdviewer-export-document{max-width:960px;margin:0 auto}</style>\n' +
-      '</head>\n<body class="mdviewer-export-body">\n' +
+      exportDocumentStyles(isDark) + '\n' +
+      '</head>\n<body class="mdviewer-export-body viewer-view-mode">\n' +
       '<main class="mdviewer-export-document">' + clone.outerHTML + '</main>\n' +
       '</body>\n</html>';
     return {

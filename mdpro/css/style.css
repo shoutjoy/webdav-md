@@ -631,8 +631,17 @@
             @page { size: A4 portrait; margin: 15mm; }
             .no-print { display: none !important; }
             html, body {
+                display: block !important;
+                width: 100% !important;
+                min-width: 0 !important;
+                max-width: none !important;
                 height: auto !important;
+                min-height: 0 !important;
+                margin: 0 !important;
+                padding: 0 !important;
                 overflow: visible !important;
+                transform: none !important;
+                zoom: 1 !important;
                 background-color: white !important;
             }
             body.printing-active > *:not(#print-root) { display: none !important; }
@@ -643,20 +652,31 @@
             #print-root {
                 position: static !important;
                 inset: auto !important;
-                width: auto !important;
+                display: block !important;
+                width: 100% !important;
+                max-width: none !important;
+                min-width: 0 !important;
+                height: auto !important;
                 min-height: auto !important;
                 padding: 0 !important;
                 margin: 0 !important;
                 overflow: visible !important;
+                transform: none !important;
+                zoom: 1 !important;
                 background: white !important;
             }
             #print-root .markdown-body {
                 display: block !important;
                 width: 100% !important;
                 max-width: none !important;
+                min-width: 0 !important;
+                height: auto !important;
+                max-height: none !important;
                 margin: 0 !important;
                 padding: 0 !important;
                 overflow: visible !important;
+                transform: none !important;
+                zoom: 1 !important;
                 columns: auto !important;
                 column-count: auto !important;
                 column-width: auto !important;
@@ -665,6 +685,26 @@
             #print-root .markdown-body > * {
                 max-width: 100% !important;
                 box-sizing: border-box !important;
+            }
+            #print-root .a4-atomic-content {
+                height: auto !important;
+                max-height: none !important;
+                overflow: visible !important;
+            }
+            #print-root img, #print-root svg {
+                max-width: 100% !important;
+                object-fit: contain;
+            }
+            #print-root mjx-container,
+            #print-root .katex-display {
+                overflow: visible !important;
+                max-width: 100% !important;
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+            #print-root .markdown-body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
             }
             #print-root pre,
             #print-root pre code {

@@ -151,8 +151,8 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     pdfJs: './js/extendFiles/pdfjs-loader.mjs?v=20260815-editable-2',
     pdfOpen: './js/extendFiles/pdf-open.js?v=20260815-editable-1',
     docxExport: './js/extendFiles/docx-export.js?v=20261020-mermaid-image-and-source-1',
-    htmlExport: './js/export/html-export.js?v=20260805-image-1',
-    pdfExport: './js/export/pdf-export.js?v=20261020-image-resize-1',
+    htmlExport: './js/export/html-export.js?v=20261020-theme-layout-1',
+    pdfExport: './js/export/pdf-export.js?v=20261020-table-flow-1',
     html2canvas: './vendor/html2canvas/html2canvas.min.js?v=1.4.1',
     jsPdf: './vendor/jspdf/jspdf.umd.min.js?v=4.2.1',
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
@@ -6280,6 +6280,18 @@ async function exportCurrentDocumentAsDocx() {
 async function createPdfRenderedElement() {
     if (!viewer || !viewer.cloneNode) return viewer;
     const clone = viewer.cloneNode(true);
+    // Keep TeX even when MathJax assistive MathML is disabled or the clone loses its registry.
+    const mathDocument = window.MathJax && window.MathJax.startup && window.MathJax.startup.document;
+    if (mathDocument && typeof mathDocument.getMathItemsWithin === 'function') {
+        const originals = Array.from(viewer.querySelectorAll('mjx-container'));
+        const copies = Array.from(clone.querySelectorAll('mjx-container'));
+        for (const item of mathDocument.getMathItemsWithin(viewer)) {
+            const index = originals.indexOf(item.typesetRoot);
+            if (index < 0 || !copies[index]) continue;
+            copies[index].setAttribute('data-pdf-math-source', String(item.math || ''));
+            copies[index].setAttribute('data-pdf-math-display', String(!!item.display));
+        }
+    }
     if (!window.MermaidTRT || typeof window.MermaidTRT.exportWrapperImage !== 'function') return clone;
 
     const sourceWrappers = Array.from(viewer.querySelectorAll('.trt-mermaid-wrapper'));
@@ -6434,12 +6446,19 @@ async function exportCurrentDocumentByChoice(requestedChoice) {
         await loadOptionalScript('htmlExport', function () {
             return !!window.HtmlExport && typeof window.HtmlExport.exportToHTML === 'function';
         });
-        const result = await window.HtmlExport.exportToHTML({
-            content: String(currentMarkdown || ''),
-            fileName: getSaveCandidateFileName(),
-            renderedElement: viewer,
-            baseUrl: document.baseURI,
-            resolveImage: resolveDocxExportImage
+        // Rebuild geometry in a laid-out viewer, including when saving from edit mode.
+        // A cached SVG may have been measured while the viewer was hidden.
+        if (window.MermaidTRT && typeof window.MermaidTRT.clearCache === 'function') {
+            window.MermaidTRT.clearCache();
+        }
+        const result = await withPreparedMermaidExportViewer('HTML export', async function () {
+            return await window.HtmlExport.exportToHTML({
+                content: String(currentMarkdown || ''),
+                fileName: getSaveCandidateFileName(),
+                renderedElement: viewer,
+                baseUrl: document.baseURI,
+                resolveImage: resolveDocxExportImage
+            });
         });
         if (!result) return false;
         const externalCount = Number(result.externalImageCount || 0);
@@ -6905,6 +6924,19 @@ function syncPrintRootFromViewer() {
     const printable = document.createElement('div');
     printable.className = 'markdown-body print-area';
     printable.innerHTML = String(viewerEl.innerHTML || '').trim();
+    // Screen A4 pages contain fixed-size viewports and pagination controls.
+    // Print the content in document order and let the printer paginate at its
+    // actual paper width instead of reusing those screen page boundaries.
+    printable.querySelectorAll('.a4-floating-settings,.a4-controls,.a4-number,.long-document-resize-handle,button,.no-print,script').forEach(function (node) {
+        node.remove();
+    });
+    printable.querySelectorAll('.a4-sheet').forEach(function (sheet) {
+        const content = sheet.querySelector(':scope > .a4-view-content');
+        if (content) sheet.replaceWith(...Array.from(content.childNodes));
+    });
+    printable.querySelectorAll('.a4-atomic-content').forEach(function (frame) {
+        frame.replaceWith(...Array.from(frame.childNodes));
+    });
     if (!printable.innerHTML.trim()) {
         const raw = prepareMarkdownRenderSnapshot(currentMarkdown).renderSource;
         if (!raw.trim()) return false;
@@ -6950,14 +6982,141 @@ function convertPrintMermaidSvgsToImages(printRoot) {
     return pendingImages;
 }
 
+function fitPrintMath(printRoot) {
+    if (!printRoot) return;
+    const doc = printRoot.ownerDocument;
+    const win = doc.defaultView;
+    const previousStyle = printRoot.getAttribute('style');
+    // Measure at the printable A4 width, independently of the editor's zoom
+    // and iframe width. Only this disposable copy receives math scaling.
+    printRoot.style.cssText += ';display:block!important;position:fixed!important;left:-100000px!important;top:0!important;width:180mm!important;max-width:180mm!important;visibility:hidden!important;';
+    try {
+        printRoot.querySelectorAll('mjx-container,.katex').forEach(function (container) {
+            const math = container.querySelector('mjx-math') || container.querySelector('.katex-html') || container.querySelector('svg');
+            if (!math) return;
+            if (!math.hasAttribute('data-print-original-zoom')) {
+                math.setAttribute('data-print-original-zoom', math.style.getPropertyValue('zoom'));
+                math.setAttribute('data-print-original-zoom-priority', math.style.getPropertyPriority('zoom'));
+            }
+            const originalZoom = math.getAttribute('data-print-original-zoom');
+            if (originalZoom) math.style.setProperty('zoom', originalZoom, math.getAttribute('data-print-original-zoom-priority'));
+            else math.style.removeProperty('zoom');
+            let parent = container.parentElement;
+            while (parent !== printRoot && !parent.clientWidth) parent = parent.parentElement;
+            const parentStyle = win.getComputedStyle(parent);
+            const available = Math.min(printRoot.clientWidth, parent.clientWidth - (parseFloat(parentStyle.paddingLeft) || 0) - (parseFloat(parentStyle.paddingRight) || 0)) - 2;
+            const width = Math.max(math.scrollWidth, math.getBoundingClientRect().width);
+            if (available > 0 && width > available) {
+                const baseZoom = parseFloat(win.getComputedStyle(math).zoom) || 1;
+                math.style.setProperty('zoom', String(baseZoom * available / width), 'important');
+            }
+        });
+    } finally {
+        if (previousStyle === null) printRoot.removeAttribute('style');
+        else printRoot.setAttribute('style', previousStyle);
+    }
+}
+
 function waitForPrintImages(images) {
     return Promise.all((images || []).map(function (image) {
+        image.loading = 'eager';
         if (image.complete) return Promise.resolve();
         return new Promise(function (resolve) {
-            image.addEventListener('load', resolve, { once: true });
-            image.addEventListener('error', resolve, { once: true });
+            const done = function () {
+                clearTimeout(timer);
+                image.removeEventListener('load', done);
+                image.removeEventListener('error', done);
+                resolve();
+            };
+            const timer = setTimeout(done, 15000);
+            image.addEventListener('load', done, { once: true });
+            image.addEventListener('error', done, { once: true });
         });
     }));
+}
+
+function getDocumentPrintWindow() {
+    try {
+        if (window.top !== window && window.top.document) return window.top;
+    } catch (_) { /* A cross-origin host cannot receive the print document. */ }
+    return window;
+}
+
+function clearHostPrintDocument() {
+    const host = getDocumentPrintWindow();
+    if (host === window) return;
+    host.document.body.classList.remove('printing-active');
+    host.document.querySelectorAll('[data-mdpro-print-copy]').forEach(function (node) { node.remove(); });
+}
+
+function syncHostPrintDocument() {
+    const host = getDocumentPrintWindow();
+    if (host === window) return;
+    clearHostPrintDocument();
+    // Printing the WebDAV shell otherwise retains its split-panel iframe size.
+    // Mount only the rendered document at the top level, with print-only styles.
+    Array.from(document.styleSheets).forEach(function (sheet) {
+        let copy;
+        try {
+            copy = host.document.createElement('style');
+            copy.textContent = Array.from(sheet.cssRules, function (rule) { return rule.cssText; }).join('\n');
+        } catch (_) {
+            if (!sheet.href) return;
+            copy = host.document.createElement('link');
+            copy.rel = 'stylesheet';
+            copy.href = sheet.href;
+        }
+        copy.media = 'print';
+        copy.dataset.mdproPrintCopy = 'style';
+        host.document.head.appendChild(copy);
+    });
+    const root = ensurePrintRootElement().cloneNode(true);
+    root.dataset.mdproPrintCopy = 'document';
+    root.style.setProperty('--md-app-font-size', getComputedStyle(document.documentElement).getPropertyValue('--md-app-font-size') || '16px');
+    host.document.body.appendChild(root);
+    fitPrintMath(root);
+    host.document.body.classList.add('printing-active');
+}
+
+function installDocumentPrintHandlers() {
+    const host = getDocumentPrintWindow();
+    const handleShortcut = function (event) {
+        if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'p') {
+            event.preventDefault();
+            printPage();
+        }
+    };
+    window.addEventListener('keydown', handleShortcut, true);
+    if (host === window) {
+        window.addEventListener('beforeprint', function () {
+            if (!document.body.classList.contains('printing-active')) syncPrintRootFromViewer();
+            fitPrintMath(ensurePrintRootElement());
+            document.body.classList.add('printing-active');
+        });
+        window.addEventListener('afterprint', function () {
+            document.body.classList.remove('printing-active');
+            clearPrintRoot();
+        });
+    }
+    if (host !== window) {
+        const handleBeforePrint = function () {
+            // Also support the browser menu's Print command.
+            // Keep an already prepared copy mounted while the browser lays out
+            // the job; replacing its styles here can race the print snapshot.
+            if (host.document.body.classList.contains('printing-active') && host.document.querySelector('[data-mdpro-print-copy="document"]')) return;
+            if (!document.body.classList.contains('printing-active')) syncPrintRootFromViewer();
+            syncHostPrintDocument();
+        };
+        host.addEventListener('keydown', handleShortcut, true);
+        host.addEventListener('beforeprint', handleBeforePrint);
+        host.addEventListener('afterprint', clearHostPrintDocument);
+        window.addEventListener('pagehide', function () {
+            host.removeEventListener('keydown', handleShortcut, true);
+            host.removeEventListener('beforeprint', handleBeforePrint);
+            host.removeEventListener('afterprint', clearHostPrintDocument);
+            clearHostPrintDocument();
+        }, { once: true });
+    }
 }
 
 function clearPrintRoot() {
@@ -6997,15 +7156,21 @@ async function printPage() {
             return;
         }
         const printRoot = ensurePrintRootElement();
-        await waitForPrintImages(convertPrintMermaidSvgsToImages(printRoot));
+        convertPrintMermaidSvgsToImages(printRoot);
+        await waitForPrintImages(Array.from(printRoot.querySelectorAll('img')));
+        if (document.fonts && document.fonts.ready) await document.fonts.ready;
+        fitPrintMath(printRoot);
         document.body.classList.add('printing-active');
         await waitForPrintLayout();
+        syncHostPrintDocument();
+        const printWindow = getDocumentPrintWindow();
         let cleanupTimer = 0;
-        const printMedia = typeof window.matchMedia === 'function' ? window.matchMedia('print') : null;
+        const printMedia = typeof printWindow.matchMedia === 'function' ? printWindow.matchMedia('print') : null;
         const cleanup = function () {
+            clearHostPrintDocument();
             document.body.classList.remove('printing-active');
             clearPrintRoot();
-            window.removeEventListener('afterprint', cleanup);
+            printWindow.removeEventListener('afterprint', cleanup);
             if (printMedia && typeof printMedia.removeEventListener === 'function') {
                 printMedia.removeEventListener('change', handlePrintMediaChange);
             }
@@ -7014,7 +7179,7 @@ async function printPage() {
         const handlePrintMediaChange = function (event) {
             if (!event.matches) cleanup();
         };
-        window.addEventListener('afterprint', cleanup, { once: true });
+        printWindow.addEventListener('afterprint', cleanup, { once: true });
         if (printMedia && typeof printMedia.addEventListener === 'function') {
             printMedia.addEventListener('change', handlePrintMediaChange);
         }
@@ -7024,12 +7189,13 @@ async function printPage() {
         // neither afterprint nor matchMedia changes.
         cleanupTimer = window.setTimeout(cleanup, 300000);
         try {
-            window.print();
+            printWindow.print();
         } catch (error) {
             cleanup();
             throw error;
         }
     } catch (error) {
+        clearHostPrintDocument();
         document.body.classList.remove('printing-active');
         clearPrintRoot();
         console.error('Print preparation failed:', error);
@@ -21893,6 +22059,7 @@ window.saveFileAs = saveFileAs;
 window.exportCurrentDocumentByChoice = exportCurrentDocumentByChoice;
 window.openPdfMergeWindow = openPdfMergeWindow;
 window.printPage = printPage;
+installDocumentPrintHandlers();
 window.copyViewFormattedToClipboard = copyViewFormattedToClipboard;
 window.getCurrentDbDocumentId = getCurrentDbDocumentId;
 window.getCurrentFileGoogleDocId = getCurrentFileGoogleDocId;

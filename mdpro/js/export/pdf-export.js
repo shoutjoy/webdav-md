@@ -6,6 +6,9 @@
   var DEFAULT_MARGIN_MM = 15;
   var STYLE_ID = 'mdviewer-pdf-export-style';
   var PREVIEW_ID = 'pdf-export-preview';
+  var nextPdfJobId = 0;
+  var pdfScriptUrl = global.document && global.document.currentScript && global.document.currentScript.src;
+  var pdfMathScriptPromise = null;
   var QUALITY_STORAGE_KEY = 'md_viewer_pdf_quality_v1';
   var DEFAULT_QUALITY = 'standard';
   var MAX_UNDO_HISTORY = 100;
@@ -148,10 +151,13 @@
       '.pdf-image-resize-handle{position:absolute;right:-8px;bottom:-8px;width:18px;height:18px;padding:0;border:2px solid #fff;border-radius:5px;background:#0891b2;box-shadow:0 2px 8px rgba(15,23,42,.45);cursor:nwse-resize;z-index:8;touch-action:none}',
       '.pdf-image-resize-handle::before{content:"";position:absolute;right:3px;bottom:3px;width:7px;height:7px;border-right:2px solid #fff;border-bottom:2px solid #fff}',
       '.pdf-image-resize-hint{position:absolute;right:16px;bottom:-7px;padding:3px 7px;border-radius:5px;background:#0f172a;color:#fff;font-size:10px;font-weight:800;line-height:1.2;white-space:nowrap;pointer-events:none;z-index:7}',
-      '.pdf-preview-page [data-pdf-line-spacing],.pdf-preview-page [data-pdf-line-spacing] *{line-height:var(--pdf-object-line-spacing)!important}',
+      '.pdf-preview-page [data-pdf-line-spacing]:not(.pdf-math-preserved),.pdf-preview-page [data-pdf-line-spacing] :not(.pdf-math-preserved):not(.pdf-math-preserved *){line-height:var(--pdf-object-line-spacing)!important}',
+      '.pdf-math-preserved{break-inside:avoid;page-break-inside:avoid;line-height:normal!important}.pdf-math-display{display:block!important;width:100%!important;max-width:100%!important;min-width:0!important;overflow:visible!important;margin:1em 0;text-align:center}.pdf-math-inline{display:inline!important;white-space:nowrap}.pdf-math-preserved img{max-width:100%!important;min-width:0!important;height:auto!important;object-fit:contain!important;border:0!important;border-radius:0!important;padding:0!important;box-shadow:none!important;background:transparent!important}',
       '.pdf-forced-fit{max-height:100%!important;overflow:hidden!important}.pdf-forced-fit>img,.pdf-forced-fit>svg,.pdf-forced-fit>canvas{max-height:100%!important;object-fit:contain!important}',
-      '.pdf-preview-help{position:sticky;left:16px;bottom:-48px;align-self:flex-start;max-width:560px;margin-top:6px;padding:9px 12px;border:1px solid #475569;border-radius:9px;background:rgba(15,23,42,.94);color:#cbd5e1;font-size:11px;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.24)}',
       '.pdf-preview-busy{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(15,23,42,.72);color:#fff;font-size:14px;font-weight:800;z-index:3}',
+      '.pdf-background-jobs{position:fixed;left:16px;bottom:16px;width:min(400px,calc(100vw - 32px));display:flex;flex-direction:column;gap:10px;z-index:2147483647;font-family:system-ui,sans-serif;pointer-events:none}',
+      '.pdf-background-jobs .pdf-preview-busy{position:relative;inset:auto;padding:0;background:none;pointer-events:auto}.pdf-background-jobs .pdf-preview-progress-card{width:100%;box-sizing:border-box;padding:16px}.pdf-background-jobs .pdf-preview-progress-message{text-align:left;overflow-wrap:anywhere;font-size:13px}',
+      '.pdf-render-root{position:absolute;left:-100000px;top:0;width:210mm;pointer-events:none;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.pdf-render-root *{box-sizing:border-box}',
       '.pdf-preview-progress-card{width:min(520px,92%);padding:20px;border:1px solid rgba(148,163,184,.72);border-radius:14px;background:rgba(15,23,42,.96);box-shadow:0 22px 60px rgba(0,0,0,.38)}',
       '.pdf-preview-progress-message{font-size:15px;line-height:1.5;text-align:center}',
       '.pdf-preview-progress-panel{margin-top:16px}.pdf-preview-progress-panel[hidden]{display:none}',
@@ -171,6 +177,8 @@
       '.pdf-object-editor-actions{display:flex;justify-content:flex-end;gap:8px}',
       '@media(max-width:760px){.pdf-preview-toolbar{padding:8px}.pdf-preview-title{flex-basis:100%}.pdf-preview-stage{padding:20px 8px 60px}.pdf-preview-pages{margin-left:0}}'
     ].join('\n');
+    // Apply the same page typography to the independent export snapshot.
+    style.textContent = style.textContent.replace(/#pdf-export-preview (?=\.pdf-page-content)/g, ':is(#pdf-export-preview,.pdf-render-root) ');
     global.document.head.appendChild(style);
   }
 
@@ -213,12 +221,8 @@
       ? Array.prototype.slice.call(root.querySelectorAll(':scope > .a4-sheet'))
       : [];
     if (a4Sheets.length) {
-      return a4Sheets.reduce(function (units, sheet, sheetIndex) {
-        if (sheetIndex > 0) {
-          var pageBreak = root.ownerDocument.createElement('div');
-          pageBreak.className = 'page-break';
-          units.push(pageBreak);
-        }
+      return a4Sheets.reduce(function (units, sheet) {
+        // Screen A4 sheets are automatic layout, not author-requested PDF breaks.
         var pageContent = sheet.querySelector(':scope > .a4-view-content') || sheet;
         Array.prototype.slice.call(pageContent.childNodes).forEach(function (node) {
           appendNode(units, node);
@@ -230,6 +234,13 @@
       appendNode(units, node);
       return units;
     }, []);
+  }
+
+  function pdfSplitText(node) {
+    if (node.nodeType === 3) return String(node.nodeValue || '');
+    if (node.nodeType !== 1) return '';
+    if (node.classList.contains('pdf-math-preserved')) return '\ufffc';
+    return Array.prototype.map.call(node.childNodes, pdfSplitText).join('');
   }
 
   function cloneTextSlice(element, start, end) {
@@ -245,6 +256,10 @@
         return to > from ? node.ownerDocument.createTextNode(value.slice(from - nodeStart, to - nodeStart)) : null;
       }
       if (node.nodeType !== 1) return null;
+      if (node.classList.contains('pdf-math-preserved')) {
+        var position = cursor++;
+        return position >= start && position < end ? node.cloneNode(true) : null;
+      }
       var clone = node.cloneNode(false);
       Array.prototype.slice.call(node.childNodes).forEach(function (child) {
         var childClone = visit(child);
@@ -267,8 +282,8 @@
   }
 
   function splitTextElement(element, content) {
-    if (element.querySelector('img,svg,canvas,video,iframe,table')) return null;
-    var text = String(element.textContent || '');
+    if (element.querySelector('img:not([data-pdf-math-image]),svg,canvas,video,iframe,table,mjx-container,.katex,math')) return null;
+    var text = pdfSplitText(element);
     if (text.length < 2) return null;
     var low = 1;
     var high = text.length - 1;
@@ -313,33 +328,34 @@
 
   function splitTableRows(table, content) {
     if (String(table.tagName || '').toLowerCase() !== 'table') return null;
-    var rows = Array.prototype.slice.call(table.querySelectorAll('tbody > tr'));
+    var rows = Array.prototype.filter.call(table.querySelectorAll('tbody > tr'), function (row) { return row.closest('table') === table; });
     if (rows.length < 2) return null;
-    var fragments = [];
-    var makeTable = function () {
-      var clone = table.cloneNode(false);
-      Array.prototype.slice.call(table.children).forEach(function (child) {
-        var tag = String(child.tagName || '').toLowerCase();
-        if (tag === 'tbody' || tag === 'tfoot') return;
-        clone.appendChild(child.cloneNode(true));
+    var makeTable = function (start, end) {
+      var clone = table.cloneNode(true);
+      var copiedRows = Array.prototype.filter.call(clone.querySelectorAll('tbody > tr'), function (row) { return row.closest('table') === clone; });
+      copiedRows.forEach(function (row, index) { if (index < start || index >= end) row.remove(); });
+      Array.prototype.forEach.call(clone.children, function (child) {
+        if (child.tagName === 'TBODY' && !child.children.length) child.remove();
+        if (child.tagName === 'TFOOT' && end < rows.length) child.remove();
+        if (child.tagName === 'CAPTION' && start > 0) child.remove();
       });
-      clone.appendChild(table.ownerDocument.createElement('tbody'));
       return clone;
     };
-    var current = makeTable();
+    var best = 0;
+    var spanEnd = 0;
     for (var index = 0; index < rows.length; index += 1) {
-      var body = current.querySelector('tbody');
-      var row = rows[index].cloneNode(true);
-      body.appendChild(row);
-      if (!measureCandidate(content, current.cloneNode(true)) && body.children.length > 1) {
-        body.removeChild(row);
-        fragments.push(current);
-        current = makeTable();
-        current.querySelector('tbody').appendChild(row);
-      }
+      Array.prototype.forEach.call(rows[index].cells, function (cell) {
+        var end = cell.rowSpan === 0 ? rows.lastIndexOf(Array.from(rows[index].parentElement.children).pop()) + 1 : index + cell.rowSpan;
+        spanEnd = Math.max(spanEnd, end);
+      });
+      var boundary = index + 1;
+      if (boundary < spanEnd || boundary === rows.length) continue;
+      if (!measureCandidate(content, makeTable(0, boundary))) break;
+      best = boundary;
     }
-    if (current.querySelector('tbody').children.length) fragments.push(current);
-    return fragments.length > 1 ? fragments : null;
+    // Split only once against the current space. The remainder is measured on
+    // the next page, with a full page's capacity and the table header repeated.
+    return best ? [makeTable(0, best), makeTable(best, rows.length)] : null;
   }
 
   function splitOversized(element, content) {
@@ -381,7 +397,7 @@
         '<button type="button" class="pdf-preview-button pdf-preview-button-primary" data-pdf-download>PDF 파일 저장</button>' +
         '<button type="button" class="pdf-preview-button pdf-preview-button-danger" data-pdf-close>닫기</button>' +
       '</div>' +
-      '<div class="pdf-preview-stage"><div class="pdf-preview-pages" data-pdf-pages></div><div class="pdf-preview-busy" data-pdf-busy><div class="pdf-preview-progress-card"><div class="pdf-preview-progress-message" data-pdf-busy-text>페이지를 나누는 중…</div><div class="pdf-preview-progress-panel" data-pdf-progress-panel hidden><div class="pdf-preview-progress-track" data-pdf-progress-track role="progressbar" aria-label="PDF 변환 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="pdf-preview-progress-bar" data-pdf-progress-bar></span></div><div class="pdf-preview-progress-meta"><strong class="pdf-preview-progress-value" data-pdf-progress-value>0%</strong><button type="button" class="pdf-preview-cancel" data-pdf-cancel>중지</button></div></div></div></div><div class="pdf-preview-help">이미지를 선택하면 오른쪽 아래 조절점을 드래그해 크기를 바꿀 수 있습니다. <b>선택 객체 수정</b>과 줄간격·나누기·붙이기도 사용할 수 있으며, 모든 편집은 <b>Ctrl+Z</b>로 되돌리고 문서별로 inDB에 자동 저장합니다.</div>' +
+      '<div class="pdf-preview-stage"><div class="pdf-preview-pages" data-pdf-pages></div><div class="pdf-preview-busy" data-pdf-busy><div class="pdf-preview-progress-card"><div class="pdf-preview-progress-message" data-pdf-busy-text>페이지를 나누는 중…</div><div class="pdf-preview-progress-panel" data-pdf-progress-panel hidden><div class="pdf-preview-progress-track" data-pdf-progress-track role="progressbar" aria-label="PDF 변환 진행률" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="pdf-preview-progress-bar" data-pdf-progress-bar></span></div><div class="pdf-preview-progress-meta"><strong class="pdf-preview-progress-value" data-pdf-progress-value>0%</strong><button type="button" class="pdf-preview-cancel" data-pdf-cancel>중지</button></div></div></div></div>' +
         '<div class="pdf-export-confirm" data-pdf-confirm hidden role="dialog" aria-modal="true" aria-labelledby="pdf-export-confirm-title"><section class="pdf-export-confirm-card"><h3 id="pdf-export-confirm-title">PDF로 변환하겠습니다.</h3><p>A4 ' + escapeHtml('페이지를 백그라운드에서 순서대로 렌더링합니다. 변환 중에는 진행률을 확인하거나 언제든 중지할 수 있습니다.') + '</p><div class="pdf-export-confirm-actions"><button type="button" class="pdf-preview-button" data-pdf-confirm-cancel>취소</button><button type="button" class="pdf-preview-button pdf-preview-button-primary" data-pdf-confirm-ok>확인</button></div></section></div>' +
         '<div class="pdf-object-editor" data-pdf-object-editor hidden><section class="pdf-object-editor-panel" role="dialog" aria-modal="true" aria-labelledby="pdf-object-editor-title"><h3 id="pdf-object-editor-title">선택 객체 수정</h3><p>이 수정은 원본 Markdown이 아니라 PDF 내보내기용 편집 상태에 저장됩니다. 표·목록 구조를 유지하면서 글자를 직접 고칠 수 있습니다.</p><div class="pdf-object-editor-surface markdown-body" data-pdf-edit-surface contenteditable="true" spellcheck="true"></div><div class="pdf-object-editor-actions"><button type="button" class="pdf-preview-button" data-pdf-edit-cancel>취소</button><button type="button" class="pdf-preview-button pdf-preview-button-primary" data-pdf-edit-apply>수정 적용</button></div></section></div>' +
       '</div>';
@@ -572,7 +588,7 @@
     var current = addPage(state);
 
     function place(element, sourceIndex, allowManual, depth) {
-      if (!element || depth > 24) return;
+      if (!element || (depth > 24 && String(element.tagName || '').toLowerCase() !== 'table')) return;
       if (isExplicitBreak(element)) {
         if (!pageIsEmpty(current)) current = addPage(state);
         return;
@@ -592,6 +608,16 @@
         var joinedFragments = splitOversized(element, current.content);
         if (joinedFragments && joinedFragments.length > 1) {
           joinedFragments.forEach(function (fragment) { place(fragment, sourceIndex, false, depth + 1); });
+          return;
+        }
+      }
+
+      // Like print layout, start a long table below the preceding heading
+      // instead of moving the whole table to an otherwise empty next page.
+      if (!pageIsEmpty(current)) {
+        var tableFragments = splitTableRows(element, current.content);
+        if (tableFragments) {
+          tableFragments.forEach(function (fragment) { place(fragment, sourceIndex, false, depth + 1); });
           return;
         }
       }
@@ -696,6 +722,67 @@
         global.setTimeout(resolve, 0);
       }
     });
+  }
+
+  function createBackgroundPdfState(state, job) {
+    var host = global.document.createElement('div');
+    host.id = 'pdf-render-job-' + (++nextPdfJobId);
+    host.className = 'pdf-render-root';
+    host.setAttribute('aria-hidden', 'true');
+    var pagesRoot = state.pagesRoot.cloneNode(true);
+    pagesRoot.style.setProperty('--pdf-preview-zoom', '1');
+    clearPdfSelection(pagesRoot);
+    Array.prototype.forEach.call(pagesRoot.querySelectorAll('.pdf-image-resize-handle,.pdf-image-resize-hint'), function (node) { node.remove(); });
+    // Canvas pixels are not copied by cloneNode.
+    var sourceCanvases = state.pagesRoot.querySelectorAll('canvas');
+    Array.prototype.forEach.call(pagesRoot.querySelectorAll('canvas'), function (canvas, index) {
+      canvas.getContext('2d').drawImage(sourceCanvases[index], 0, 0);
+    });
+    host.appendChild(pagesRoot);
+    global.document.body.appendChild(host);
+    var jobs = global.document.querySelector('.pdf-background-jobs');
+    if (!jobs) {
+      jobs = global.document.createElement('div');
+      jobs.className = 'pdf-background-jobs';
+      global.document.body.appendChild(jobs);
+    }
+    var busy = state.busy.cloneNode(true);
+    busy.setAttribute('role', 'status');
+    jobs.appendChild(busy);
+    var snapshot = Object.assign({}, state, {
+      renderHost: host,
+      downloaded: false,
+      pagesRoot: pagesRoot,
+      pages: Array.prototype.map.call(pagesRoot.querySelectorAll('.pdf-preview-page'), function (page) { return { page: page }; }),
+      busy: busy,
+      busyText: busy.querySelector('[data-pdf-busy-text]'),
+      progressPanel: busy.querySelector('[data-pdf-progress-panel]'),
+      progressTrack: busy.querySelector('[data-pdf-progress-track]'),
+      progressBar: busy.querySelector('[data-pdf-progress-bar]'),
+      progressValue: busy.querySelector('[data-pdf-progress-value]'),
+      cancelButton: busy.querySelector('[data-pdf-cancel]')
+    });
+    snapshot.cancelButton.addEventListener('click', function () {
+      if (job.finished) {
+        busy.remove();
+        if (!jobs.children.length) jobs.remove();
+        return;
+      }
+      job.cancelled = true;
+      snapshot.cancelButton.disabled = true;
+      snapshot.busyText.textContent = 'PDF 변환을 중지하고 있습니다…';
+    });
+    showPdfBusy(snapshot, { message: state.fileName + ' · PDF 변환을 준비하고 있습니다…', progress: true, percent: 0, cancellable: true });
+    return snapshot;
+  }
+
+  function finishBackgroundPdf(state, message) {
+    state.renderHost.remove();
+    state.busyText.textContent = message;
+    state.cancelButton.textContent = '닫기';
+    state.cancelButton.disabled = false;
+    // Keep errors and cancellation visible until dismissed.
+    if (state.downloaded) global.setTimeout(function () { state.cancelButton.click(); }, 8000);
   }
 
   function createPdfCancelledError() {
@@ -810,7 +897,7 @@
           scrollX: 0,
           scrollY: -global.scrollY,
           onclone: function (clonedDocument) {
-            var clonedPreview = clonedDocument.getElementById(PREVIEW_ID);
+            var clonedPreview = clonedDocument.getElementById(state.renderHost ? state.renderHost.id : PREVIEW_ID);
             if (!clonedPreview) return;
             var clonedPages = clonedPreview.querySelector('[data-pdf-pages]');
             if (clonedPages) clonedPages.style.setProperty('--pdf-preview-zoom', '1');
@@ -856,6 +943,30 @@
     });
   }
 
+  async function preservePdfMath(root) {
+    if (!global.PdfMathPreserve) {
+      if (!pdfMathScriptPromise) pdfMathScriptPromise = new Promise(function (resolve, reject) {
+        var script = global.document.createElement('script');
+        script.src = new URL('./pdf-math-preserve.js?v=20261020-math-page-width-1', pdfScriptUrl).href;
+        script.onload = resolve;
+        script.onerror = function () { pdfMathScriptPromise = null; script.remove(); reject(new Error('PDF 수식 보존 기능을 불러오지 못했습니다.')); };
+        global.document.head.appendChild(script);
+      });
+      await pdfMathScriptPromise;
+    }
+    var host = global.document.createElement('div');
+    host.className = 'pdf-render-root';
+    host.setAttribute('aria-hidden', 'true');
+    root.removeAttribute('id');
+    host.appendChild(root);
+    global.document.body.appendChild(host);
+    try {
+      await global.PdfMathPreserve.prepare(root);
+    } finally {
+      host.remove();
+    }
+  }
+
   async function openPreview(options) {
     var payload = options || {};
     if (!global.document || typeof global.DOMParser !== 'function') throw new Error('PDF preview requires a browser DOM.');
@@ -864,9 +975,12 @@
     ensureStyle();
 
     var parsed = parseSource(payload.html);
+    await preservePdfMath(parsed.root);
     var fileName = sanitizeFileBase(payload.fileName) + '.pdf';
     var quality = readStoredQuality();
     var overlay = createPreviewShell(fileName, quality, payload.showMergeButton === true);
+    var backgroundJobs = global.document.querySelector('.pdf-background-jobs');
+    if (backgroundJobs) global.document.body.appendChild(backgroundJobs);
     var units = sourceUnits(parsed.root);
     var documentKey = normalizeDocumentKey(payload.documentKey, payload.fileName || fileName);
 
@@ -1290,26 +1404,26 @@
         var exportJob = { cancelled: false, finished: false };
         state.exportJob = exportJob;
         state.downloadButton.disabled = true;
-        showPdfBusy(state, {
-          message: 'PDF 변환을 준비하고 있습니다…',
-          progress: true,
-          percent: 0,
-          cancellable: true
-        });
+        var backgroundState;
+        var resultMessage = state.fileName + ' · PDF 저장 완료';
         try {
-          await generatePdf(state, exportJob);
+          backgroundState = createBackgroundPdfState(state, exportJob);
+          await generatePdf(backgroundState, exportJob);
+          state.downloaded = true;
         } catch (error) {
           if (error && error.name === 'PdfExportCancelledError') {
             state.status.textContent = 'PDF 변환이 중지되었습니다.';
+            resultMessage = state.fileName + ' · PDF 변환이 중지되었습니다.';
             return;
           }
           var message = error && error.message ? error.message : String(error);
           state.status.textContent = 'PDF 생성 실패: ' + message;
-          if (typeof global.alert === 'function') global.alert('PDF 생성에 실패했습니다.\n' + message);
+          resultMessage = state.fileName + ' · PDF 생성 실패: ' + message;
+          if (!backgroundState && typeof global.alert === 'function') global.alert(resultMessage);
         } finally {
           exportJob.finished = true;
           if (state.exportJob === exportJob) state.exportJob = null;
-          showPdfBusy(state, { visible: false, message: '페이지를 나누는 중…', progress: false, cancellable: false });
+          if (backgroundState) finishBackgroundPdf(backgroundState, resultMessage);
           state.downloadButton.disabled = false;
         }
       }
@@ -1362,6 +1476,8 @@
       DEFAULT_MARGIN_MM: DEFAULT_MARGIN_MM,
       previewFitZoom: previewFitZoom,
       clampPdfProgress: clampPdfProgress,
+      pdfSplitText: pdfSplitText,
+      cloneTextSlice: cloneTextSlice,
       mermaidLabelLines: mermaidLabelLines,
       replaceMermaidForeignObjectsWithSvgText: replaceMermaidForeignObjectsWithSvgText
     })
