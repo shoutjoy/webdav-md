@@ -43,13 +43,14 @@
         <button type="button" class="sa-btn ghost" id="sa-model-btn" onclick="toggleScholarAIModelSelect()" style="font-size:11px">Model</button>
         <div id="scholar-ai-quick-wrap" class="scholar-ai-quick-wrap">
           <button type="button" id="scholar-ai-quick-toggle" class="sa-btn ghost scholar-ai-quick-toggle" onclick="toggleScholarAIQuickMenu(event)" aria-haspopup="menu" aria-expanded="false">빠른기능 ▾</button>
+<label class="scholar-ai-quick-expand-label" title="빠른기능 버튼 펼치기"><input type="checkbox" id="scholar-ai-quick-expand" aria-label="빠른기능 버튼 펼치기" aria-controls="scholar-ai-quick-menu" onchange="scholarAISetQuickExpanded(this.checked)"></label>
           <div id="scholar-ai-quick-menu" class="scholar-ai-quick-menu" role="menu">
-            <button type="button" id="scholar-ai-academic-ida-btn" class="sa-btn ghost scholar-ai-tone-apply-btn" onclick="scholarAIQuickAction('tone')" role="menuitem">~이다 문체변경</button>
+            <button type="button" id="scholar-ai-academic-ida-btn" class="sa-btn ghost scholar-ai-tone-apply-btn" onclick="scholarAIQuickAction('tone')" role="menuitem">문체</button>
             <div class="scholar-ai-translation-control" title="선택 텍스트를 대학원 수준 이상의 학술 문체로 번역">
-              <button type="button" id="scholar-ai-academic-translate-btn" class="sa-btn ghost scholar-ai-translation-btn" onclick="scholarAIQuickAction('translate')">학술번역</button>
+              <button type="button" id="scholar-ai-academic-translate-btn" class="sa-btn ghost scholar-ai-translation-btn" onclick="scholarAIQuickAction('translate')">번역</button>
               <select id="scholar-ai-translation-direction" aria-label="학술번역 방향" onclick="event.stopPropagation()"><option value="en-ko">EN→KO</option><option value="ko-en">KO→EN</option></select>
             </div>
-            <button type="button" id="scholar-ai-slide-generate-btn" class="sa-btn ghost scholar-ai-slide-generate-btn" onclick="scholarAIQuickAction('slides')" role="menuitem">슬라이드 생성</button>
+            <button type="button" id="scholar-ai-slide-generate-btn" class="sa-btn ghost scholar-ai-slide-generate-btn" onclick="scholarAIQuickAction('slides')" role="menuitem">slide</button>
           </div>
         </div>
       </div>
@@ -106,6 +107,7 @@
       </div>
       <div class="scholar-ai-run-row">
         <button type="button" id="scholar-ai-run-btn" class="sa-btn" style="background:#4f8ef7;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px" onclick="scholarAIRun()">Run</button>
+<label class="scholar-ai-live-label"><input type="checkbox" id="scholar-ai-live-replace"> 실시간 작성 · 선택 내용 대체</label>
         <button type="button" id="scholar-ai-stop-btn" class="sa-btn ghost" style="padding:6px 12px;font-size:12px" onclick="scholarAIStop()" disabled>Stop</button>
         <div id="scholar-ai-progress-wrap" class="scholar-ai-progress-wrap" aria-live="polite"><div class="scholar-ai-progress-bar"><div id="scholar-ai-progress-fill" class="scholar-ai-progress-fill"></div></div><span id="scholar-ai-progress-pct" class="scholar-ai-progress-pct">0%</span></div>
       </div>
@@ -117,14 +119,14 @@
     </div>
     <div class="scholar-ai-footer">
       <div class="scholar-ai-insert-wrap">
-        <button type="button" class="sa-btn ghost" onclick="handleScholarAIInsertClick()">Insert into document</button>
+        <button type="button" class="sa-btn ghost" onclick="handleScholarAIInsertClick()" title="선택한 기능 실행">←</button><button type="button" id="scholar-ai-insert-mode-button" class="sa-btn ghost" onclick="toggleScholarAIInsertMenu()">커서위치삽입</button>
         <div class="scholar-ai-insert-menu" id="scholar-ai-insert-menu">
-          <button type="button" onclick="scholarAIInsertDoc(0); closeScholarAIInsertMenu()">Insert at cursor</button>
-          <button type="button" onclick="scholarAIInsertDoc(1); closeScholarAIInsertMenu()">Append to document</button>
-          <button type="button" onclick="scholarAIInsertDoc(2); closeScholarAIInsertMenu()">Replace selection</button>
-          <button type="button" id="scholar-ai-insert-translation-footnotes" style="display:none" onclick="scholarAIInsertDoc(6); closeScholarAIInsertMenu()">번역 + 주요 용어 각주 삽입</button>
-          <button type="button" onclick="scholarAIInsertDoc(3); closeScholarAIInsertMenu()">ToGenslide</button>
-          <button type="button" onclick="scholarAIInsertDoc(4); closeScholarAIInsertMenu()">Mermaid(ME)</button>
+          <button type="button" data-insert-mode="0" onclick="scholarAISelectInsertMode(0)">Insert at cursor</button>
+          <button type="button" data-insert-mode="1" onclick="scholarAISelectInsertMode(1)">Append to document</button>
+          <button type="button" data-insert-mode="2" onclick="scholarAISelectInsertMode(2)">Replace selection</button>
+          <button type="button" id="scholar-ai-insert-translation-footnotes" style="display:none" data-insert-mode="6" onclick="scholarAISelectInsertMode(6)">번역 + 주요 용어 각주 삽입</button>
+          <button type="button" data-insert-mode="3" onclick="scholarAISelectInsertMode(3)">ToGenslide</button>
+          <button type="button" data-insert-mode="4" onclick="scholarAISelectInsertMode(4)">Mermaid(ME)</button>
         </div>
       </div>
       <button type="button" id="scholar-ai-to-genslide-btn" class="sa-btn" style="display:none;background:#f59e0b;color:#111827;border:none" onclick="scholarAIToGenSlide()" title="Send slide HTML to GenSlide">ToGenslide</button>
@@ -305,13 +307,14 @@
         <button type="button" class="sa-btn ghost" id="sa-model-btn" onclick="toggleScholarAIModelSelect()" style="font-size:11px">Model</button>
         <div id="scholar-ai-quick-wrap" class="scholar-ai-quick-wrap">
           <button type="button" id="scholar-ai-quick-toggle" class="sa-btn ghost scholar-ai-quick-toggle" onclick="toggleScholarAIQuickMenu(event)" aria-haspopup="menu" aria-expanded="false">빠른기능 ▾</button>
+<label class="scholar-ai-quick-expand-label" title="빠른기능 버튼 펼치기"><input type="checkbox" id="scholar-ai-quick-expand" aria-label="빠른기능 버튼 펼치기" aria-controls="scholar-ai-quick-menu" onchange="scholarAISetQuickExpanded(this.checked)"></label>
           <div id="scholar-ai-quick-menu" class="scholar-ai-quick-menu" role="menu">
-            <button type="button" id="scholar-ai-academic-ida-btn" class="sa-btn ghost scholar-ai-tone-apply-btn" onclick="scholarAIQuickAction('tone')" role="menuitem">~이다 문체변경</button>
+            <button type="button" id="scholar-ai-academic-ida-btn" class="sa-btn ghost scholar-ai-tone-apply-btn" onclick="scholarAIQuickAction('tone')" role="menuitem">문체</button>
             <div class="scholar-ai-translation-control" title="선택 텍스트를 대학원 수준 이상의 학술 문체로 번역">
-              <button type="button" id="scholar-ai-academic-translate-btn" class="sa-btn ghost scholar-ai-translation-btn" onclick="scholarAIQuickAction('translate')">학술번역</button>
+              <button type="button" id="scholar-ai-academic-translate-btn" class="sa-btn ghost scholar-ai-translation-btn" onclick="scholarAIQuickAction('translate')">번역</button>
               <select id="scholar-ai-translation-direction" aria-label="학술번역 방향" onclick="event.stopPropagation()"><option value="en-ko">EN→KO</option><option value="ko-en">KO→EN</option></select>
             </div>
-            <button type="button" id="scholar-ai-slide-generate-btn" class="sa-btn ghost scholar-ai-slide-generate-btn" onclick="scholarAIQuickAction('slides')" role="menuitem">슬라이드 생성</button>
+            <button type="button" id="scholar-ai-slide-generate-btn" class="sa-btn ghost scholar-ai-slide-generate-btn" onclick="scholarAIQuickAction('slides')" role="menuitem">slide</button>
           </div>
         </div>
       </div>
@@ -364,6 +367,7 @@
       </div>
       <div class="scholar-ai-run-row">
         <button type="button" id="scholar-ai-run-btn" class="sa-btn" style="background:#4f8ef7;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px" onclick="scholarAIRun()">Run</button>
+<label class="scholar-ai-live-label"><input type="checkbox" id="scholar-ai-live-replace"> 실시간 작성 · 선택 내용 대체</label>
         <button type="button" id="scholar-ai-stop-btn" class="sa-btn ghost" style="padding:6px 12px;font-size:12px" onclick="scholarAIStop()" disabled>Stop</button>
         <div id="scholar-ai-progress-wrap" class="scholar-ai-progress-wrap" aria-live="polite"><div class="scholar-ai-progress-bar"><div id="scholar-ai-progress-fill" class="scholar-ai-progress-fill"></div></div><span id="scholar-ai-progress-pct" class="scholar-ai-progress-pct">0%</span></div>
       </div>
@@ -375,14 +379,14 @@
     </div>
     <div class="scholar-ai-footer">
       <div class="scholar-ai-insert-wrap">
-        <button type="button" class="sa-btn ghost" onclick="handleScholarAIInsertClick()">Insert into document</button>
+        <button type="button" class="sa-btn ghost" onclick="handleScholarAIInsertClick()" title="선택한 기능 실행">←</button><button type="button" id="scholar-ai-insert-mode-button" class="sa-btn ghost" onclick="toggleScholarAIInsertMenu()">커서위치삽입</button>
         <div class="scholar-ai-insert-menu" id="scholar-ai-insert-menu">
-          <button type="button" onclick="scholarAIInsertDoc(0); closeScholarAIInsertMenu()">Insert at cursor</button>
-          <button type="button" onclick="scholarAIInsertDoc(1); closeScholarAIInsertMenu()">Append to document</button>
-          <button type="button" onclick="scholarAIInsertDoc(2); closeScholarAIInsertMenu()">Replace selection</button>
-          <button type="button" id="scholar-ai-insert-translation-footnotes" style="display:none" onclick="scholarAIInsertDoc(6); closeScholarAIInsertMenu()">번역 + 주요 용어 각주 삽입</button>
-          <button type="button" onclick="scholarAIInsertDoc(3); closeScholarAIInsertMenu()">ToGenslide</button>
-          <button type="button" onclick="scholarAIInsertDoc(4); closeScholarAIInsertMenu()">Mermaid(ME)</button>
+          <button type="button" data-insert-mode="0" onclick="scholarAISelectInsertMode(0)">Insert at cursor</button>
+          <button type="button" data-insert-mode="1" onclick="scholarAISelectInsertMode(1)">Append to document</button>
+          <button type="button" data-insert-mode="2" onclick="scholarAISelectInsertMode(2)">Replace selection</button>
+          <button type="button" id="scholar-ai-insert-translation-footnotes" style="display:none" data-insert-mode="6" onclick="scholarAISelectInsertMode(6)">번역 + 주요 용어 각주 삽입</button>
+          <button type="button" data-insert-mode="3" onclick="scholarAISelectInsertMode(3)">ToGenslide</button>
+          <button type="button" data-insert-mode="4" onclick="scholarAISelectInsertMode(4)">Mermaid(ME)</button>
         </div>
       </div>
       <button type="button" id="scholar-ai-to-genslide-btn" class="sa-btn" style="display:none;background:#f59e0b;color:#111827;border:none" onclick="scholarAIToGenSlide()" title="Send slide HTML to GenSlide">ToGenslide</button>
@@ -771,6 +775,10 @@
       ? { left: Math.max(12, vw - 460), top: 72, width: 420, height: Math.min(760, Math.round(vh * 0.82)) }
       : { left: Math.max(12, vw - 520), top: 72, width: 480, height: Math.min(780, Math.round(vh * 0.84)) };
     var rect = saved || defaultRect;
+    var jenaPanel = document.getElementById('ai-chat-panel');
+    if (jenaPanel && jenaPanel.classList.contains('open')) {
+      rect = Object.assign({}, rect, { left: 12 });
+    }
     var minW = 320, minH = 280;
     var width = Math.max(minW, Math.min(vw - 24, rect.width));
     var height = Math.max(minH, Math.min(vh - 24, rect.height));
@@ -1435,6 +1443,7 @@
   var __aiDocSelTimer = null;
  
   function syncAiPanelsFromDocumentSelection() {
+    if (window.ScholarAIReplacement && window.ScholarAIReplacement.isActive()) return;
     var viewer = getViewerMarkdownRoot();
     var taPassage = document.getElementById('scholar-ai-selected');
     var sspPrompt = document.getElementById('ssp-prompt');
@@ -1466,7 +1475,9 @@
       __scholarAILastSelectionDoc = pick.doc || null;
     }
 
+    if (pick.target && window.ScholarAIReplacement) window.ScholarAIReplacement.capture(pick.target,pick.start,pick.end,pick.text);
     if (taPassage) taPassage.value = pick.text;
+    if (!pick.target && window.ScholarAIReplacement) window.ScholarAIReplacement.capturePassage();
     if (sspPrompt) sspPrompt.value = pick.text;
   }
 
@@ -1610,6 +1621,75 @@
     scholarAIUpdateToGenSlideButton();
   }
 
+  var scholarAIConnectionEpoch = 0;
+  var scholarAIProviderLabels = {
+    auto: '자동 연결', lmstudio: 'LM Studio', litertlm: 'LiteRT-LM',
+    aistudio: 'AI Studio (Gemini)', ollama: 'Ollama',
+    'ollama-npu': 'Ollama NPU · Lemonade', deepseek: 'DeepSeek',
+    'openai-compatible': 'OrcaRouter / OpenAI 호환', openai: 'OpenAI'
+  };
+
+  function scholarAIRenderConnection(provider, model, state, detail) {
+    var panel = document.getElementById('scholar-ai-sidebar');
+    var header = panel && panel.querySelector('.scholar-ai-header');
+    if (!header) return;
+    var bar = document.getElementById('scholar-ai-connection-summary');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'scholar-ai-connection-summary';
+      bar.setAttribute('role', 'status');
+      bar.setAttribute('aria-live', 'polite');
+      bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 14px;border-bottom:1px solid #334155;font-size:11px;line-height:1.4;font-weight:400;flex-shrink:0;overflow-wrap:anywhere';
+      header.parentNode.insertBefore(bar, header.nextSibling);
+    }
+    bar.textContent = '';
+    var label = document.createElement('span');
+    label.style.cssText = 'flex:1;min-width:0';
+    label.textContent = 'AI 공급자 · ' + (scholarAIProviderLabels[provider] || provider) + ' · ' + (model || '모델 미선택');
+    var status = document.createElement('span');
+    status.style.color = state === 'connected' ? '#2de0b4' : state === 'error' ? '#f87171' : '#94a3b8';
+    status.textContent = state === 'connected' ? '● 연결됨' : state === 'checking' ? '◌ 연결 확인 중' : state === 'error' ? '● 연결 실패' : '○ 연결 확인 필요';
+    bar.appendChild(label);
+    bar.appendChild(status);
+    bar.title = detail || '';
+  }
+
+  async function scholarAIRefreshConnection() {
+    var epoch = ++scholarAIConnectionEpoch;
+    var provider = scholarAIGetProvider();
+    var model = invokeSync('getScholarAIModelId', provider) || '';
+    scholarAIRenderConnection(provider, model, 'checking');
+    var bridge = window.AIChatBridge;
+    var methods = { lmstudio: 'refreshLMStudioModels', litertlm: 'refreshLiteRTLMModels', aistudio: 'refreshGeminiModels', ollama: 'refreshOllamaModels', 'ollama-npu': 'refreshNPUModels', deepseek: 'refreshDeepseekModels', 'openai-compatible': 'refreshOpenAICompatibleModels', openai: 'refreshOpenAIModels' };
+    var candidates = provider === 'auto' ? ['lmstudio', 'ollama', 'aistudio', 'deepseek', 'openai'] : [provider];
+    var lastError;
+    for (var candidate of candidates) {
+      try {
+        if (!bridge || typeof bridge[methods[candidate]] !== 'function') throw new Error('연결 확인 기능을 사용할 수 없습니다.');
+        var result = await bridge[methods[candidate]]();
+        if (epoch !== scholarAIConnectionEpoch) return;
+        var models = (Array.isArray(result) ? result : result.models || []).map(function (item) { return typeof item === 'string' ? item : item.id; }).filter(Boolean);
+        if (!models.length) throw new Error('사용 가능한 모델이 없습니다.');
+        var selected = provider === 'auto' ? result.model || models[0] : invokeSync('getScholarAIModelId', provider) || model;
+        if (!selected && provider !== 'auto') {
+          selected = models[0];
+          var setter = getCallback('setScholarAIModelId');
+          if (setter) setter(selected, provider);
+        }
+        if (models.indexOf(selected) < 0) throw new Error('선택한 모델을 서버에서 확인하지 못했습니다. 모델을 선택하세요.');
+        scholarAIRenderConnection(candidate, selected, 'connected');
+        return;
+      } catch (error) { lastError = error; }
+    }
+    if (epoch === scholarAIConnectionEpoch) scholarAIRenderConnection(provider, model, 'error', lastError && lastError.message);
+  }
+
+  document.addEventListener('change', function (event) {
+    if (event.target && (event.target.id === 'scholar-ai-model-select' || event.target.id === 'scholar-ai-provider-select')) {
+      Promise.resolve().then(scholarAIRefreshConnection);
+    }
+  });
+
   function scholarAISetProviderStatus(message, isError) {
     var status = document.getElementById('scholar-ai-provider-status');
     if (!status) return;
@@ -1621,8 +1701,8 @@
     var getter = getCallback('getScholarAIProvider');
     try {
       var provider = getter && getter();
-      return provider === 'aistudio' || provider === 'ollama' || provider === 'deepseek' || provider === 'openai' ? provider : 'lmstudio';
-    } catch (e) { return 'lmstudio'; }
+      return ['auto', 'lmstudio', 'aistudio', 'ollama', 'deepseek', 'openai', 'litertlm', 'ollama-npu', 'openai-compatible'].indexOf(provider) >= 0 ? provider : 'auto';
+    } catch (e) { return 'auto'; }
   }
 
   function scholarAISetModelOptions(models, selected) {
@@ -1660,13 +1740,19 @@
 
   function scholarAIEnsureProviderControls() {
     var panel = document.getElementById('scholar-ai-model-panel');
-    if (!panel || document.getElementById('scholar-ai-provider-select')) return;
+    if (!panel) return;
+    // Reconcile controls created by an earlier sidebar version as well.
+    var existing = document.getElementById('scholar-ai-provider-select');
+    if (existing) {
+      scholarAISyncProviderOptions(existing);
+      return;
+    }
     var wrap = document.createElement('div');
     wrap.id = 'scholar-ai-provider-controls';
     wrap.innerHTML = ''
       + '<label for="scholar-ai-provider-select" style="font-size:10px;margin-bottom:4px;display:block">AI 공급자</label>'
       + '<select id="scholar-ai-provider-select" class="sa-model-select" style="width:100%;padding:6px 8px;font-size:11px;border:1px solid #2e3447;border-radius:4px;background:#1a1e28;color:#b0bac8;margin-bottom:8px">'
-      + '<option value="lmstudio">LM Studio</option><option value="aistudio">AI Studio (Gemini)</option><option value="ollama">Ollama</option><option value="deepseek">DeepSeek (유료)</option><option value="openai">OpenAI · ChatGPT 모델 (유료 API)</option></select>'
+      + '<option value="auto">자동 연결 (LM Studio / Ollama / AI Studio)</option><option value="lmstudio">LM Studio</option><option value="litertlm">LiteRT-LM</option><option value="aistudio">AI Studio (Gemini)</option><option value="ollama">Ollama</option><option value="ollama-npu">Ollama NPU · Lemonade</option><option value="deepseek">DeepSeek (유료)</option><option value="openai-compatible">OrcaRouter / OpenAI 호환</option><option value="openai">OpenAI · ChatGPT 모델 (유료 API)</option></select>'
       + '<div id="scholar-ai-lm-model-actions" style="display:none;gap:6px;margin:0 0 8px">'
       + '<button type="button" id="scholar-ai-lm-model-refresh" class="sa-btn ghost" style="flex:1">새로고침</button>'
       + '<button type="button" id="scholar-ai-lm-model-load" class="sa-btn" style="flex:1">호출</button></div>'
@@ -1674,6 +1760,7 @@
     panel.insertBefore(wrap, panel.firstChild);
 
     var providerSel = document.getElementById('scholar-ai-provider-select');
+    scholarAISyncProviderOptions(providerSel);
     providerSel.onchange = function () {
       var setter = getCallback('setScholarAIProvider');
       if (typeof setter === 'function') setter(providerSel.value);
@@ -1683,6 +1770,30 @@
     if (refreshBtn) refreshBtn.onclick = function () { scholarAIRefreshLMStudioModel(false); };
     var loadBtn = document.getElementById('scholar-ai-lm-model-load');
     if (loadBtn) loadBtn.onclick = function () { scholarAILoadLMStudioModel(); };
+  }
+
+  function scholarAISyncProviderOptions(select) {
+    var selected = select.value;
+    var jena = document.getElementById('ai-chat-provider');
+    var providers = jena ? Array.from(jena.options).map(function (option) {
+      return [option.value, option.textContent];
+    }) : [
+      ['lmstudio', 'LM Studio'], ['litertlm', 'LiteRT-LM'],
+      ['aistudio', 'AI Studio (Gemini)'], ['ollama', 'Ollama'],
+      ['ollama-npu', 'Ollama NPU · Lemonade'], ['deepseek', 'DeepSeek (유료)'],
+      ['openai-compatible', 'OrcaRouter / OpenAI 호환'], ['openai', 'OpenAI · ChatGPT 모델 (유료 API)']
+    ];
+    // Keep ScholarAI's existing automatic connection and any other controls.
+    providers.forEach(function (provider) {
+      var option = Array.from(select.options).find(function (item) { return item.value === provider[0]; });
+      if (!option) {
+        option = document.createElement('option');
+        option.value = provider[0];
+      }
+      option.textContent = provider[1];
+      select.appendChild(option);
+    });
+    select.value = selected;
   }
 
   function scholarAIApplyLoadedLMStudioModels(models) {
@@ -1755,6 +1866,7 @@
   }
 
   function scholarAIApplyLoadedOllamaModels(models) {
+    if (scholarAIGetProvider() !== 'ollama') return;
     var values = Array.isArray(models) ? models.map(String).filter(Boolean) : [];
     var getter = getCallback('getScholarAIModelId');
     var selected = '';
@@ -1764,6 +1876,9 @@
       scholarAISetProviderStatus('Ollama 모델이 없습니다. Ollama 서버 실행과 설정 주소를 확인하세요.', true);
       return;
     }
+    var select = document.getElementById('scholar-ai-model-select');
+    var setter = getCallback('setScholarAIModelId');
+    if (select && setter) setter(select.value, 'ollama');
     scholarAISetProviderStatus('Ollama 모델 ' + values.length + '개를 확인했습니다.', false);
   }
 
@@ -1832,6 +1947,7 @@
   }
 
   function scholarAIInitModelSelect() {
+    scholarAIRefreshConnection();
     var sel = document.getElementById('scholar-ai-model-select');
     var getter = getCallback('getScholarAIModelId');
     if (!sel) return;
@@ -1839,11 +1955,53 @@
     var provider = scholarAIGetProvider();
     var providerSel = document.getElementById('scholar-ai-provider-select');
     if (providerSel) providerSel.value = provider;
+    if (['litertlm', 'ollama-npu', 'openai-compatible'].indexOf(provider) >= 0) {
+      var bridge = window.AIChatBridge;
+      var suffix = { litertlm: 'LiteRTLMModels', 'ollama-npu': 'NPUModels', 'openai-compatible': 'OpenAICompatibleModels' }[provider];
+      var actions = document.getElementById('scholar-ai-lm-model-actions');
+      if (actions) actions.style.display = 'none';
+      sel.disabled = false;
+      sel.title = 'AI Jena와 동일한 연결 설정을 사용합니다.';
+      sel.style.cursor = 'pointer';
+      if (sel.previousElementSibling && sel.previousElementSibling.tagName === 'LABEL') {
+        sel.previousElementSibling.style.display = 'block';
+        sel.previousElementSibling.textContent = '모델 선택';
+      }
+      var selected = getter ? getter(provider) : '';
+      scholarAISetModelOptions(bridge ? bridge['getCached' + suffix]() : [], selected);
+      scholarAISetProviderStatus('AI Jena 연결 설정으로 모델 목록을 확인하는 중...', false);
+      sel.onchange = function () {
+        var setter = getCallback('setScholarAIModelId');
+        if (setter) setter(sel.value, provider);
+      };
+      if (bridge) Promise.resolve().then(function () {
+        return bridge['refresh' + suffix]();
+      }).then(function (models) {
+        if (scholarAIGetProvider() !== provider) return;
+        var values = (models || []).map(function (model) { return typeof model === 'string' ? model : model.id; }).filter(Boolean);
+        var preferred = sel.value || selected;
+        scholarAISetModelOptions(values, values.indexOf(preferred) >= 0 ? preferred : values[0] || '');
+        if (sel.value) sel.onchange();
+        scholarAISetProviderStatus('모델 목록을 확인했습니다. 연결 설정은 앱 설정에서 관리합니다.', false);
+      }).catch(function (error) {
+        if (scholarAIGetProvider() === provider) scholarAISetProviderStatus(error.message || String(error), true);
+      });
+      return;
+    }
     var lmActions = document.getElementById('scholar-ai-lm-model-actions');
     if (lmActions) lmActions.style.display = provider === 'lmstudio' ? 'flex' : 'none';
     if (sel.previousElementSibling && sel.previousElementSibling.tagName === 'LABEL') {
       sel.previousElementSibling.style.display = 'block';
       sel.previousElementSibling.textContent = provider === 'aistudio' ? 'Gemini 모델 선택' : (provider === 'lmstudio' ? 'LM Studio 설치 모델 선택' : '모델 선택');
+    }
+    if (provider === 'auto') {
+      sel.disabled = false;
+      sel.title = '요청할 때 실행 중인 LM Studio와 Ollama의 모델을 확인합니다.';
+      scholarAISetModelOptions([], '');
+      sel.onchange = null;
+      if (sel.options && sel.options[0]) sel.options[0].textContent = '실행 중인 서버의 모델 자동 선택';
+      scholarAISetProviderStatus('LM Studio → Ollama → ENV의 AI Studio 순서로 연결과 모델을 확인합니다.', false);
+      return;
     }
     if (provider === 'lmstudio') {
       sel.disabled = false;
@@ -2068,6 +2226,7 @@
     scholarAISetHistoryCollapsed(!collapsed);
   }
   function scholarAIInitHistoryPanel() {
+    if (window.scholarAIRefreshInsertMode) window.scholarAIRefreshInsertMode();
     var collapsed = true;
     try {
       collapsed = (localStorage.getItem(LS_SA_HISTORY_COLLAPSED) || '1') !== '0';
@@ -2174,6 +2333,8 @@
   }
 
   function scholarAIStop() {
+    scholarAIRunEpoch++;
+    if (window.ScholarAIReplacement) window.ScholarAIReplacement.cancel();
     if (!__scholarAIRunning) return;
     var abortFn = getCallback('abortCurrentTask');
     if (typeof abortFn === 'function') {
@@ -2258,10 +2419,10 @@
   }
 
   function scholarAIParseExplanationResult(raw) {
-    var text = String(raw || '').replace(/\r\n/g, '\n').trim();
+    var text = String(raw || '').replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').replace(/\r\n/g, '\n').trim();
     if (!text) return { explanation: '', result: '' };
 
-    var markerRe = /\[\s*(EXPLANATION|RESULT|설명|결과)\s*(?::[^\]]*)?\]/ig;
+    var markerRe = /\[\s*(EXPLANATION|REASONING|RESULT|ANSWER|설명|결과|답변)\s*(?::[^\]]*)?\]/ig;
     var marks = [];
     var m = null;
     while ((m = markerRe.exec(text)) !== null) {
@@ -2276,8 +2437,8 @@
         var cur = marks[i];
         var next = marks[i + 1];
         var seg = text.slice(cur.end, next ? next.idx : text.length).trim();
-        if (cur.key === 'EXPLANATION') explanation += (explanation ? '\n\n' : '') + seg;
-        if (cur.key === 'RESULT') result += (result ? '\n\n' : '') + seg;
+        if (/^(EXPLANATION|REASONING)$/.test(cur.key)) explanation += (explanation ? '\n\n' : '') + seg;
+        if (/^(RESULT|ANSWER|답변)$/.test(cur.key)) result += (result ? '\n\n' : '') + seg;
       }
       return { explanation: explanation.trim(), result: scholarAINormalizeResultText(result) };
     }
@@ -2292,7 +2453,9 @@
     if (/^\s*<!DOCTYPE html/i.test(text) || /^\s*<html[\s>]/i.test(text) || /^\s*<(div|section|article|main|style|script)[\s>]/i.test(text)) {
       return { explanation: '', result: scholarAINormalizeResultText(text) };
     }
-    return { explanation: text, result: '' };
+    // Providers may omit the requested envelope. Plain replies are still
+    // document output; explicit explanation/reasoning markers remain excluded.
+    return { explanation: '', result: scholarAINormalizeResultText(text) };
   }
 
   function scholarAIApplyResultText(rawText) {
@@ -2321,6 +2484,7 @@
     return parsed.result || '';
   }
 
+  var scholarAIRunEpoch = 0;
   async function scholarAIRun() {
     var sel = document.getElementById('scholar-ai-selected');
     var promptEl = document.getElementById('scholar-ai-prompt');
@@ -2331,6 +2495,10 @@
     if (!passage) { alert('Please provide selected text to analyze.'); return; }
     var callScholarAI = getCallback('callScholarAI') || getCallback('callGemini');
     if (typeof callScholarAI !== 'function') { alert('ScholarAI API is not available. Please check your settings.'); return; }
+    var replacement = null;
+    try { replacement = window.ScholarAIReplacement && window.ScholarAIReplacement.begin(); } catch (error) { alert(error.message); return; }
+    var streamRaw = '';
+    var runEpoch = ++scholarAIRunEpoch;
     if (resultEl) resultEl.value = 'Running ScholarAI...';
     if (insertEl) insertEl.value = '';
     scholarAISetRunningState(true);
@@ -2343,10 +2511,23 @@
       var tonePreset = scholarAIGetTonePreset();
       var toneInstruction = scholarAIGetToneInstruction(tonePreset);
       if (toneInstruction) sys += '\n\n' + toneInstruction;
+      sys += '\nStream the final document text FIRST, starting immediately with [RESULT]. Only AFTER the complete result, use [EXPLANATION] for any explanation. Never include explanation or reasoning in [RESULT].';
       var modelId = invokeSync('getScholarAIModelId') || null;
-      var res = await callScholarAI(fullPrompt, sys, false, modelId);
+      var res = await callScholarAI(fullPrompt, sys, false, modelId, {onText: function (delta) {
+        if (runEpoch !== scholarAIRunEpoch) return;
+        streamRaw += delta;
+        var partial = scholarAIApplyResultText(streamRaw.replace(/\[[^\]]*$/, '').replace(/<[^>]*$/, ''));
+        if (replacement) window.ScholarAIReplacement.update(replacement, partial.result);
+      }});
+      if (runEpoch !== scholarAIRunEpoch) return;
+      if (res && res.provider && res.model) {
+        ++scholarAIConnectionEpoch;
+        scholarAIRenderConnection(res.provider, res.model, 'connected');
+      }
       if (res && res.fallbackFrom === 'lmstudio') {
-        scholarAISetProviderStatus('LM Studio 실패로 AI Studio를 사용했습니다: ' + (res.fallbackReason || '연결 오류'), true);
+        scholarAISetProviderStatus('LM Studio 연결 실패로 ' + res.provider + ' · ' + res.model + '에 연결했습니다.', false);
+      } else if (res && res.provider === 'ollama' && res.model) {
+        scholarAISetProviderStatus('이번 요청에 사용된 Ollama 모델: ' + res.model, false);
       } else if (res && res.provider === 'deepseek' && res.model) {
         scholarAISetProviderStatus('DeepSeek 모델 ' + res.model + '로 응답을 생성했습니다.', false);
       } else if (res && res.provider === 'lmstudio' && res.model) {
@@ -2356,11 +2537,18 @@
       var text = res && res.text ? res.text : (res || '');
       var finalText = typeof text === 'string' ? text : JSON.stringify(text);
       scholarAIApplyResultText(finalText);
+      if (replacement) window.ScholarAIReplacement.finish(replacement,scholarAIParseExplanationResult(finalText).result);
       scholarAIHistoryAdd(userQ || passage.substring(0, 80), finalText);
       scholarAIHistoryRender();
       scholarAIStopProgress(true);
     } catch (e) {
+      if (runEpoch !== scholarAIRunEpoch) return;
+      if (replacement) window.ScholarAIReplacement.cancel(replacement);
       var msg = (e && e.message) ? String(e.message) : String(e || '');
+      if (!(e && e.name === 'AbortError') && !/aborted|abort/i.test(msg)) {
+        ++scholarAIConnectionEpoch;
+        scholarAIRenderConnection(scholarAIGetProvider(), invokeSync('getScholarAIModelId') || '', 'error', msg);
+      }
       scholarAIStopProgress(false);
       if (resultEl) {
         if ((e && e.name === 'AbortError') || /aborted|abort/i.test(msg)) resultEl.value = 'Stopped by user.';
@@ -2374,7 +2562,7 @@
       if (insertEl) insertEl.value = '';
       scholarAISetResultTab('explanation');
     } finally {
-      scholarAISetRunningState(false);
+      if (runEpoch === scholarAIRunEpoch) scholarAISetRunningState(false);
     }
   }
   function scholarAICopyResult() {
@@ -2770,7 +2958,7 @@
       var next = appendMode ? (before + selected + '\n\n' + text + after) : (before + text + after);
       target.value = next;
       var caret = appendMode ? (s + selected.length + 2 + text.length) : (s + text.length);
-      if (typeof target.focus === 'function') target.focus();
+      if (typeof target.focus === 'function') target.focus({ preventScroll: true });
       if (typeof target.setSelectionRange === 'function') target.setSelectionRange(caret, caret);
       try {
         var evCtor = (target.ownerDocument && target.ownerDocument.defaultView && target.ownerDocument.defaultView.Event) || Event;
@@ -2888,11 +3076,8 @@
     __scholarAICursorPos = insertEnd;
     __scholarAISelStart = __scholarAISelEnd = null;
     __scholarAILastSelectionTarget = target;
-    target.focus();
+    target.focus({ preventScroll: true });
     if (typeof target.setSelectionRange === 'function') target.setSelectionRange(insertEnd, insertEnd);
-    var lines = (target.value.substring(0, insertEnd).match(/\n/g) || []).length;
-    var lineHeight = parseInt(getComputedStyle(target).lineHeight, 10) || 20;
-    if (isFinite(target.scrollTop)) target.scrollTop = Math.max(0, lines * lineHeight - target.clientHeight / 2);
     try {
       var evCtor = (target.ownerDocument && target.ownerDocument.defaultView && target.ownerDocument.defaultView.Event) || Event;
       target.dispatchEvent(new evCtor('input', { bubbles: true }));
@@ -3254,7 +3439,62 @@ function viewerSSPFsUploadImgbb() {
       }, { passive: false });
     });
   }
+  var viewerSSPConnectionEpoch = 0;
+  async function viewerSSPRefreshAIStudioConnection() {
+    var epoch = ++viewerSSPConnectionEpoch;
+    var model = document.getElementById('ssp-model');
+    if (!model || !model.parentNode) return;
+    var status = document.getElementById('ssp-ai-studio-connection');
+    if (!status) {
+      status = document.createElement('div');
+      status.id = 'ssp-ai-studio-connection';
+      status.setAttribute('role', 'status');
+      status.setAttribute('aria-live', 'polite');
+      status.style.cssText = 'font-size:12px;padding:10px 14px;color:#94a3b8;flex-shrink:0;overflow-wrap:anywhere;border-bottom:1px solid #334155';
+      var header = document.querySelector('#ssp-ai-sidebar .ssp-header');
+      if (header) header.parentNode.insertBefore(status, header.nextSibling);
+      else model.parentNode.insertBefore(status, model.parentNode.firstChild);
+    }
+    var getter = getCallback('getApiKey');
+    var configured = false;
+    try { configured = !!String(typeof getter === 'function' ? getter() || '' : '').trim(); } catch (_) {}
+    status.style.color = '#94a3b8';
+    status.title = '';
+    status.textContent = configured
+      ? '◌ AI Studio 연결 확인 중'
+      : 'AI Studio 미연결 · ENV에서 Gemini API 키를 설정하거나 보안 저장소를 잠금 해제하세요.';
+    if (!configured) return;
+    try {
+      var bridge = window.AIChatBridge;
+      if (!bridge || typeof bridge.refreshGeminiModels !== 'function') {
+        status.textContent = '○ AI Studio · API 키 설정됨 · 연결 확인 대기';
+        return;
+      }
+      await bridge.refreshGeminiModels();
+      if (epoch !== viewerSSPConnectionEpoch) return;
+      status.style.color = '#22c55e';
+      status.textContent = '● AI Studio 연결됨 · ' + (model.options && model.selectedIndex >= 0 ? model.options[model.selectedIndex].text : model.value);
+    } catch (error) {
+      if (epoch !== viewerSSPConnectionEpoch) return;
+      status.style.color = '#f87171';
+      status.textContent = '● AI Studio 연결 실패 · API 키와 네트워크를 확인하세요.';
+      status.title = error && error.message ? error.message : String(error);
+    }
+  }
+  document.addEventListener('change', function (event) {
+    if (event.target && event.target.id === 'ssp-model') viewerSSPRefreshAIStudioConnection();
+  });
+  window.addEventListener('mdp-credential-vault-change', function () {
+    var panel = document.getElementById('scholar-ai-sidebar');
+    if (panel && panel.classList.contains('open')) scholarAIRefreshConnection();
+  });
+  window.addEventListener('mdp-credential-vault-change', viewerSSPRefreshAIStudioConnection);
+  window.addEventListener('storage', function (event) {
+    if (!event.key || event.key === 'ss_gemini_api_key') viewerSSPRefreshAIStudioConnection();
+  });
+
   function viewerSSPInit() {
+    viewerSSPRefreshAIStudioConnection();
     ensureViewerFsOverlayOnBody();
     viewerSSPInitHistoryResizer();
     viewerSSPEnsureFullscreenGallery();
@@ -3508,6 +3748,7 @@ function viewerSSPFsUploadImgbb() {
   }
   async function viewerSSPGenerate() {
     if (__viewerSSPGenerating) return;
+    viewerSSPRefreshAIStudioConnection();
     viewerSSPEnsureProgressPlacement();
     viewerSSPBindAltWheelFont();
     var promptEl = document.getElementById('ssp-prompt');

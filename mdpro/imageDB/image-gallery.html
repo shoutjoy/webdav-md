@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>inDB 이미지 갤러리</title>
+    <title>이미지 갤러리</title>
     <style>
         :root {
             color-scheme: dark;
@@ -39,6 +39,36 @@
         .title { min-width: 190px; }
         .title strong { display: block; font-size: 16px; }
         .title span { color: var(--muted); font-size: 11px; }
+        .source-tabs { display: flex; gap: 5px; }
+        .source-tab {
+            height: 36px;
+            padding: 0 13px;
+            color: var(--muted);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #0b1220;
+            font-weight: 700;
+        }
+        .source-tab.active { color: white; border-color: var(--accent); background: #6b21a8; }
+        .browser-tools {
+            display: grid;
+            grid-template-columns: auto minmax(220px, 1fr) auto auto;
+            gap: 8px;
+            align-items: center;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--line);
+            background: #111827;
+        }
+        .browser-tools input {
+            min-width: 0;
+            height: 36px;
+            padding: 0 11px;
+            color: var(--text);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #0b1220;
+        }
+        .browser-hint { grid-column: 1 / -1; color: var(--muted); font-size: 11px; }
         .search {
             min-width: 160px;
             max-width: 460px;
@@ -205,6 +235,8 @@
         }
         @media (max-width: 760px) {
             .topbar { flex-wrap: wrap; }
+            .browser-tools { grid-template-columns: 1fr 1fr; }
+            .browser-tools input { grid-column: 1 / -1; }
             .title { min-width: 150px; }
             .layout { grid-template-columns: 230px 1fr; }
             .image-item { grid-template-columns: 60px minmax(0, 1fr); }
@@ -217,8 +249,12 @@
 <body>
     <header class="topbar">
         <div class="title">
-            <strong>inDB 이미지 갤러리</strong>
+            <strong>이미지 갤러리</strong>
             <span>왼쪽에서 선택하면 오른쪽에 크게 표시됩니다.</span>
+        </div>
+        <div class="source-tabs" role="tablist" aria-label="이미지 저장소">
+            <button id="source-indb" class="source-tab active" type="button" role="tab" aria-selected="true">inDB</button>
+            <button id="source-imgbb" class="source-tab" type="button" role="tab" aria-selected="false">imgBB</button>
         </div>
         <input id="search" class="search" type="search" placeholder="파일명, 형식 검색..." autocomplete="off">
         <select id="sort" aria-label="정렬">
@@ -230,6 +266,14 @@
         <button id="refresh" class="toolbar-btn" type="button">새로고침</button>
         <button id="open-fma-top" class="toolbar-btn primary" type="button">FMA Viewer</button>
     </header>
+
+    <section class="browser-tools" aria-label="imgBB 웹 탐색 및 URL 가져오기">
+        <button id="open-imgbb-site" class="toolbar-btn primary" type="button">imgBB 이미지 열기</button>
+        <input id="imgbb-manual-url" type="text" placeholder="Direct link 또는 <img src=&quot;...&quot;> HTML 코드를 붙여 넣으세요" autocomplete="off">
+        <button id="paste-imgbb-url" class="toolbar-btn" type="button">클립보드 붙여넣기</button>
+        <button id="add-imgbb-url" class="toolbar-btn primary" type="button">URL 가져오기</button>
+        <div class="browser-hint">imgBB 웹 창에서 Direct link 또는 HTML 이미지 코드를 복사해 붙여 넣으면 주소를 자동 추출하고 갤러리 저장과 IMG 삽입창 선택을 함께 처리합니다.</div>
+    </section>
 
     <main class="layout">
         <aside class="sidebar">
@@ -255,6 +299,7 @@
                 <div class="actions">
                     <button id="select-image" class="action select" type="button">삽입창에서 선택</button>
                     <button id="open-fma" class="action fma" type="button">FMA Viewer로 보기</button>
+                    <button id="copy-url" class="action" type="button">HTML 복사</button>
                     <button id="download" class="action" type="button">다운로드</button>
                 </div>
             </div>
@@ -270,7 +315,9 @@
             const STORE_NAME = 'images';
             const state = {
                 db: null,
-                items: [],
+                source: 'indb',
+                indbItems: [],
+                imgbbItems: [],
                 filtered: [],
                 selectedId: '',
                 urls: new Map()
@@ -285,6 +332,21 @@
             const statusEl = document.getElementById('status');
             const searchEl = document.getElementById('search');
             const sortEl = document.getElementById('sort');
+            const sourceIndbEl = document.getElementById('source-indb');
+            const sourceImgbbEl = document.getElementById('source-imgbb');
+            const manualUrlEl = document.getElementById('imgbb-manual-url');
+
+            function getSourceItems() {
+                return state.source === 'imgbb' ? state.imgbbItems : state.indbItems;
+            }
+
+            function getItemSize(item) {
+                return state.source === 'imgbb' ? Number(item && item.size || 0) : Number(item && item.blob && item.blob.size || 0);
+            }
+
+            function getItemMime(item) {
+                return escapeText(item && (item.mime || (item.blob && item.blob.type)) || 'image');
+            }
 
             function setStatus(message, error) {
                 statusEl.textContent = String(message || '');
@@ -308,8 +370,33 @@
                 return date.toLocaleString('ko-KR');
             }
 
+            function extractImageUrl(value) {
+                let raw = String(value || '').trim();
+                if (!raw) return '';
+                const imgMatch = /<img\b[^>]*\bsrc\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s>]+))/i.exec(raw);
+                if (imgMatch) raw = String(imgMatch[1] || imgMatch[2] || imgMatch[3] || '').trim();
+                const decoder = document.createElement('textarea');
+                decoder.innerHTML = raw;
+                raw = decoder.value.replace(/\\([/:])/g, '$1');
+                try {
+                    const parsed = new URL(raw);
+                    return parsed.protocol === 'https:' ? parsed.href : '';
+                } catch (_) {
+                    return '';
+                }
+            }
+
+            function escapeHtmlAttribute(value) {
+                return String(value == null ? '' : value)
+                    .replace(/&/g, '&amp;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+            }
+
             function getObjectUrl(item) {
                 const id = String(item && item.id || '');
+                if (state.source === 'imgbb') return String(item.thumbUrl || item.displayUrl || item.url || '');
                 if (state.urls.has(id)) return state.urls.get(id);
                 const url = URL.createObjectURL(item.blob);
                 state.urls.set(id, url);
@@ -348,15 +435,16 @@
             function applyFilter() {
                 const query = searchEl.value.trim().toLowerCase();
                 const sort = sortEl.value;
-                state.filtered = state.items.filter(function (item) {
+                const items = getSourceItems();
+                state.filtered = items.filter(function (item) {
                     if (!query) return true;
-                    return [item.name, item.id, item.mime, item.blob && item.blob.type]
+                    return [item.name, item.id, item.mime, item.url, item.blob && item.blob.type]
                         .some(function (value) { return String(value || '').toLowerCase().includes(query); });
                 });
                 state.filtered.sort(function (a, b) {
                     if (sort === 'oldest') return Number(a.createdAt || 0) - Number(b.createdAt || 0);
                     if (sort === 'name') return String(a.name || a.id).localeCompare(String(b.name || b.id), 'ko');
-                    if (sort === 'size') return Number(b.blob.size || 0) - Number(a.blob.size || 0);
+                    if (sort === 'size') return getItemSize(b) - getItemSize(a);
                     return Number(b.createdAt || 0) - Number(a.createdAt || 0);
                 });
                 renderList();
@@ -369,12 +457,15 @@
 
             function renderList() {
                 listEl.replaceChildren();
-                countEl.textContent = state.filtered.length + '개 / 전체 ' + state.items.length + '개';
+                const items = getSourceItems();
+                countEl.textContent = state.filtered.length + '개 / 전체 ' + items.length + '개';
                 if (!state.filtered.length) {
                     const empty = document.createElement('div');
                     empty.className = 'empty';
                     empty.style.padding = '24px 8px';
-                    empty.textContent = state.items.length ? '검색 결과가 없습니다.' : 'inDB에 저장된 이미지가 없습니다.';
+                    empty.textContent = items.length
+                        ? '검색 결과가 없습니다.'
+                        : (state.source === 'imgbb' ? '이 앱에서 imgBB에 업로드한 이미지가 없습니다.' : 'inDB에 저장된 이미지가 없습니다.');
                     listEl.appendChild(empty);
                     return;
                 }
@@ -398,13 +489,14 @@
                     title.textContent = escapeText(item.name || item.id);
                     const meta = document.createElement('div');
                     meta.className = 'item-meta';
-                    meta.textContent = formatBytes(item.blob.size) + ' · ' + escapeText(item.mime || item.blob.type || 'image');
+                    meta.textContent = formatBytes(getItemSize(item)) + ' · ' + getItemMime(item);
                     info.append(title, meta);
                     button.append(image, info);
                     button.addEventListener('click', function () { selectItem(item); });
                     button.addEventListener('dblclick', function () {
                         selectItem(item);
-                        openInFmaViewer();
+                        if (state.source === 'imgbb') selectInInsertWindow();
+                        else openInFmaViewer();
                     });
                     fragment.appendChild(button);
                 });
@@ -426,35 +518,53 @@
                     previewEl.style.display = 'none';
                     previewEl.removeAttribute('src');
                     emptyEl.style.display = 'block';
-                    emptyEl.textContent = state.items.length ? '검색 결과가 없습니다.' : 'inDB에 저장된 이미지가 없습니다.';
+                    const items = getSourceItems();
+                    emptyEl.textContent = items.length
+                        ? '검색 결과가 없습니다.'
+                        : (state.source === 'imgbb' ? '이 앱에서 imgBB에 업로드한 이미지가 없습니다.' : 'inDB에 저장된 이미지가 없습니다.');
                     nameEl.textContent = '선택된 이미지 없음';
                     metaEl.textContent = '왼쪽 목록에서 이미지를 선택하세요.';
                     updateActiveItem();
                     return;
                 }
                 state.selectedId = String(item.id);
-                const url = getObjectUrl(item);
+                const url = state.source === 'imgbb'
+                    ? String(item.displayUrl || item.url || item.thumbUrl || '')
+                    : getObjectUrl(item);
                 emptyEl.style.display = 'none';
                 previewEl.style.display = 'block';
                 previewEl.onload = function () {
                     metaEl.textContent =
                         previewEl.naturalWidth + ' × ' + previewEl.naturalHeight + ' px · ' +
-                        formatBytes(item.blob.size) + ' · ' +
-                        escapeText(item.mime || item.blob.type || 'image') + ' · ' +
+                        formatBytes(getItemSize(item)) + ' · ' +
+                        getItemMime(item) + ' · ' +
                         formatDate(item.createdAt) + ' · ID: ' + escapeText(item.id);
                 };
                 previewEl.src = url;
                 nameEl.textContent = escapeText(item.name || item.id);
                 metaEl.textContent =
-                    formatBytes(item.blob.size) + ' · ' +
-                    escapeText(item.mime || item.blob.type || 'image') + ' · ' +
+                    formatBytes(getItemSize(item)) + ' · ' +
+                    getItemMime(item) + ' · ' +
                     formatDate(item.createdAt);
                 updateActiveItem();
                 setStatus('선택됨: ' + escapeText(item.name || item.id), false);
             }
 
             function getSelectedItem() {
-                return state.items.find(function (item) { return String(item.id) === state.selectedId; }) || null;
+                return getSourceItems().find(function (item) { return String(item.id) === state.selectedId; }) || null;
+            }
+
+            function setSource(source) {
+                state.source = source === 'imgbb' ? 'imgbb' : 'indb';
+                state.selectedId = '';
+                sourceIndbEl.classList.toggle('active', state.source === 'indb');
+                sourceImgbbEl.classList.toggle('active', state.source === 'imgbb');
+                sourceIndbEl.setAttribute('aria-selected', state.source === 'indb' ? 'true' : 'false');
+                sourceImgbbEl.setAttribute('aria-selected', state.source === 'imgbb' ? 'true' : 'false');
+                applyFilter();
+                setStatus(state.source === 'imgbb'
+                    ? '이 앱에서 imgBB에 업로드한 이미지 목록입니다.'
+                    : 'inDB 이미지 목록입니다.', false);
             }
 
             function moveSelection(step) {
@@ -466,6 +576,10 @@
             }
 
             function openInFmaViewer() {
+                if (state.source === 'imgbb') {
+                    setStatus('imgBB 이미지는 먼저 삽입창에서 선택한 뒤 링크로 사용할 수 있습니다.', true);
+                    return;
+                }
                 const selected = getSelectedItem();
                 if (!selected) {
                     setStatus('먼저 이미지를 선택하세요.', true);
@@ -534,7 +648,11 @@
                 }
                 window.opener.postMessage({
                     type: 'image-gallery-select',
-                    id: String(selected.id)
+                    source: state.source,
+                    id: String(selected.id),
+                    name: String(selected.name || selected.id),
+                    url: state.source === 'imgbb' ? String(selected.url || selected.displayUrl || '') : '',
+                    previewUrl: state.source === 'imgbb' ? String(selected.displayUrl || selected.url || selected.thumbUrl || '') : ''
                 }, '*');
                 window.opener.focus();
                 setStatus('이미지 삽입창에 선택 내용을 전달했습니다.', false);
@@ -544,9 +662,82 @@
                 const selected = getSelectedItem();
                 if (!selected) return;
                 const anchor = document.createElement('a');
-                anchor.href = getObjectUrl(selected);
+                anchor.href = state.source === 'imgbb' ? String(selected.url || selected.displayUrl || '') : getObjectUrl(selected);
                 anchor.download = String(selected.name || ('image_' + selected.id));
                 anchor.click();
+            }
+
+            async function copySelectedHtml() {
+                const selected = getSelectedItem();
+                if (!selected) {
+                    setStatus('먼저 이미지를 선택하세요.', true);
+                    return;
+                }
+                const url = state.source === 'imgbb'
+                    ? String(selected.url || selected.displayUrl || '')
+                    : ('internal://' + encodeURIComponent(String(selected.id)));
+                const alt = String(selected.name || selected.id || 'image')
+                    .replace(/\.[^.]+$/, '')
+                    .replace(/[-_]+/g, ' ')
+                    .trim() || 'image';
+                const html = '<img src="' + escapeHtmlAttribute(url) + '" alt="' + escapeHtmlAttribute(alt) + '" border="0">';
+                try {
+                    await navigator.clipboard.writeText(html);
+                    setStatus('HTML 이미지 코드를 클립보드에 복사했습니다.', false);
+                } catch (error) {
+                    setStatus('HTML 코드 복사에 실패했습니다.', true);
+                }
+            }
+
+            function openImgbbBrowser() {
+                const width = Math.max(760, Math.min(1280, Math.round((window.screen.availWidth || 1280) * 0.78)));
+                const height = Math.max(620, Math.min(940, Math.round((window.screen.availHeight || 860) * 0.82)));
+                const browserWindow = window.open(
+                    'https://jh-park9.imgbb.com/',
+                    'mdpro-imgbb-browser',
+                    'popup=yes,width=' + width + ',height=' + height + ',resizable=yes,scrollbars=yes'
+                );
+                if (!browserWindow) {
+                    setStatus('imgBB 웹 창이 차단되었습니다. 브라우저에서 팝업을 허용해 주세요.', true);
+                    return;
+                }
+                try { browserWindow.opener = null; } catch (_) {}
+                try { browserWindow.focus(); } catch (_) {}
+                setSource('imgbb');
+                setStatus('imgBB 전체 이미지 화면을 열었습니다. 로그인되어 있으면 계정 관리 상태로 표시됩니다.', false);
+            }
+
+            async function pasteImgbbUrl() {
+                try {
+                    manualUrlEl.value = String(await navigator.clipboard.readText() || '').trim();
+                    manualUrlEl.focus();
+                    setStatus('클립보드 URL을 붙여 넣었습니다. URL 가져오기를 누르세요.', false);
+                } catch (_) {
+                    manualUrlEl.focus();
+                    setStatus('클립보드 접근이 차단되었습니다. Ctrl+V로 직접 붙여 넣어 주세요.', true);
+                }
+            }
+
+            function addManualImgbbUrl() {
+                const url = extractImageUrl(manualUrlEl.value);
+                let parsed = null;
+                try { parsed = new URL(url); } catch (_) {}
+                if (!parsed || parsed.protocol !== 'https:') {
+                    setStatus('HTTPS Direct link 또는 src가 포함된 img HTML 코드를 입력해 주세요.', true);
+                    manualUrlEl.focus();
+                    return;
+                }
+                if (!window.opener || window.opener.closed) {
+                    setStatus('원본 md-viewer 창에서 갤러리를 다시 열어 주세요.', true);
+                    return;
+                }
+                setSource('imgbb');
+                window.opener.postMessage({
+                    type: 'image-gallery-add-imgbb-url',
+                    url: parsed.href,
+                    name: parsed.pathname.split('/').pop() || 'imgBB image'
+                }, '*');
+                setStatus('imgBB URL을 확인하고 갤러리에 추가하는 중...', false);
             }
 
             async function loadImages() {
@@ -558,12 +749,12 @@
                     if (!state.db) state.db = await openDatabase();
                     const previousId = state.selectedId;
                     releaseUrls();
-                    state.items = await readAllImages();
+                    state.indbItems = await readAllImages();
                     state.selectedId = previousId;
                     applyFilter();
-                    setStatus('inDB 이미지 ' + state.items.length + '개를 불러왔습니다.', false);
+                    setStatus('inDB 이미지 ' + state.indbItems.length + '개를 불러왔습니다.', false);
                 } catch (error) {
-                    state.items = [];
+                    state.indbItems = [];
                     state.filtered = [];
                     renderList();
                     selectItem(null);
@@ -573,15 +764,27 @@
 
             searchEl.addEventListener('input', applyFilter);
             sortEl.addEventListener('change', applyFilter);
+            sourceIndbEl.addEventListener('click', function () { setSource('indb'); });
+            sourceImgbbEl.addEventListener('click', function () { setSource('imgbb'); });
+            document.getElementById('open-imgbb-site').addEventListener('click', openImgbbBrowser);
+            document.getElementById('paste-imgbb-url').addEventListener('click', pasteImgbbUrl);
+            document.getElementById('add-imgbb-url').addEventListener('click', addManualImgbbUrl);
+            manualUrlEl.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter') {
+                    addManualImgbbUrl();
+                    event.preventDefault();
+                }
+            });
             document.getElementById('refresh').addEventListener('click', loadImages);
             document.getElementById('open-fma-top').addEventListener('click', openInFmaViewer);
             document.getElementById('open-fma').addEventListener('click', openInFmaViewer);
             document.getElementById('select-image').addEventListener('click', selectInInsertWindow);
+            document.getElementById('copy-url').addEventListener('click', copySelectedHtml);
             document.getElementById('download').addEventListener('click', downloadSelected);
             document.getElementById('prev').addEventListener('click', function () { moveSelection(-1); });
             document.getElementById('next').addEventListener('click', function () { moveSelection(1); });
             document.addEventListener('keydown', function (event) {
-                if (event.target === searchEl) return;
+                if (event.target === searchEl || event.target === manualUrlEl) return;
                 if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
                     moveSelection(-1);
                     event.preventDefault();
@@ -589,7 +792,8 @@
                     moveSelection(1);
                     event.preventDefault();
                 } else if (event.key === 'Enter') {
-                    openInFmaViewer();
+                    if (state.source === 'imgbb') selectInInsertWindow();
+                    else openInFmaViewer();
                     event.preventDefault();
                 }
             });
@@ -598,14 +802,31 @@
                 if (event.data && event.data.type === 'image-gallery-refresh') loadImages();
                 if (event.data && event.data.type === 'image-gallery-records') {
                     releaseUrls();
-                    state.items = (Array.isArray(event.data.records) ? event.data.records : []).filter(function (item) {
+                    state.indbItems = (Array.isArray(event.data.records) ? event.data.records : []).filter(function (item) {
                         return item && item.blob && String(item.id || '').trim();
                     });
+                    state.imgbbItems = (Array.isArray(event.data.imgbbRecords) ? event.data.imgbbRecords : []).filter(function (item) {
+                        return item && /^https:\/\//i.test(String(item.url || '')) && String(item.id || '').trim();
+                    });
                     applyFilter();
-                    setStatus('원본 창에서 inDB 이미지 ' + state.items.length + '개를 불러왔습니다.', false);
+                    setStatus('갤러리 갱신: inDB ' + state.indbItems.length + '개 · imgBB ' + state.imgbbItems.length + '개', false);
                 }
                 if (event.data && event.data.type === 'image-gallery-error') {
                     setStatus('갤러리 로드 실패: ' + String(event.data.message || '알 수 없는 오류'), true);
+                }
+                if (event.data && event.data.type === 'image-gallery-imgbb-url-added') {
+                    const addedId = String(event.data.item && event.data.item.id || '');
+                    if (event.data.item && !state.imgbbItems.some(function (item) { return String(item.id) === addedId; })) {
+                        state.imgbbItems.unshift(event.data.item);
+                    }
+                    setSource('imgbb');
+                    const added = state.imgbbItems.find(function (item) { return String(item.id) === addedId; });
+                    if (added) selectItem(added);
+                    manualUrlEl.value = '';
+                    setStatus('imgBB URL을 갤러리에 저장하고 IMG 삽입창에 적용했습니다.', false);
+                }
+                if (event.data && event.data.type === 'image-gallery-imgbb-url-error') {
+                    setStatus(String(event.data.message || 'imgBB URL을 가져오지 못했습니다.'), true);
                 }
                 if (event.data && event.data.type === 'image-gallery-fma-open-choice') {
                     continueOpenInFmaViewer(event.data);

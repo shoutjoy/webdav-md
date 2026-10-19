@@ -2,7 +2,6 @@
    Browser-only & Google AI Studio Background Removal
    ======================================================= */
 
-const REMBG_WEB_MODULE_URL = "https://unpkg.com/@bunnio/rembg-web@1.0.2/dist/index.js";
 const REMBG_LOCAL_HUMAN_MODEL_PATHS = [
     "image_model/u2net_human_seg.onnx",
     "Image_model/u2net_human_seg.onnx",
@@ -37,6 +36,27 @@ var mediaPipeScriptPromise = null;
 var mediaPipeSessionPromise = null;
 var mediaPipePendingResult = null;
 var customBackgroundRenderToken = 0;
+var bgRemoveModalHome = null;
+
+function ensureBackgroundRemoveModalVisible() {
+    const modal = dom.bgRemoveModal;
+    if (!modal) throw new Error('배경 제거 창이 준비되지 않았습니다. FMA를 새로고침해주세요.');
+    if (!bgRemoveModalHome) bgRemoveModalHome = { parent: modal.parentNode, next: modal.nextSibling };
+    const fullscreenRoot = document.fullscreenElement;
+    if (fullscreenRoot && !fullscreenRoot.contains(modal)) fullscreenRoot.appendChild(modal);
+    modal.style.display = 'flex';
+}
+
+function restoreBackgroundRemoveModalHost() {
+    if (!bgRemoveModalHome || !dom.bgRemoveModal) return;
+    const { parent, next } = bgRemoveModalHome;
+    if (parent && dom.bgRemoveModal.parentNode !== parent) {
+        parent.insertBefore(dom.bgRemoveModal, next?.parentNode === parent ? next : null);
+    }
+}
+document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement) restoreBackgroundRemoveModalHost();
+});
 var bgRemoveState = {
     imageIndex: -1,
     mode: "local",
@@ -138,7 +158,7 @@ function openBackgroundRemoveEditor(index, mode) {
             : "Local · MediaPipe WebGL";
     dom.localBgRemoveInfo.style.display = isAI ? "none" : "block";
     dom.aiBgRemoveInfo.style.display = isAI ? "block" : "none";
-    dom.aiBgRemovePrompt.value = getAiBackgroundRemovePrompt();
+    if (isAI && dom.aiBgRemovePrompt) dom.aiBgRemovePrompt.value = getAiBackgroundRemovePrompt();
     dom.bgRemoveFooterText.innerText = isAI
         ? "이미지는 배경 제거 실행 시 Google Gemini API로 전송됩니다."
         : "모든 이미지 처리는 현재 브라우저에서 실행됩니다.";
@@ -150,7 +170,7 @@ function openBackgroundRemoveEditor(index, mode) {
     updateCustomBackgroundControls();
     closeBgRemoveSaveChoice();
     setBgRemoveProgress(0, "실행 준비");
-    dom.bgRemoveModal.style.display = "flex";
+    ensureBackgroundRemoveModalVisible();
     dom.btnRunBgRemove.focus();
 }
 
@@ -328,6 +348,7 @@ function closeBackgroundRemoveEditor() {
     if (bgRemoveState.processing) return;
     clearBackgroundRemoveExternalReturn(true);
     dom.bgRemoveModal.style.display = "none";
+    restoreBackgroundRemoveModalHost();
     dom.bgRemoveModal.classList.remove("ai-jena-child-workspace");
     closeBgRemoveSaveChoice();
     setBackgroundRemoveGalleryButtonVisible(false);
@@ -476,25 +497,36 @@ function loadMediaPipeSelfieSegmentationScript() {
             const existing = document.querySelector(
                 `script[src="${MEDIAPIPE_SELFIE_SEGMENTATION_SCRIPT}"]`
             );
-            const script = existing || document.createElement("script");
+            // A failed script never fires load/error again when reused.
+            // A retry must create a fresh element and bound the loading wait.
+            existing?.remove();
+            const script = document.createElement("script");
+            let timeoutId;
+            const cleanup = () => {
+                clearTimeout(timeoutId);
+                script.removeEventListener("load", handleLoad);
+                script.removeEventListener("error", handleError);
+            };
             const handleLoad = () => {
+                cleanup();
                 if (window.SelfieSegmentation) {
                     resolve(window.SelfieSegmentation);
                 } else {
+                    script.remove();
                     reject(new Error("MediaPipe Selfie Segmentation을 초기화할 수 없습니다."));
                 }
             };
-            const handleError = () => reject(
-                new Error("MediaPipe WebGL 엔진 파일을 불러오지 못했습니다.")
-            );
+            const handleError = () => {
+                cleanup(); script.remove();
+                reject(new Error("MediaPipe WebGL 엔진 파일을 불러오지 못했습니다."));
+            };
 
             script.addEventListener("load", handleLoad, { once: true });
             script.addEventListener("error", handleError, { once: true });
-            if (!existing) {
-                script.src = MEDIAPIPE_SELFIE_SEGMENTATION_SCRIPT;
-                script.crossOrigin = "anonymous";
-                document.head.appendChild(script);
-            }
+            script.src = MEDIAPIPE_SELFIE_SEGMENTATION_SCRIPT;
+            script.crossOrigin = "anonymous";
+            timeoutId = setTimeout(handleError, 30000);
+            document.head.appendChild(script);
         }).catch(error => {
             mediaPipeScriptPromise = null;
             throw error;
@@ -545,7 +577,11 @@ function requestMediaPipeSegmentation(session, image, signal) {
             callback(value);
         };
         const resolveResult = finish(resolve);
-        const rejectResult = finish(reject);
+        const rejectResult = finish(error => {
+            mediaPipeSessionPromise = null;
+            try { Promise.resolve(session.close?.()).catch(() => {}); } catch (_) {}
+            reject(error);
+        });
         const handleAbort = () => rejectResult(
             new DOMException("사용자가 처리를 정지했습니다.", "AbortError")
         );
@@ -641,7 +677,8 @@ async function runWebGlBackgroundRemoval(src, signal, startPercent, endPercent) 
 
 async function loadRembgModule() {
     if (!rembgModulePromise) {
-        rembgModulePromise = import(REMBG_WEB_MODULE_URL).then(async module => {
+        // This file is a classic script: keep Vite from injecting module-only imports.
+        rembgModulePromise = import("https://unpkg.com/@bunnio/rembg-web@1.0.2/dist/index.js").then(async module => {
             if (typeof module?.remove !== "function" ||
                 typeof module?.newSession !== "function" ||
                 typeof module?.rembgConfig?.setCustomModelPath !== "function") {

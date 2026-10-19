@@ -7,7 +7,11 @@ import { createWebSearchMiddleware } from './src/webSearchProxy.js';
 import { createShareMiddleware } from './src/shareServer.js';
 import { createBackupMiddleware } from './src/backupServer.js';
 import { createLMStudioServerMiddleware } from './src/lmStudioServer.js';
+<<<<<<< HEAD
 import { createLemonadeProxyMiddleware } from './src/lemonadeProxy.js';
+=======
+import { createSystemUsageMiddleware } from './src/systemUsageServer.js';
+>>>>>>> cf2ea69e6eaafccfa8288b16bdd28831799889d9
 
 const WEB_DAV_PROXY_PATH = '/__webdav_proxy';
 const WEB_DAV_TARGET = 'https://webdav.freemath.synology.me';
@@ -41,11 +45,15 @@ export default defineConfig(({ mode }) => {
       {
         name: 'ai-jena-web-search-proxy',
         configureServer(server) {
+<<<<<<< HEAD
           server.middlewares.use(createLemonadeProxyMiddleware({
             baseUrl: env.LEMONADE_BASE_URL,
             defaultModel: env.LEMONADE_DEFAULT_MODEL,
             defaultImageModel: env.LEMONADE_DEFAULT_IMAGE_MODEL,
           }));
+=======
+          server.middlewares.use(createSystemUsageMiddleware());
+>>>>>>> cf2ea69e6eaafccfa8288b16bdd28831799889d9
           server.middlewares.use(createLMStudioServerMiddleware());
           server.middlewares.use(createBackupMiddleware());
           server.middlewares.use(createShareMiddleware());
@@ -55,11 +63,15 @@ export default defineConfig(({ mode }) => {
           }));
         },
         configurePreviewServer(server) {
+<<<<<<< HEAD
           server.middlewares.use(createLemonadeProxyMiddleware({
             baseUrl: env.LEMONADE_BASE_URL,
             defaultModel: env.LEMONADE_DEFAULT_MODEL,
             defaultImageModel: env.LEMONADE_DEFAULT_IMAGE_MODEL,
           }));
+=======
+          server.middlewares.use(createSystemUsageMiddleware());
+>>>>>>> cf2ea69e6eaafccfa8288b16bdd28831799889d9
           server.middlewares.use(createLMStudioServerMiddleware());
           server.middlewares.use(createBackupMiddleware());
           server.middlewares.use(createShareMiddleware());

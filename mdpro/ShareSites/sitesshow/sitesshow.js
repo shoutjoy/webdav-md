@@ -20,6 +20,8 @@
 
     const INFOGRAPHIC_BATCH_SITE_NAME = '인포그래픽 일괄작업';
     const INFOGRAPHIC_BATCH_SITE_URL = 'https://share.gemini.google/c9j7dKVXR5Ay';
+    const TTS2AUDIO_SITE_NAME = 'TTS2Audio';
+    const TTS2AUDIO_SITE_URL = 'https://gemini.google.com/share/c7f7b1435de1?social_preview=false&skid=5242d8f3-71ff-4c13-8894-5ae8d15b552f';
 
     const DEFAULT_SITES_LIST = [
         { name: 'data visualization', url: 'https://parkjoonghee.shinyapps.io/shinyapp2/' },
@@ -37,6 +39,7 @@
         { name: '이미지확장앱', url: 'https://gemini.google.com/share/d1591e765dfd?skid=c20dbc64-20bb-4bcc-a772-24cf6a3ac2ea' },
         { name: '인포그래픽앱', url: 'https://gemini.google.com/share/cf9601ca8bb0?skid=c485f35a-a1b3-421d-a5bd-7841cb209643' },
         { name: INFOGRAPHIC_BATCH_SITE_NAME, url: INFOGRAPHIC_BATCH_SITE_URL },
+        { name: TTS2AUDIO_SITE_NAME, url: TTS2AUDIO_SITE_URL },
         { name: '인포그래픽생성앱kYLE', url: 'https://share.gemini.google/2wY4mVdEy7RB' }
     ];
 
@@ -185,6 +188,15 @@
             return item.name === INFOGRAPHIC_BATCH_SITE_NAME;
         });
         if (infographicBatchSite) infographicBatchSite.url = INFOGRAPHIC_BATCH_SITE_URL;
+        const tts2audioSite = base.find(function (item) {
+            return item.name === TTS2AUDIO_SITE_NAME || String(item.url || '').split('?')[0] === TTS2AUDIO_SITE_URL.split('?')[0];
+        });
+        if (tts2audioSite) {
+            tts2audioSite.name = TTS2AUDIO_SITE_NAME;
+            tts2audioSite.url = TTS2AUDIO_SITE_URL;
+        } else {
+            base.push({ name: TTS2AUDIO_SITE_NAME, url: TTS2AUDIO_SITE_URL });
+        }
         function normalizeUrl(u) {
             return String(u || '').trim().toLowerCase().replace(/\/+$/, '');
         }

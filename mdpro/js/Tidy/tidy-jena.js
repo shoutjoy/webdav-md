@@ -119,23 +119,33 @@
     renderSessions();
     // Backfill conversations saved before JENA_DATA integration using stable IDs.
     try { readSessions().forEach(recordInJenaData); } catch (_) { /* renderSessions reports read failures. */ }
-    const keys = { aistudio:'gemini', openai:'openai', deepseek:'deepseek', 'openai-compatible':'openai_compatible', ollama:'ollama', litertlm:'litertlm', lmstudio:'lmstudio' };
-    const catalogs = {aistudio:'Gemini', openai:'OpenAI', deepseek:'Deepseek', 'openai-compatible':'OpenAICompatible', ollama:'Ollama', litertlm:'LiteRTLM', lmstudio:'LMStudio'};
+    const keys = { 'ollama-npu':'npu', aistudio:'gemini', openai:'openai', deepseek:'deepseek', 'openai-compatible':'openai_compatible', ollama:'ollama', litertlm:'litertlm', lmstudio:'lmstudio' };
+    const catalogs = {'ollama-npu':'NPU', aistudio:'Gemini', openai:'OpenAI', deepseek:'Deepseek', 'openai-compatible':'OpenAICompatible', ollama:'Ollama', litertlm:'LiteRTLM', lmstudio:'LMStudio'};
+    const toolProviders = host && host.AIToolProviders;
+    if (toolProviders) {
+        $('jena-provider').replaceChildren(...toolProviders.catalog().map(row => new Option(row[1], row[0])));
+    }
+    function saveModelSelection() {
+        if (toolProviders) toolProviders.save('tidy', { provider: $('jena-provider').value, model: $('jena-model').value });
+    }
     let catalogRequest = 0;
     async function model(refresh = false) {
         const ticket = ++catalogRequest;
         const provider = $('jena-provider').value;
-        const saved = localStorage.getItem('ss_ai_chat_' + keys[provider] + '_model') || '';
+        const stored = toolProviders && toolProviders.read('tidy');
+        const saved = stored && stored.provider === provider ? stored.model : localStorage.getItem('ss_ai_chat_' + keys[provider] + '_model') || '';
         const selected = refresh ? $('jena-model').value || saved : saved;
         const method = (refresh ? 'refresh' : 'getCached') + catalogs[provider] + 'Models';
         $('jena-model-refresh').disabled = true;
         try {
-            const result = ai && typeof ai[method] === 'function' ? await ai[method]() : [];
+            let result = toolProviders ? await toolProviders.models(provider, refresh) : ai && typeof ai[method] === 'function' ? await ai[method]() : [];
+            if (toolProviders && !refresh && !result.length) result = await toolProviders.models(provider, true);
             if (ticket !== catalogRequest) return;
             const list = Array.isArray(result) ? result : result && result.models || [];
             const ids = [...new Set([selected, ...list.map(item => typeof item === 'string' ? item : item.id || item.name || '')].filter(Boolean))];
             $('jena-model').replaceChildren(new Option('기존 설정 모델 사용', ''), ...ids.map(id => new Option(id, id)));
             $('jena-model').value = selected;
+            saveModelSelection();
             updateModelSummary();
         } catch (error) {
             if (ticket === catalogRequest) say('모델 목록을 불러오지 못했습니다: ' + error.message);
@@ -147,13 +157,13 @@
         if (typeof validator !== 'function') throw new Error('메인 창을 새로고침한 뒤 TIDY를 다시 열어 주세요.');
         return validator(value);
     }
-    $('jena-provider').value = localStorage.getItem('ss_ai_chat_provider') || 'lmstudio';
+    $('jena-provider').value = toolProviders ? toolProviders.read('tidy').provider : localStorage.getItem('ss_ai_chat_provider') || 'lmstudio';
     if (!$('jena-provider').value) $('jena-provider').value = 'lmstudio';
     model();
     $('jena-provider').onchange = () => model();
     $('jena-model-refresh').onclick = () => model(true);
     function updateModelSummary() { $('jena-model-summary').textContent = '모델 · ' + $('jena-provider').value + ' / ' + ($('jena-model').value || '기존 설정'); }
-    $('jena-model').onchange = () => { updateModelSummary(); $('jena-model-settings').open = false; };
+    $('jena-model').onchange = () => { saveModelSelection(); updateModelSummary(); $('jena-model-settings').open = false; };
 
     function say(text, record = true) {
         if(record) transcript.push(text);

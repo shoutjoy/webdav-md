@@ -69,6 +69,88 @@ function setImageInsertStatus(msg, isError) {
     el.className = 'mt-3 text-xs ' + (isError ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400');
 }
 
+const IMAGE_INSERT_IMGBB_CATALOG_KEY = 'mdpro_imgbb_image_catalog_v1';
+const IMAGE_INSERT_IMGBB_CATALOG_LIMIT = 500;
+
+function getImageInsertImgbbCatalog() {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(IMAGE_INSERT_IMGBB_CATALOG_KEY) || '[]');
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter(function (item) {
+            return item && /^https:\/\//i.test(String(item.url || ''));
+        }).slice(0, IMAGE_INSERT_IMGBB_CATALOG_LIMIT);
+    } catch (_) {
+        return [];
+    }
+}
+
+function extractImageUrlFromCopiedValue(value) {
+    let raw = String(value || '').trim();
+    if (!raw) return '';
+    const imgMatch = /<img\b[^>]*\bsrc\s*=\s*(?:"([^"]+)"|'([^']+)'|([^\s>]+))/i.exec(raw);
+    if (imgMatch) raw = String(imgMatch[1] || imgMatch[2] || imgMatch[3] || '').trim();
+    raw = raw
+        .replace(/&amp;/gi, '&')
+        .replace(/&#x3a;|&#58;/gi, ':')
+        .replace(/\\([/:])/g, '$1');
+    try {
+        const parsed = new URL(raw);
+        return parsed.protocol === 'https:' ? parsed.href : '';
+    } catch (_) {
+        return '';
+    }
+}
+
+function saveImageInsertImgbbCatalogItem(data, fallbackName) {
+    const source = data && typeof data === 'object' ? data : {};
+    const directUrl = String(source.url || (source.image && source.image.url) || source.display_url || '').trim();
+    if (!/^https:\/\//i.test(directUrl)) return null;
+    const serverId = String(source.id || '').trim();
+    const item = {
+        id: serverId || ('imgbb_' + Date.now()),
+        name: String(source.title || fallbackName || getImageAltTextFromUrl(directUrl) || 'imgBB image'),
+        url: directUrl,
+        displayUrl: String(source.display_url || directUrl),
+        thumbUrl: String((source.thumb && source.thumb.url) || (source.medium && source.medium.url) || directUrl),
+        mime: String(source.mime || ''),
+        width: Math.max(0, Number(source.width) || 0),
+        height: Math.max(0, Number(source.height) || 0),
+        size: Math.max(0, Number(source.size) || 0),
+        createdAt: Date.now(),
+        source: 'imgbb'
+    };
+    const catalog = getImageInsertImgbbCatalog().filter(function (existing) {
+        return String(existing.url || '') !== directUrl && String(existing.id || '') !== item.id;
+    });
+    catalog.unshift(item);
+    try {
+        localStorage.setItem(IMAGE_INSERT_IMGBB_CATALOG_KEY, JSON.stringify(catalog.slice(0, IMAGE_INSERT_IMGBB_CATALOG_LIMIT)));
+    } catch (_) {}
+    return item;
+}
+
+function applyImageInsertImgbbSelection(data) {
+    const source = data && typeof data === 'object' ? data : {};
+    const imageUrl = extractImageUrlFromCopiedValue(source.url);
+    if (!imageUrl) {
+        setImageInsertStatus('선택한 imgBB 이미지 주소가 올바르지 않습니다.', true);
+        return false;
+    }
+    clearImageInsertInternalSavedState();
+    imageInsertCurrentDataUrl = '';
+    imageInsertCurrentFileName = String(source.name || getImageAltTextFromUrl(imageUrl) || 'imgBB image');
+    const input = document.getElementById('img-insert-url');
+    if (input) {
+        input.value = imageUrl;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    setImageInsertPreview(String(source.previewUrl || imageUrl));
+    renderImageInsertInternalInfo();
+    setImageInsertStatus('imgBB 갤러리에서 선택됨: ' + imageInsertCurrentFileName, false);
+    return true;
+}
+
 function setImageUploadProgress(pct, active) {
     const wrap = document.getElementById('img-insert-progress-wrap');
     const fill = document.getElementById('img-insert-progress-fill');
@@ -379,14 +461,14 @@ function toggleImageInsertGallery() {
         return;
     }
 
-    const galleryUrl = new URL('./imageDB/image-gallery.html?v=20260806-fma-choice-3', document.baseURI || window.location.href);
+    const galleryUrl = new URL('./imageDB/image-gallery.html?v=20261010-imgbb-images-1', document.baseURI || window.location.href);
     const width = Math.max(900, Math.min(1440, Math.round((window.screen && window.screen.availWidth || 1400) * 0.86)));
     const height = Math.max(620, Math.min(960, Math.round((window.screen && window.screen.availHeight || 900) * 0.86)));
     const left = Math.max(0, Math.round(((window.screen && window.screen.availWidth || width) - width) / 2));
     const top = Math.max(0, Math.round(((window.screen && window.screen.availHeight || height) - height) / 2));
     imageInsertGalleryWindow = window.open(
         galleryUrl.href,
-        'mdviewer-indb-image-gallery',
+        'mdviewer-image-gallery',
         'popup=yes,width=' + width + ',height=' + height + ',left=' + left + ',top=' + top + ',resizable=yes,scrollbars=no'
     );
 
@@ -456,7 +538,11 @@ async function sendImageInsertGalleryRecords(targetWindow) {
     if (!targetWindow || targetWindow.closed) return;
     try {
         const records = await getImageInsertGalleryRecords();
-        targetWindow.postMessage({ type: 'image-gallery-records', records: records }, '*');
+        targetWindow.postMessage({
+            type: 'image-gallery-records',
+            records: records,
+            imgbbRecords: getImageInsertImgbbCatalog()
+        }, '*');
     } catch (error) {
         targetWindow.postMessage({
             type: 'image-gallery-error',
@@ -502,7 +588,40 @@ window.addEventListener('message', function (event) {
         return;
     }
     if (event.data.type === 'image-gallery-select') {
-        applyImageInsertGalleryPopupSelection(event.data.id);
+        if (event.data.source === 'imgbb') {
+            applyImageInsertImgbbSelection(event.data);
+        } else {
+            applyImageInsertGalleryPopupSelection(event.data.id);
+        }
+        return;
+    }
+    if (event.data.type === 'image-gallery-add-imgbb-url') {
+        const manualUrl = extractImageUrlFromCopiedValue(event.data.url);
+        let parsedUrl = null;
+        try { parsedUrl = new URL(manualUrl); } catch (_) {}
+        if (!parsedUrl || parsedUrl.protocol !== 'https:') {
+            event.source.postMessage({
+                type: 'image-gallery-imgbb-url-error',
+                message: 'HTTPS 이미지 직접 링크를 입력해 주세요.'
+            }, '*');
+            return;
+        }
+        const manualItem = saveImageInsertImgbbCatalogItem({
+            url: parsedUrl.href,
+            display_url: parsedUrl.href,
+            title: String(event.data.name || getImageAltTextFromUrl(parsedUrl.href))
+        }, event.data.name);
+        if (!manualItem) {
+            event.source.postMessage({ type: 'image-gallery-imgbb-url-error', message: '이미지 링크를 저장하지 못했습니다.' }, '*');
+            return;
+        }
+        sendImageInsertGalleryRecords(event.source);
+        applyImageInsertImgbbSelection({
+            url: manualItem.url,
+            previewUrl: manualItem.displayUrl,
+            name: manualItem.name
+        });
+        event.source.postMessage({ type: 'image-gallery-imgbb-url-added', item: manualItem }, '*');
         return;
     }
     if (event.data.type === 'image-gallery-request-fma-open') {
@@ -643,7 +762,7 @@ function toggleImageInsertDockRight() {
 
 function openImageInsertExternalLink(type) {
     const targetUrl = type === 'imgbb'
-        ? 'https://imgbb.com/'
+        ? 'https://jh-park9.imgbb.com/'
         : 'https://www.google.co.kr/imghp';
     try {
         const win = window.open(targetUrl, '_blank', 'noopener,noreferrer');
@@ -1018,7 +1137,10 @@ async function uploadImageInsertToImgbb() {
         const base64Data = comma >= 0 ? imageInsertCurrentDataUrl.slice(comma + 1) : imageInsertCurrentDataUrl;
         const form = new FormData();
         form.append('image', base64Data);
-        form.append('name', 'img_insert_' + Date.now());
+        const uploadName = String(imageInsertCurrentFileName || ('img_insert_' + Date.now()))
+            .replace(/\.[a-zA-Z0-9]{2,5}$/, '')
+            .trim();
+        form.append('name', uploadName || ('img_insert_' + Date.now()));
 
         const payload = await new Promise(function (resolve, reject) {
             const xhr = new XMLHttpRequest();
@@ -1047,10 +1169,16 @@ async function uploadImageInsertToImgbb() {
 
         const data = payload.data || {};
         const directUrl = data.url || (data.image && data.image.url) || data.display_url || '';
+        const catalogItem = saveImageInsertImgbbCatalogItem(data, imageInsertCurrentFileName);
         const input = document.getElementById('img-insert-url');
         if (input) input.value = directUrl || '';
+        if (catalogItem && imageInsertGalleryWindow && !imageInsertGalleryWindow.closed) {
+            sendImageInsertGalleryRecords(imageInsertGalleryWindow);
+        }
         setImageUploadProgress(100, false);
-        setImageInsertStatus(directUrl ? ('Upload complete: ' + directUrl) : 'Upload complete.', false);
+        setImageInsertStatus(directUrl
+            ? ('Upload complete. imgBB gallery saved: ' + directUrl)
+            : 'Upload complete.', false);
     } catch (e) {
         setImageUploadProgress(0, false);
         setImageInsertStatus('imgBB upload failed: ' + (e && e.message ? e.message : e), true);

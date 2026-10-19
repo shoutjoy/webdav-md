@@ -29,7 +29,7 @@
 
   function normalizeProvider(value) {
     var provider = String(value || '').toLowerCase();
-    if (provider === 'lmstudio' || provider === 'aistudio' || provider === 'ollama' || provider === 'deepseek' || provider === 'openai' || provider === 'auto') return provider;
+    if (['auto', 'lmstudio', 'aistudio', 'ollama', 'deepseek', 'openai', 'litertlm', 'ollama-npu', 'openai-compatible'].indexOf(provider) >= 0) return provider;
     return DEFAULT_PROVIDER;
   }
 
@@ -92,6 +92,7 @@
     var callDeepseek = options.callDeepseek;
     var callOpenAI = options.callOpenAI;
     var callOllama = options.callOllama;
+    var listOllamaModels = options.listOllamaModels;
     var activeController = null;
 
     function getProvider() {
@@ -117,6 +118,9 @@
     function getModel(provider) {
       var selectedProvider = normalizeProvider(provider || getProvider());
       if (selectedProvider === 'auto') selectedProvider = isLMStudioConfigured() ? 'lmstudio' : 'aistudio';
+      if (['litertlm', 'ollama-npu', 'openai-compatible'].indexOf(selectedProvider) >= 0) {
+        return storage.getItem('ss_scholar_ai_model_' + selectedProvider) || (typeof options.getSharedModel === 'function' ? options.getSharedModel(selectedProvider) : '') || '';
+      }
       if (selectedProvider === 'lmstudio') return getLMStudioConfig().model || '';
       if (selectedProvider === 'aistudio') return storage.getItem(AISTUDIO_MODEL_KEY) || DEFAULT_AISTUDIO_MODEL;
       if (selectedProvider === 'ollama') return storage.getItem(OLLAMA_MODEL_KEY) || '';
@@ -129,6 +133,10 @@
       var selectedProvider = normalizeProvider(provider || getProvider());
       if (selectedProvider === 'auto') selectedProvider = 'lmstudio';
       var value = String(model || '').trim();
+      if (['litertlm', 'ollama-npu', 'openai-compatible'].indexOf(selectedProvider) >= 0) {
+        storage.setItem('ss_scholar_ai_model_' + selectedProvider, value);
+        return value;
+      }
       if (selectedProvider === 'lmstudio') {
         saveLMStudioConfig({ model: value });
       } else if (selectedProvider === 'aistudio') {
@@ -163,15 +171,16 @@
     }
 
   function isAIStudioConfigured() {
+    if (typeof options.isAIStudioConfigured === 'function') return !!options.isAIStudioConfigured();
     return !!String(storage.getItem('ss_gemini_api_key') || '').trim();
   }
 
   function isDeepSeekConfigured() {
-    return !!String(storage.getItem('ss_deepseek_api_key') || '').trim();
+    return !!String(typeof options.getCredential === 'function' ? options.getCredential('deepseek') : storage.getItem('ss_deepseek_api_key') || '').trim();
   }
 
   function isOpenAIConfigured() {
-    return !!String(storage.getItem('ss_openai_api_key') || '').trim();
+    return !!String(typeof options.getCredential === 'function' ? options.getCredential('openai') : storage.getItem('ss_openai_api_key') || '').trim();
   }
 
   function isOllamaConfigured() {
@@ -209,9 +218,10 @@
       }
     }
 
-    async function syncLMStudioLoadedModel(configPatch) {
+    async function syncLMStudioLoadedModel(configPatch, allowEmpty) {
       var loaded = await listLMStudioLoadedModels(configPatch);
       if (!loaded.length) {
+        if (allowEmpty) return { model: '', models: [] };
         throw new Error('LM Studio에 현재 로드된 LLM이 없습니다. LM Studio의 Local Server에서 모델을 먼저 Load 하세요.');
       }
       var configured = String(getLMStudioConfig().model || '').trim();
@@ -224,14 +234,14 @@
       return { model: model, models: loaded };
     }
 
-    async function callDeepSeekAPI(endpoint, options) {
-      var key = String(storage.getItem('ss_deepseek_api_key') || '').trim();
+    async function callDeepSeekAPI(endpoint, requestOptions) {
+      var key = String(typeof options.getCredential === 'function' ? options.getCredential('deepseek') : storage.getItem('ss_deepseek_api_key') || '').trim();
       var urlBase = String(storage.getItem('ss_deepseek_base_url') || 'https://api.deepseek.com').replace(/\/+$/, '');
       var url = urlBase + endpoint;
-      var headers = Object.assign({}, options && options.headers ? options.headers : {});
+      var headers = Object.assign({}, requestOptions && requestOptions.headers ? requestOptions.headers : {});
       if (key) headers.Authorization = 'Bearer ' + key;
       if (!headers.Accept) headers.Accept = 'application/json';
-      var response = await fetch(url, Object.assign({}, options || {}, { headers: headers }));
+      var response = await fetch(url, Object.assign({}, requestOptions || {}, { headers: headers }));
       if (!response || !response.ok) {
         let message = 'DeepSeek API Error: ' + (response ? response.status : 'network');
         try {
@@ -266,33 +276,52 @@
     }
 
     async function complete(request) {
-      request = request || {};
+      request = Object.assign({}, request || {});
+      var streamed = false, onText = request.onText;
+      if (typeof onText === 'function') request.onText = function (delta) { streamed = true; return onText(delta); };
       var provider = normalizeProvider(request.provider || getProvider());
       if (activeController) activeController.abort();
       var controller = new AbortController();
       activeController = controller;
       try {
+        if (['litertlm', 'ollama-npu', 'openai-compatible'].indexOf(provider) >= 0) {
+          if (typeof options.callSharedProvider !== 'function') throw new Error('AI 공급자 연결 모듈을 사용할 수 없습니다.');
+          return await options.callSharedProvider(Object.assign({}, request, {
+            provider: provider, model: request.model || getModel(provider)
+          }), controller.signal);
+        }
         async function runLMStudio() {
           var synced = await syncLMStudioLoadedModel();
+          if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
           var model = synced.model;
-          var localResult = await makeLMStudioClient({ model: model }).complete({
+          var client = makeLMStudioClient({ model: model });
+          var localResult = await client[request.onText ? "stream" : "complete"]({
             prompt: request.prompt,
             systemInstruction: request.systemInstruction,
             model: model,
-            signal: controller.signal
+            signal: controller.signal,
+            onToken: request.onText
           });
           return { provider: 'lmstudio', model: localResult.model || model, text: localResult.text || '' };
         }
 
         async function runAIStudio(modelOverride) {
           var model = String(modelOverride || getModel('aistudio') || DEFAULT_AISTUDIO_MODEL).trim();
+          if ((provider === 'auto' || provider === 'lmstudio') && typeof options.listAIStudioModels === 'function') {
+            var models = await options.listAIStudioModels();
+            if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+            if (models.indexOf(model) < 0) model = models[0] || '';
+            if (!model) throw new Error('AI Studio에서 사용 가능한 텍스트 모델을 찾지 못했습니다.');
+            setModel(model, 'aistudio');
+          }
           if (typeof callAIStudio !== 'function') throw new Error('AI Studio 호출 함수를 사용할 수 없습니다.');
           var cloudResult = await callAIStudio(
             request.prompt,
             request.systemInstruction,
             !!request.useSearch,
             model,
-            controller.signal
+            controller.signal,
+            request.onText
           );
           return {
             provider: 'aistudio',
@@ -304,9 +333,9 @@
         async function runDeepSeek(modelOverride) {
           var model = String(modelOverride || getModel('deepseek') || DEFAULT_DEEPSEEK_MODEL).trim();
           if (typeof callDeepseek !== 'function') throw new Error('DeepSeek 호출 함수를 사용할 수 없습니다.');
-          var key = String(storage.getItem('ss_deepseek_api_key') || '').trim();
+          var key = String(typeof options.getCredential === 'function' ? options.getCredential('deepseek') : storage.getItem('ss_deepseek_api_key') || '').trim();
           if (!key) throw new Error('DeepSeek API Key가 없습니다. 설정에서 키를 저장하세요.');
-          var result = await callDeepseek(request.prompt, request.systemInstruction, request.useSearch, model, controller.signal, key);
+          var result = await callDeepseek(request.prompt, request.systemInstruction, request.useSearch, model, controller.signal, key, request.onText);
           return {
             provider: 'deepseek',
             model: model,
@@ -317,9 +346,9 @@
         async function runOpenAI(modelOverride) {
           var model = String(modelOverride || getModel('openai') || DEFAULT_OPENAI_MODEL).trim();
           if (typeof callOpenAI !== 'function') throw new Error('OpenAI 호출 함수를 사용할 수 없습니다.');
-          var key = String(storage.getItem('ss_openai_api_key') || '').trim();
+          var key = String(typeof options.getCredential === 'function' ? options.getCredential('openai') : storage.getItem('ss_openai_api_key') || '').trim();
           if (!key) throw new Error('OpenAI API Key가 없습니다. 설정에서 키를 저장하세요.');
-          var result = await callOpenAI(request.prompt, request.systemInstruction, request.useSearch, model, controller.signal, key);
+          var result = await callOpenAI(request.prompt, request.systemInstruction, request.useSearch, model, controller.signal, key, request.onText);
           return {
             provider: 'openai',
             model: model,
@@ -330,8 +359,14 @@
         async function runOllama(modelOverride) {
           var model = String(modelOverride || getModel('ollama') || '').trim();
           if (typeof callOllama !== 'function') throw new Error('Ollama 호출 함수를 사용할 수 없습니다.');
+          if (typeof listOllamaModels === 'function') {
+            var models = await listOllamaModels(controller.signal);
+            if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+            if (models.indexOf(model) < 0) model = models[0] || '';
+            if (model) setModel(model, 'ollama');
+          }
           if (!model) throw new Error('Ollama 모델을 선택하세요. 설정에서 모델 확인을 먼저 실행할 수 있습니다.');
-          var result = await callOllama(request.prompt, request.systemInstruction, request.useSearch, model, controller.signal);
+          var result = await callOllama(request.prompt, request.systemInstruction, request.useSearch, model, controller.signal, request.onText);
           return {
             provider: 'ollama',
             model: (result && result.model) || model,
@@ -339,20 +374,31 @@
           };
         }
 
-        if (provider === 'lmstudio') return await runLMStudio();
         if (provider === 'aistudio') return await runAIStudio(request.model);
         if (provider === 'ollama') return await runOllama(request.model);
         if (provider === 'deepseek') return await runDeepSeek(request.model);
         if (provider === 'openai') return await runOpenAI(request.model);
 
         var lmError = null;
-        if (isLMStudioConfigured()) {
+        {
           try {
             return await runLMStudio();
           } catch (error) {
-            if (isAbortError(error)) throw error;
+            if (isAbortError(error) || streamed) throw error;
             lmError = friendlyError(error, 'lmstudio');
           }
+        }
+        try {
+          if (controller.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+          var ollamaResult = await runOllama();
+          if (lmError) {
+            ollamaResult.fallbackFrom = 'lmstudio';
+            ollamaResult.fallbackReason = lmError.message;
+          }
+          return ollamaResult;
+        } catch (error) {
+          if (isAbortError(error) || streamed || controller.signal.aborted) throw error;
+          lmError = new Error('로컬 AI 서버 연결 실패 — LM Studio: ' + (lmError && lmError.message || '') + '; Ollama: ' + error.message);
         }
         if (isAIStudioConfigured()) {
           var fallbackResult = await runAIStudio();
@@ -362,16 +408,13 @@
           }
           return fallbackResult;
         }
-        if (isOllamaConfigured() && getModel('ollama')) {
-          return await runOllama();
-        }
-        if (lmError) throw lmError;
         if (isDeepSeekConfigured()) {
           return await runDeepSeek();
         }
         if (isOpenAIConfigured()) {
           return await runOpenAI();
         }
+        if (lmError) throw lmError;
         throw new Error('LM Studio, AI Studio, Ollama, DeepSeek 또는 OpenAI 설정이 필요합니다.');
       } catch (error) {
         throw friendlyError(error, provider);

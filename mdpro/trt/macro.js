@@ -530,6 +530,41 @@
             + '  </div>'
             + '</div>';
         document.body.appendChild(wrap);
+        const aiControls = document.createElement('details');
+        aiControls.style.cssText = 'padding:8px 12px;flex-shrink:0;max-height:35vh;overflow:auto;color:#94a3b8;font-size:12px';
+        aiControls.innerHTML = '<summary>AI Jena · 매크로 작성</summary><div id="macro-ai-picker"></div><label>개발 요청 <input id="macro-ai-prompt" type="text" style="width:65%;padding:6px;background:#102633;color:#e2e8f0;border:1px solid #3b6574;border-radius:6px"></label> <button id="macro-ai-generate" type="button">코드 생성</button><span id="macro-ai-status" role="status"></span>';
+        const codeArea = document.getElementById('macro-script-editor-text').parentNode;
+        codeArea.style.minHeight = '80px';
+        codeArea.parentNode.insertBefore(aiControls, codeArea);
+        let aiPicker;
+        aiControls.addEventListener('toggle', function () {
+            if (aiControls.open && !aiPicker) aiPicker = window.AIToolProviders.mount(document.getElementById('macro-ai-picker'), 'macro');
+        });
+        document.getElementById('macro-ai-generate').onclick = async function () {
+            const button = this;
+            const status = document.getElementById('macro-ai-status');
+            const prompt = document.getElementById('macro-ai-prompt').value.trim();
+            if (!prompt) { status.textContent = '개발 요청을 입력하세요.'; return; }
+            const editor = document.getElementById('macro-script-editor-text');
+            const original = editor.value;
+            const entryId = macroScriptEditorEntryId;
+            button.disabled = true; status.textContent = '코드 생성 중…';
+            try {
+                const selected = aiPicker.getValue();
+                if (!selected.model) throw new Error('모델을 선택하세요.');
+                const result = await window.AIChatBridge.complete(Object.assign({}, selected, {
+                    mode: 'quick',
+                    messages: [{ role: 'user', content: prompt + '\n\n현재 매크로 코드:\n' + original }],
+                    systemInstruction: 'Write JavaScript for the MDPro macro script editor. Return the complete replacement script in one fenced javascript block. Preserve existing API calls unless the user asks to change them. Do not invent application APIs. Do not execute code.'
+                }));
+                const match = String(result.text || '').match(/```(?:javascript|js)?\s*\n([\s\S]*?)```/i);
+                if (!match) throw new Error('응답에 JavaScript 코드가 없습니다. 요청을 구체적으로 작성하세요.');
+                if (editor.value !== original || macroScriptEditorEntryId !== entryId) throw new Error('작성 중 코드가 변경되었습니다. 변경한 코드를 확인하고 다시 요청하세요.');
+                editor.value = match[1].trim();
+                status.textContent = '생성 완료 · 코드를 검토한 뒤 Save로 저장하세요.';
+            } catch (error) { status.textContent = error.message; }
+            finally { button.disabled = false; }
+        };
         const closeBtn = document.getElementById('btn-macro-script-close');
         const cancelBtn = document.getElementById('btn-macro-script-cancel');
         const saveBtn = document.getElementById('btn-macro-script-save');

@@ -47,6 +47,7 @@ const FIRST_RUN_AI_SETTINGS_DEFAULTS = Object.freeze({
     noteCoverInsertVisible: true,
     pdfMergeVisible: false,
     infographicAutoVisible: false,
+    tts2audioVisible: false,
     recentWorkVisible: true,
     chromeSplitTabVisible: false,
     recentWorkNameVisible: true,
@@ -62,6 +63,7 @@ const FIRST_RUN_AI_SETTINGS_DEFAULTS = Object.freeze({
     pdfMergeNameVisible: false,
     infographicGeminiNameVisible: false,
     infographicAutoNameVisible: false,
+    tts2audioNameVisible: false,
     imageUploadToolbarNameVisible: true,
     html2pptVisible: true,
     html2pptNameVisible: false,
@@ -156,7 +158,11 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260914-serpapi-vault-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
+<<<<<<< HEAD
     aiChat: './AI_App/aiChat/ai-chat.js?v=20261019-lemonade-image-models-1',
+=======
+    aiChat: './AI_App/aiChat/ai-chat.js?v=20261017-image-editor-actions-1',
+>>>>>>> cf2ea69e6eaafccfa8288b16bdd28831799889d9
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260925-nonprinting-3'
@@ -1580,7 +1586,11 @@ const OPENAI_COMPATIBLE_DEFAULTS = Object.freeze({
 });
 const LEMONADE_DEFAULT_BASE_URL = 'http://localhost:13305/api/v1';
 const OPENAI_COMPATIBLE_PROVIDER_URLS = Object.freeze({
+<<<<<<< HEAD
     orcarouter: 'https://api.orcarouter.ai/v1',
+=======
+    lemonade: 'http://127.0.0.1:13305/api/v1',
+>>>>>>> cf2ea69e6eaafccfa8288b16bdd28831799889d9
     'openai-compatible': 'https://api.orcarouter.ai/v1',
     openrouter: 'https://openrouter.ai/api/v1',
     groq: 'https://api.groq.com/openai/v1',
@@ -1663,10 +1673,66 @@ function applyOpenAICompatibleProviderPreset() {
     const baseUrl = document.getElementById('openai-compatible-base-url');
     if (!provider || !baseUrl) return;
     baseUrl.value = OPENAI_COMPATIBLE_PROVIDER_URLS[provider.value] || OPENAI_COMPATIBLE_DEFAULTS.baseUrl;
+<<<<<<< HEAD
     const apiKey = document.getElementById('openai-compatible-api-key');
     const modelId = document.getElementById('openai-compatible-model-id');
+=======
+    if (provider.value === 'lemonade') {
+        document.getElementById('openai-compatible-model-id').value = 'qwen3-it-4b-FLM';
+        document.getElementById('openai-compatible-api-key').value = 'lemonade-local';
+        document.getElementById('openai-compatible-free-models-only').checked = false;
+    }
+>>>>>>> cf2ea69e6eaafccfa8288b16bdd28831799889d9
     validateOpenAICompatibleBaseUrlUI();
 }
+
+// Only select the NPU model after the local server confirms it is installed.
+window.connectAIJenaNPU = async function (protocol) {
+    if (!protocol || protocol === 'ollama-npu') {
+        const models = await listNPUModels();
+        const previous = localStorage.getItem('ss_ai_chat_npu_model');
+        const model = models.includes(previous) ? previous : models[0];
+        localStorage.setItem('ss_ai_chat_npu_model', model);
+        migrateLegacyOllamaNPUSettings();
+        localStorage.setItem('ss_ai_chat_provider', 'ollama-npu');
+        if (window.AIChat && typeof window.AIChat.syncSettings === 'function') window.AIChat.syncSettings();
+        return model;
+    }
+    if (protocol === 'openai-compatible') {
+        const connection = { baseUrl: OPENAI_COMPATIBLE_PROVIDER_URLS.lemonade, apiKey: 'lemonade-local', modelId: 'qwen3-it-4b-FLM' };
+        const models = await fetchOpenAICompatibleModels(connection);
+        if (!models.includes(connection.modelId)) throw new Error('NPU 모델이 설치되지 않았습니다. lemonade pull qwen3-it-4b-FLM을 실행하세요.');
+        await setAiSettings({ openaiCompatibleProvider: 'lemonade', openaiCompatibleBaseUrl: connection.baseUrl, openaiCompatibleApiKey: connection.apiKey, openaiCompatibleModelId: connection.modelId });
+        localStorage.setItem('ss_openai_compatible_provider', 'lemonade');
+        localStorage.setItem('ss_openai_compatible_base_url', connection.baseUrl);
+        localStorage.setItem('ss_openai_compatible_api_key', connection.apiKey);
+        localStorage.setItem('ss_openai_compatible_model_id', connection.modelId);
+        localStorage.setItem('ss_ai_chat_openai_compatible_model', connection.modelId);
+        localStorage.setItem(OPENAI_COMPATIBLE_FREE_ONLY_KEY, '0');
+        localStorage.setItem('ss_ai_chat_provider', 'openai-compatible');
+        loadOpenAICompatibleSettingsUI();
+        if (window.AIChat && typeof window.AIChat.syncSettings === 'function') window.AIChat.syncSettings();
+        return connection.modelId;
+    }
+    throw new Error('지원하지 않는 NPU 연결 방식입니다.');
+};
+
+window.restoreAIJenaOllama = function () {
+    migrateLegacyOllamaNPUSettings();
+    const previous = {
+        baseUrl: localStorage.getItem(OLLAMA_BASE_URL_KEY),
+        model: localStorage.getItem('ss_ai_chat_ollama_model'),
+        generation: localStorage.getItem('ss_ai_chat_ollama_generation_v1')
+    };
+    localStorage.setItem(OLLAMA_BASE_URL_KEY, previous.baseUrl || 'http://127.0.0.1:11434');
+    localStorage.setItem('ss_ai_chat_ollama_model', previous.model || '');
+    localStorage.setItem('ss_ai_chat_provider', 'ollama');
+    if (previous.generation != null) localStorage.setItem('ss_ai_chat_ollama_generation_v1', previous.generation);
+    else localStorage.removeItem('ss_ai_chat_ollama_generation_v1');
+    saveStoredModelList(OLLAMA_MODELS_KEY, []);
+    loadOllamaSettingsToUI();
+    if (window.AIChat && typeof window.AIChat.syncSettings === 'function') window.AIChat.syncSettings();
+};
 
 function closeOpenAICompatibleModelMenu() {
     const menu = document.getElementById('openai-compatible-model-menu');
@@ -1816,6 +1882,7 @@ function getStoredOpenAICompatibleConnection() {
     };
 }
 
+<<<<<<< HEAD
 function getStoredLemonadeConnection() {
     const outputTokens = Number(localStorage.getItem('ss_openai_compatible_max_output_tokens_lemonade'));
     return {
@@ -1917,6 +1984,196 @@ async function generateLemonadeSspImage(prompt, options, signal) {
     const encoded = String(item && (item.b64_json || item.b64Json) || '').replace(/^data:[^;,]+;base64,/i, '');
     if (!encoded) throw new Error('Lemonade 이미지 응답에서 이미지 데이터를 찾지 못했습니다.');
     return 'data:' + String(item && (item.mime_type || item.mimeType) || 'image/png') + ';base64,' + encoded;
+=======
+// Keep the newest question intact; only discard complete older turns.
+function fitOpenAICompatibleContext(messages, tokenBudget) {
+    const result = messages.slice();
+    const estimate = item => Array.from(String(item.content || '')).reduce((sum, char) => sum + (char.charCodeAt(0) < 128 ? 0.25 : 1), 24);
+    const firstUser = () => result.findIndex(item => item.role === 'user');
+    while (result.reduce((sum, item) => sum + estimate(item), 0) > tokenBudget) {
+        const start = firstUser();
+        const next = result.findIndex((item, index) => index > start && item.role === 'user');
+        if (start < 0 || next < 0) break;
+        result.splice(start, next - start);
+    }
+    return result;
+}
+
+async function readScholarAITextEventStream(response, emit) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let answer = '';
+    let reasoning = '';
+    let finalResponse = {};
+    function consume(block) {
+        const dataText = block.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
+        if (!dataText || dataText === '[DONE]') return;
+        const event = JSON.parse(dataText);
+        if (event.error || event.type === 'response.failed' || event.type === 'error') {
+            throw new Error(event.error?.message || event.response?.error?.message || event.message || 'AI 스트리밍 응답 오류');
+        }
+        if (event.type === 'response.completed' || event.type === 'response.incomplete') finalResponse = event.response || {};
+        const choice = event.choices && event.choices[0];
+        const delta = choice && choice.delta || {};
+        const content = event.type === 'response.output_text.delta' ? event.delta : delta.content;
+        if (typeof content === 'string' && content) {
+            answer += content;
+            emit({ type: 'message.delta', content: content });
+        }
+        if (delta.reasoning_content) {
+            reasoning += delta.reasoning_content;
+            emit({ type: 'reasoning.delta', content: delta.reasoning_content });
+        }
+        if (choice && choice.finish_reason) finalResponse.finishReason = choice.finish_reason;
+        if (event.usage) finalResponse.usage = event.usage;
+        if (event.model) finalResponse.model = event.model;
+    }
+    try {
+        while (true) {
+            const part = await reader.read();
+            buffer += part.done ? decoder.decode() : decoder.decode(part.value, { stream: true });
+            buffer = buffer.replace(/\r\n/g, '\n');
+            let boundary;
+            while ((boundary = buffer.indexOf('\n\n')) >= 0) {
+                consume(buffer.slice(0, boundary));
+                buffer = buffer.slice(boundary + 2);
+            }
+            if (part.done) break;
+        }
+        if (buffer.trim()) consume(buffer);
+    } finally { reader.releaseLock(); }
+    return Object.assign({}, finalResponse, {
+        output_text: answer,
+        choices: [{ message: { content: answer, reasoning_content: reasoning }, finish_reason: finalResponse.finishReason || '' }]
+    });
+}
+
+const openAICompatibleContextLimits = new Map();
+const openAICompatibleOutputLimits = new Map();
+
+function budgetOpenAICompatibleChat(model, messages, systemInstruction, request) {
+    const details = readOpenAICompatibleModelsCache().find(row => row.id === model) || {};
+    const generationSettings = normalizeOllamaGenerationSettings(getOllamaSettings());
+    const configuredContext = request.mode === 'reasoning' ? generationSettings.reasoningContextLength : generationSettings.contextLength;
+    const reportedContext = Number(details.context_length || details.max_context_window || details.contextLength) || configuredContext;
+    let contextLength = Math.max(256, Math.min(reportedContext, configuredContext, Number(request.contextLimit) || reportedContext));
+    const config = getScholarAIProviderRuntime().getLMStudioConfig();
+    const requestedOutput = Math.max(1, Number(request.outputLimit) || Number(request.fastMode ? config.fastMaxTokens
+        : (request.mode === 'reasoning' ? generationSettings.reasoningMaxTokens : generationSettings.quickMaxTokens)) || 4096);
+    const current = request.continuation ? messages.slice() : messages.slice(-1);
+    const system = systemInstruction ? [{ role: 'system', content: String(systemInstruction) }] : [];
+    const count = rows => rows.reduce((sum, row) => sum + Math.ceil(estimateAIChatTokens(row.content) * 1.5) + 16, 0);
+    // The app's formatting instructions can exceed small local windows by
+    // themselves. Preserve the current question; compact only app instructions.
+    const systemBudget = Math.max(0, Math.min(1024, Math.floor(contextLength * 0.2), contextLength - count(current) - 512));
+    if (system.length && count(system) > systemBudget) {
+        const original = system[0].content;
+        let low = 0, high = original.length;
+        while (low < high) {
+            const middle = Math.ceil((low + high) / 2);
+            const head = Math.ceil(middle * 0.7);
+            const tail = middle - head;
+            const content = original.slice(0, head) + '\n' + (tail ? original.slice(-tail) : '');
+            if (count([{ role: 'system', content }]) <= systemBudget) low = middle;
+            else high = middle - 1;
+        }
+        const head = Math.ceil(low * 0.7), tail = low - head;
+        if (low) system[0].content = original.slice(0, head) + '\n' + (tail ? original.slice(-tail) : '');
+        else system.length = 0;
+    }
+    const fixedTokens = count(system.concat(current));
+    if (fixedTokens + 256 >= contextLength && fixedTokens + 256 < reportedContext) contextLength = reportedContext;
+    if (fixedTokens + 256 >= contextLength) {
+        throw new Error('선택한 모델의 입력 한도(' + contextLength + ' 토큰)를 초과했습니다. 질문이나 첨부 문서를 줄이거나 컨텍스트가 더 큰 모델을 선택하세요.');
+    }
+    const reserve = Math.min(requestedOutput, Math.max(256, Math.floor(contextLength * 0.32)));
+    const history = request.continuation ? [] : retainAIChatHistory(messages.slice(0, -1), Math.max(0, contextLength - fixedTokens - reserve - 256));
+    const retained = system.concat(history, current);
+    const inputTokens = count(retained);
+    const outputLimit = Number(details.top_provider && details.top_provider.max_completion_tokens) || requestedOutput;
+    return { messages: retained, contextLength: contextLength, inputTokens: inputTokens, fixedTokens: fixedTokens,
+        maxTokens: Math.max(1, Math.floor(Math.min(requestedOutput, outputLimit, contextLength - inputTokens - 256))) };
+}
+
+async function requestOpenAICompatibleChat(connection, model, messages, systemInstruction, request, signal) {
+    if (!request) { signal = systemInstruction; systemInstruction = ''; request = {}; }
+    const key = connection.baseUrl + '\n' + model;
+    const emit = typeof request.onStreamEvent === 'function' ? request.onStreamEvent : null;
+    const generation = normalizeOllamaGenerationSettings(getOllamaSettings());
+    let contextLimit = openAICompatibleContextLimits.get(key);
+    let outputLimit = openAICompatibleOutputLimits.get(key);
+    let retainedMessages = messages;
+    for (let attempt = 0; attempt < 5; attempt++) {
+        const budget = budgetOpenAICompatibleChat(model, retainedMessages, systemInstruction, Object.assign({}, request, { contextLimit: contextLimit, outputLimit: outputLimit }));
+        let receivedContent = false;
+        const forward = event => {
+            if ((event.type === 'message.delta' || event.type === 'reasoning.delta') && event.content) receivedContent = true;
+            if (emit) emit(event);
+        };
+        forward({ type: 'request.start', provider: 'openai-compatible', context_length: budget.contextLength,
+            estimated_input_tokens: budget.inputTokens, max_output_tokens: budget.maxTokens });
+        try {
+            const response = await fetch(connection.baseUrl + '/chat/completions', {
+                method: 'POST',
+                headers: { Accept: emit ? 'text/event-stream, application/json' : 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer ' + connection.apiKey },
+                body: JSON.stringify({ model: model, messages: budget.messages, max_tokens: budget.maxTokens, temperature: generation.temperature, stream: !!emit }),
+                signal: signal
+            });
+            if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
+            forward({ type: 'chat.start', provider: 'openai-compatible' });
+            const data = emit && /text\/event-stream/i.test(response.headers.get('content-type') || '')
+                ? await readScholarAITextEventStream(response, forward) : await response.json();
+            if (data.error) throw new Error(String(data.error.message || data.error));
+            if (contextLimit) openAICompatibleContextLimits.set(key, contextLimit);
+            if (outputLimit) openAICompatibleOutputLimits.set(key, outputLimit);
+            return data;
+        } catch (error) {
+            if (error.name === 'AbortError' || !/max length reached|context.{0,40}(exceed|length|limit|window)|maximum context|too many tokens|prompt.{0,30}too long|token.{0,20}limit/i.test(error.message)) throw error;
+            if (receivedContent || attempt === 4) {
+                throw new Error('OpenAI 호환 서버가 Max length reached 오류를 반환했습니다. 대화 이력과 답변 생성 한도를 줄여도 실패했습니다. 서버의 모델 컨텍스트 및 세션 설정을 확인해 주세요.');
+            }
+            // A length error can mean an output limit, not an oversized question.
+            // Never shrink the context below the unchanged system and current input.
+            outputLimit = Math.max(32, Math.floor(budget.maxTokens / 2));
+            contextLimit = Math.min(budget.contextLength, Math.max(
+                budget.fixedTokens + outputLimit + 257, Math.floor(budget.contextLength / 2)
+            ));
+            retainedMessages = retainedMessages.slice();
+            const oldest = retainedMessages.findIndex(item => item.role === 'user');
+            const next = retainedMessages.findIndex((item, index) => index > oldest && item.role === 'user');
+            if (!request.continuation && oldest >= 0 && next >= 0) retainedMessages.splice(oldest, next - oldest);
+        }
+    }
+}
+
+function compatibleResidencyKey(connection, model) {
+    return 'ss_ai_compatible_residency:' + encodeURIComponent(connection.baseUrl + '\n' + model);
+}
+
+async function manageOpenAICompatibleResidency(connection, model, enabled, signal) {
+    const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + connection.apiKey };
+    const call = async (url, body) => {
+        const response = await fetch(url, { method: body ? 'POST' : 'GET', headers, ...(body ? { body: JSON.stringify(body) } : {}), signal });
+        if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
+        const data = await response.json();
+        if (data.status === 'error' || data.error) throw new Error(data.message || data.error.message || '모델 유지 설정 실패');
+        return data;
+    };
+    const health = await call(connection.baseUrl + '/health');
+    if (!Array.isArray(health.all_models_loaded)) throw new Error('이 서버는 Lemonade 모델 유지 API를 지원하지 않습니다. 일반 OpenAI 호환 API만으로는 모델 메모리 유지를 제어할 수 없습니다.');
+    const loaded = health.all_models_loaded.find(row => row.model_name === model);
+    if (enabled && !loaded) {
+        await call(connection.baseUrl + '/load', { model_name: model, pinned: true });
+    } else if (loaded && loaded.pinned !== enabled) {
+        await call(new URL('/internal/pin', connection.baseUrl).href, { model_name: model, pinned: enabled });
+    }
+    const verified = await call(connection.baseUrl + '/health');
+    const current = verified.all_models_loaded && verified.all_models_loaded.find(row => row.model_name === model);
+    if (enabled && (!current || current.pinned !== true)) throw new Error('서버에서 모델의 메모리 고정을 확인하지 못했습니다. 서버 버전과 모델 유지 지원을 확인하세요.');
+    if (!enabled && current && current.pinned === true) throw new Error('서버에서 모델 유지 해제를 확인하지 못했습니다.');
+    return { loaded: !!current, pinned: !!(current && current.pinned), model: model };
+>>>>>>> cf2ea69e6eaafccfa8288b16bdd28831799889d9
 }
 
 async function fetchOpenAICompatibleModels(connection) {
@@ -5154,6 +5411,9 @@ function toggleMode(mode, options) {
         console.warn('toggleMode: viewer-container or content-viewport not found.', { vc: !!vc, ec: !!ec });
         return;
     }
+    const longScrollSync = ec.classList.contains('long-document-active');
+    const modeScrollRatio = getScrollRatio(isEditMode ? ec : vc);
+    const hasViewClickPosition = viewClickMappedCaretPos != null;
     if (mode === 'edit') {
         const mappedPos = viewClickMappedCaretPos == null
             ? getMarkdownCharPositionForLine(String(editorTextarea ? editorTextarea.value : currentMarkdown || ''), getMarkdownLineFromViewerViewport(vc))
@@ -5186,7 +5446,10 @@ function toggleMode(mode, options) {
             if (window.A4Pages && typeof window.A4Pages.fitLongDocumentToContent === 'function') {
                 window.A4Pages.fitLongDocumentToContent();
             }
-            if (!options?.skipScrollSync) scrollEditorToMarkdownLine(mappedLine, 'auto');
+            if (!options?.skipScrollSync) {
+                if (longScrollSync && !hasViewClickPosition) setScrollRatio(ec, modeScrollRatio);
+                else scrollEditorToMarkdownLine(mappedLine, 'auto');
+            }
         });
     } else {
         // Capture the editor viewport before hiding it. The caret can remain at
@@ -5253,7 +5516,10 @@ function toggleMode(mode, options) {
                     if (window.A4Pages && typeof window.A4Pages.fitLongDocumentToContent === 'function') {
                         window.A4Pages.fitLongDocumentToContent();
                     }
-                    scrollViewerToMarkdownLine(vc, editLineIndex, visibleCaret);
+                    if (!options?.skipScrollSync) {
+                        if (longScrollSync) setScrollRatio(vc, modeScrollRatio);
+                        else scrollViewerToMarkdownLine(vc, editLineIndex, visibleCaret);
+                    }
                 };
                 // Viewer typography, images, and the long-sheet minimum height
                 // can settle over subsequent layout frames. Reapply the same
@@ -5274,6 +5540,7 @@ function toggleMode(mode, options) {
     if (typeof window.refreshEditorFormatGutter === 'function') {
         requestAnimationFrame(window.refreshEditorFormatGutter);
     }
+    requestAnimationFrame(applyEditorHorizontalShift);
 }
 
 const DEDICATED_LOCAL_VIEWER_EXTENSIONS = new Set([
@@ -10111,25 +10378,7 @@ async function deleteMermaidHistoryFromInDb(id, targetWindow) {
 }
 
 function getMermaidVisionProviderSelection() {
-    let provider = String(localStorage.getItem('ss_ai_chat_provider') || 'lmstudio');
-    const modelKeys = {
-        aistudio: 'ss_ai_chat_gemini_model', openai: 'ss_ai_chat_openai_model', deepseek: 'ss_ai_chat_deepseek_model',
-        'openai-compatible': 'ss_ai_chat_openai_compatible_model', ollama: 'ss_ai_chat_ollama_model',
-        litertlm: 'ss_ai_chat_litertlm_model', lmstudio: 'ss_ai_chat_lmstudio_model'
-    };
-    let model = String(localStorage.getItem(modelKeys[provider] || '') || '');
-    if (provider !== 'openai' && provider !== 'aistudio') {
-        const openAIState = typeof getOpenAIApiState === 'function' ? getOpenAIApiState() : null;
-        const hasOpenAI = !!String(openAIState && openAIState.key || '').trim();
-        const hasGemini = typeof getProtectedAiCredential === 'function'
-            ? !!String(getProtectedAiCredential('gemini', 'ss_gemini_api_key') || '').trim()
-            : !!String(localStorage.getItem('ss_gemini_api_key') || '').trim();
-        if (hasOpenAI) { provider = 'openai'; model = String(localStorage.getItem(modelKeys.openai) || 'gpt-5.6-sol'); }
-        else if (hasGemini) { provider = 'aistudio'; model = String(localStorage.getItem(modelKeys.aistudio) || 'gemini-2.5-flash'); }
-        else throw new Error('이미지 분석이 가능한 OpenAI 또는 AI Studio API 키가 필요합니다. AI Jena 설정에서 연결해 주세요.');
-    }
-    if (provider === 'aistudio' && /(?:image|tts|audio|veo|lyria)/i.test(model)) model = 'gemini-2.5-flash';
-    return { provider: provider, model: model };
+    return window.AIToolProviders.read('mermaid');
 }
 
 async function analyzeImageToMermaidForEditor(data, targetWindow) {
@@ -10140,7 +10389,8 @@ async function analyzeImageToMermaidForEditor(data, targetWindow) {
         if (!window.AIChatBridge || typeof window.AIChatBridge.complete !== 'function') throw new Error('AI Jena 연결 모듈이 준비되지 않았습니다.');
         const image = data.image || {};
         if (!/^data:image\//i.test(String(image.dataUrl || ''))) throw new Error('분석할 이미지 데이터가 없습니다.');
-        const selected = getMermaidVisionProviderSelection();
+        const selected = data.aiSelection || getMermaidVisionProviderSelection();
+        if (!selected.model) throw new Error('이미지 분석에 사용할 모델을 선택하세요.');
         const streamReply = function (streamEvent) {
             if (!streamEvent || streamEvent.type !== 'message.delta' || !streamEvent.content || !targetWindow || targetWindow.closed) return;
             targetWindow.postMessage({ type: 'mdv-image-to-mermaid-stream', requestId: data.requestId, delta: String(streamEvent.content) }, '*');
@@ -10319,27 +10569,29 @@ function applyEditorHorizontalShift() {
     const editorDocWrap = document.getElementById('editor-doc-wrap');
     const a4Pages = document.getElementById('a4-pages');
     const display = document.getElementById('editor-shift-display');
-    const viewport = document.getElementById('content-viewport');
+    const viewport = document.getElementById(isEditMode ? 'content-viewport' : 'viewer-container');
     if (!editorDocWrap || !viewport) {
         if (display) display.textContent = '0px';
         return;
     }
 
-    const isA4 = viewport.classList.contains('a4-active') && a4Pages && !a4Pages.hidden;
-    const shiftTarget = isA4 ? a4Pages : editorDocWrap;
-    const inactiveTarget = isA4 ? editorDocWrap : a4Pages;
+    const isA4 = isEditMode && viewport.classList.contains('a4-active') && a4Pages && !a4Pages.hidden;
+    const viewTarget = document.getElementById('viewer');
+    const shiftTarget = isEditMode ? (isA4 ? a4Pages : editorDocWrap) : viewTarget;
+    if (!shiftTarget) return;
     const viewportWidth = Number(viewport.clientWidth) || 0;
     const targetWidth = Number(shiftTarget.offsetWidth) || 0;
-    const maxShift = isA4
+    const maxShift = isA4 || !isEditMode
         ? Math.max(80, Math.floor(Math.abs(viewportWidth - targetWidth) / 2 + viewportWidth * 0.25))
         : Math.max(0, Math.floor((viewportWidth - targetWidth) / 2) - 8);
     const clamped = Math.max(-maxShift, Math.min(maxShift, Number(editorHorizontalShiftPx) || 0));
     editorHorizontalShiftPx = clamped;
 
-    if (inactiveTarget) {
-        inactiveTarget.style.transform = '';
-        inactiveTarget.style.transition = '';
-    }
+    [editorDocWrap, a4Pages, viewTarget].forEach(target => {
+        if (!target || target === shiftTarget) return;
+        target.style.transform = '';
+        target.style.transition = '';
+    });
     shiftTarget.style.transform = `translateX(${editorHorizontalShiftPx}px)`;
     shiftTarget.style.transition = 'transform 120ms ease';
     if (display) display.textContent = `${editorHorizontalShiftPx}px`;
@@ -10405,8 +10657,10 @@ function initEditorShiftFloat(control) {
 
 function syncEditorShiftFloatPosition() {
     const control = document.getElementById('editor-shift-float');
-    const viewport = document.getElementById('content-viewport');
+    const viewport = document.getElementById(isEditMode ? 'content-viewport' : 'viewer-container');
     if (!control || !viewport) return;
+    const host = document.getElementById('drop-zone');
+    if (host && control.parentNode !== host) host.appendChild(control);
 
     const viewportRect = viewport.getBoundingClientRect();
     const sidebarEl = document.getElementById('sidebar');
@@ -12486,6 +12740,7 @@ async function generateImg2Math() {
         if (status) status.textContent = 'AI Jena 연결과 수식 인식 모델을 확인하고 있습니다.';
         if (!window.AIChatBridge || typeof window.AIChatBridge.complete !== 'function') throw new Error('AI Jena 연결 모듈이 준비되지 않았습니다.');
         const selected = getImg2MathProviderSelection();
+        if (!selected.model) throw new Error('수식 인식에 사용할 모델을 선택하세요.');
         updateImg2MathAiModelStatus(selected);
         const inputDescription = img2MathImage && sourceText ? '이미지와 텍스트' : (img2MathImage ? '이미지' : '텍스트');
         if (status) status.textContent = formatImg2MathAiModel(selected) + ' 모델이 ' + inputDescription + '의 수식 구조를 분석하고 있습니다.';
@@ -12523,7 +12778,8 @@ function formatImg2MathAiModel(selection) {
         lmstudio: 'LM Studio',
         ollama: 'Ollama',
         deepseek: 'DeepSeek',
-        litertlm: 'LiteRTLM',
+        litertlm: 'LiteRT-LM',
+        'ollama-npu': 'Ollama NPU · Lemonade',
         'openai-compatible': 'OpenAI 호환 API'
     };
     const provider = String(selection && selection.provider || '').trim();
@@ -12532,20 +12788,7 @@ function formatImg2MathAiModel(selection) {
 }
 
 function getImg2MathProviderSelection() {
-    const configured = getMermaidVisionProviderSelection();
-    if (!img2MathAiSelection) {
-        try {
-            const saved = JSON.parse(localStorage.getItem(IMG2MATH_MODEL_SELECTION_KEY) || 'null');
-            if (saved && typeof saved === 'object') {
-                img2MathAiSelection = { provider: String(saved.provider || ''), model: String(saved.model || '') };
-            }
-        } catch (_error) { }
-    }
-    if (img2MathAiSelection && img2MathAiSelection.provider === configured.provider && img2MathAiSelection.model) {
-        return { provider: configured.provider, model: img2MathAiSelection.model };
-    }
-    img2MathAiSelection = { provider: configured.provider, model: configured.model };
-    return img2MathAiSelection;
+    return window.AIToolProviders.read('img2math');
 }
 
 function updateImg2MathAiModelStatus(selection) {
@@ -12564,39 +12807,12 @@ function updateImg2MathAiModelStatus(selection) {
 
 async function populateImg2MathModelSelect() {
     const select = document.getElementById('img2math-model-select');
-    if (!select) return;
-    select.disabled = true;
-    select.innerHTML = '<option>모델 불러오는 중…</option>';
-    try {
-        const selected = getImg2MathProviderSelection();
-        let models = [selected.model].filter(Boolean);
-        const cachedModelMethods = {
-            aistudio: 'getCachedGeminiModels',
-            openai: 'getCachedOpenAIModels'
-        };
-        const method = cachedModelMethods[selected.provider];
-        if (method && window.AIChatBridge && typeof window.AIChatBridge[method] === 'function') {
-            const result = await Promise.resolve(window.AIChatBridge[method]());
-            models = models.concat(Array.isArray(result) ? result : (Array.isArray(result && result.models) ? result.models : []));
-        }
-        models = Array.from(new Set(models.map(function (model) { return String(model || '').trim(); }).filter(Boolean)));
-        if (!models.length) throw new Error('선택 가능한 수식 인식 모델이 없습니다.');
-        select.replaceChildren();
-        models.forEach(function (model) {
-            const option = document.createElement('option');
-            option.value = model;
-            option.textContent = model;
-            select.appendChild(option);
-        });
-        select.value = models.includes(selected.model) ? selected.model : models[0];
-        img2MathAiSelection = { provider: selected.provider, model: select.value };
-        select.disabled = false;
-        updateImg2MathAiModelStatus(img2MathAiSelection);
-    } catch (error) {
-        select.innerHTML = '<option>모델 설정 필요</option>';
-        select.disabled = true;
-        updateImg2MathAiModelStatus();
-    }
+    const container = document.getElementById('img2math-ai-provider')?.parentNode;
+    if (!select || !container) return;
+    window.AIToolProviders.mount(container, 'img2math', {
+        modelSelect: select,
+        onChange: selection => { img2MathAiSelection = selection; updateImg2MathAiModelStatus(selection); }
+    });
 }
 
 function getImg2MathSelectedDocumentText() {
@@ -12770,12 +12986,6 @@ function bindImg2MathPopup() {
     document.getElementById('img2math-generate').onclick = generateImg2Math;
     document.getElementById('img2math-insert').onclick = insertImg2MathResult;
     document.getElementById('img2math-import-selection').onclick = importSelectedTextIntoImg2Math;
-    document.getElementById('img2math-model-select').onchange = function (event) {
-        const configured = getMermaidVisionProviderSelection();
-        img2MathAiSelection = { provider: configured.provider, model: String(event.target.value || '').trim() };
-        localStorage.setItem(IMG2MATH_MODEL_SELECTION_KEY, JSON.stringify(img2MathAiSelection));
-        updateImg2MathAiModelStatus(img2MathAiSelection);
-    };
     file.onchange = function () { setImg2MathImage(file.files && file.files[0]); file.value = ''; };
     drop.onclick = function (event) { if (!event.target.closest('button')) file.click(); };
     ['dragenter', 'dragover'].forEach(function (name) { drop.addEventListener(name, function (event) { event.preventDefault(); drop.classList.add('border-teal-400'); }); });
@@ -13062,6 +13272,10 @@ function getInfographicGeminiVisibleFromSettings(settings) {
     return getInfographicAutoVisibleFromSettings(settings);
 }
 
+function getTts2AudioVisibleFromSettings(settings) {
+    return !!(settings && settings.tts2audioVisible === true);
+}
+
 function getChromeSplitTabVisibleFromSettings(settings) {
     return !!(settings && settings.chromeSplitTabVisible === true);
 }
@@ -13084,6 +13298,7 @@ const FEATURE_TOOL_NAME_BINDINGS = Object.freeze({
     pdfMergeNameVisible: { checkboxId: 'pdf-merge-name-visible', buttonId: 'btn-pdf-merge', nameId: 'btn-pdf-merge-name' },
     infographicGeminiNameVisible: { checkboxId: 'infographic-gemini-name-visible', buttonId: 'btn-infographic-gemini', nameId: 'btn-infographic-gemini-name' },
     infographicAutoNameVisible: { checkboxId: 'infographic-auto-name-visible', buttonId: 'btn-infographic-auto', nameId: 'btn-infographic-auto-name' },
+    tts2audioNameVisible: { checkboxId: 'tts2audio-name-visible', buttonId: 'btn-tts2audio', nameId: 'btn-tts2audio-name' },
     imageUploadToolbarNameVisible: { checkboxId: 'image-upload-toolbar-name-visible', buttonId: 'btn-image-upload-toolbar', nameId: 'btn-image-upload-toolbar-name' }
 });
 
@@ -13211,6 +13426,7 @@ function openInfographicSinglePanel() {
     const frame = document.getElementById('infographic-single-frame');
     if (!panel || !frame) return;
     closeInfographicAutoPanel();
+    closeTts2AudioPanel();
     ensureLazyFrameLoaded(frame);
     panel.classList.remove('hidden');
     panel.classList.add('flex');
@@ -13311,6 +13527,7 @@ function openInfographicAutoPanel() {
     const frame = document.getElementById('infographic-auto-frame');
     if (!panel || !frame) return;
     closeInfographicSinglePanel();
+    closeTts2AudioPanel();
     ensureLazyFrameLoaded('infographic-auto-frame');
     panel.classList.remove('hidden');
     panel.classList.add('flex');
@@ -13329,6 +13546,139 @@ function toggleInfographicAutoPanel() {
     if (!panel || panel.classList.contains('hidden')) openInfographicAutoPanel();
     else closeInfographicAutoPanel();
 }
+
+function applyTts2AudioVisibility(settings) {
+    const enabled = getTts2AudioVisibleFromSettings(settings || {});
+    const button = document.getElementById('btn-tts2audio');
+    if (button) button.classList.toggle('hidden', !enabled);
+    if (!enabled) closeTts2AudioPanel();
+    syncHeaderFeatureToolsVisibility();
+}
+
+async function toggleTts2AudioVisibilitySection() {
+    const check = document.getElementById('tts2audio-visible');
+    const enabled = !!(check && check.checked);
+    applyTts2AudioVisibility({ tts2audioVisible: enabled });
+    try { await setAiSettings({ tts2audioVisible: enabled }); } catch (error) { console.error(error); }
+}
+
+function getTts2AudioContext() {
+    return {
+        type: 'mdpro-tts2audio-context',
+        apiKey: String(getProtectedAiCredential('gemini', 'ss_gemini_api_key') || '')
+    };
+}
+
+function postTts2AudioContext(targetWindow) {
+    if (targetWindow) targetWindow.postMessage(getTts2AudioContext(), window.location.origin);
+}
+
+function openTts2AudioPanel() {
+    const panel = document.getElementById('tts2audio-panel');
+    const frame = document.getElementById('tts2audio-frame');
+    if (!panel || !frame) return;
+    closeInfographicSinglePanel();
+    closeInfographicAutoPanel();
+    ensureLazyFrameLoaded(frame);
+    bindTts2AudioPanelInteractions();
+    panel.classList.remove('hidden');
+    panel.classList.add('flex');
+    if (frame.contentWindow) postTts2AudioContext(frame.contentWindow);
+}
+
+function closeTts2AudioPanel() {
+    const panel = document.getElementById('tts2audio-panel');
+    if (!panel) return;
+    panel.classList.add('hidden');
+    panel.classList.remove('flex');
+}
+
+function toggleTts2AudioPanel() {
+    const panel = document.getElementById('tts2audio-panel');
+    if (!panel || panel.classList.contains('hidden')) openTts2AudioPanel();
+    else closeTts2AudioPanel();
+}
+
+function bindTts2AudioPanelInteractions() {
+    const panel = document.getElementById('tts2audio-panel');
+    const header = document.getElementById('tts2audio-panel-header');
+    if (!panel || panel.dataset.interactionsBound === '1') return;
+    panel.dataset.interactionsBound = '1';
+    const beginPointerAction = function (event, mode) {
+        if (event.button !== 0) return;
+        if (mode === 'move' && event.target.closest('button, input, select, textarea, a')) return;
+        event.preventDefault();
+        const startRect = panel.getBoundingClientRect();
+        const startX = event.clientX;
+        const startY = event.clientY;
+        const minWidth = Math.min(420, Math.max(240, window.innerWidth - 16));
+        const minHeight = Math.min(320, Math.max(220, window.innerHeight - 16));
+        panel.style.right = 'auto';
+        panel.style.bottom = 'auto';
+        panel.style.left = startRect.left + 'px';
+        panel.style.top = startRect.top + 'px';
+        panel.style.width = startRect.width + 'px';
+        panel.style.height = startRect.height + 'px';
+        const move = function (moveEvent) {
+            const dx = moveEvent.clientX - startX;
+            const dy = moveEvent.clientY - startY;
+            let left = startRect.left;
+            let top = startRect.top;
+            let width = startRect.width;
+            let height = startRect.height;
+            if (mode === 'move') {
+                left += dx;
+                top += dy;
+            } else {
+                if (mode.includes('e')) width = Math.max(minWidth, startRect.width + dx);
+                if (mode.includes('s')) height = Math.max(minHeight, startRect.height + dy);
+                if (mode.includes('w')) {
+                    width = Math.max(minWidth, startRect.width - dx);
+                    left = startRect.right - width;
+                }
+                if (mode.includes('n')) {
+                    height = Math.max(minHeight, startRect.height - dy);
+                    top = startRect.bottom - height;
+                }
+            }
+            left = Math.max(0, Math.min(left, window.innerWidth - width));
+            top = Math.max(0, Math.min(top, window.innerHeight - height));
+            width = Math.min(width, window.innerWidth - left);
+            height = Math.min(height, window.innerHeight - top);
+            panel.style.left = left + 'px';
+            panel.style.top = top + 'px';
+            panel.style.width = width + 'px';
+            panel.style.height = height + 'px';
+        };
+        const end = function () {
+            window.removeEventListener('pointermove', move);
+            window.removeEventListener('pointerup', end);
+            document.body.style.userSelect = '';
+        };
+        document.body.style.userSelect = 'none';
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', end, { once: true });
+    };
+    if (header) header.addEventListener('pointerdown', function (event) { beginPointerAction(event, 'move'); });
+    panel.querySelectorAll('[data-tts2audio-resize]').forEach(function (handle) {
+        handle.addEventListener('pointerdown', function (event) {
+            beginPointerAction(event, String(handle.dataset.tts2audioResize || 'se'));
+        });
+    });
+}
+
+window.addEventListener('message', function (event) {
+    const frame = document.getElementById('tts2audio-frame');
+    if (!frame || event.source !== frame.contentWindow || event.origin !== window.location.origin) return;
+    const data = event && event.data;
+    if (data && data.type === 'tts2audio-request-context') postTts2AudioContext(event.source);
+    if (data && data.type === 'tts-fma-document' && /^data:image\/[a-z0-9.+-]+;base64,/i.test(String(data.dataUrl || ''))) {
+        if (typeof window.openImageInsertModal === 'function' && typeof window.applyImageInsertDataUrl === 'function') {
+            window.openImageInsertModal();
+            window.applyImageInsertDataUrl(data.dataUrl, String(data.name || 'fma-edited.png'));
+        }
+    }
+});
 
 window.addEventListener('message', async function (event) {
     const autoFrame = document.getElementById('infographic-auto-frame');
@@ -13629,13 +13979,15 @@ function syncHeaderFeatureToolsVisibility() {
     const templateBtn = document.getElementById('btn-template-panel');
     const infographicGeminiBtn = document.getElementById('btn-infographic-gemini');
     const infographicAutoBtn = document.getElementById('btn-infographic-auto');
+    const tts2audioBtn = document.getElementById('btn-tts2audio');
     const scholarEnabled = !!(scholarBtn && !scholarBtn.classList.contains('hidden'));
     const pdfMergeEnabled = !!(pdfMergeBtn && !pdfMergeBtn.classList.contains('hidden'));
     const sitesEnabled = !!(sitesBtn && !sitesBtn.classList.contains('hidden'));
     const templateEnabled = !!(templateBtn && !templateBtn.classList.contains('hidden'));
     const infographicGeminiEnabled = !!(infographicGeminiBtn && !infographicGeminiBtn.classList.contains('hidden'));
     const infographicAutoEnabled = !!(infographicAutoBtn && !infographicAutoBtn.classList.contains('hidden'));
-    if (scholarEnabled || pdfMergeEnabled || sitesEnabled || templateEnabled || infographicGeminiEnabled || infographicAutoEnabled) {
+    const tts2audioEnabled = !!(tts2audioBtn && !tts2audioBtn.classList.contains('hidden'));
+    if (scholarEnabled || pdfMergeEnabled || sitesEnabled || templateEnabled || infographicGeminiEnabled || infographicAutoEnabled || tts2audioEnabled) {
         wrap.classList.remove('hidden');
         wrap.classList.add('flex');
         wrap.style.display = 'flex';
@@ -15180,6 +15532,8 @@ async function persistAiSettingsFromModal() {
     const infographicGeminiVisible = !!(infographicGeminiVisibleEl && infographicGeminiVisibleEl.checked);
     const infographicAutoVisibleEl = document.getElementById('infographic-auto-visible');
     const infographicAutoVisible = !!(infographicAutoVisibleEl && infographicAutoVisibleEl.checked);
+    const tts2audioVisibleEl = document.getElementById('tts2audio-visible');
+    const tts2audioVisible = !!(tts2audioVisibleEl && tts2audioVisibleEl.checked);
     const recentWorkVisibleEl = document.getElementById('recent-work-visible');
     const recentWorkVisible = !(recentWorkVisibleEl && recentWorkVisibleEl.checked === false);
     const chromeSplitTabVisibleEl = document.getElementById('chrome-split-tab-visible');
@@ -15224,6 +15578,7 @@ async function persistAiSettingsFromModal() {
         pdfMergeVisible: pdfMergeVisible,
         infographicGeminiVisible: infographicGeminiVisible,
         infographicAutoVisible: infographicAutoVisible,
+        tts2audioVisible: tts2audioVisible,
         recentWorkVisible: recentWorkVisible,
         chromeSplitTabVisible: chromeSplitTabVisible,
         ...featureToolNameSettings,
@@ -15808,6 +16163,11 @@ async function applyAiFeatureVisibility() {
     applyTemplateVisibility(settings || { templateVisible: false });
 }
 
+function isAiJenaPanelOpen() {
+    const panel = document.getElementById('ai-chat-panel');
+    return !!panel && panel.classList.contains('open');
+}
+
 function setAiSidebarWrapVisible(w, isLoading) {
     const wrap = document.getElementById('ai-right-sidebar-wrap');
     const inner = document.getElementById('ai-right-sidebar-inner');
@@ -15826,7 +16186,7 @@ function setAiSidebarWrapVisible(w, isLoading) {
         'flex-direction:column',
         'position:fixed',
         'top:' + topOffset + 'px',
-        'right:0',
+        isAiJenaPanelOpen() ? 'left:0' : 'right:0',
         'bottom:0',
         'z-index:' + overlayZ,
         'pointer-events:auto',
@@ -15895,7 +16255,7 @@ function refreshAiRightSidebarWrap() {
         'flex-direction:column',
         'position:fixed',
         'top:' + topOffset + 'px',
-        'right:0',
+        isAiJenaPanelOpen() ? 'left:0' : 'right:0',
         'bottom:0',
         'z-index:' + overlayZ,
         'pointer-events:auto',
@@ -16116,6 +16476,7 @@ window.openSspimgAIFromHeader = openSspimgAIFromHeader;
 window.openImageUploadTool = openImageUploadTool;
 window.viewerSSPCropFromPanel = viewerSSPCropFromPanel;
 window.refreshAiRightSidebarWrap = refreshAiRightSidebarWrap;
+window.addEventListener('ai-jena-layout-change', refreshAiRightSidebarWrap);
 if (!window.__aiSidebarResizeBound) {
     window.__aiSidebarResizeBound = true;
     window.addEventListener('resize', function () {
@@ -16678,22 +17039,49 @@ function getScholarAIProviderRuntime() {
     }
     scholarAIProviderRuntime = window.ScholarAIProvider.create({
         storage: localStorage,
-        callAIStudio: callAIStudioText,
-        callOllama: function (prompt, systemInstruction, useSearch, modelOverride, signal) {
-            return callOllamaChatText([{ role: 'user', content: String(prompt || '') }], systemInstruction, modelOverride, signal);
+        getCredential: function (provider) { return getProtectedAiCredential(provider, 'ss_' + provider + '_api_key'); },
+        getSharedModel: function (provider) {
+            if (provider === 'litertlm') return getLiteRTLMSettings().model;
+            if (provider === 'ollama-npu') return localStorage.getItem('ss_ai_chat_npu_model') || '';
+            return getStoredOpenAICompatibleConnection().modelId || '';
         },
-        callDeepseek: function (prompt, systemInstruction, useSearch, modelOverride, signal, keyOverride, baseUrlOverride) {
+        callSharedProvider: async function (request, signal) {
+            let streamed = false;
+            const result = await completeSharedAIProvider({
+                provider: request.provider, model: request.model,
+                messages: [{ role: 'user', content: String(request.prompt || '') }],
+                systemInstruction: request.systemInstruction,
+                mode: request.responseMode || 'quick',
+                onStreamEvent: request.onText ? function (event) {
+                    if (event.type === 'message.delta') { streamed = true; request.onText(event.content); }
+                } : undefined
+            }, signal);
+            if (request.onText && !streamed && result.text) request.onText(result.text);
+            return result;
+        },
+        listOllamaModels: function (signal) { return listOllamaModels({ signal: signal }); },
+        isAIStudioConfigured: function () { return !!getProtectedAiCredential('gemini', 'ss_gemini_api_key'); },
+        listAIStudioModels: function () { return listAIStudioTextModels(); },
+        callAIStudio: function (prompt, systemInstruction, useSearch, model, signal, onText) {
+            if (!onText) return callAIStudioText(prompt,systemInstruction,useSearch,model,signal);
+            return callAIStudioChat([{role:'user',content:prompt}],systemInstruction,model,signal,'quick',false,null,function (event) { if (event.type === 'message.delta') onText(event.content); });
+        },
+        callOllama: function (prompt, systemInstruction, useSearch, modelOverride, signal, onText) {
+            return callOllamaChatText([{ role: 'user', content: String(prompt || '') }], systemInstruction, modelOverride, signal, 'quick', onText ? function (event) { if (event.type === 'message.delta') onText(event.content); } : undefined);
+        },
+        callDeepseek: function (prompt, systemInstruction, useSearch, modelOverride, signal, keyOverride, onText) {
             return callDeepseekChatText(
                 [{ role: 'user', content: String(prompt || '') }],
                 systemInstruction,
                 modelOverride,
                 signal,
                 keyOverride,
-                baseUrlOverride
+                undefined,
+                {onText:onText}
             );
         },
-        callOpenAI: function (prompt, systemInstruction, useSearch, modelOverride, signal, keyOverride) {
-            return callOpenAIText(prompt, systemInstruction, useSearch, modelOverride, signal, keyOverride);
+        callOpenAI: function (prompt, systemInstruction, useSearch, modelOverride, signal, keyOverride, onText) {
+            return callOpenAIChatText([{role:"user",content:prompt}], systemInstruction, modelOverride, signal, "quick", keyOverride, onText);
         }
     });
     return scholarAIProviderRuntime;
@@ -16764,7 +17152,41 @@ function mergeAIChatOpenAIModels(models) {
     return preferred.concat(available.filter(function (model) { return preferred.indexOf(model) < 0; }));
 }
 
+function normalizeOllamaGenerationSettings(value) {
+    const source = value || {};
+    const integer = (key, fallback, min, max) => Math.min(max, Math.max(min, Math.round(Number(source[key]) || fallback)));
+    return {
+        contextLength: integer('contextLength', 32768, 512, 262144),
+        reasoningContextLength: integer('reasoningContextLength', 65536, 512, 262144),
+        quickMaxTokens: integer('quickMaxTokens', 16384, 1, 262144),
+        reasoningMaxTokens: integer('reasoningMaxTokens', 32768, 1, 262144),
+        timeoutMs: integer('timeoutMs', 580000, 1000, 86400000),
+        temperature: Number.isFinite(Number(source.temperature)) && source.temperature !== '' && source.temperature != null
+            ? Math.min(2, Math.max(0, Number(source.temperature))) : 0.4
+    };
+}
+
+// Older NPU presets overwrote the regular Ollama endpoint and model cache.
+// Repair only that recognizable legacy configuration; preserve custom servers.
+function migrateLegacyOllamaNPUSettings() {
+    let endpoint;
+    try { endpoint = new URL(localStorage.getItem(OLLAMA_BASE_URL_KEY) || ''); } catch (_) { return; }
+    if (!/^(?:localhost|127\.0\.0\.1|\[?::1\]?)$/i.test(endpoint.hostname) || endpoint.port !== '13305') return;
+    const selected = localStorage.getItem('ss_ai_chat_ollama_model') || '';
+    const backup = localStorage.getItem('ss_ollama_before_npu_v1');
+    if (!backup && !/-FLM(?::[^:]*)?$/i.test(selected)) return;
+    let previous = {};
+    try { previous = JSON.parse(backup || '{}') || {}; } catch (_) {}
+    localStorage.setItem(OLLAMA_BASE_URL_KEY, previous.baseUrl || 'http://127.0.0.1:11434');
+    localStorage.setItem('ss_ai_chat_ollama_model', previous.model || '');
+    if (previous.generation != null) localStorage.setItem('ss_ai_chat_ollama_generation_v1', previous.generation);
+    else localStorage.removeItem('ss_ai_chat_ollama_generation_v1');
+    saveStoredModelList(OLLAMA_MODELS_KEY, []);
+    localStorage.removeItem('ss_ollama_before_npu_v1');
+}
+
 function getOllamaSettings() {
+    migrateLegacyOllamaNPUSettings();
     const fallback = 'http://127.0.0.1:11434';
     let storedBaseUrl = String(localStorage.getItem(OLLAMA_BASE_URL_KEY) || fallback).trim().replace(/\/+$/, '');
     try {
@@ -16773,7 +17195,17 @@ function getOllamaSettings() {
         if (localHost && parsed.port === '8080') storedBaseUrl = fallback;
     } catch (_) {}
     localStorage.removeItem('ss_ollama_connection_mode');
-    return { baseUrl: storedBaseUrl };
+    let generation = {};
+    try { generation = JSON.parse(localStorage.getItem('ss_ai_chat_ollama_generation_v1') || '{}'); } catch (_) {}
+    if (localStorage.getItem('ss_ai_chat_large_context_v1') !== '1') {
+        generation.contextLength = Math.max(32768, Number(generation.contextLength) || 0);
+        generation.reasoningContextLength = Math.max(65536, Number(generation.reasoningContextLength) || 0);
+        generation.quickMaxTokens = Math.max(16384, Number(generation.quickMaxTokens) || 0);
+        generation.reasoningMaxTokens = Math.max(32768, Number(generation.reasoningMaxTokens) || 0);
+        localStorage.setItem('ss_ai_chat_ollama_generation_v1', JSON.stringify(generation));
+        localStorage.setItem('ss_ai_chat_large_context_v1', '1');
+    }
+    return Object.assign({ baseUrl: storedBaseUrl }, normalizeOllamaGenerationSettings(generation));
 }
 
 function normalizeOllamaBaseUrl(value) {
@@ -16924,6 +17356,170 @@ function applyLiteRTLMMobilePreset() {
     const status = document.getElementById('settings-litertlm-status');
     if (status) status.textContent = '모바일 경량값을 적용했습니다. 저장 버튼을 눌러 확정하세요.';
 }
+
+function getNPUBaseUrl() {
+    return 'http://127.0.0.1:13305/api/v1';
+}
+
+async function listNPUModels(signal) {
+    const data = await requestLocalAIJson(getNPUBaseUrl() + '/models', {
+        headers: { Accept: 'application/json' }, signal: signal
+    });
+    const rows = (Array.isArray(data.data) ? data.data : []).filter(function (model) {
+        return model && model.downloaded !== false && model.recipe === 'flm'
+            && (!Array.isArray(model.labels) || model.labels.includes('chat'));
+    });
+    const models = rows.map(function (model) { return String(model.id || ''); }).filter(Boolean);
+    const preferred = models.indexOf('gemma4-it-e2b-FLM');
+    if (preferred > 0) models.unshift(models.splice(preferred, 1)[0]);
+    if (!models.length) throw new Error('Lemonade에 설치된 FastFlowLM NPU 채팅 모델이 없습니다. Ollama Desk에서 FLM 모델을 설치하세요.');
+    // Keep the context budget supplied by the actual NPU model, rather than
+    // assuming the larger Ollama context window applies to this engine.
+    localStorage.setItem('ss_ai_chat_npu_model_details', JSON.stringify(rows));
+    saveStoredModelList('ss_ai_chat_npu_models', models);
+    return models;
+}
+
+// Keep the current UI tone ahead of long app prompts and near the latest
+// question for local templates that give little weight to the system role.
+function applyLocalAIChatResponseStyle(request) {
+    if (!request || !['ollama', 'ollama-npu'].includes(request.provider)
+        || !['academic', 'polite'].includes(request.responseStyle)) return request;
+    const tone = request.responseStyle === 'academic'
+        ? '한국어 학술체. 본문은 객관적으로 서술하고 -이다/-한다/-하였다 등의 종결을 사용한다. -습니다/-해요를 섞지 않는다. 예: 이 결과는 관련성을 시사한다.'
+        : '한국어 존댓말. 본문은 -습니다/-입니다/-하세요 등의 정중한 종결을 사용한다. -이다/-한다 또는 반말을 섞지 않는다. 예: 이 결과는 관련성을 시사합니다.';
+    const instruction = '[현재 답변 문체] ' + tone
+        + ' 이전 답변이나 참고 자료의 언어와 문체를 따라 하지 말고 현재 설정을 적용한다. 단, 이번 사용자 요청이 특정 언어·문체나 원문 그대로의 인용·출력을 명시하면 그 요청을 우선한다. 코드·수식·고유명사·인용 원문은 보존한다. 이 지침을 답변에 출력하지 않는다.';
+    const messages = normalizeAIChatMessages(request.messages).map(message => Object.assign({}, message));
+    for (let index = messages.length - 1; index >= 0; index--) {
+        if (messages[index].role !== 'user') continue;
+        messages[index].content = String(messages[index].content || '') + '\n\n' + instruction;
+        break;
+    }
+    return Object.assign({}, request, {
+        messages: messages,
+        systemInstruction: instruction + '\n\n' + String(request.systemInstruction || '')
+    });
+}
+
+async function callNPUChat(request, signal) {
+    const models = await listNPUModels(signal);
+    const model = String(request.model || models[0] || '');
+    if (!models.includes(model)) throw new Error('설치된 FastFlowLM NPU 모델을 선택하세요.');
+    const rows = JSON.parse(localStorage.getItem('ss_ai_chat_npu_model_details') || '[]');
+    const details = rows.find(function (row) { return row.id === model; }) || {};
+    const config = getScholarAIProviderRuntime().getLMStudioConfig();
+    const contextLength = Math.max(256, Number(details.context_length || details.max_context_window) || 4096);
+    const requestedTokens = request.fastMode ? config.fastMaxTokens
+        : (request.mode === 'reasoning' ? config.reasoningMaxTokens : config.quickMaxTokens);
+    const maxTokens = Math.max(1, Math.min(Number(requestedTokens) || 4096, Math.floor(contextLength / 2)));
+    const inputBudget = contextLength - maxTokens - 128;
+    const history = normalizeAIChatMessages(request.messages);
+    const messages = [];
+    let inputTokens = 0;
+    if (request.systemInstruction) {
+        const content = String(request.systemInstruction).slice(0, Math.max(0, Math.floor(inputBudget / 4) - 8) * 2);
+        messages.push({ role: 'system', content: content });
+        inputTokens += Math.ceil(content.length / 2) + 8;
+    }
+    const recent = [];
+    for (let index = history.length - 1; index >= 0; index--) {
+        const message = history[index];
+        const tokens = Math.ceil(String(message.content || '').length / 2) + 8;
+        if (inputTokens + tokens > inputBudget) {
+            if (index === history.length - 1) throw new Error('NPU 모델의 컨텍스트(' + contextLength + ' 토큰)를 초과했습니다. 입력을 줄이세요.');
+            break;
+        }
+        recent.unshift(message);
+        inputTokens += tokens;
+    }
+    while (recent.length > 1 && recent[0].role !== 'user') recent.shift();
+    messages.push(...recent);
+    const settings = { provider: 'ollama-npu', baseUrl: getNPUBaseUrl(), contextLength: contextLength, maxGen: maxTokens, renderIntervalMs: 80 };
+    const body = { model: model, messages: messages, max_tokens: maxTokens, temperature: 0.4, stream: false };
+    if (typeof request.onStreamEvent === 'function') {
+        return await streamNPUChat(body, settings, signal, request.onStreamEvent);
+    }
+    const data = await requestLocalAIJson(getNPUBaseUrl() + '/chat/completions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(body), signal: signal
+    });
+    const choice = data.choices && data.choices[0] || {};
+    const message = choice.message || {};
+    return { provider: 'ollama-npu', model: data.model || model, text: String(message.content || ''),
+        reasoning: String(message.reasoning_content || ''), finishReason: choice.finish_reason || '',
+        usage: data.usage || null, contextLength: contextLength, maxOutputTokens: maxTokens, responseId: data.id || null };
+}
+
+async function streamNPUChat(body, settings, signal, onStreamEvent) {
+    const baseUrl = settings.baseUrl;
+    const provider = settings.provider || 'litertlm';
+    const emit = typeof onStreamEvent === 'function' ? onStreamEvent : function () {};
+    emit({ type: 'request.start', provider: provider, context_length: settings.contextLength, max_output_tokens: settings.maxGen, render_interval_ms: settings.renderIntervalMs });
+    emit({ type: 'transport.start', provider: provider });
+    const transportOptions = {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream, application/json' },
+        body: JSON.stringify(Object.assign({}, body, { stream: true })), signal: signal
+    };
+    emit({ type: 'chat.start', provider: provider });
+    emit({ type: 'prompt_processing.start', provider: provider });
+    let text = '', reasoning = '', finishReason = '', responseId = null, responseModel = body.model, usage = null, buffer = '';
+    let answerStarted = false, reasoningStarted = false, reasoningEnded = false, promptEnded = false;
+    function processPayload(payload) {
+        const value = String(payload || '').trim();
+        if (!value || value === '[DONE]') return;
+        let data;
+        try { data = JSON.parse(value); } catch (_) { return; }
+        if (data.error) throw new Error(String(data.error.message || data.error));
+        responseId = data.id || responseId; responseModel = data.model || responseModel; usage = data.usage || usage;
+        const choice = data.choices && data.choices[0] || {};
+        const delta = choice.delta || choice.message || {};
+        const reasoningDelta = String(delta.reasoning_content || delta.reasoning || '');
+        const answerDelta = String(delta.content || choice.text || '');
+        if (!promptEnded && (reasoningDelta || answerDelta)) { promptEnded = true; emit({ type: 'prompt_processing.end', provider: provider }); }
+        if (reasoningDelta) {
+            if (!reasoningStarted) { reasoningStarted = true; emit({ type: 'reasoning.start', provider: provider }); }
+            reasoning += reasoningDelta; emit({ type: 'reasoning.delta', provider: provider, content: reasoningDelta });
+        }
+        if (answerDelta) {
+            if (reasoningStarted && !reasoningEnded) { reasoningEnded = true; emit({ type: 'reasoning.end', provider: provider }); }
+            if (!answerStarted) { answerStarted = true; emit({ type: 'message.start', provider: provider }); }
+            text += answerDelta; emit({ type: 'message.delta', provider: provider, content: answerDelta });
+        }
+        finishReason = choice.finish_reason || finishReason;
+    }
+    function consumeChunk(chunk) {
+        buffer += chunk;
+        let boundary;
+        while ((boundary = buffer.indexOf('\n')) >= 0) {
+            const line = buffer.slice(0, boundary).replace(/\r$/, ''); buffer = buffer.slice(boundary + 1);
+            if (line.startsWith('data:')) processPayload(line.slice(5));
+            else if (line.trim().startsWith('{')) processPayload(line);
+        }
+    }
+    if (provider === 'ollama-npu') {
+        await requestLocalAITextStream(baseUrl + '/chat/completions', transportOptions, consumeChunk);
+    } else {
+        const response = await fetch(baseUrl + '/chat/completions', transportOptions);
+        if (!response.ok) throw new Error('HTTP ' + response.status + ': ' + (await response.text() || response.statusText));
+        if (!response.body) throw new Error(provider + ' 스트림 응답 본문이 없습니다.');
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+            const chunk = await reader.read();
+            if (chunk.done) break;
+            consumeChunk(decoder.decode(chunk.value, { stream: true }));
+        }
+        consumeChunk(decoder.decode());
+    }
+    if (buffer.trim()) processPayload(buffer.replace(/^data:\s*/i, ''));
+    if (reasoningStarted && !reasoningEnded) emit({ type: 'reasoning.end', provider: provider });
+    if (answerStarted) emit({ type: 'message.end', provider: provider });
+    const completionTokens = Number(usage && (usage.completion_tokens || usage.output_tokens)) || 0;
+    emit({ type: 'chat.end', provider: provider, result: { stats: { total_output_tokens: completionTokens, reasoning_output_tokens: Number(usage && usage.reasoning_tokens) || 0 } } });
+    return { provider: provider, model: responseModel, text: text, reasoning: reasoning, finishReason: finishReason, usage: usage, contextLength: settings.contextLength, maxOutputTokens: settings.maxGen, responseId: responseId };
+}
+
 
 async function streamLiteRTLMChat(body, settings, signal, onStreamEvent) {
     const baseUrl = normalizeLiteRTLMBaseUrl(settings.cloudUrl || LITERTLM_CLOUD_BASE_URL);
@@ -17144,11 +17740,12 @@ async function requestLocalAITextStream(url, options, onChunk) {
     if (tail) handleChunk(tail);
 }
 
-async function listOllamaModels(settingsOverride) {
+async function listOllamaModels(settingsOverride, allowEmpty) {
     const settings = Object.assign({}, getOllamaSettings(), settingsOverride || {});
     settings.baseUrl = normalizeOllamaBaseUrl(settings.baseUrl);
     const data = await requestLocalAIJson(settings.baseUrl + '/api/tags', {
         method: 'GET',
+        signal: settings.signal,
         headers: { Accept: 'application/json' }
     });
 
@@ -17159,7 +17756,7 @@ async function listOllamaModels(settingsOverride) {
     }).map(function (item) {
         return String(item && (item.id || item.model || item.name) || '').trim();
     }).filter(Boolean);
-    if (!models.length) throw new Error('Ollama에서 사용 가능한 모델을 찾지 못했습니다.');
+    if (!models.length && !allowEmpty) throw new Error('Ollama에서 사용 가능한 모델을 찾지 못했습니다.');
     return Array.from(new Set(models));
 }
 
@@ -17223,12 +17820,17 @@ async function callOllamaChatText(messages, systemInstruction, modelOverride, si
     const lastUserIndex = normalized.map(function (item) { return item.role; }).lastIndexOf('user');
     if (lastUserIndex < 0) throw new Error('전송할 사용자 질문이 없습니다.');
     const emit = typeof onStreamEvent === 'function' ? onStreamEvent : function () {};
-    const reasoningMode = responseMode === 'reasoning';
-    const contextLength = await getAIChatOllamaContextLength(settings.baseUrl, model, signal);
+    const fastMode = settings.fastMode === true;
+    const reasoningMode = responseMode === 'reasoning' && !fastMode;
+    const config = window.LocalAI && typeof window.LocalAI.loadConfig === 'function' ? window.LocalAI.loadConfig(localStorage) : {};
+    const contextLength = reasoningMode ? settings.reasoningContextLength : settings.contextLength;
+    const requestedOutputTokens = Math.max(1, Number(fastMode ? config.fastMaxTokens : (reasoningMode ? settings.reasoningMaxTokens : settings.quickMaxTokens)) || (fastMode ? 3000 : 4096));
+    const timeoutMs = Math.max(1000, Number(fastMode ? config.fastTimeoutMs : settings.timeoutMs) || (fastMode ? 120000 : 580000));
     const fixedInputTokens = estimateAIChatTokens(systemInstruction) + estimateAIChatTokens(normalized[lastUserIndex].content);
+    if (fixedInputTokens + 256 >= contextLength) throw new Error('Ollama 입력이 설정된 컨텍스트를 초과합니다. Ollama 세부 설정에서 CONTEXT TOK를 늘리거나 입력을 줄이세요.');
     const outputReserve = Math.min(
         Math.max(1, contextLength - fixedInputTokens - 256),
-        Math.max(1024, Math.floor(contextLength * (reasoningMode ? 0.4 : 0.32)))
+        requestedOutputTokens
     );
     const historyTokenBudget = Math.max(0, contextLength - fixedInputTokens - outputReserve - 256);
     const historyMessages = retainAIChatHistory(normalized.slice(0, lastUserIndex), historyTokenBudget);
@@ -17239,11 +17841,15 @@ async function callOllamaChatText(messages, systemInstruction, modelOverride, si
     const estimatedInputTokens = payloadMessages.reduce(function (sum, item) {
         return sum + estimateAIChatTokens(item.content);
     }, 0);
+<<<<<<< HEAD
     const contextOutputTokens = Math.max(1, contextLength - estimatedInputTokens - 256);
     const requestedOutputTokens = Number(settings.maxOutputTokens) > 0
         ? Math.max(1, Math.round(Number(settings.maxOutputTokens)))
         : contextOutputTokens;
     const maxOutputTokens = Math.max(1, Math.min(contextOutputTokens, requestedOutputTokens));
+=======
+    const maxOutputTokens = Math.max(1, Math.min(requestedOutputTokens, contextLength - estimatedInputTokens - 256));
+>>>>>>> cf2ea69e6eaafccfa8288b16bdd28831799889d9
     emit({
         type: 'request.start',
         provider: 'ollama',
@@ -17261,7 +17867,8 @@ async function callOllamaChatText(messages, systemInstruction, modelOverride, si
         think: reasoningMode,
         options: {
             num_ctx: contextLength,
-            num_predict: maxOutputTokens
+            num_predict: maxOutputTokens,
+            temperature: settings.temperature
         }
     };
     let lineBuffer = '';
@@ -17317,17 +17924,32 @@ async function callOllamaChatText(messages, systemInstruction, modelOverride, si
             emit({ type: 'message.delta', provider: 'ollama', content: answerDelta });
         }
     }
-    await requestLocalAITextStream(settings.baseUrl + '/api/chat', {
-        method: 'POST',
-        headers: headers,
-        body: JSON.stringify(body),
-        signal: signal
-    }, function (chunk) {
-        lineBuffer += chunk;
-        const lines = lineBuffer.split(/\r?\n/);
-        lineBuffer = lines.pop() || '';
-        lines.forEach(processOllamaLine);
-    });
+    const streamController = new AbortController();
+    const abortStream = () => streamController.abort();
+    if (signal && signal.aborted) abortStream();
+    if (signal) signal.addEventListener('abort', abortStream, { once: true });
+    let timedOut = false;
+    const timeout = setTimeout(() => { timedOut = true; streamController.abort(); }, timeoutMs);
+    try {
+        await requestLocalAITextStream(settings.baseUrl + '/api/chat', {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(body),
+            signal: streamController.signal
+        }, function (chunk) {
+            lineBuffer += chunk;
+            const lines = lineBuffer.split(/\r?\n/);
+            lineBuffer = lines.pop() || '';
+            lines.forEach(processOllamaLine);
+        });
+    } catch (error) {
+        if (timedOut) throw new Error('Ollama ' + (fastMode ? 'FAST ' : '') + '제한 시간(' + Math.round(timeoutMs / 1000) + '초)을 초과했습니다. 세부 설정에서 시간을 늘릴 수 있습니다.');
+        if (signal && signal.aborted) { const aborted = new Error('Ollama request aborted'); aborted.name = 'AbortError'; throw aborted; }
+        throw error;
+    } finally {
+        clearTimeout(timeout);
+        if (signal) signal.removeEventListener('abort', abortStream);
+    }
     if (lineBuffer.trim()) processOllamaLine(lineBuffer);
     if (streamError) throw streamError;
     if (reasoningStarted && !reasoningEnded) emit({ type: 'reasoning.end', provider: 'ollama' });
@@ -17438,6 +18060,10 @@ async function loadSettingsOllamaModels() {
 
 function isAIChatGeminiImageModel(model) {
     return /(?:^|-)image(?:-|$)/i.test(String(model || ''));
+}
+
+function isAIChatGeminiTtsModel(model) {
+    return /(?:^|-)tts(?:-|$)/i.test(String(model || ''));
 }
 
 async function getAIStudioKeyForChat() {
@@ -17788,6 +18414,31 @@ function parseDeepseekTextFromResponse(data) {
     return '';
 }
 
+async function readScholarTextStream(response, extract, onText) {
+    const reader = response.body.getReader(), decoder = new TextDecoder();
+    let buffer = '', text = '';
+    function consume(line) {
+        if (!line.startsWith('data:')) return;
+        const payload = line.slice(5).trim();
+        if (!payload || payload === '[DONE]') return;
+        const data = JSON.parse(payload);
+        if (data.error || data.type === 'error' || data.type === 'response.failed') throw new Error(data.error?.message || data.response?.error?.message || 'AI 스트리밍 오류');
+        const delta = extract(data);
+        if (delta) { text += delta; onText(delta); }
+    }
+    try {
+        while (true) {
+            const chunk = await reader.read();
+            buffer += decoder.decode(chunk.value || new Uint8Array(),{stream:!chunk.done});
+            const lines = buffer.split(/\r?\n/); buffer = lines.pop(); lines.forEach(consume);
+            if (chunk.done) break;
+        }
+        if (buffer) consume(buffer);
+        if (!text.trim()) throw new Error('AI 응답이 비어 있습니다.');
+        return {text:text};
+    } finally { await reader.cancel(); }
+}
+
 async function callDeepseekChatText(
     messages,
     systemInstruction,
@@ -17822,7 +18473,7 @@ async function callDeepseekChatText(
     const requestBody = {
         model: normalizedModel,
         messages: payloadMessages,
-        stream: false,
+        stream: typeof opts.onText === 'function',
         max_tokens: maxTokens,
         thinking: { type: reasoningMode ? 'enabled' : 'disabled' }
     };
@@ -17846,6 +18497,7 @@ async function callDeepseekChatText(
     if (!response.ok) {
         throw await createDeepseekApiError(response, 'DeepSeek 생성 오류');
     }
+    if (opts.onText) return readScholarTextStream(response,function (data) { return data.choices?.[0]?.delta?.content || ''; },opts.onText);
     const data = await response.json();
     const text = parseDeepseekTextFromResponse(data);
     if (!text) throw new Error('DeepSeek 응답이 비어 있습니다.');
@@ -17951,7 +18603,7 @@ function parseOpenAIResponseText(data) {
     return parts.join('');
 }
 
-async function callOpenAIChatText(messages, systemInstruction, modelOverride, signal, responseMode, keyOverride) {
+async function callOpenAIChatText(messages, systemInstruction, modelOverride, signal, responseMode, keyOverride, onText) {
     const state = getOpenAIApiState();
     const key = String(keyOverride || state.key || '').trim();
     if (!key) throw new Error('OpenAI API Key가 없습니다. 앱 설정에서 키를 저장하세요.');
@@ -17974,6 +18626,7 @@ async function callOpenAIChatText(messages, systemInstruction, modelOverride, si
             return { role: item.role === 'assistant' ? 'assistant' : 'user', content: content };
         }),
         max_output_tokens: maxOutputTokens,
+        stream: typeof onText === 'function',
         store: false
     };
     if (systemInstruction) payload.instructions = String(systemInstruction);
@@ -17991,6 +18644,7 @@ async function callOpenAIChatText(messages, systemInstruction, modelOverride, si
         signal: signal
     });
     if (!response.ok) throw await createOpenAIApiError(response, 'OpenAI 생성 오류');
+    if (onText) return readScholarTextStream(response,function (data) { return data.type === 'response.output_text.delta' ? data.delta : ''; },onText);
     const data = await response.json();
     const text = parseOpenAIResponseText(data);
     if (!text) throw new Error('OpenAI 응답이 비어 있습니다.');
@@ -18086,7 +18740,8 @@ async function callAIStudioChat(messages, systemInstruction, modelOverride, sign
         }
     });
     if (!contents.length) throw new Error('전송할 대화가 없습니다.');
-    const reasoningMode = responseMode === 'reasoning';
+    const ttsModel = isAIChatGeminiTtsModel(model);
+    const reasoningMode = responseMode === 'reasoning' && !ttsModel;
     const imageModel = isAIChatGeminiImageModel(model);
     const modelLimits = imageModel
         ? { inputTokenLimit: 0, outputTokenLimit: 0 }
@@ -18096,9 +18751,9 @@ async function callAIStudioChat(messages, systemInstruction, modelOverride, sign
     const generationConfig = imageModel
         ? { responseModalities: ['TEXT', 'IMAGE'] }
         : { maxOutputTokens: maxOutputTokens };
-    if (!imageModel && /^gemini-3/i.test(model)) {
+    if (!imageModel && !ttsModel && /^gemini-3/i.test(model)) {
         generationConfig.thinkingConfig = { thinkingLevel: reasoningMode ? 'high' : 'low' };
-    } else if (!imageModel && /^gemini-2\.5/i.test(model)) {
+    } else if (!imageModel && !ttsModel && /^gemini-2\.5/i.test(model)) {
         generationConfig.thinkingConfig = { thinkingBudget: reasoningMode ? 4096 : 0 };
     }
     const payload = { contents: contents, generationConfig: generationConfig };
@@ -18322,7 +18977,12 @@ function startRealtimeDocStream(options) {
     let end = 0;
     let isReplacing = false;
 
-    if (target === 'document-end') {
+    if (options && options.continuationText) {
+        const previous = String(options.continuationText);
+        const previousStart = raw.lastIndexOf(previous);
+        if (previousStart < 0) throw new Error('이전 답변을 현재 문서에서 찾지 못했습니다. 원문을 복원한 뒤 이어쓰기를 실행하세요.');
+        start = end = previousStart + previous.length;
+    } else if (target === 'document-end') {
         start = end = raw.length;
     } else {
         let selStart = -1;
@@ -18355,7 +19015,7 @@ function startRealtimeDocStream(options) {
     const before = raw.slice(0, start);
     const after = raw.slice(end);
     let prefix = '';
-    if (!isReplacing) {
+    if (!isReplacing && !(options && options.continuationText)) {
         prefix = before && !/\n\s*\n$/.test(before) ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
     }
 
@@ -18381,6 +19041,67 @@ function startRealtimeDocStream(options) {
     }
 
     return { ok: true, target: target, isReplacing: isReplacing };
+}
+
+let realtimeDocFollowFrame = 0;
+function followRealtimeDocCaret(caret) {
+    if (realtimeDocFollowFrame) cancelAnimationFrame(realtimeDocFollowFrame);
+    // Run after the input listeners have fitted the continuous document.
+    realtimeDocFollowFrame = requestAnimationFrame(function () {
+        realtimeDocFollowFrame = requestAnimationFrame(function () {
+            realtimeDocFollowFrame = 0;
+            if (!editorTextarea || !isEditMode) return;
+            const viewport = document.getElementById('content-viewport');
+            const longDocument = viewport && viewport.classList.contains('long-document-active');
+            const target = longDocument ? viewport : getActiveScrollTarget();
+            if (!target) return;
+            if (longDocument) {
+                // a4-pages owns sheet sizing; scrollHeight includes the current
+                // height and must not be used here to grow it on every chunk.
+                editorTextarea.scrollTop = 0;
+            }
+            const cmView = editorTextarea.__mdCm6View;
+            if (cmView && typeof cmView.coordsAtPos === 'function') {
+                const coords = cmView.coordsAtPos(Math.min(caret, cmView.state.doc.length));
+                if (!coords) return;
+                const scrollTarget = longDocument ? viewport : cmView.scrollDOM;
+                if (!scrollTarget) return;
+                const top = coords.top - scrollTarget.getBoundingClientRect().top;
+                const followLine = scrollTarget.clientHeight * 0.72;
+                if (coords.bottom > scrollTarget.getBoundingClientRect().top + followLine || top < 0) {
+                    scrollTarget.scrollTop = Math.max(0, scrollTarget.scrollTop + top - followLine);
+                }
+                return;
+            }
+            const style = getComputedStyle(editorTextarea);
+            const mirror = document.createElement('div');
+            Object.assign(mirror.style, {
+                position: 'fixed', left: '-100000px', top: '0', visibility: 'hidden',
+                boxSizing: 'border-box', width: editorTextarea.offsetWidth + 'px',
+                padding: style.padding, border: style.border,
+                fontFamily: style.fontFamily, fontSize: style.fontSize,
+                fontWeight: style.fontWeight, fontStyle: style.fontStyle,
+                lineHeight: style.lineHeight, letterSpacing: style.letterSpacing,
+                whiteSpace: style.whiteSpace, overflowWrap: style.overflowWrap,
+                wordBreak: style.wordBreak, tabSize: style.tabSize
+            });
+            mirror.setAttribute('aria-hidden', 'true');
+            mirror.textContent = editorTextarea.value.slice(0, caret);
+            const marker = document.createElement('span');
+            marker.textContent = '\u200b';
+            mirror.appendChild(marker);
+            document.body.appendChild(mirror);
+            const caretTop = marker.getBoundingClientRect().top - mirror.getBoundingClientRect().top;
+            mirror.remove();
+            const lineHeight = parseFloat(style.lineHeight) || 24;
+            const caretInView = target === editorTextarea ? caretTop - target.scrollTop
+                : editorTextarea.getBoundingClientRect().top - target.getBoundingClientRect().top + caretTop - editorTextarea.scrollTop;
+            const followLine = target.clientHeight * 0.72;
+            if (caretInView > followLine || caretInView < lineHeight) {
+                target.scrollTop = Math.max(0, target.scrollTop + caretInView - followLine);
+            }
+        });
+    });
 }
 
 function applyRealtimeDocText(text) {
@@ -18419,6 +19140,10 @@ function applyRealtimeDocText(text) {
     if (typeof editorTextarea.scrollHeight !== 'undefined' && session.target === 'document-end') {
         editorTextarea.scrollTop = editorTextarea.scrollHeight;
     }
+    // A4 pages and previews listen to input on the source textarea. Updating
+    // its value alone leaves those visible editors stale until completion.
+    editorTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+    followRealtimeDocCaret(caret);
 }
 
 function scheduleRealtimeDocFlush() {
@@ -18594,7 +19319,95 @@ function aiChatDataUrlToFile(dataUrl, name) {
     return new File([bytes], name || 'ai-image.png', { type: match[1] || 'image/png' });
 }
 
+async function completeSharedAIProvider(request, signal) {
+    if (request.provider === 'ollama-npu') return await callNPUChat(request, signal);
+    if (request.provider === 'openai-compatible') {
+        const connection = getStoredOpenAICompatibleConnection();
+        const model = String(request.model || connection.modelId || '').trim();
+        if (!model) throw new Error('OrcaRouter / OpenAI 호환 모델을 선택하세요.');
+        const messages = normalizeAIChatMessages(request.messages);
+        if (localStorage.getItem(compatibleResidencyKey(connection, model)) === '1') {
+            await manageOpenAICompatibleResidency(connection, model, true, signal);
+        }
+        const data = await requestOpenAICompatibleChat(connection, model, messages, request.systemInstruction, request, signal);
+        const choice = data && data.choices && data.choices[0] || {};
+        const message = choice.message || {};
+        return {
+            provider: 'openai-compatible',
+            model: String(data.model || model),
+            text: String(message.content || choice.text || ''),
+            reasoning: String(message.reasoning_content || message.reasoning || ''),
+            finishReason: choice.finish_reason || '',
+            usage: data.usage || null,
+            responseId: data.id || null
+        };
+    }
+    if (request.provider === 'litertlm') {
+        const settings = getLiteRTLMSettings();
+        const messages = normalizeAIChatMessages(request.messages);
+        if (request.systemInstruction) messages.unshift({ role: 'system', content: String(request.systemInstruction) });
+        const body = { model: request.model || settings.model, messages: messages, stream: false, max_tokens: settings.maxGen, temperature: settings.temperature, top_p: settings.topP, top_k: settings.topK, sampler: settings.sampler, thinking: settings.thinking };
+        if (settings.streaming !== false && typeof request.onStreamEvent === 'function') {
+            return await streamLiteRTLMChat(body, settings, signal, request.onStreamEvent);
+        }
+        const result = await requestLiteRTLM('/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body), signal: signal });
+        const choice = result.data && result.data.choices && result.data.choices[0] || {};
+        return { provider: 'litertlm', model: result.data.model || body.model, text: String(choice.message && choice.message.content || choice.text || ''), reasoning: String(choice.message && choice.message.reasoning_content || ''), finishReason: choice.finish_reason || '', usage: result.data.usage || null, contextLength: settings.contextLength, maxOutputTokens: settings.maxGen, responseId: result.data.id || null };
+    }
+
+}
+
+async function completeLocalImageToolRequest(request, signal) {
+    if (request.provider === 'deepseek') throw new Error('DeepSeek의 현재 연결은 이미지 입력을 지원하지 않습니다. 이미지 지원 모델을 선택하세요.');
+    const rows = normalizeAIChatMessages(request.messages);
+    const imagesOf = row => row.attachments.filter(item => item.kind === 'image' && /^data:image\//i.test(item.dataUrl || ''));
+    let url, headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+    let settings;
+    if (request.provider === 'ollama') settings = { baseUrl: normalizeOllamaBaseUrl(getOllamaSettings().baseUrl) };
+    else if (request.provider === 'ollama-npu') settings = { baseUrl: getNPUBaseUrl() };
+    else if (request.provider === 'openai-compatible') settings = getStoredOpenAICompatibleConnection();
+    else if (request.provider === 'litertlm') settings = getLiteRTLMSettings();
+    else if (request.provider === 'lmstudio') settings = getScholarAIProviderRuntime().getLMStudioConfig();
+    else throw new Error('이미지 입력 공급자를 선택하세요.');
+    if (!request.model) throw new Error('이미지 인식에 사용할 모델을 선택하세요.');
+    if (settings.apiKey) headers.Authorization = 'Bearer ' + settings.apiKey;
+    const ollama = request.provider === 'ollama';
+    const messages = rows.map(row => {
+        const images = imagesOf(row);
+        if (ollama) return Object.assign({ role: row.role, content: row.content }, images.length ? { images: images.map(image => image.dataUrl.slice(image.dataUrl.indexOf(',') + 1)) } : {});
+        return { role: row.role, content: images.length ? [{ type: 'text', text: row.content }].concat(images.map(image => ({ type: 'image_url', image_url: { url: image.dataUrl } }))) : row.content };
+    });
+    if (request.systemInstruction) messages.unshift({ role: 'system', content: request.systemInstruction });
+    const body = { model: request.model, messages, stream: false };
+    if (!ollama) body.max_tokens = 2048;
+    let data;
+    if (request.provider === 'litertlm') {
+        data = (await requestLiteRTLM('/chat/completions', { method: 'POST', headers, body: JSON.stringify(body), signal })).data;
+    } else {
+        url = settings.baseUrl.replace(/\/+$/, '') + (ollama ? '/api/chat' : '/chat/completions');
+        const response = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal });
+        if (!response.ok) throw new Error('이미지 인식 요청 실패 · 이미지 지원 모델인지 확인하세요. ' + await readOpenAICompatibleError(response));
+        data = await response.json();
+    }
+    if (data.error) throw new Error(String(data.error.message || data.error));
+    const text = ollama ? data.message && data.message.content : data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+    if (!text) throw new Error('이미지 인식 응답이 비어 있습니다. 이미지 지원 모델을 선택하세요.');
+    return { provider: request.provider, model: data.model || request.model, text: String(text) };
+}
+
 window.AIChatBridge = Object.freeze({
+    setOpenAICompatibleResidency: async function (model, enabled) {
+        const connection = getStoredOpenAICompatibleConnection();
+        const result = await manageOpenAICompatibleResidency(connection, model, enabled, AbortSignal.timeout(600000));
+        localStorage.setItem(compatibleResidencyKey(connection, model), enabled ? '1' : '0');
+        return result;
+    },
+    getOllamaGenerationSettings: function () { return normalizeOllamaGenerationSettings(getOllamaSettings()); },
+    saveOllamaGenerationSettings: function (value) {
+        const settings = normalizeOllamaGenerationSettings(value);
+        localStorage.setItem('ss_ai_chat_ollama_generation_v1', JSON.stringify(settings));
+        return settings;
+    },
     getSelectedDocumentText: function () {
         if (!editorTextarea) return '';
         const cmView = editorTextarea && editorTextarea.__mdCm6View;
@@ -18632,7 +19445,10 @@ window.AIChatBridge = Object.freeze({
         renderSettingsGeminiModels(models);
         return models;
     },
+    getCachedNPUModels: function () { return readStoredModelList('ss_ai_chat_npu_models'); },
+    refreshNPUModels: listNPUModels,
     getCachedOllamaModels: function () {
+        migrateLegacyOllamaNPUSettings();
         return readStoredModelList(OLLAMA_MODELS_KEY);
     },
     getCachedLiteRTLMModels: function () {
@@ -18642,7 +19458,7 @@ window.AIChatBridge = Object.freeze({
         return loadSettingsLiteRTLMModels();
     },
     refreshOllamaModels: async function () {
-        const models = await listOllamaModels();
+        const models = await listOllamaModels(undefined, true);
         saveStoredModelList(OLLAMA_MODELS_KEY, models);
         return models;
     },
@@ -18718,7 +19534,7 @@ window.AIChatBridge = Object.freeze({
         return listNPUModels();
     },
     refreshLMStudioModels: async function () {
-        const result = await getScholarAIProviderRuntime().syncLMStudioLoadedModel();
+        const result = await getScholarAIProviderRuntime().syncLMStudioLoadedModel(undefined, true);
         const models = result.models.map(function (item) { return item.id; }).filter(Boolean);
         saveStoredModelList(SCHOLAR_AI_LM_MODELS_KEY, models);
         return { model: result.model, models: models, contextLength: getAIChatLMContextLength(result) };
@@ -18792,11 +19608,12 @@ window.AIChatBridge = Object.freeze({
         return true;
     },
     complete: async function (request) {
-        request = request || {};
+        request = applyLocalAIChatResponseStyle(request || {});
         if (aiChatAbortController) aiChatAbortController.abort();
         const controller = new AbortController();
         aiChatAbortController = controller;
         try {
+<<<<<<< HEAD
             if (request.provider === 'ollama-npu') {
                 return await callNPUChat(request, controller.signal);
             }
@@ -18871,18 +19688,13 @@ window.AIChatBridge = Object.freeze({
                     maxOutputTokens: Number(requestBody.max_tokens) || null,
                     responseId: data.id || null
                 };
+=======
+            if (!['aistudio', 'openai'].includes(request.provider) && (request.messages || []).some(message => (message.attachments || []).some(item => item.kind === 'image'))) {
+                return await completeLocalImageToolRequest(request, controller.signal);
+>>>>>>> cf2ea69e6eaafccfa8288b16bdd28831799889d9
             }
-            if (request.provider === 'litertlm') {
-                const settings = getLiteRTLMSettings();
-                const messages = normalizeAIChatMessages(request.messages);
-                if (request.systemInstruction) messages.unshift({ role: 'system', content: String(request.systemInstruction) });
-                const body = { model: request.model || settings.model, messages: messages, stream: false, max_tokens: settings.maxGen, temperature: settings.temperature, top_p: settings.topP, top_k: settings.topK, sampler: settings.sampler, thinking: settings.thinking };
-                if (settings.streaming !== false && typeof request.onStreamEvent === 'function') {
-                    return await streamLiteRTLMChat(body, settings, controller.signal, request.onStreamEvent);
-                }
-                const result = await requestLiteRTLM('/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body), signal: controller.signal });
-                const choice = result.data && result.data.choices && result.data.choices[0] || {};
-                return { provider: 'litertlm', model: result.data.model || body.model, text: String(choice.message && choice.message.content || choice.text || ''), reasoning: String(choice.message && choice.message.reasoning_content || ''), finishReason: choice.finish_reason || '', usage: result.data.usage || null, contextLength: settings.contextLength, maxOutputTokens: settings.maxGen, responseId: result.data.id || null };
+            if (['ollama-npu', 'openai-compatible', 'litertlm'].includes(request.provider)) {
+                return await completeSharedAIProvider(request, controller.signal);
             }
             if (request.provider === 'aistudio') {
                 return await callAIStudioChat(request.messages, request.systemInstruction, request.model, controller.signal, request.academicSearch ? 'quick' : request.mode, request.academicSearch, request.academicEvidenceCount, request.onStreamEvent, request.internetSearch === true);
@@ -18895,7 +19707,11 @@ window.AIChatBridge = Object.freeze({
                     controller.signal,
                     request.mode,
                     typeof request.onStreamEvent === 'function' ? request.onStreamEvent : undefined,
+<<<<<<< HEAD
                     { maxOutputTokens: request.maxOutputTokens }
+=======
+                    { fastMode: request.fastMode === true }
+>>>>>>> cf2ea69e6eaafccfa8288b16bdd28831799889d9
                 );
                 return {
                     provider: 'ollama',
@@ -18957,6 +19773,11 @@ window.AIChatBridge = Object.freeze({
                 };
             }
             const synced = await getScholarAIProviderRuntime().syncLMStudioLoadedModel();
+            if (request.model) {
+                const selected = synced.models.find(item => item.id === request.model || item.key === request.model);
+                if (!selected) throw new Error('선택한 LM Studio 모델을 먼저 Load하세요.');
+                synced.model = selected.id;
+            }
             if (controller.signal.aborted) {
                 const abortError = new Error('AI Jena request aborted');
                 abortError.name = 'AbortError';
@@ -19129,7 +19950,8 @@ function ensureSidebarAILoaded() {
                     responseMode: special.mode,
                     reasoning: special.reasoning,
                     maxTokens: special.maxOutputTokens,
-                    timeoutMs: special.timeoutMs
+                    timeoutMs: special.timeoutMs,
+                    onText: special.onText
                 });
             },
             listScholarAIGeminiModels: function () { return listAIStudioTextModels(); },
@@ -19406,7 +20228,11 @@ function ensureSidebarAILoaded() {
     };
     const script = document.createElement('script');
     const base = getDocumentBaseUrl();
+<<<<<<< HEAD
     const aiSidebarScriptVersion = '20261019-sspimg-lemonade-1';
+=======
+    const aiSidebarScriptVersion = '20261016-scholar-status-font-1';
+>>>>>>> cf2ea69e6eaafccfa8288b16bdd28831799889d9
     try {
         const u = new URL('./sidebarAI/sidebar-ai.js', base);
         u.searchParams.set('v', aiSidebarScriptVersion);
@@ -19631,6 +20457,8 @@ function restoreFeatureSettings(settings) {
     if (infographicGeminiCheck) infographicGeminiCheck.checked = getInfographicGeminiVisibleFromSettings(settings);
     const infographicAutoCheck = document.getElementById('infographic-auto-visible');
     if (infographicAutoCheck) infographicAutoCheck.checked = getInfographicAutoVisibleFromSettings(settings);
+    const tts2audioCheck = document.getElementById('tts2audio-visible');
+    if (tts2audioCheck) tts2audioCheck.checked = getTts2AudioVisibleFromSettings(settings);
     const recentWorkCheck = document.getElementById('recent-work-visible');
     if (recentWorkCheck) recentWorkCheck.checked = getRecentWorkVisibleFromSettings(settings);
     const chromeSplitTabCheck = document.getElementById('chrome-split-tab-visible');
@@ -19721,6 +20549,8 @@ async function loadAiSettingsToUI() {
         if (infographicGeminiCheckEmpty) infographicGeminiCheckEmpty.checked = false;
         const infographicAutoCheckEmpty = document.getElementById('infographic-auto-visible');
         if (infographicAutoCheckEmpty) infographicAutoCheckEmpty.checked = false;
+        const tts2audioCheckEmpty = document.getElementById('tts2audio-visible');
+        if (tts2audioCheckEmpty) tts2audioCheckEmpty.checked = false;
         const recentWorkCheckEmpty = document.getElementById('recent-work-visible');
         if (recentWorkCheckEmpty) recentWorkCheckEmpty.checked = true;
         const chromeSplitTabCheckEmpty = document.getElementById('chrome-split-tab-visible');
@@ -19793,6 +20623,7 @@ async function loadAiSettingsToUI() {
         applyPdfMergeVisibility({ pdfMergeVisible: false });
         applyInfographicGeminiVisibility({ infographicGeminiVisible: false });
         applyInfographicAutoVisibility({ infographicAutoVisible: false });
+        applyTts2AudioVisibility({ tts2audioVisible: false });
         applyRecentWorkVisibility({ recentWorkVisible: true });
         applyChromeSplitTabVisibility({ chromeSplitTabVisible: false });
     applyHtml2pptVisibility({ html2pptVisible: false, html2pptNameVisible: false });
@@ -19931,6 +20762,7 @@ async function loadAiSettingsToUI() {
     applyPdfMergeVisibility(settings);
     applyInfographicGeminiVisibility(settings);
     applyInfographicAutoVisibility(settings);
+    applyTts2AudioVisibility(settings);
     applyHtml2pptVisibility(settings);
     applyFmaViewerVisibility(settings);
     applyAiUseFold(getAiUseFoldedFromLocal());
@@ -19990,6 +20822,7 @@ async function initAiVisibility() {
     applyPdfMergeVisibility(settings || { pdfMergeVisible: false });
     applyInfographicGeminiVisibility(settings || { infographicGeminiVisible: false });
     applyInfographicAutoVisibility(settings || { infographicAutoVisible: false });
+    applyTts2AudioVisibility(settings || { tts2audioVisible: false });
     applyRecentWorkVisibility(settings || { recentWorkVisible: true });
     applyChromeSplitTabVisibility(settings || { chromeSplitTabVisible: false });
     applyHtml2pptVisibility(settings || { html2pptVisible: false, html2pptNameVisible: false });
@@ -21190,6 +22023,10 @@ window.openInfographicSinglePanel = openInfographicSinglePanel;
 window.closeInfographicSinglePanel = closeInfographicSinglePanel;
 window.openInfographicAutoPanel = openInfographicAutoPanel;
 window.closeInfographicAutoPanel = closeInfographicAutoPanel;
+window.toggleTts2AudioVisibilitySection = toggleTts2AudioVisibilitySection;
+window.toggleTts2AudioPanel = toggleTts2AudioPanel;
+window.openTts2AudioPanel = openTts2AudioPanel;
+window.closeTts2AudioPanel = closeTts2AudioPanel;
 window.insertDefaultNoteCover = insertDefaultNoteCover;
 window.removeNoteCover = removeNoteCover;
 window.toggleNoteCoverMenu = toggleNoteCoverMenu;

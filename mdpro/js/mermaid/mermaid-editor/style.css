@@ -462,3 +462,5 @@ body {
 #preview-pane.preview-dark #render-wrapper {
   background: #0b1220;
 }
+
+#image-to-mermaid .ai-tool-provider-controls { grid-column: 1 / -1; }

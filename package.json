@@ -6,7 +6,8 @@
   "scripts": {
     "start": "vite",
     "dev": "vite",
-    "build": "vite build",
+    "build:mdpro-apps": "node scripts/build-mdpro-apps.mjs",
+    "build": "npm run build:mdpro-apps && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },

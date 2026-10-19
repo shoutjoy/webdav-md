@@ -51,7 +51,21 @@
     var md = restoreTablePipes(markdown);
     if (!md.trim()) return '';
     if (!ensureMarked()) return md.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\r\n?|\n/g, '<br>');
-    return root.marked.parse(md, { breaks: true, gfm: true });
+    var parser = function (text) { return root.marked.parse(text, { breaks: true, gfm: true }); };
+    if (root.MathRender) {
+      var prepared = root.MathRender.createMarkedInput(md);
+      var text = root.MarkdownBold ? root.MarkdownBold.preprocessBold(prepared.text) : prepared.text;
+      return prepared.restoreHtml(parser(text));
+    }
+    return parser(md);
+  }
+
+  function typeset(target) {
+    if (!root.MathRender || !target || !/\$|\\\(|\\\[/.test(target.textContent || '')) return Promise.resolve(false);
+    var ready = root.ensureMdMathEngineLoaded ? root.ensureMdMathEngineLoaded() : Promise.resolve();
+    return Promise.resolve(ready).then(function () {
+      return root.MathRender.typesetElement(target, { silent: true });
+    }).catch(function () { return false; });
   }
 
   function toPlainText(markdown) {
@@ -101,6 +115,7 @@
   }
 
   root.AIChatMarkdown = {
+    typeset: typeset,
     toHtml: toHtml,
     toPlainText: toPlainText,
     restoreTablePipes: restoreTablePipes,
