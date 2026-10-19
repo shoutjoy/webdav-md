@@ -116,7 +116,6 @@ test('Alt+4 uses recognizable compact action icons', () => {
   assert.match(chatStyles, /#ai-chat-floating-compact-close::before\s*\{\s*content:\s*"🚪"/);
 });
 
-<<<<<<< HEAD
 test('FAST detail controls remain readable in the narrow AI Jena dock', () => {
   assert.match(chatStyles, /\.ai-chat-provider-fast-limits\s*\{[\s\S]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(chatStyles, /\.ai-chat-fast-settings-details :is\(button, \[role="button"\], input\[type="button"\]\)[\s\S]*font:\s*600 11px\/1\.25/);
@@ -136,6 +135,32 @@ test('Lemonade model can be loaded directly from AI Jena detail settings', () =>
   assert.match(chatStyles, /\.ai-chat-model-load-progress-track > span[\s\S]*transition: width \.35s ease/);
 });
 
+test('AI Jena uses one shared mode-limit panel without duplicate Ollama controls', () => {
+  assert.doesNotMatch(chatScript, /id="ai-chat-npu-connect"/);
+  assert.doesNotMatch(markup, /Lemonade AI · NPU 연결/);
+  assert.match(chatScript, /id="ai-chat-mode-limit-settings"/);
+  assert.match(chatScript, /modeLimitSettings\.hidden = false/);
+  assert.doesNotMatch(chatScript, /id="ai-chat-ollama-(?:context|reasoning-context|quick-tokens|reasoning-tokens|timeout|temperature)"/);
+  assert.doesNotMatch(chatScript, /id="ai-chat-generation-temperature"/);
+  assert.doesNotMatch(chatScript, /syncOllamaGenerationControls|saveOllamaGenerationControls/);
+});
+
+test('AI Jena upgrades and validates its IndexedDB conversation store', () => {
+  assert.match(chatScript, /var CHAT_DB_VERSION = 2/);
+  assert.match(chatScript, /request\.transaction\.objectStore\(CONVERSATION_STORE\)/);
+  assert.match(chatScript, /existingStore\.createIndex\('updatedAt'/);
+  assert.match(chatScript, /db\.onversionchange = function \(\) \{ db\.close\(\); \}/);
+  assert.match(chatScript, /request\.onblocked = function \(\)/);
+  assert.match(chatScript, /대화 저장소 초기화 실패:/);
+});
+
+test('generated AI images open the large preview by mouse or keyboard', () => {
+  assert.match(chatScript, /generated\.title = '클릭하여 크게 보기'/);
+  assert.match(chatScript, /generated\.addEventListener\('click',[\s\S]*openGeneratedImagePreview\(image, imageIndex\)/);
+  assert.match(chatScript, /event\.key !== 'Enter' && event\.key !== ' '/);
+  assert.match(chatStyles, /\.ai-chat-image-gallery img \{[^}]*cursor:\s*zoom-in/s);
+});
+
 test('Lemonade image models use the image generation endpoint and existing AI Jena image result flow', () => {
   assert.match(appScript, /function isLemonadeImageModel\(modelOrId\)/);
   assert.match(appScript, /labels\.includes\('image'\)[\s\S]*recipe === 'sd-cpp'/);
@@ -147,6 +172,20 @@ test('Lemonade image models use the image generation endpoint and existing AI Je
   assert.match(markup, /id="lemonade-image-size"/);
   assert.match(markup, /id="lemonade-image-steps"/);
   assert.match(markup, /id="lemonade-image-cfg-scale"/);
+  assert.match(chatScript, /function activeImageServiceLabel\(\)[\s\S]*state\.provider === 'lemonade'[\s\S]*'Lemonade · ' \+ \(String\(state\.lemonadeModel/);
+  assert.match(chatScript, /elapsedSeconds < 2\) return activeImageServiceLabel\(\) \+ '에 연결하는 중'/);
+  assert.doesNotMatch(chatScript, /elapsedSeconds < 2\) return 'Nano Banana에 연결하는 중'/);
+  assert.match(chatScript, /liveStream && liveStream\.phase === 'connecting' && !liveStream\.firstTokenAt/);
+  assert.doesNotMatch(chatScript, /\/연결 중\$\/\.test\(liveStream\.stage\)/);
+});
+
+test('selection import reflows by the AI Jena composer width', () => {
+  assert.match(chatStyles, /\.ai-chat-composer \{[^}]*container-type:\s*inline-size/s);
+  assert.match(chatStyles, /@container \(max-width: 430px\)[\s\S]*\.ai-chat-panel:not\(\.layout-floating\) \.ai-chat-compose-actions/);
+  assert.match(chatStyles, /\.ai-chat-import-selection \{[\s\S]*grid-column:\s*span 4[\s\S]*text-overflow:\s*clip/);
+  assert.match(chatStyles, /\.ai-chat-realtime-toolbar \{[\s\S]*grid-column:\s*span 3/);
+  assert.match(markup, /ai-chat\.css\?v=20261019-image-preview-settings-3/);
+  assert.match(appScript, /ai-chat\.js\?v=20261019-image-preview-settings-3/);
 });
 
 test('AI Jena exposes and applies FAST, quick, reasoning, and hard output token limits', () => {
@@ -219,28 +258,6 @@ test('AI Jena offers an editable continuation prompt with persisted Auto approva
   assert.match(appScript, /request\.provider === 'openai-compatible' \|\| request\.provider === 'lemonade'[\s\S]*streamOpenAICompatibleChat\(connection, requestBody, controller\.signal, request\.onStreamEvent\)/);
   assert.match(chatScript, /state\.provider === 'lemonade' \|\| state\.provider === 'openai-compatible' \? handleStreamEvent : undefined/);
   assert.match(markup, /aiJenaRealtimeBudget=20261019-4/);
-=======
-test('AI Jena imgGen is a compact reversible model toggle with quota fallback', () => {
-  assert.match(chatScript, /id=["']ai-chat-img-gen["'][^>]*aria-pressed=["']false["']/);
-  assert.match(chatScript, /id=["']ai-chat-img-gen["'][^>]*>ImgG<\/button>/);
-  assert.match(chatScript, /var IMG_GEN_PRIMARY_MODEL = 'gemini-3-pro-image-preview'/);
-  assert.match(chatScript, /var IMG_GEN_FALLBACK_MODEL = 'gemini-2.5-flash-image'/);
-  assert.match(chatScript, /function toggleImgGenMode\(\)[\s\S]*imgGenPreviousState = \{[\s\S]*provider: state\.provider[\s\S]*geminiModel: state\.geminiModel/);
-  assert.match(chatScript, /imgGen OFF · 이전 AI 공급자와 모델로 돌아왔습니다/);
-  assert.match(chatScript, /isImageQuotaError\(error\)[\s\S]*root\.confirm\([\s\S]*selectGeminiImageModel\(IMG_GEN_FALLBACK_MODEL\)/);
-  assert.match(chatStyles, /\.ai-chat-compose-actions \.ai-chat-img-gen \{[^}]*width:\s*44px[^}]*min-width:\s*44px/s);
-  assert.match(chatStyles, /\.ai-chat-compose-actions \.ai-chat-img-gen\.active/);
-  assert.match(chatStyles, /#ai-chat-img-gen::before\s*\{\s*content:\s*"▣"/);
-});
-
-test('AI Studio TTS models cannot enable Gemini thinking', () => {
-  assert.match(chatScript, /function isGeminiTtsModel\(model\)/);
-  assert.match(chatScript, /ttsModel && state\.responseMode === 'reasoning'\) setResponseMode\('quick'\)/);
-  assert.match(chatScript, /ttsModel && buttons\[i\]\.getAttribute\('data-ai-chat-mode'\) === 'reasoning'/);
-  assert.match(appScript, /function isAIChatGeminiTtsModel\(model\)/);
-  assert.match(appScript, /const reasoningMode = responseMode === 'reasoning' && !ttsModel/);
-  assert.match(appScript, /!imageModel && !ttsModel && \/\^gemini-2\\\.5\/i\.test\(model\)/);
->>>>>>> cf2ea69e6eaafccfa8288b16bdd28831799889d9
 });
 
 test('Alt+4 settings stay inside the visible browser viewport', () => {

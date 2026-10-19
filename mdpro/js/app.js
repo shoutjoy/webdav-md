@@ -158,11 +158,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260914-serpapi-vault-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-<<<<<<< HEAD
-    aiChat: './AI_App/aiChat/ai-chat.js?v=20261019-lemonade-image-models-1',
-=======
-    aiChat: './AI_App/aiChat/ai-chat.js?v=20261017-image-editor-actions-1',
->>>>>>> cf2ea69e6eaafccfa8288b16bdd28831799889d9
+    aiChat: './AI_App/aiChat/ai-chat.js?v=20261019-image-preview-settings-3',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260925-nonprinting-3'
@@ -1586,11 +1582,7 @@ const OPENAI_COMPATIBLE_DEFAULTS = Object.freeze({
 });
 const LEMONADE_DEFAULT_BASE_URL = 'http://localhost:13305/api/v1';
 const OPENAI_COMPATIBLE_PROVIDER_URLS = Object.freeze({
-<<<<<<< HEAD
     orcarouter: 'https://api.orcarouter.ai/v1',
-=======
-    lemonade: 'http://127.0.0.1:13305/api/v1',
->>>>>>> cf2ea69e6eaafccfa8288b16bdd28831799889d9
     'openai-compatible': 'https://api.orcarouter.ai/v1',
     openrouter: 'https://openrouter.ai/api/v1',
     groq: 'https://api.groq.com/openai/v1',
@@ -1619,7 +1611,7 @@ function isLemonadeImageModel(modelOrId) {
 }
 
 function readCachedLemonadeModelRecords() {
-    try { return normalizeOpenAICompatibleModels(JSON.parse(localStorage.getItem(LEMONADE_MODELS_KEY) || '[]')); }
+    try { return normalizeInstalledLemonadeModels(JSON.parse(localStorage.getItem(LEMONADE_MODELS_KEY) || '[]')); }
     catch (_) { return []; }
 }
 
@@ -1673,16 +1665,8 @@ function applyOpenAICompatibleProviderPreset() {
     const baseUrl = document.getElementById('openai-compatible-base-url');
     if (!provider || !baseUrl) return;
     baseUrl.value = OPENAI_COMPATIBLE_PROVIDER_URLS[provider.value] || OPENAI_COMPATIBLE_DEFAULTS.baseUrl;
-<<<<<<< HEAD
     const apiKey = document.getElementById('openai-compatible-api-key');
     const modelId = document.getElementById('openai-compatible-model-id');
-=======
-    if (provider.value === 'lemonade') {
-        document.getElementById('openai-compatible-model-id').value = 'qwen3-it-4b-FLM';
-        document.getElementById('openai-compatible-api-key').value = 'lemonade-local';
-        document.getElementById('openai-compatible-free-models-only').checked = false;
-    }
->>>>>>> cf2ea69e6eaafccfa8288b16bdd28831799889d9
     validateOpenAICompatibleBaseUrlUI();
 }
 
@@ -1781,6 +1765,31 @@ function normalizeOpenAICompatibleModels(payload) {
         if (id && !byId.has(id)) byId.set(id, Object.assign({}, source, { id: id }));
     });
     return Array.from(byId.values());
+}
+
+function normalizeInstalledLemonadeModels(payload) {
+    return normalizeOpenAICompatibleModels(payload).filter(function (item) {
+        return item.downloaded !== false;
+    });
+}
+
+function preferredInstalledLemonadeModelId(models, currentModel) {
+    const records = normalizeInstalledLemonadeModels(models);
+    const current = String(currentModel || '').trim();
+    if (current && records.some(function (item) { return item.id === current; })) return current;
+    if (records.some(function (item) { return item.id === LEMONADE_DEFAULT_MODEL; })) return LEMONADE_DEFAULT_MODEL;
+    const chat = records.find(function (item) {
+        return Array.isArray(item.labels) && item.labels.map(String).includes('chat');
+    });
+    return chat ? chat.id : String(records[0] && records[0].id || '');
+}
+
+function prioritizeInstalledLemonadeModels(models, currentModel) {
+    const records = normalizeInstalledLemonadeModels(models);
+    const preferred = preferredInstalledLemonadeModelId(records, currentModel);
+    return preferred
+        ? records.filter(function (item) { return item.id === preferred; }).concat(records.filter(function (item) { return item.id !== preferred; }))
+        : records;
 }
 
 function readOpenAICompatibleModelsCache() {
@@ -1882,7 +1891,6 @@ function getStoredOpenAICompatibleConnection() {
     };
 }
 
-<<<<<<< HEAD
 function getStoredLemonadeConnection() {
     const outputTokens = Number(localStorage.getItem('ss_openai_compatible_max_output_tokens_lemonade'));
     return {
@@ -1984,167 +1992,6 @@ async function generateLemonadeSspImage(prompt, options, signal) {
     const encoded = String(item && (item.b64_json || item.b64Json) || '').replace(/^data:[^;,]+;base64,/i, '');
     if (!encoded) throw new Error('Lemonade 이미지 응답에서 이미지 데이터를 찾지 못했습니다.');
     return 'data:' + String(item && (item.mime_type || item.mimeType) || 'image/png') + ';base64,' + encoded;
-=======
-// Keep the newest question intact; only discard complete older turns.
-function fitOpenAICompatibleContext(messages, tokenBudget) {
-    const result = messages.slice();
-    const estimate = item => Array.from(String(item.content || '')).reduce((sum, char) => sum + (char.charCodeAt(0) < 128 ? 0.25 : 1), 24);
-    const firstUser = () => result.findIndex(item => item.role === 'user');
-    while (result.reduce((sum, item) => sum + estimate(item), 0) > tokenBudget) {
-        const start = firstUser();
-        const next = result.findIndex((item, index) => index > start && item.role === 'user');
-        if (start < 0 || next < 0) break;
-        result.splice(start, next - start);
-    }
-    return result;
-}
-
-async function readScholarAITextEventStream(response, emit) {
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let answer = '';
-    let reasoning = '';
-    let finalResponse = {};
-    function consume(block) {
-        const dataText = block.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
-        if (!dataText || dataText === '[DONE]') return;
-        const event = JSON.parse(dataText);
-        if (event.error || event.type === 'response.failed' || event.type === 'error') {
-            throw new Error(event.error?.message || event.response?.error?.message || event.message || 'AI 스트리밍 응답 오류');
-        }
-        if (event.type === 'response.completed' || event.type === 'response.incomplete') finalResponse = event.response || {};
-        const choice = event.choices && event.choices[0];
-        const delta = choice && choice.delta || {};
-        const content = event.type === 'response.output_text.delta' ? event.delta : delta.content;
-        if (typeof content === 'string' && content) {
-            answer += content;
-            emit({ type: 'message.delta', content: content });
-        }
-        if (delta.reasoning_content) {
-            reasoning += delta.reasoning_content;
-            emit({ type: 'reasoning.delta', content: delta.reasoning_content });
-        }
-        if (choice && choice.finish_reason) finalResponse.finishReason = choice.finish_reason;
-        if (event.usage) finalResponse.usage = event.usage;
-        if (event.model) finalResponse.model = event.model;
-    }
-    try {
-        while (true) {
-            const part = await reader.read();
-            buffer += part.done ? decoder.decode() : decoder.decode(part.value, { stream: true });
-            buffer = buffer.replace(/\r\n/g, '\n');
-            let boundary;
-            while ((boundary = buffer.indexOf('\n\n')) >= 0) {
-                consume(buffer.slice(0, boundary));
-                buffer = buffer.slice(boundary + 2);
-            }
-            if (part.done) break;
-        }
-        if (buffer.trim()) consume(buffer);
-    } finally { reader.releaseLock(); }
-    return Object.assign({}, finalResponse, {
-        output_text: answer,
-        choices: [{ message: { content: answer, reasoning_content: reasoning }, finish_reason: finalResponse.finishReason || '' }]
-    });
-}
-
-const openAICompatibleContextLimits = new Map();
-const openAICompatibleOutputLimits = new Map();
-
-function budgetOpenAICompatibleChat(model, messages, systemInstruction, request) {
-    const details = readOpenAICompatibleModelsCache().find(row => row.id === model) || {};
-    const generationSettings = normalizeOllamaGenerationSettings(getOllamaSettings());
-    const configuredContext = request.mode === 'reasoning' ? generationSettings.reasoningContextLength : generationSettings.contextLength;
-    const reportedContext = Number(details.context_length || details.max_context_window || details.contextLength) || configuredContext;
-    let contextLength = Math.max(256, Math.min(reportedContext, configuredContext, Number(request.contextLimit) || reportedContext));
-    const config = getScholarAIProviderRuntime().getLMStudioConfig();
-    const requestedOutput = Math.max(1, Number(request.outputLimit) || Number(request.fastMode ? config.fastMaxTokens
-        : (request.mode === 'reasoning' ? generationSettings.reasoningMaxTokens : generationSettings.quickMaxTokens)) || 4096);
-    const current = request.continuation ? messages.slice() : messages.slice(-1);
-    const system = systemInstruction ? [{ role: 'system', content: String(systemInstruction) }] : [];
-    const count = rows => rows.reduce((sum, row) => sum + Math.ceil(estimateAIChatTokens(row.content) * 1.5) + 16, 0);
-    // The app's formatting instructions can exceed small local windows by
-    // themselves. Preserve the current question; compact only app instructions.
-    const systemBudget = Math.max(0, Math.min(1024, Math.floor(contextLength * 0.2), contextLength - count(current) - 512));
-    if (system.length && count(system) > systemBudget) {
-        const original = system[0].content;
-        let low = 0, high = original.length;
-        while (low < high) {
-            const middle = Math.ceil((low + high) / 2);
-            const head = Math.ceil(middle * 0.7);
-            const tail = middle - head;
-            const content = original.slice(0, head) + '\n' + (tail ? original.slice(-tail) : '');
-            if (count([{ role: 'system', content }]) <= systemBudget) low = middle;
-            else high = middle - 1;
-        }
-        const head = Math.ceil(low * 0.7), tail = low - head;
-        if (low) system[0].content = original.slice(0, head) + '\n' + (tail ? original.slice(-tail) : '');
-        else system.length = 0;
-    }
-    const fixedTokens = count(system.concat(current));
-    if (fixedTokens + 256 >= contextLength && fixedTokens + 256 < reportedContext) contextLength = reportedContext;
-    if (fixedTokens + 256 >= contextLength) {
-        throw new Error('선택한 모델의 입력 한도(' + contextLength + ' 토큰)를 초과했습니다. 질문이나 첨부 문서를 줄이거나 컨텍스트가 더 큰 모델을 선택하세요.');
-    }
-    const reserve = Math.min(requestedOutput, Math.max(256, Math.floor(contextLength * 0.32)));
-    const history = request.continuation ? [] : retainAIChatHistory(messages.slice(0, -1), Math.max(0, contextLength - fixedTokens - reserve - 256));
-    const retained = system.concat(history, current);
-    const inputTokens = count(retained);
-    const outputLimit = Number(details.top_provider && details.top_provider.max_completion_tokens) || requestedOutput;
-    return { messages: retained, contextLength: contextLength, inputTokens: inputTokens, fixedTokens: fixedTokens,
-        maxTokens: Math.max(1, Math.floor(Math.min(requestedOutput, outputLimit, contextLength - inputTokens - 256))) };
-}
-
-async function requestOpenAICompatibleChat(connection, model, messages, systemInstruction, request, signal) {
-    if (!request) { signal = systemInstruction; systemInstruction = ''; request = {}; }
-    const key = connection.baseUrl + '\n' + model;
-    const emit = typeof request.onStreamEvent === 'function' ? request.onStreamEvent : null;
-    const generation = normalizeOllamaGenerationSettings(getOllamaSettings());
-    let contextLimit = openAICompatibleContextLimits.get(key);
-    let outputLimit = openAICompatibleOutputLimits.get(key);
-    let retainedMessages = messages;
-    for (let attempt = 0; attempt < 5; attempt++) {
-        const budget = budgetOpenAICompatibleChat(model, retainedMessages, systemInstruction, Object.assign({}, request, { contextLimit: contextLimit, outputLimit: outputLimit }));
-        let receivedContent = false;
-        const forward = event => {
-            if ((event.type === 'message.delta' || event.type === 'reasoning.delta') && event.content) receivedContent = true;
-            if (emit) emit(event);
-        };
-        forward({ type: 'request.start', provider: 'openai-compatible', context_length: budget.contextLength,
-            estimated_input_tokens: budget.inputTokens, max_output_tokens: budget.maxTokens });
-        try {
-            const response = await fetch(connection.baseUrl + '/chat/completions', {
-                method: 'POST',
-                headers: { Accept: emit ? 'text/event-stream, application/json' : 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer ' + connection.apiKey },
-                body: JSON.stringify({ model: model, messages: budget.messages, max_tokens: budget.maxTokens, temperature: generation.temperature, stream: !!emit }),
-                signal: signal
-            });
-            if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
-            forward({ type: 'chat.start', provider: 'openai-compatible' });
-            const data = emit && /text\/event-stream/i.test(response.headers.get('content-type') || '')
-                ? await readScholarAITextEventStream(response, forward) : await response.json();
-            if (data.error) throw new Error(String(data.error.message || data.error));
-            if (contextLimit) openAICompatibleContextLimits.set(key, contextLimit);
-            if (outputLimit) openAICompatibleOutputLimits.set(key, outputLimit);
-            return data;
-        } catch (error) {
-            if (error.name === 'AbortError' || !/max length reached|context.{0,40}(exceed|length|limit|window)|maximum context|too many tokens|prompt.{0,30}too long|token.{0,20}limit/i.test(error.message)) throw error;
-            if (receivedContent || attempt === 4) {
-                throw new Error('OpenAI 호환 서버가 Max length reached 오류를 반환했습니다. 대화 이력과 답변 생성 한도를 줄여도 실패했습니다. 서버의 모델 컨텍스트 및 세션 설정을 확인해 주세요.');
-            }
-            // A length error can mean an output limit, not an oversized question.
-            // Never shrink the context below the unchanged system and current input.
-            outputLimit = Math.max(32, Math.floor(budget.maxTokens / 2));
-            contextLimit = Math.min(budget.contextLength, Math.max(
-                budget.fixedTokens + outputLimit + 257, Math.floor(budget.contextLength / 2)
-            ));
-            retainedMessages = retainedMessages.slice();
-            const oldest = retainedMessages.findIndex(item => item.role === 'user');
-            const next = retainedMessages.findIndex((item, index) => index > oldest && item.role === 'user');
-            if (!request.continuation && oldest >= 0 && next >= 0) retainedMessages.splice(oldest, next - oldest);
-        }
-    }
 }
 
 function compatibleResidencyKey(connection, model) {
@@ -2163,17 +2010,13 @@ async function manageOpenAICompatibleResidency(connection, model, enabled, signa
     const health = await call(connection.baseUrl + '/health');
     if (!Array.isArray(health.all_models_loaded)) throw new Error('이 서버는 Lemonade 모델 유지 API를 지원하지 않습니다. 일반 OpenAI 호환 API만으로는 모델 메모리 유지를 제어할 수 없습니다.');
     const loaded = health.all_models_loaded.find(row => row.model_name === model);
-    if (enabled && !loaded) {
-        await call(connection.baseUrl + '/load', { model_name: model, pinned: true });
-    } else if (loaded && loaded.pinned !== enabled) {
-        await call(new URL('/internal/pin', connection.baseUrl).href, { model_name: model, pinned: enabled });
-    }
+    if (enabled && !loaded) await call(connection.baseUrl + '/load', { model_name: model, pinned: true });
+    else if (loaded && loaded.pinned !== enabled) await call(new URL('/internal/pin', connection.baseUrl).href, { model_name: model, pinned: enabled });
     const verified = await call(connection.baseUrl + '/health');
     const current = verified.all_models_loaded && verified.all_models_loaded.find(row => row.model_name === model);
     if (enabled && (!current || current.pinned !== true)) throw new Error('서버에서 모델의 메모리 고정을 확인하지 못했습니다. 서버 버전과 모델 유지 지원을 확인하세요.');
     if (!enabled && current && current.pinned === true) throw new Error('서버에서 모델 유지 해제를 확인하지 못했습니다.');
     return { loaded: !!current, pinned: !!(current && current.pinned), model: model };
->>>>>>> cf2ea69e6eaafccfa8288b16bdd28831799889d9
 }
 
 async function fetchOpenAICompatibleModels(connection) {
@@ -2506,6 +2349,10 @@ function loadLemonadeSettingsUI() {
         'lemonade-image-cfg-scale': localStorage.getItem('ss_lemonade_image_cfg_scale') || '1'
     };
     Object.keys(values).forEach(function (id) { const node = document.getElementById(id); if (node) node.value = values[id]; });
+    renderLemonadeModels(readCachedLemonadeModelRecords());
+    // Refresh on settings initialization so ENV and AI Jena do not depend on
+    // a manual "모델 확인" click before showing installed models.
+    checkLemonadeModels().catch(function () {});
 }
 
 function renderLemonadeModels(models) {
@@ -2526,11 +2373,17 @@ async function checkLemonadeModels() {
         if (button) button.disabled = true;
         setLemonadeStatus('Lemonade 모델 목록을 확인하는 중...', '');
         const connection = getLemonadeFormConnection();
-        const response = await fetch(openAICompatibleRequestUrl(connection, 'models'), { headers: { Accept: 'application/json', Authorization: 'Bearer lemonade' } });
+        // Lemonade's plain /models response may contain only the active model.
+        // show_all=true returns the complete locally installed catalog used by
+        // the desktop tray application's Load Model menu.
+        const response = await fetch(openAICompatibleRequestUrl(connection, 'models?show_all=true'), { headers: { Accept: 'application/json', Authorization: 'Bearer lemonade' } });
         if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
-        const models = normalizeOpenAICompatibleModels(await response.json());
+        const models = normalizeInstalledLemonadeModels(await response.json());
         localStorage.setItem(LEMONADE_MODELS_KEY, JSON.stringify(models));
         renderLemonadeModels(models);
+        const modelInput = document.getElementById('lemonade-model-id');
+        const preferredModel = preferredInstalledLemonadeModelId(models, modelInput && modelInput.value);
+        if (modelInput && preferredModel && !models.some(function (item) { return item.id === modelInput.value; })) modelInput.value = preferredModel;
         setLemonadeStatus('연결됨 · 모델 ' + models.length + '개 확인', 'ok');
         return models;
     } catch (error) {
@@ -2579,43 +2432,6 @@ async function unloadLemonadeModel() {
 function readCachedNPUModels() {
     try { return JSON.parse(localStorage.getItem('ss_ai_chat_npu_models') || '[]').filter(Boolean); }
     catch (_) { return []; }
-}
-
-async function listNPUModels(signal) {
-    const connection = { provider: 'lemonade', baseUrl: LEMONADE_DEFAULT_BASE_URL };
-    const response = await fetch(openAICompatibleRequestUrl(connection, 'models'), { headers: { Accept: 'application/json', Authorization: 'Bearer lemonade' }, signal: signal });
-    if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
-    const data = await response.json();
-    const rows = (Array.isArray(data && data.data) ? data.data : []).filter(function (model) {
-        return model && model.downloaded !== false && model.recipe === 'flm'
-            && (!Array.isArray(model.labels) || model.labels.includes('chat'));
-    });
-    const models = rows.map(function (model) { return String(model.id || ''); }).filter(Boolean);
-    const preferred = models.indexOf('gemma4-it-e2b-FLM');
-    if (preferred > 0) models.unshift(models.splice(preferred, 1)[0]);
-    if (!models.length) throw new Error('Lemonade에 설치된 FastFlowLM NPU 채팅 모델이 없습니다.');
-    localStorage.setItem('ss_ai_chat_npu_models', JSON.stringify(models));
-    return models;
-}
-
-async function callNPUChat(request, signal) {
-    const models = await listNPUModels(signal);
-    const model = String(request.model || models[0] || '');
-    if (!models.includes(model)) throw new Error('설치된 Lemonade NPU 모델을 선택하세요.');
-    const messages = normalizeAIChatMessages(request.messages);
-    if (request.systemInstruction) messages.unshift({ role: 'system', content: String(request.systemInstruction) });
-    const connection = { provider: 'lemonade', baseUrl: LEMONADE_DEFAULT_BASE_URL };
-    const response = await fetch(openAICompatibleRequestUrl(connection, 'chat/completions'), {
-        method: 'POST',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer lemonade' },
-        body: JSON.stringify({ model: model, messages: messages, max_tokens: request.fastMode ? 2048 : 4096, temperature: 0.4, stream: false }),
-        signal: signal
-    });
-    if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
-    const data = await response.json();
-    const choice = data && data.choices && data.choices[0] || {};
-    const message = choice.message || {};
-    return { provider: 'ollama-npu', model: model, text: String(message.content || choice.text || ''), reasoning: String(message.reasoning_content || ''), finishReason: choice.finish_reason || '', usage: data.usage || null, responseId: data.id || null };
 }
 
 function organizeSettingsDashboard() {
@@ -17362,7 +17178,7 @@ function getNPUBaseUrl() {
 }
 
 async function listNPUModels(signal) {
-    const data = await requestLocalAIJson(getNPUBaseUrl() + '/models', {
+    const data = await requestLocalAIJson(getNPUBaseUrl() + '/models?show_all=true', {
         headers: { Accept: 'application/json' }, signal: signal
     });
     const rows = (Array.isArray(data.data) ? data.data : []).filter(function (model) {
@@ -17827,7 +17643,7 @@ async function callOllamaChatText(messages, systemInstruction, modelOverride, si
     const requestedOutputTokens = Math.max(1, Number(fastMode ? config.fastMaxTokens : (reasoningMode ? settings.reasoningMaxTokens : settings.quickMaxTokens)) || (fastMode ? 3000 : 4096));
     const timeoutMs = Math.max(1000, Number(fastMode ? config.fastTimeoutMs : settings.timeoutMs) || (fastMode ? 120000 : 580000));
     const fixedInputTokens = estimateAIChatTokens(systemInstruction) + estimateAIChatTokens(normalized[lastUserIndex].content);
-    if (fixedInputTokens + 256 >= contextLength) throw new Error('Ollama 입력이 설정된 컨텍스트를 초과합니다. Ollama 세부 설정에서 CONTEXT TOK를 늘리거나 입력을 줄이세요.');
+    if (fixedInputTokens + 256 >= contextLength) throw new Error('Ollama 입력이 설정된 컨텍스트를 초과합니다. 입력을 줄이거나 Ollama 서버의 컨텍스트 설정을 늘리세요.');
     const outputReserve = Math.min(
         Math.max(1, contextLength - fixedInputTokens - 256),
         requestedOutputTokens
@@ -17841,15 +17657,7 @@ async function callOllamaChatText(messages, systemInstruction, modelOverride, si
     const estimatedInputTokens = payloadMessages.reduce(function (sum, item) {
         return sum + estimateAIChatTokens(item.content);
     }, 0);
-<<<<<<< HEAD
-    const contextOutputTokens = Math.max(1, contextLength - estimatedInputTokens - 256);
-    const requestedOutputTokens = Number(settings.maxOutputTokens) > 0
-        ? Math.max(1, Math.round(Number(settings.maxOutputTokens)))
-        : contextOutputTokens;
-    const maxOutputTokens = Math.max(1, Math.min(contextOutputTokens, requestedOutputTokens));
-=======
     const maxOutputTokens = Math.max(1, Math.min(requestedOutputTokens, contextLength - estimatedInputTokens - 256));
->>>>>>> cf2ea69e6eaafccfa8288b16bdd28831799889d9
     emit({
         type: 'request.start',
         provider: 'ollama',
@@ -19490,9 +19298,9 @@ window.AIChatBridge = Object.freeze({
         return getAIChatOpenAICompatibleModelIds('openai-compatible');
     },
     getCachedLemonadeModels: function () {
-        const models = getAIChatOpenAICompatibleModelIds('lemonade');
+        const records = getAIChatLemonadeModelRecords();
         const selected = String(localStorage.getItem('ss_ai_chat_lemonade_model') || localStorage.getItem('ss_openai_compatible_model_id_lemonade') || LEMONADE_DEFAULT_MODEL).trim();
-        return Array.from(new Set(models.concat(selected ? [selected] : []).filter(Boolean)));
+        return prioritizeInstalledLemonadeModels(records, selected).map(function (item) { return item.id; });
     },
     getCachedLemonadeModelRecords: function () {
         return getAIChatLemonadeModelRecords();
@@ -19501,12 +19309,13 @@ window.AIChatBridge = Object.freeze({
         return isLemonadeImageModel(findCachedLemonadeModel(modelId));
     },
     refreshLemonadeModels: function () {
-        return fetch(openAICompatibleRequestUrl(getStoredLemonadeConnection(), 'models'), { headers: { Accept: 'application/json', Authorization: 'Bearer lemonade' } })
+        return fetch(openAICompatibleRequestUrl(getStoredLemonadeConnection(), 'models?show_all=true'), { headers: { Accept: 'application/json', Authorization: 'Bearer lemonade' } })
             .then(async function (response) {
                 if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
-                const models = normalizeOpenAICompatibleModels(await response.json());
+                const models = normalizeInstalledLemonadeModels(await response.json());
                 localStorage.setItem(LEMONADE_MODELS_KEY, JSON.stringify(models));
-                return models.map(function (item) { return item.id; });
+                const selected = localStorage.getItem('ss_ai_chat_lemonade_model') || localStorage.getItem('ss_openai_compatible_model_id_lemonade');
+                return prioritizeInstalledLemonadeModels(models, selected).map(function (item) { return item.id; });
             });
     },
     loadLemonadeModel: async function (modelId) {
@@ -19613,7 +19422,6 @@ window.AIChatBridge = Object.freeze({
         const controller = new AbortController();
         aiChatAbortController = controller;
         try {
-<<<<<<< HEAD
             if (request.provider === 'ollama-npu') {
                 return await callNPUChat(request, controller.signal);
             }
@@ -19688,10 +19496,6 @@ window.AIChatBridge = Object.freeze({
                     maxOutputTokens: Number(requestBody.max_tokens) || null,
                     responseId: data.id || null
                 };
-=======
-            if (!['aistudio', 'openai'].includes(request.provider) && (request.messages || []).some(message => (message.attachments || []).some(item => item.kind === 'image'))) {
-                return await completeLocalImageToolRequest(request, controller.signal);
->>>>>>> cf2ea69e6eaafccfa8288b16bdd28831799889d9
             }
             if (['ollama-npu', 'openai-compatible', 'litertlm'].includes(request.provider)) {
                 return await completeSharedAIProvider(request, controller.signal);
@@ -19707,11 +19511,7 @@ window.AIChatBridge = Object.freeze({
                     controller.signal,
                     request.mode,
                     typeof request.onStreamEvent === 'function' ? request.onStreamEvent : undefined,
-<<<<<<< HEAD
                     { maxOutputTokens: request.maxOutputTokens }
-=======
-                    { fastMode: request.fastMode === true }
->>>>>>> cf2ea69e6eaafccfa8288b16bdd28831799889d9
                 );
                 return {
                     provider: 'ollama',
@@ -20176,9 +19976,9 @@ function ensureSidebarAILoaded() {
                 return getAIChatLemonadeModelRecords().filter(function (item) { return item.kind === 'image'; }).map(function (item) { return item.id; });
             },
             refreshLemonadeImageModels: async function () {
-                const response = await fetch(openAICompatibleRequestUrl(getStoredLemonadeConnection(), 'models'), { headers: { Accept: 'application/json', Authorization: 'Bearer lemonade' } });
+                const response = await fetch(openAICompatibleRequestUrl(getStoredLemonadeConnection(), 'models?show_all=true'), { headers: { Accept: 'application/json', Authorization: 'Bearer lemonade' } });
                 if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
-                const models = normalizeOpenAICompatibleModels(await response.json());
+                const models = normalizeInstalledLemonadeModels(await response.json());
                 localStorage.setItem(LEMONADE_MODELS_KEY, JSON.stringify(models));
                 return models.filter(isLemonadeImageModel).map(function (item) { return item.id; });
             },
@@ -20228,11 +20028,7 @@ function ensureSidebarAILoaded() {
     };
     const script = document.createElement('script');
     const base = getDocumentBaseUrl();
-<<<<<<< HEAD
     const aiSidebarScriptVersion = '20261019-sspimg-lemonade-1';
-=======
-    const aiSidebarScriptVersion = '20261016-scholar-status-font-1';
->>>>>>> cf2ea69e6eaafccfa8288b16bdd28831799889d9
     try {
         const u = new URL('./sidebarAI/sidebar-ai.js', base);
         u.searchParams.set('v', aiSidebarScriptVersion);

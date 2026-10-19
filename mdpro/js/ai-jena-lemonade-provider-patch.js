@@ -21,7 +21,7 @@
         var status = document.getElementById('ai-chat-status');
         if (status) status.textContent = 'Lemonade NPU와 FastFlowLM 모델을 확인하는 중...';
         try {
-            var response = await root.fetch('/api/lemonade/v1/models', { headers: { Accept: 'application/json', Authorization: 'Bearer lemonade' } });
+            var response = await root.fetch('/api/lemonade/v1/models?show_all=true', { headers: { Accept: 'application/json', Authorization: 'Bearer lemonade' } });
             if (!response.ok) throw new Error('HTTP ' + response.status);
             var data = await response.json();
             var rows = (Array.isArray(data && data.data) ? data.data : []).filter(function (model) {

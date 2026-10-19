@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'webdav-viewer-v2';
+const CACHE_VERSION = 'webdav-viewer-v13-ai-jena-settings-cleanup';
 const APP_SHELL = ['./', './manifest.webmanifest', './webdav.svg', './webdav-maskable.svg'];
 
 self.addEventListener('install', (event) => {

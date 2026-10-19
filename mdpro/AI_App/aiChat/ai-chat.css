@@ -569,7 +569,6 @@ html.ai-chat-page-pushed .ai-chat-panel.layout-popup {
   font-size: 10px;
   font-weight: 700;
 }
-.ai-chat-ollama-settings-help { margin: 0; padding: 7px 11px; color: var(--chat-muted); font-size: 11px; line-height: 1.5; }
 .ai-chat-fast-limits label { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .ai-chat-fast-limits input {
   width: 62px;
@@ -1355,7 +1354,8 @@ body.ai-chat-history-resizing { cursor: ew-resize !important; user-select: none 
 
 .ai-chat-image-gallery { display: grid; gap: 9px; margin-top: 7px; }
 .ai-chat-image-gallery figure { margin: 0; overflow: hidden; border: 1px solid #526d96; border-radius: 10px; background: #172337; }
-.ai-chat-image-gallery img { display: block; width: 100%; max-height: 520px; object-fit: contain; background: #0d1522; }
+.ai-chat-image-gallery img { display: block; width: 100%; max-height: 520px; object-fit: contain; background: #0d1522; cursor: zoom-in; }
+.ai-chat-image-gallery img:focus-visible { outline: 3px solid #60a5fa; outline-offset: -3px; }
 .ai-chat-generated-image-actions { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
 .ai-chat-generated-image-actions > button { grid-column: span 3; min-width: 0; overflow-wrap: anywhere; }
 .ai-chat-generated-image-actions > button:nth-child(-n+3) { grid-column: span 2; }
@@ -1514,7 +1514,7 @@ body.ai-chat-history-resizing { cursor: ew-resize !important; user-select: none 
 @keyframes ai-chat-dot { 0%, 60%, 100% { transform: translateY(0); opacity: .45; } 30% { transform: translateY(-3px); opacity: 1; } }
 @keyframes ai-chat-shimmer { to { transform: translateX(100%); } }
 
-.ai-chat-composer { flex-shrink: 0; padding: 10px; border-top: 1px solid var(--chat-border); background: var(--chat-surface); }
+.ai-chat-composer { flex-shrink: 0; padding: 10px; border-top: 1px solid var(--chat-border); background: var(--chat-surface); container-type: inline-size; }
 .ai-chat-composer.drag-over { box-shadow: inset 0 0 0 2px #7aa2ef; }
 .ai-chat-attachments { display: none; max-height: 220px; margin-bottom: 7px; overflow-y: auto; gap: 7px; }
 .ai-chat-attachments.has-items { display: flex; flex-wrap: wrap; }
@@ -2288,6 +2288,40 @@ body.theme-light .ai-chat-compose-actions .ai-chat-realtime-sentence-toggle.acti
   text-overflow: ellipsis;
 }
 .ai-chat-compose-actions .ai-chat-realtime-toolbar { justify-self: start; }
+
+/* The dock can be narrow even on a wide desktop. Reflow by composer width,
+   so selection import stays readable instead of squeezing every action. */
+@container (max-width: 430px) {
+  .ai-chat-panel:not(.layout-floating) .ai-chat-compose-actions {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    row-gap: 5px;
+  }
+  .ai-chat-panel:not(.layout-floating) .ai-chat-compose-actions .ai-chat-attach,
+  .ai-chat-panel:not(.layout-floating) .ai-chat-compose-actions .ai-chat-img-gen {
+    width: 100%;
+  }
+  .ai-chat-panel:not(.layout-floating) .ai-chat-compose-actions .ai-chat-import-selection {
+    grid-column: span 4;
+    width: 100%;
+    overflow: visible;
+    text-overflow: clip;
+  }
+  .ai-chat-panel:not(.layout-floating) .ai-chat-compose-actions .ai-chat-realtime-toolbar {
+    grid-column: span 3;
+    justify-self: stretch;
+  }
+  .ai-chat-panel:not(.layout-floating) .ai-chat-compose-actions .ai-chat-realtime-toolbar > button {
+    flex: 1 1 0;
+  }
+  .ai-chat-panel:not(.layout-floating) .ai-chat-compose-actions .ai-chat-stop {
+    grid-column: span 1;
+    width: 100%;
+  }
+  .ai-chat-panel:not(.layout-floating) .ai-chat-compose-actions .ai-chat-send {
+    grid-column: span 2;
+    width: 100%;
+  }
+}
 
 /* Compact Gemini-like composer for the bottom-floating layout. */
 .ai-chat-floating-toggle { display: none; }
