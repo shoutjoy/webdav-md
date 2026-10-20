@@ -144,6 +144,10 @@
 
             return lines.join('\n').replace(/(^|[^\]\\\w])\(([^()\n]{1,120})\)(?=\s*[:.,;]|$)/g, function (match, prefix, inner) {
                 var body = String(inner || '').trim();
+                // Do not wrap an ordinary parenthesis that already contains an
+                // explicit math segment. Otherwise (\(\beta\)) becomes
+                // \($\beta$\), leaving the inner dollar signs visible.
+                if (/\$|\\[\[(]/.test(body)) return match;
                 if (!looksLikeMathText(body)) return match;
                 if (looksLikeCitationText(body)) return match;
                 if (/[&;,]/.test(body) && /[A-Za-z가-힣]/.test(body)) return match;
