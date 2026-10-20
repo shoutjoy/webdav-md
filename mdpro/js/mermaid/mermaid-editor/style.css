@@ -127,6 +127,7 @@ body {
 #image-to-mermaid.ai-collapsed #mermaid-image-generate,
 #image-to-mermaid.ai-collapsed #mermaid-history-open,
 #image-to-mermaid.ai-collapsed #mermaid-document-insert,
+#image-to-mermaid.ai-collapsed .ai-tool-provider-controls,
 #image-to-mermaid.ai-collapsed #mermaid-image-status { display:none; }
 #mermaid-image-dropzone { position:relative; min-height:52px; border:2px dashed #9aa9bc; border-radius:9px; background:#fff; display:flex; align-items:center; justify-content:center; overflow:hidden; cursor:pointer; outline:none; }
 #mermaid-image-dropzone:hover, #mermaid-image-dropzone.dragover, #mermaid-image-dropzone:focus { border-color:var(--accent); background:#eff6ff; }
