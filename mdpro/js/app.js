@@ -829,6 +829,12 @@ let img2MathAiSelection = null;
 let img2MathFloatingBound = false;
 let img2MathFloatingPositioned = false;
 let img2MathLastDocumentSelection = '';
+let jenaTableImage = null;
+let jenaTableBound = false;
+let jenaTableSelection = { start: 0, end: 0 };
+let jenaTableFloatingBound = false;
+let jenaTableFloatingPositioned = false;
+let jenaTableLastDocumentSelection = '';
 
 function loadFolderCollapseState() {
     try {
@@ -12912,9 +12918,10 @@ function formatImg2MathAiModel(selection) {
         openai: 'OpenAI',
         lmstudio: 'LM Studio',
         ollama: 'Ollama',
+        lemonade: 'Lemonade',
         deepseek: 'DeepSeek',
         litertlm: 'LiteRT-LM',
-        'ollama-npu': 'Ollama NPU · Lemonade',
+        'ollama-npu': 'Lemonade NPU',
         'openai-compatible': 'OpenAI 호환 API'
     };
     const provider = String(selection && selection.provider || '').trim();
@@ -13192,6 +13199,414 @@ function closeImg2MathPopup() {
     document.getElementById('img2math-popup')?.classList.add('hidden');
 }
 
+function cleanJenaTableMarkdown(value) {
+    let text = String(value || '').trim();
+    try {
+        const parsed = JSON.parse(text);
+        text = String(parsed.markdown || parsed.table || parsed.content || '').trim();
+    } catch (_error) { }
+    text = text.replace(/^```(?:markdown|md|table)?\s*/i, '').replace(/\s*```$/i, '').trim();
+    const lines = text.split(/\r?\n/).map(function (line) { return line.trim(); });
+    const tableLines = lines.filter(function (line) { return line.includes('|'); });
+    if (tableLines.length < 2) return '';
+    return tableLines.map(function (line) {
+        return (line.startsWith('|') ? '' : '| ') + line + (line.endsWith('|') ? '' : ' |');
+    }).join('\n');
+}
+
+function splitJenaTableRow(line) {
+    const source = String(line || '').trim().replace(/^\|/, '').replace(/\|$/, '');
+    const cells = [];
+    let cell = '';
+    let escaped = false;
+    for (const char of source) {
+        if (escaped) { cell += char; escaped = false; continue; }
+        if (char === '\\') { cell += char; escaped = true; continue; }
+        if (char === '|') { cells.push(cell.trim()); cell = ''; continue; }
+        cell += char;
+    }
+    cells.push(cell.trim());
+    return cells;
+}
+
+function isJenaTableDivider(line) {
+    return splitJenaTableRow(line).every(function (cell) { return /^:?-{3,}:?$/.test(cell.replace(/\s+/g, '')); });
+}
+
+function setJenaTablePreviewCell(cell, value) {
+    String(value || '').split(/<br\s*\/?\s*>/i).forEach(function (part, index) {
+        if (index) cell.appendChild(document.createElement('br'));
+        cell.appendChild(document.createTextNode(part));
+    });
+}
+
+function renderJenaTableInto(target, markdown) {
+    if (!target) return;
+    target.replaceChildren();
+    if (!markdown) {
+        target.textContent = '인식된 표가 여기에 렌더링됩니다.';
+        return;
+    }
+    const lines = markdown.split(/\r?\n/).filter(Boolean);
+    const dividerIndex = lines.findIndex(isJenaTableDivider);
+    if (dividerIndex < 1) {
+        target.textContent = 'Markdown 표의 제목 행과 구분선(| --- |)을 확인해 주세요.';
+        return;
+    }
+    const table = document.createElement('table');
+    const thead = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    splitJenaTableRow(lines[dividerIndex - 1]).forEach(function (value) {
+        const th = document.createElement('th'); setJenaTablePreviewCell(th, value); headRow.appendChild(th);
+    });
+    thead.appendChild(headRow); table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    lines.slice(dividerIndex + 1).forEach(function (line) {
+        const tr = document.createElement('tr');
+        splitJenaTableRow(line).forEach(function (value) {
+            const td = document.createElement('td'); setJenaTablePreviewCell(td, value); tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+    });
+    table.appendChild(tbody); target.appendChild(table);
+}
+
+function renderJenaTablePreview() {
+    const target = document.getElementById('jena-table-render');
+    const result = document.getElementById('jena-table-result');
+    if (!target || !result) return;
+    renderJenaTableInto(target, cleanJenaTableMarkdown(result.value));
+}
+
+function syncJenaTableFullscreenButton() {
+    const dialog = document.querySelector('#jena-table-popup .jena-table-dialog');
+    const button = document.getElementById('jena-table-fullscreen');
+    if (!dialog || !button) return;
+    const maximized = dialog.classList.contains('is-maximized');
+    button.setAttribute('aria-pressed', maximized ? 'true' : 'false');
+    button.setAttribute('aria-label', maximized ? 'Jena Table 화면 복원' : 'Jena Table 전체 화면');
+    button.title = maximized ? '화면 복원' : '전체 화면';
+    button.textContent = maximized ? '❐ 화면 복원' : '⛶ 전체 화면';
+}
+
+function toggleJenaTableFullscreen() {
+    const dialog = document.querySelector('#jena-table-popup .jena-table-dialog');
+    if (!dialog) return;
+    dialog.classList.toggle('is-maximized');
+    syncJenaTableFullscreenButton();
+}
+
+function openJenaTablePreviewPopup() {
+    const result = document.getElementById('jena-table-result');
+    const popup = document.getElementById('jena-table-preview-popup');
+    const target = document.getElementById('jena-table-preview-large');
+    const markdown = cleanJenaTableMarkdown(result && result.value);
+    if (!markdown) { showToast('크게 볼 수 있는 표 미리보기가 없습니다.'); return; }
+    renderJenaTableInto(target, markdown);
+    popup?.classList.remove('hidden');
+    popup?.querySelector('button')?.focus();
+}
+
+function closeJenaTablePreviewPopup() {
+    document.getElementById('jena-table-preview-popup')?.classList.add('hidden');
+    document.getElementById('jena-table-render')?.focus();
+}
+
+function setJenaTableImage(file) {
+    if (!file || !String(file.type || '').startsWith('image/')) { showToast('표 이미지 파일을 선택해 주세요.'); return; }
+    const reader = new FileReader();
+    reader.onload = function () {
+        jenaTableImage = { name: file.name || 'table.png', type: file.type || 'image/png', size: file.size || 0, dataUrl: String(reader.result || '') };
+        const preview = document.getElementById('jena-table-image-preview');
+        if (preview) { preview.src = jenaTableImage.dataUrl; preview.classList.remove('hidden'); }
+        const label = document.getElementById('jena-table-drop-label');
+        if (label) label.textContent = jenaTableImage.name;
+        document.getElementById('jena-table-clear')?.classList.remove('hidden');
+        const status = document.getElementById('jena-table-status');
+        if (status) status.textContent = '표 이미지를 불러왔습니다. 표 인식 실행을 눌러 주세요.';
+    };
+    reader.onerror = function () { showToast('표 이미지를 읽지 못했습니다.'); };
+    reader.readAsDataURL(file);
+}
+
+function clearJenaTableImage() {
+    jenaTableImage = null;
+    const preview = document.getElementById('jena-table-image-preview');
+    if (preview) { preview.removeAttribute('src'); preview.classList.add('hidden'); }
+    const label = document.getElementById('jena-table-drop-label');
+    if (label) label.textContent = '표 이미지를 끌어 놓거나 붙여넣으세요';
+    const file = document.getElementById('jena-table-file');
+    if (file) file.value = '';
+    document.getElementById('jena-table-clear')?.classList.add('hidden');
+    const status = document.getElementById('jena-table-status');
+    if (status) status.textContent = '기존 이미지를 지웠습니다.';
+}
+
+async function pasteJenaTableImage() {
+    const status = document.getElementById('jena-table-status');
+    try {
+        if (!navigator.clipboard || typeof navigator.clipboard.read !== 'function') throw new Error('이 환경에서는 창 안에서 Ctrl+V를 사용해 주세요.');
+        const items = await navigator.clipboard.read();
+        for (const item of items) {
+            const type = item.types.find(function (candidate) { return candidate.startsWith('image/'); });
+            if (type) { setJenaTableImage(new File([await item.getType(type)], '붙여넣은 표 이미지', { type: type })); return; }
+        }
+        throw new Error('클립보드에 이미지가 없습니다.');
+    } catch (error) { if (status) status.textContent = error.message; }
+}
+
+function formatJenaTableAiModel(selection) {
+    return formatImg2MathAiModel(selection);
+}
+
+function getJenaTableProviderSelection() {
+    return window.AIToolProviders.read('jena-table');
+}
+
+function updateJenaTableAiModelStatus(selection) {
+    const target = document.getElementById('jena-table-ai-provider');
+    if (!target) return;
+    try {
+        const current = selection || getJenaTableProviderSelection();
+        target.textContent = 'AI Jena · ' + formatJenaTableAiModel(current);
+        target.classList.remove('is-error');
+    } catch (_error) {
+        target.textContent = 'AI Jena 표 인식 모델 설정 필요';
+        target.classList.add('is-error');
+    }
+}
+
+function populateJenaTableModelSelect() {
+    const select = document.getElementById('jena-table-model-select');
+    const container = document.getElementById('jena-table-ai-provider')?.parentNode;
+    if (!select || !container || !window.AIToolProviders) return;
+    window.AIToolProviders.mount(container, 'jena-table', {
+        modelSelect: select,
+        onChange: function (selection) { updateJenaTableAiModelStatus(selection); }
+    });
+}
+
+function getJenaTableSelectedDocumentText() {
+    const selection = typeof window.getSelection === 'function' ? window.getSelection() : null;
+    if (selection && selection.rangeCount > 0 && String(selection.toString() || '').trim()) {
+        const range = selection.getRangeAt(0);
+        const commonNode = range.commonAncestorContainer;
+        const commonElement = commonNode && commonNode.nodeType === Node.ELEMENT_NODE ? commonNode : commonNode && commonNode.parentElement;
+        if (viewer && commonElement && viewer.contains(commonElement)) return String(selection.toString() || '').trim();
+    }
+    if (editorTextarea) {
+        const start = Math.max(0, Number(editorTextarea.selectionStart) || 0);
+        const end = Math.max(start, Number(editorTextarea.selectionEnd) || start);
+        const selected = String(editorTextarea.value || '').slice(start, end).trim();
+        if (selected) return selected;
+    }
+    return jenaTableLastDocumentSelection;
+}
+
+function captureJenaTableDocumentSelection() {
+    const popup = document.getElementById('jena-table-popup');
+    if (!popup || popup.classList.contains('hidden')) return;
+    const selected = getJenaTableSelectedDocumentText();
+    if (selected) jenaTableLastDocumentSelection = selected;
+}
+
+function importSelectedTextIntoJenaTable() {
+    const input = document.getElementById('jena-table-source-text');
+    const status = document.getElementById('jena-table-status');
+    const selected = getJenaTableSelectedDocumentText();
+    if (!selected) { if (status) status.textContent = '배경 문서에서 가져올 텍스트를 먼저 선택해 주세요.'; return; }
+    jenaTableLastDocumentSelection = selected;
+    if (input) { input.value = selected; input.focus(); }
+    if (status) status.textContent = '선택한 텍스트를 표 입력으로 가져왔습니다.';
+}
+
+async function generateJenaTable() {
+    const status = document.getElementById('jena-table-status');
+    const button = document.getElementById('jena-table-generate');
+    const prompt = String(document.getElementById('jena-table-prompt')?.value || '').trim();
+    const sourceText = String(document.getElementById('jena-table-source-text')?.value || '').trim();
+    const output = document.getElementById('jena-table-result');
+    if (!jenaTableImage && !sourceText) { if (status) status.textContent = '표 이미지 또는 표로 만들 텍스트를 추가해 주세요.'; return; }
+    try {
+        button.disabled = true;
+        button.textContent = 'AI Jena가 표를 인식하고 있습니다…';
+        if (!window.AIChatBridge || typeof window.AIChatBridge.complete !== 'function') throw new Error('AI Jena 연결 모듈이 준비되지 않았습니다.');
+        const selected = getJenaTableProviderSelection();
+        if (!selected.model) throw new Error('표 인식에 사용할 모델을 선택하세요.');
+        updateJenaTableAiModelStatus(selected);
+        if (status) status.textContent = formatJenaTableAiModel(selected) + ' 모델이 행과 열 구조를 분석하고 있습니다.';
+        const messageContent = [
+            prompt,
+            sourceText ? '다음 텍스트를 표의 행과 열로 해석하세요. 텍스트에 이미 Markdown 표가 있다면 내용 손실 없이 정리하세요.\n\n표로 만들 텍스트:\n' + sourceText : '',
+            jenaTableImage && sourceText ? '첨부 이미지와 입력 텍스트를 함께 참고하되, 이미지의 표 구조와 텍스트의 정확한 값을 모두 보존하세요.' : ''
+        ].filter(Boolean).join('\n\n');
+        const attachments = jenaTableImage ? [{ kind: 'image', name: jenaTableImage.name, type: jenaTableImage.type, size: jenaTableImage.size, dataUrl: jenaTableImage.dataUrl }] : [];
+        const response = await window.AIChatBridge.complete({
+            provider: selected.provider,
+            model: selected.model,
+            mode: 'quick',
+            messages: [{ role: 'user', content: messageContent, attachments: attachments }],
+            systemInstruction: 'You are a precise table OCR and structuring engine. Convert the attached table image, supplied text, or both into exactly one GitHub-Flavored Markdown table. Return only the Markdown table, with one header row, one separator row, and all data rows. Do not use code fences, JSON, HTML, prose, captions, or explanations. Preserve every visible row, column, value, unit, symbol, formula, and empty cell. Escape literal vertical bars inside cells as \\| and use <br> for line breaks within a cell. Never invent missing data.'
+        });
+        const markdown = cleanJenaTableMarkdown(response && response.text);
+        if (!markdown || !markdown.split(/\r?\n/).some(isJenaTableDivider)) throw new Error('AI 응답에서 올바른 Markdown 표를 찾지 못했습니다.');
+        output.value = markdown;
+        renderJenaTablePreview();
+        if (status) status.textContent = formatJenaTableAiModel(response || selected) + ' 표 인식이 완료되었습니다. 결과를 검토한 뒤 문서에 삽입하세요.';
+    } catch (error) {
+        if (status) status.textContent = '표 인식 실패: ' + (error && error.message ? error.message : String(error));
+    } finally {
+        button.disabled = false;
+        button.textContent = '✦ AI Jena로 표 인식 실행';
+    }
+}
+
+function insertJenaTableResult() {
+    if (!isEditMode || !editorTextarea) { showToast('편집 모드에서 사용해 주세요.'); return; }
+    const markdown = cleanJenaTableMarkdown(document.getElementById('jena-table-result')?.value);
+    if (!markdown || !markdown.split(/\r?\n/).some(isJenaTableDivider)) { showToast('삽입할 Markdown 표를 확인해 주세요.'); return; }
+    const raw = String(editorTextarea.value || '');
+    const start = Math.max(0, Math.min(jenaTableSelection.start, raw.length));
+    const end = Math.max(start, Math.min(jenaTableSelection.end, raw.length));
+    const prefix = start > 0 && raw[start - 1] !== '\n' ? '\n' : '';
+    const suffix = end < raw.length && raw[end] !== '\n' ? '\n' : '';
+    const block = prefix + markdown + '\n' + suffix;
+    editorTextarea.value = raw.slice(0, start) + block + raw.slice(end);
+    currentMarkdown = editorTextarea.value;
+    closeJenaTablePopup();
+    editorTextarea.focus();
+    editorTextarea.setSelectionRange(start + block.length, start + block.length);
+    renderMarkdown();
+    performAutoSave();
+    showToast('인식한 표를 문서에 삽입했습니다.');
+}
+
+function constrainJenaTableFloatingWindow(initialize) {
+    const dialog = document.querySelector('#jena-table-popup .jena-table-dialog');
+    if (!dialog || dialog.offsetParent === null) return;
+    const viewportWidth = Math.max(320, window.innerWidth || document.documentElement.clientWidth || 1280);
+    const viewportHeight = Math.max(360, window.innerHeight || document.documentElement.clientHeight || 720);
+    const gap = viewportWidth <= 520 ? 6 : 12;
+    const minWidth = Math.min(560, viewportWidth - gap * 2);
+    const minHeight = Math.min(420, viewportHeight - gap * 2);
+    let rect = dialog.getBoundingClientRect();
+    let width = Math.min(viewportWidth - gap * 2, Math.max(minWidth, rect.width || 940));
+    let height = Math.min(viewportHeight - gap * 2, Math.max(minHeight, rect.height || 640));
+    let left = rect.left;
+    let top = rect.top;
+    if (initialize || !jenaTableFloatingPositioned || !Number.isFinite(left) || !Number.isFinite(top)) {
+        width = Math.min(940, viewportWidth - gap * 2); height = Math.min(640, viewportHeight - gap * 2);
+        left = Math.round((viewportWidth - width) / 2); top = Math.round((viewportHeight - height) / 2);
+        jenaTableFloatingPositioned = true;
+    }
+    dialog.style.left = Math.min(viewportWidth - gap - width, Math.max(gap, left)) + 'px';
+    dialog.style.top = Math.min(viewportHeight - gap - height, Math.max(gap, top)) + 'px';
+    dialog.style.width = width + 'px'; dialog.style.height = height + 'px';
+}
+
+function bindJenaTableFloatingWindow() {
+    if (jenaTableFloatingBound) return;
+    const dialog = document.querySelector('#jena-table-popup .jena-table-dialog');
+    const header = dialog && dialog.querySelector('.img2math-header');
+    if (!dialog || !header) return;
+    jenaTableFloatingBound = true;
+    let action = null;
+    const finish = function () { action = null; document.body.classList.remove('img2math-window-moving'); };
+    document.addEventListener('pointermove', function (event) {
+        if (!action) return;
+        const vw = Math.max(320, window.innerWidth || 1280), vh = Math.max(360, window.innerHeight || 720), gap = vw <= 520 ? 6 : 12;
+        const dx = event.clientX - action.startX, dy = event.clientY - action.startY;
+        if (action.type === 'move') {
+            dialog.style.left = Math.min(vw - gap - action.width, Math.max(gap, action.left + dx)) + 'px';
+            dialog.style.top = Math.min(vh - gap - action.height, Math.max(gap, action.top + dy)) + 'px';
+            return;
+        }
+        const minW = Math.min(560, vw - gap * 2), minH = Math.min(420, vh - gap * 2);
+        let left = action.left, top = action.top, right = action.left + action.width, bottom = action.top + action.height;
+        if (action.direction.includes('e')) right = Math.min(vw - gap, Math.max(left + minW, right + dx));
+        if (action.direction.includes('s')) bottom = Math.min(vh - gap, Math.max(top + minH, bottom + dy));
+        if (action.direction.includes('w')) left = Math.max(gap, Math.min(right - minW, left + dx));
+        if (action.direction.includes('n')) top = Math.max(gap, Math.min(bottom - minH, top + dy));
+        dialog.style.left = left + 'px'; dialog.style.top = top + 'px'; dialog.style.width = (right - left) + 'px'; dialog.style.height = (bottom - top) + 'px';
+    });
+    header.addEventListener('pointerdown', function (event) {
+        if (event.button !== 0 || event.target.closest('button, select, input, textarea, a')) return;
+        const rect = dialog.getBoundingClientRect();
+        action = { type: 'move', startX: event.clientX, startY: event.clientY, left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+        document.body.classList.add('img2math-window-moving'); event.preventDefault();
+    });
+    dialog.querySelectorAll('[data-jena-table-resize]').forEach(function (handle) {
+        handle.addEventListener('pointerdown', function (event) {
+            if (event.button !== 0) return;
+            const rect = dialog.getBoundingClientRect();
+            action = { type: 'resize', direction: handle.dataset.jenaTableResize || 'se', startX: event.clientX, startY: event.clientY, left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+            document.body.classList.add('img2math-window-moving'); event.preventDefault(); event.stopPropagation();
+        });
+    });
+    document.addEventListener('pointerup', finish); document.addEventListener('pointercancel', finish);
+    window.addEventListener('resize', function () { constrainJenaTableFloatingWindow(false); });
+}
+
+function bindJenaTablePopup() {
+    if (jenaTableBound) return;
+    const wrap = document.getElementById('jena-table-popup');
+    const drop = document.getElementById('jena-table-drop');
+    const file = document.getElementById('jena-table-file');
+    const result = document.getElementById('jena-table-result');
+    if (!wrap || !drop || !file || !result) return;
+    jenaTableBound = true; bindJenaTableFloatingWindow();
+    document.getElementById('jena-table-select').onclick = function (event) { event.stopPropagation(); file.click(); };
+    document.getElementById('jena-table-paste').onclick = function (event) { event.stopPropagation(); pasteJenaTableImage(); };
+    document.getElementById('jena-table-clear').onclick = function (event) { event.stopPropagation(); clearJenaTableImage(); };
+    document.getElementById('jena-table-generate').onclick = generateJenaTable;
+    document.getElementById('jena-table-insert').onclick = insertJenaTableResult;
+    document.getElementById('jena-table-import-selection').onclick = importSelectedTextIntoJenaTable;
+    document.getElementById('jena-table-render').onclick = openJenaTablePreviewPopup;
+    document.getElementById('jena-table-render').onkeydown = function (event) {
+        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openJenaTablePreviewPopup(); }
+    };
+    file.onchange = function () { setJenaTableImage(file.files && file.files[0]); file.value = ''; };
+    drop.onclick = function (event) { if (!event.target.closest('button')) file.click(); };
+    ['dragenter', 'dragover'].forEach(function (name) { drop.addEventListener(name, function (event) { event.preventDefault(); drop.classList.add('border-teal-400'); }); });
+    ['dragleave', 'drop'].forEach(function (name) { drop.addEventListener(name, function (event) { event.preventDefault(); drop.classList.remove('border-teal-400'); }); });
+    drop.addEventListener('drop', function (event) { setJenaTableImage(event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0]); });
+    wrap.addEventListener('paste', function (event) {
+        const image = Array.from(event.clipboardData && event.clipboardData.files || []).find(function (item) { return item.type.startsWith('image/'); });
+        if (image) { event.preventDefault(); setJenaTableImage(image); }
+    });
+    wrap.addEventListener('mousedown', function (event) { if (event.target === wrap) closeJenaTablePopup(); });
+    document.addEventListener('keydown', function (event) {
+        if (event.key !== 'Escape') return;
+        const previewPopup = document.getElementById('jena-table-preview-popup');
+        if (previewPopup && !previewPopup.classList.contains('hidden')) { closeJenaTablePreviewPopup(); return; }
+        if (!wrap.classList.contains('hidden')) closeJenaTablePopup();
+    });
+    document.getElementById('jena-table-preview-popup')?.addEventListener('mousedown', function (event) {
+        if (event.target === event.currentTarget) closeJenaTablePreviewPopup();
+    });
+    document.addEventListener('selectionchange', captureJenaTableDocumentSelection);
+    document.addEventListener('mouseup', function () { window.setTimeout(captureJenaTableDocumentSelection, 0); });
+    result.addEventListener('input', renderJenaTablePreview);
+}
+
+function openJenaTablePopup() {
+    if (!isEditMode || !editorTextarea) { showToast('편집 모드에서 사용해 주세요.'); return; }
+    jenaTableSelection = { start: editorTextarea.selectionStart || 0, end: editorTextarea.selectionEnd || editorTextarea.selectionStart || 0 };
+    const initialSelection = String(editorTextarea.value || '').slice(jenaTableSelection.start, jenaTableSelection.end).trim();
+    if (initialSelection) jenaTableLastDocumentSelection = initialSelection;
+    bindJenaTablePopup(); closeTableInsertPicker();
+    document.getElementById('jena-table-popup')?.classList.remove('hidden');
+    constrainJenaTableFloatingWindow(!jenaTableFloatingPositioned);
+    syncJenaTableFullscreenButton();
+    updateJenaTableAiModelStatus(); populateJenaTableModelSelect();
+    document.getElementById('jena-table-drop')?.focus();
+}
+
+function closeJenaTablePopup() {
+    document.getElementById('jena-table-preview-popup')?.classList.add('hidden');
+    document.getElementById('jena-table-popup')?.classList.add('hidden');
+}
+
 
 function ensureTableInsertPickerBuilt() {
     if (tableInsertPickerBuilt) return;
@@ -13269,6 +13684,88 @@ function toggleTableInsertPicker() {
     if (!panel) return;
     panel.classList.toggle('hidden');
     if (!panel.classList.contains('hidden')) previewTableInsertSize(0, 0);
+}
+
+function getMarkdownTableStructureAtCursor(text, cursor) {
+    const raw = String(text || '');
+    const newline = raw.includes('\r\n') ? '\r\n' : '\n';
+    const lines = raw.split(/\r?\n/);
+    const safeCursor = Math.max(0, Math.min(Number(cursor) || 0, raw.length));
+    const beforeCursor = raw.slice(0, safeCursor);
+    const lineIndex = beforeCursor.split(/\r?\n/).length - 1;
+    if (!lines[lineIndex] || !lines[lineIndex].includes('|')) return null;
+    let start = lineIndex;
+    let end = lineIndex;
+    while (start > 0 && lines[start - 1].includes('|')) start -= 1;
+    while (end + 1 < lines.length && lines[end + 1].includes('|')) end += 1;
+    const tableLines = lines.slice(start, end + 1);
+    const dividerOffset = tableLines.findIndex(isJenaTableDivider);
+    if (dividerOffset !== 1 || tableLines.length < 2) return null;
+    const lineStart = beforeCursor.lastIndexOf('\n') + 1;
+    const columnOffset = Math.max(0, safeCursor - lineStart);
+    let pipeCount = 0;
+    let escaped = false;
+    const currentLine = lines[lineIndex];
+    for (let index = 0; index < Math.min(columnOffset, currentLine.length); index += 1) {
+        const char = currentLine[index];
+        if (escaped) { escaped = false; continue; }
+        if (char === '\\') { escaped = true; continue; }
+        if (char === '|') pipeCount += 1;
+    }
+    const columnCount = splitJenaTableRow(tableLines[0]).length;
+    const columnIndex = Math.max(0, Math.min(columnCount - 1, pipeCount - (currentLine.trimStart().startsWith('|') ? 1 : 0)));
+    return { raw, newline, lines, start, end, lineIndex, dividerIndex: start + dividerOffset, columnIndex, columnCount };
+}
+
+function serializeMarkdownTableRow(cells) {
+    return '| ' + cells.join(' | ') + ' |';
+}
+
+function editMarkdownTableStructure(action) {
+    if (!isEditMode || !editorTextarea) { showToast('편집 모드에서 사용해 주세요.'); return; }
+    const context = getMarkdownTableStructureAtCursor(editorTextarea.value, editorTextarea.selectionStart);
+    if (!context) { showToast('Markdown 표 안에 커서를 놓고 다시 실행해 주세요.'); return; }
+    const lines = context.lines.slice();
+    let targetLine = context.lineIndex;
+    let message = '';
+    if (action === 'add-row') {
+        const insertAfter = Math.max(context.dividerIndex, context.lineIndex);
+        lines.splice(insertAfter + 1, 0, serializeMarkdownTableRow(Array(context.columnCount).fill('')));
+        targetLine = insertAfter + 1;
+        message = '현재 위치 다음에 표 행을 추가했습니다.';
+    } else if (action === 'delete-row') {
+        if (context.lineIndex <= context.dividerIndex) { showToast('제목 행과 구분선은 삭제할 수 없습니다. 데이터 행에 커서를 놓아 주세요.'); return; }
+        lines.splice(context.lineIndex, 1);
+        targetLine = Math.min(context.lineIndex, lines.length - 1);
+        message = '선택한 표 행을 삭제했습니다.';
+    } else if (action === 'add-column' || action === 'delete-column') {
+        if (action === 'delete-column' && context.columnCount <= 1) { showToast('표에는 열이 하나 이상 있어야 합니다.'); return; }
+        for (let lineIndex = context.start; lineIndex <= context.end; lineIndex += 1) {
+            const cells = splitJenaTableRow(lines[lineIndex]);
+            while (cells.length < context.columnCount) cells.push('');
+            if (action === 'add-column') {
+                cells.splice(context.columnIndex + 1, 0, lineIndex === context.dividerIndex ? '---' : '');
+            } else {
+                cells.splice(context.columnIndex, 1);
+            }
+            lines[lineIndex] = serializeMarkdownTableRow(cells);
+        }
+        message = action === 'add-column' ? '현재 열 오른쪽에 새 열을 추가했습니다.' : '현재 표 열을 삭제했습니다.';
+    } else {
+        return;
+    }
+    const updated = lines.join(context.newline);
+    editorTextarea.value = updated;
+    currentMarkdown = updated;
+    const lineOffsets = lines.slice(0, Math.max(0, targetLine)).reduce(function (total, line) { return total + line.length + context.newline.length; }, 0);
+    const caret = Math.min(updated.length, lineOffsets + Math.min(lines[targetLine]?.length || 0, 2));
+    editorTextarea.focus();
+    editorTextarea.setSelectionRange(caret, caret);
+    renderMarkdown();
+    performAutoSave();
+    if (activeSidebarTab === 'toc') renderTOC();
+    showToast(message);
+    closeTableInsertPicker();
 }
 
 function insertMarkdownTableBySize(rowsInput, colsInput) {
@@ -22257,6 +22754,10 @@ window.openMath99Popup = openMath99Popup;
 window.closeMath99Popup = closeMath99Popup;
 window.openImg2MathPopup = openImg2MathPopup;
 window.closeImg2MathPopup = closeImg2MathPopup;
+window.openJenaTablePopup = openJenaTablePopup;
+window.closeJenaTablePopup = closeJenaTablePopup;
+window.toggleJenaTableFullscreen = toggleJenaTableFullscreen;
+window.closeJenaTablePreviewPopup = closeJenaTablePreviewPopup;
 window.validateApiKeyInputUI = validateApiKeyInputUI;
 window.saveAiPassword = saveAiPassword;
 window.applyAiFeatureVisibility = applyAiFeatureVisibility;
@@ -22386,6 +22887,7 @@ window.insertListAtSelection = insertListAtSelection;
 window.handleTableInsertion = handleTableInsertion;
 window.toggleTableInsertPicker = toggleTableInsertPicker;
 window.closeTableInsertPicker = closeTableInsertPicker;
+window.editMarkdownTableStructure = editMarkdownTableStructure;
 window.prepareCaptionPanel = prepareCaptionPanel;
 window.toggleCaptionInsertPanel = toggleCaptionInsertPanel;
 window.openCaptionInsertModal = openCaptionInsertModal;

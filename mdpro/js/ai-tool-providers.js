@@ -5,7 +5,8 @@
         ['litertlm', 'LiteRT-LM', 'LiteRTLM', 'litertlm'],
         ['aistudio', 'AI Studio (Gemini)', 'Gemini', 'gemini'],
         ['ollama', 'Ollama', 'Ollama', 'ollama'],
-        ['ollama-npu', 'Ollama NPU · Lemonade', 'NPU', 'npu'],
+        ['lemonade', 'Lemonade', 'Lemonade', 'lemonade'],
+        ['ollama-npu', 'Lemonade NPU', 'NPU', 'npu'],
         ['deepseek', 'DeepSeek (유료)', 'Deepseek', 'deepseek'],
         ['openai-compatible', 'OrcaRouter / OpenAI 호환', 'OpenAICompatible', 'openai_compatible'],
         ['openai', 'OpenAI · ChatGPT 모델 (유료 API)', 'OpenAI', 'openai']

@@ -4030,7 +4030,8 @@ html.ai-chat-page-pushed .app-header .app-header-actions {
 
 /* Img2Math uses a self-contained visual system so the modal remains solid and
    readable even when a newly added Tailwind utility is absent from the static bundle. */
-#img2math-popup.img2math-modal {
+#img2math-popup.img2math-modal,
+#jena-table-popup.img2math-modal {
     position: fixed;
     inset: 0;
     z-index: 2147483646;
@@ -4041,7 +4042,8 @@ html.ai-chat-page-pushed .app-header .app-header-actions {
     background: transparent;
 }
 
-#img2math-popup.img2math-modal.hidden { display: none !important; }
+#img2math-popup.img2math-modal.hidden,
+#jena-table-popup.img2math-modal.hidden { display: none !important; }
 
 .img2math-dialog {
     position: absolute;
@@ -4199,6 +4201,16 @@ body.img2math-window-moving * { user-select: none !important; }
 
 .img2math-close:hover { border-color: #6b8792; background: #1b3444; }
 
+.jena-table-header-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
+.jena-table-fullscreen { min-width: 96px; }
+.jena-table-dialog.is-maximized {
+    inset: 6px !important;
+    width: calc(100vw - 12px) !important;
+    height: calc(100dvh - 12px) !important;
+    max-width: none !important;
+    max-height: none !important;
+}
+
 .img2math-body {
     display: grid;
     grid-template-columns: minmax(300px, .82fr) minmax(420px, 1.18fr);
@@ -4291,7 +4303,8 @@ body.img2math-window-moving * { user-select: none !important; }
     box-shadow: 0 0 0 3px rgba(45, 212, 191, .12);
 }
 
-#img2math-image-preview {
+#img2math-image-preview,
+#jena-table-image-preview {
     display: block;
     width: 100%;
     max-width: 100%;
@@ -4301,7 +4314,8 @@ body.img2math-window-moving * { user-select: none !important; }
     background: #fff;
 }
 
-#img2math-image-preview.hidden { display: none; }
+#img2math-image-preview.hidden,
+#jena-table-image-preview.hidden { display: none; }
 
 .img2math-drop-copy { display: grid; justify-items: center; gap: 3px; text-align: center; }
 .img2math-drop-copy strong { max-width: 100%; overflow: hidden; color: #e9f5f6; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
@@ -4354,7 +4368,8 @@ body.img2math-window-moving * { user-select: none !important; }
     white-space: nowrap;
 }
 
-#img2math-model-select {
+#img2math-model-select,
+#jena-table-model-select {
     width: min(230px, 32vw);
     min-width: 150px;
     height: 30px;
@@ -4373,17 +4388,24 @@ body.img2math-window-moving * { user-select: none !important; }
 }
 
 #img2math-model-select:hover,
-#img2math-model-select:focus-visible {
+#img2math-model-select:focus-visible,
+#jena-table-model-select:hover,
+#jena-table-model-select:focus-visible {
     border-color: #2dd4bf;
     box-shadow: 0 0 0 3px rgba(45, 212, 191, .12);
 }
 
-#img2math-model-select:disabled { color: #7f9ba4; cursor: wait; opacity: .78; }
-#img2math-model-select option { background: #0d1d2a; color: #e7f5f6; }
+#img2math-model-select:disabled,
+#jena-table-model-select:disabled { color: #7f9ba4; cursor: wait; opacity: .78; }
+#img2math-model-select option,
+#jena-table-model-select option { background: #0d1d2a; color: #e7f5f6; }
 
 #img2math-source-text,
 #img2math-prompt,
-#img2math-result {
+#img2math-result,
+#jena-table-source-text,
+#jena-table-prompt,
+#jena-table-result {
     display: block;
     width: 100%;
     box-sizing: border-box;
@@ -4399,15 +4421,24 @@ body.img2math-window-moving * { user-select: none !important; }
     line-height: 1.55;
 }
 
-#img2math-source-text { min-height: 82px; padding: 10px 12px; font-family: inherit; }
-#img2math-prompt { min-height: 82px; padding: 11px 12px; font-family: inherit; }
-#img2math-result { min-height: 88px; padding: 10px 12px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+#img2math-source-text,
+#jena-table-source-text { min-height: 82px; padding: 10px 12px; font-family: inherit; }
+#img2math-prompt,
+#jena-table-prompt { min-height: 82px; padding: 11px 12px; font-family: inherit; }
+#img2math-result,
+#jena-table-result { min-height: 88px; padding: 10px 12px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
 #img2math-source-text::placeholder,
 #img2math-prompt::placeholder,
-#img2math-result::placeholder { color: #66818c !important; opacity: 1; }
+#img2math-result::placeholder,
+#jena-table-source-text::placeholder,
+#jena-table-prompt::placeholder,
+#jena-table-result::placeholder { color: #66818c !important; opacity: 1; }
 #img2math-source-text:focus,
 #img2math-prompt:focus,
-#img2math-result:focus { border-color: #2dd4bf; box-shadow: 0 0 0 3px rgba(45, 212, 191, .12); }
+#img2math-result:focus,
+#jena-table-source-text:focus,
+#jena-table-prompt:focus,
+#jena-table-result:focus { border-color: #2dd4bf; box-shadow: 0 0 0 3px rgba(45, 212, 191, .12); }
 
 .img2math-text-source {
     margin-top: 14px;
@@ -4471,7 +4502,8 @@ body.img2math-window-moving * { user-select: none !important; }
 }
 .img2math-result-heading label { display: block; min-width: 0; }
 .img2math-result-heading label small { margin-left: 5px; color: #8ea6af; font-size: 10px; font-weight: 600; }
-.img2math-text-source-heading #img2math-import-selection {
+.img2math-text-source-heading #img2math-import-selection,
+.img2math-text-source-heading #jena-table-import-selection {
     flex: 0 0 auto;
     padding: 6px 9px;
     border: 1px solid #28717a;
@@ -4484,7 +4516,8 @@ body.img2math-window-moving * { user-select: none !important; }
     line-height: 1.2;
     cursor: pointer;
 }
-.img2math-text-source-heading #img2math-import-selection:hover { border-color: #2dd4bf; background: #17434c; color: #e6fffb; }
+.img2math-text-source-heading #img2math-import-selection:hover,
+.img2math-text-source-heading #jena-table-import-selection:hover { border-color: #2dd4bf; background: #17434c; color: #e6fffb; }
 .img2math-preview-heading { margin: 11px 0 8px; }
 
 #img2math-render {
@@ -4503,6 +4536,90 @@ body.img2math-window-moving * { user-select: none !important; }
     text-align: center;
 }
 
+.jena-table-logo { font-family: inherit; font-size: 22px; }
+
+.jena-table-render {
+    min-height: 120px;
+    overflow: auto;
+    box-sizing: border-box;
+    padding: 10px;
+    border: 1px dashed #375766;
+    border-radius: 10px;
+    background: #fff;
+    color: #0f172a;
+    font-size: 12px;
+}
+
+#jena-table-render { cursor: zoom-in; transition: border-color 140ms ease, box-shadow 140ms ease; }
+#jena-table-render:hover,
+#jena-table-render:focus-visible { border-color: #2dd4bf; outline: none; box-shadow: 0 0 0 3px rgba(45, 212, 191, .14); }
+
+.jena-table-render table { width: 100%; border-collapse: collapse; }
+.jena-table-render th,
+.jena-table-render td { padding: 7px 9px; border: 1px solid #a8b4c2; text-align: left; vertical-align: top; white-space: pre-wrap; }
+.jena-table-render th { background: #dbeafe; color: #172554; font-weight: 800; }
+.jena-table-render tbody tr:nth-child(even) { background: #f8fafc; }
+#jena-table-popup .img2math-insert-actions { grid-template-columns: 1fr; }
+
+.jena-table-preview-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483647;
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    padding: 12px;
+    background: rgba(1, 7, 15, .82);
+    backdrop-filter: blur(4px);
+}
+.jena-table-preview-modal.hidden { display: none !important; }
+.jena-table-preview-dialog {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    width: min(1500px, calc(100vw - 24px));
+    height: min(900px, calc(100dvh - 24px));
+    overflow: hidden;
+    border: 1px solid #39707b;
+    border-radius: 16px;
+    background: #0d1d2a;
+    box-shadow: 0 28px 90px rgba(0, 0, 0, .65);
+}
+.jena-table-preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 18px;
+    border-bottom: 1px solid #294752;
+    color: #f1f7f8;
+}
+.jena-table-preview-header h2 { margin: 0; font-size: 17px; font-weight: 850; }
+.jena-table-preview-header p { margin: 3px 0 0; color: #91a8b2; font-size: 11px; }
+.jena-table-preview-header button {
+    min-width: 60px;
+    padding: 8px 12px;
+    border: 1px solid #3d5663;
+    border-radius: 9px;
+    background: #142735;
+    color: #e8f5f7;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 750;
+    cursor: pointer;
+}
+.jena-table-render-large {
+    min-height: 0;
+    margin: 14px;
+    padding: 18px;
+    border-style: solid;
+    border-color: #cbd5e1;
+    border-radius: 10px;
+    font-size: 15px;
+}
+.jena-table-render-large table { width: max-content; min-width: 100%; }
+.jena-table-render-large th,
+.jena-table-render-large td { min-width: 110px; padding: 11px 13px; }
+
 .img2math-insert { background: #0e7490; }
 .img2math-insert:hover { background: #0891b2; transform: translateY(-1px); }
 .img2math-insert-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
@@ -4514,7 +4631,8 @@ body.img2math-window-moving * { user-select: none !important; }
     .img2math-image-card { display: block; }
     .img2math-workflow { display: grid; margin-top: 10px; overflow: visible; }
     .img2math-drop { min-height: 200px; }
-    #img2math-image-preview { max-height: 36vh; }
+    #img2math-image-preview,
+    #jena-table-image-preview { max-height: 36vh; }
     .img2math-result-heading { align-items: flex-start; flex-direction: column; }
     .img2math-insert-actions { grid-template-columns: 1fr; }
 }
@@ -4528,7 +4646,8 @@ body.img2math-window-moving * { user-select: none !important; }
     .img2math-image-card { display: block; }
     .img2math-workflow { display: grid; margin-top: 10px; overflow: visible; }
     .img2math-drop { min-height: 200px; }
-    #img2math-image-preview { max-height: 36vh; }
+    #img2math-image-preview,
+    #jena-table-image-preview { max-height: 36vh; }
 }
 
 @media (max-width: 440px) {
