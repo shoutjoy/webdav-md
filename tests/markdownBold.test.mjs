@@ -26,3 +26,21 @@ test('bold markers inside inline and fenced code remain untouched', async () => 
     '```js\nconst value = "**not bold**";\n```\n<b>bold</b>',
   );
 });
+
+test('statistical significance math is protected while surrounding bold still renders', async () => {
+  const { preprocessBold } = await loadMarkdownBold();
+  const source = '* `<표 2>`의 \\(r \\pm 2SE\\)와 통계적 유의성(\\(*p<.05, **p<.01, ***p<.001\\))을 확인하고 **독립된 상관관계 행렬 표(Correlation Matrix)가 반드시 수록**되어야 합니다.';
+  assert.equal(
+    preprocessBold(source),
+    '* `<표 2>`의 \\(r \\pm 2SE\\)와 통계적 유의성(\\(*p<.05, **p<.01, ***p<.001\\))을 확인하고 <b>독립된 상관관계 행렬 표(Correlation Matrix)가 반드시 수록</b>되어야 합니다.',
+  );
+});
+
+test('double-escaped TeX delimiters are also protected from bold preprocessing', async () => {
+  const { preprocessBold } = await loadMarkdownBold();
+  const source = String.raw`유의성(\\(*p<.05, **p<.01, ***p<.001\\)) **결과**`;
+  assert.equal(
+    preprocessBold(source),
+    String.raw`유의성(\\(*p<.05, **p<.01, ***p<.001\\)) <b>결과</b>`,
+  );
+});

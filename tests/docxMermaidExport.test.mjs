@@ -111,3 +111,66 @@ test('DOCX export collects rendered Mermaid SVGs from the live preview', () => {
   assert.equal(images[0].height, 400);
   assert.match(images[0].src, /^data:image\/svg\+xml/);
 });
+
+test('DOCX export writes LaTeX as native Word OMML in paragraphs, lists, and tables', async () => {
+  const { api, files } = loadDocxExport();
+  await api.createBlob({
+    content: [
+      'AVE는 \\(\\frac{\\sum \\lambda_i^2}{\\sum \\lambda_i^2 + \\sum \\theta_i}\\) 로 계산한다.',
+      '',
+      '- 판정: \\(\\sqrt{\\text{AVE}} \\ge .50\\)',
+      '',
+      '| 변수 | 기준 |',
+      '| --- | --- |',
+      '| 직원경험 | \\(\\beta = .693\\) |',
+      '',
+      '\\[\\text{AVE} = \\frac{2.7069}{4} = \\mathbf{0.677}\\]'
+    ].join('\n')
+  });
+
+  const documentXml = files.get('word/document.xml');
+  assert.match(documentXml, /xmlns:m="http:\/\/schemas\.openxmlformats\.org\/officeDocument\/2006\/math"/);
+  assert.match(documentXml, /<m:oMath>/);
+  assert.match(documentXml, /<m:f><m:num>/);
+  assert.match(documentXml, /<m:rad>/);
+  assert.match(documentXml, /<m:sSub>/);
+  assert.match(documentXml, />β(?:<|\s)/);
+  assert.match(documentXml, />[^<]*≥[^<]*</);
+  assert.doesNotMatch(documentXml, /\\frac|\\sqrt|\\beta|\\\(|\\\)|\\\[|\\\]/);
+  assert.doesNotMatch(documentXml, /\\/, 'double-escaped math must not leave a visible backslash before the Word equation');
+});
+
+test('DOCX export consumes both slashes around double-escaped equations', async () => {
+  const { api, files } = loadDocxExport();
+  await api.createBlob({
+    content: [
+      String.raw`- 하위차원 적재치(\\(\\beta\\)): 조직몰입(\\(\\beta = .952\\))`,
+      String.raw`- 적재치 제곱합 (\\(\\sum \\beta^2\\)):`,
+      String.raw`\\(0.952^2 + 0.864^2 = 1.6525\\)`,
+      String.raw`\\(\\text{AVE} = \\frac{2.7069}{4} = 0.677\\)`
+    ].join('\n')
+  });
+
+  const documentXml = files.get('word/document.xml');
+  assert.match(documentXml, /<m:oMath>/);
+  assert.match(documentXml, />β(?:<|\s)/);
+  assert.match(documentXml, />∑(?:<|\s)/);
+  assert.match(documentXml, /<m:f><m:num>/);
+  assert.doesNotMatch(documentXml, /\\|₩/);
+});
+
+test('DOCX export removes broken image and backslash prefixes from relationship arrows', async () => {
+  const { api, files } = loadDocxExport();
+  await api.createBlob({
+    content: [
+      '- 직원경험(독립) \\image직원몰입(매개) \\image직무배태성(종속)',
+      '- 직원경험(독립) \\rightarrow 직원몰입(매개) \\to 직무배태성(종속)',
+      '- 직원경험(독립) \\→직원몰입(매개) ₩→직무배태성(종속)'
+    ].join('\n')
+  });
+
+  const documentXml = files.get('word/document.xml');
+  assert.equal((documentXml.match(/→/g) || []).length, 6);
+  assert.doesNotMatch(documentXml, /\\image|\\rightarrow|\\to|\\→|₩→/);
+  assert.match(documentXml, /직원경험\(독립\).*→.*직원몰입\(매개\).*→.*직무배태성\(종속\)/);
+});

@@ -1,5 +1,11 @@
 # Repository UI preservation rules
 
+## Required math rendering contract
+
+- Before changing Markdown math parsing, MathJax loading/typesetting, view/PV rendering, or DOCX/PDF math output, read and follow `docs/MATH_RENDER_RULES.md` (`MDPRO-MATH-RENDER-CONTRACT`).
+- Preserve rule IDs M-01 through M-13 when porting fixes to another MDPro app. Copy the contract, connect every rendering surface to the common pipeline, and port the required regression cases.
+- A successful syntax check, unit test, or build is not live rendering proof. Verify the supplied formulas in the real main view and PV; for DOCX changes, export a new file and inspect it in Word.
+
 ## Required print and PDF contract
 
 - Before changing printing, PDF export, preview pagination, or output handling for math, Mermaid, tables, and images, read and follow `docs/PRINT_PDF_RULES.md` (`MDPRO-PRINT-PDF-CONTRACT`).

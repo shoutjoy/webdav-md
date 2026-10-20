@@ -1,5 +1,9 @@
 # React + Vite
 
+## Math rendering rules
+
+[docs/MATH_RENDER_RULES.md](docs/MATH_RENDER_RULES.md) defines the mandatory `MDPRO-MATH-RENDER-CONTRACT` for Markdown/MathJax rendering in the main view, PV/miniPV, AI previews, print/PDF, and native Word equations in DOCX. It includes rules for escaped delimiters, Markdown emphasis conflicts, nested parentheses, code spans, cache updates, porting, and required regression cases. Follow it before changing or copying math-rendering behavior to another MDPro app.
+
 ## Print and PDF output rules
 
 [docs/PRINT_PDF_RULES.md](docs/PRINT_PDF_RULES.md) defines the mandatory print/PDF contract for this app and ports to MDproViewer or other Markdown apps. It includes rule IDs, long-formula fitting, pagination and content preservation, known implementation gaps, agent instructions, and output verification criteria. Follow it before changing or porting these features; copying the document alone does not establish compliance.

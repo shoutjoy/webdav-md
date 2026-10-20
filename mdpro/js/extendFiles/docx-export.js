@@ -76,6 +76,82 @@
       .trim();
   }
 
+  function normalizeDocxPlainTextSymbols(value) {
+    return String(value == null ? '' : value)
+      .replace(/[\\₩](?:rightarrow|to)(?=\s*[\p{L}\p{N}(])/gu, '→')
+      .replace(/[\\₩]image(?=\s*[\p{L}\p{N}(])/gu, '→')
+      .replace(/[\\₩](?=[←→↔⇐⇒⇔])/g, '');
+  }
+
+  function splitMathSegments(value) {
+    var source = String(value == null ? '' : value);
+    var segments = [];
+    var textStart = 0;
+    var index = 0;
+
+    function pushText(end) {
+      if (end > textStart) segments.push({ type: 'text', text: source.slice(textStart, end) });
+    }
+
+    while (index < source.length) {
+      var opener = '';
+      var closer = '';
+      var display = false;
+      if (source.slice(index, index + 3) === '\\\\(') {
+        opener = '\\\\(';
+        closer = '\\\\)';
+      } else if (source.slice(index, index + 3) === '\\\\[') {
+        opener = '\\\\[';
+        closer = '\\\\]';
+        display = true;
+      } else if (source.slice(index, index + 2) === '\\(') {
+        opener = '\\(';
+        closer = '\\)';
+      } else if (source.slice(index, index + 2) === '\\[') {
+        opener = '\\[';
+        closer = '\\]';
+        display = true;
+      } else if (source.slice(index, index + 2) === '$$') {
+        opener = '$$';
+        closer = '$$';
+        display = true;
+      } else if (source.charAt(index) === '$' && source.charAt(index - 1) !== '\\') {
+        opener = '$';
+        closer = '$';
+      }
+      if (!opener) {
+        index += 1;
+        continue;
+      }
+      var closeIndex = source.indexOf(closer, index + opener.length);
+      if (closeIndex < 0) {
+        index += opener.length;
+        continue;
+      }
+      var latex = source.slice(index + opener.length, closeIndex).trim()
+        .replace(/\\\\(?=[A-Za-z])/g, '\\');
+      if (!latex) {
+        index = closeIndex + closer.length;
+        continue;
+      }
+      pushText(index);
+      segments.push({ type: 'math', latex: latex, display: display });
+      index = closeIndex + closer.length;
+      textStart = index;
+    }
+    pushText(source.length);
+    return segments.length ? segments : [{ type: 'text', text: source }];
+  }
+
+  function makeRichTextSegments(value) {
+    return splitMathSegments(value).map(function (segment) {
+      if (segment.type === 'math') return segment;
+      return { type: 'text', text: normalizeDocxPlainTextSymbols(stripInlineMarkdown(segment.text)) };
+    }).filter(function (segment) {
+      return segment.type === 'math' || !!segment.text;
+    });
+  }
+
   function splitMarkdownTableRow(line) {
     var source = String(line == null ? '' : line).trim();
     if (source.charAt(0) === '|') source = source.slice(1);
@@ -91,7 +167,12 @@
         current += character;
         escaped = false;
       } else if (character === '\\') {
-        escaped = true;
+        var nextCharacter = source.charAt(index + 1);
+        if (nextCharacter === '|' || nextCharacter === '\\') {
+          escaped = true;
+        } else {
+          current += character;
+        }
       } else if (character === '`') {
         inCode = !inCode;
         current += character;
@@ -116,10 +197,21 @@
   }
 
   function cleanMarkdownTableCell(value) {
-    return normalizeBlockText(
+    return normalizeDocxPlainTextSymbols(normalizeBlockText(
       decodeBasicHtmlEntities(stripInlineMarkdown(value)),
       true
-    );
+    ));
+  }
+
+  function makeMarkdownTableCell(value, header) {
+    var text = cleanMarkdownTableCell(value);
+    return {
+      text: text,
+      segments: makeRichTextSegments(decodeBasicHtmlEntities(value)),
+      header: !!header,
+      colSpan: 1,
+      rowSpan: 1
+    };
   }
 
   function parseMarkdownTable(lines, startIndex, references) {
@@ -140,12 +232,7 @@
     var rows = [{
       header: true,
       cells: headerCells.map(function (cell) {
-        return {
-          text: cleanMarkdownTableCell(cell),
-          header: true,
-          colSpan: 1,
-          rowSpan: 1
-        };
+        return makeMarkdownTableCell(cell, true);
       })
     }];
     var index = startIndex + 2;
@@ -159,12 +246,7 @@
       rows.push({
         header: false,
         cells: cells.map(function (cell) {
-          return {
-            text: cleanMarkdownTableCell(cell),
-            header: false,
-            colSpan: 1,
-            rowSpan: 1
-          };
+          return makeMarkdownTableCell(cell, false);
         })
       });
       index += 1;
@@ -446,7 +528,10 @@
     var foundImage = parts.some(function (part) { return part.type === 'image'; });
     if (!foundImage) {
       var textOnly = stripInlineMarkdown(value);
-      if (textOnly) items.push(Object.assign({}, textItem || { type: 'paragraph' }, { text: textOnly }));
+      if (textOnly) items.push(Object.assign({}, textItem || { type: 'paragraph' }, {
+        text: textOnly,
+        segments: makeRichTextSegments(value)
+      }));
       return;
     }
     parts.forEach(function (part) {
@@ -455,7 +540,10 @@
         return;
       }
       var text = stripInlineMarkdown(part.text);
-      if (text) items.push(Object.assign({}, textItem || { type: 'paragraph' }, { text: text }));
+      if (text) items.push(Object.assign({}, textItem || { type: 'paragraph' }, {
+        text: text,
+        segments: makeRichTextSegments(part.text)
+      }));
     });
   }
 
@@ -845,6 +933,155 @@
     return '<w:r>' + runProperties + content + '</w:r>';
   }
 
+  var LATEX_SYMBOLS = {
+    alpha: 'α', beta: 'β', gamma: 'γ', delta: 'δ', epsilon: 'ε', varepsilon: 'ϵ',
+    zeta: 'ζ', eta: 'η', theta: 'θ', vartheta: 'ϑ', iota: 'ι', kappa: 'κ', lambda: 'λ',
+    mu: 'μ', nu: 'ν', xi: 'ξ', pi: 'π', varpi: 'ϖ', rho: 'ρ', sigma: 'σ', tau: 'τ',
+    upsilon: 'υ', phi: 'φ', varphi: 'ϕ', chi: 'χ', psi: 'ψ', omega: 'ω',
+    Gamma: 'Γ', Delta: 'Δ', Theta: 'Θ', Lambda: 'Λ', Xi: 'Ξ', Pi: 'Π', Sigma: 'Σ',
+    Upsilon: 'Υ', Phi: 'Φ', Psi: 'Ψ', Omega: 'Ω',
+    times: '×', cdot: '·', pm: '±', mp: '∓', div: '÷', le: '≤', leq: '≤', ge: '≥', geq: '≥',
+    ne: '≠', neq: '≠', approx: '≈', equiv: '≡', infty: '∞', partial: '∂', nabla: '∇',
+    in: '∈', notin: '∉', subset: '⊂', subseteq: '⊆', supset: '⊃', supseteq: '⊇',
+    leftarrow: '←', rightarrow: '→', Leftrightarrow: '⇔', leftrightarrow: '↔',
+    sum: '∑', prod: '∏', int: '∫', oint: '∮', forall: '∀', exists: '∃',
+    ldots: '…', cdots: '⋯', dots: '…', degree: '°', percent: '%', amp: '&'
+  };
+
+  function latexReadGroup(source, position) {
+    var index = position;
+    while (/\s/.test(source.charAt(index))) index += 1;
+    if (source.charAt(index) !== '{') {
+      if (source.charAt(index) === '\\') {
+        var command = source.slice(index).match(/^\\[A-Za-z]+|^\\./);
+        return { value: command ? command[0] : '', next: index + (command ? command[0].length : 1) };
+      }
+      return { value: source.charAt(index), next: index + 1 };
+    }
+    var depth = 1;
+    var start = index + 1;
+    index += 1;
+    while (index < source.length && depth > 0) {
+      if (source.charAt(index) === '{' && source.charAt(index - 1) !== '\\') depth += 1;
+      if (source.charAt(index) === '}' && source.charAt(index - 1) !== '\\') depth -= 1;
+      index += 1;
+    }
+    return { value: source.slice(start, Math.max(start, index - 1)), next: index };
+  }
+
+  function ommlRun(text, normal) {
+    if (!String(text || '')) return '';
+    return '<m:r>' + (normal ? '<m:rPr><m:sty m:val="p"/></m:rPr>' : '') +
+      '<m:t xml:space="preserve">' + escapeXml(text) + '</m:t></m:r>';
+  }
+
+  function latexToOmmlNodes(latex) {
+    var source = String(latex || '').replace(/\s+/g, ' ').trim();
+    var output = '';
+    var plain = '';
+    var index = 0;
+    function flushPlain() {
+      if (plain) output += ommlRun(plain, false);
+      plain = '';
+    }
+    function appendScript(baseXml, subValue, supValue) {
+      var element = subValue != null && supValue != null ? 'sSubSup' : (subValue != null ? 'sSub' : 'sSup');
+      return '<m:' + element + '><m:e>' + baseXml + '</m:e>' +
+        (subValue != null ? '<m:sub>' + latexToOmmlNodes(subValue) + '</m:sub>' : '') +
+        (supValue != null ? '<m:sup>' + latexToOmmlNodes(supValue) + '</m:sup>' : '') +
+        '</m:' + element + '>';
+    }
+    while (index < source.length) {
+      var character = source.charAt(index);
+      if (character === '\\') {
+        var commandMatch = source.slice(index).match(/^\\([A-Za-z]+)|^\\(.)/);
+        var command = commandMatch ? (commandMatch[1] || commandMatch[2]) : '';
+        index += commandMatch ? commandMatch[0].length : 1;
+        if (command === 'frac' || command === 'dfrac' || command === 'tfrac') {
+          flushPlain();
+          var numerator = latexReadGroup(source, index);
+          var denominator = latexReadGroup(source, numerator.next);
+          output += '<m:f><m:num>' + latexToOmmlNodes(numerator.value) + '</m:num><m:den>' +
+            latexToOmmlNodes(denominator.value) + '</m:den></m:f>';
+          index = denominator.next;
+          continue;
+        }
+        if (command === 'sqrt') {
+          flushPlain();
+          var root = latexReadGroup(source, index);
+          output += '<m:rad><m:radPr><m:degHide m:val="1"/></m:radPr><m:deg/><m:e>' +
+            latexToOmmlNodes(root.value) + '</m:e></m:rad>';
+          index = root.next;
+          continue;
+        }
+        if (command === 'text' || command === 'mathrm' || command === 'mathbf' || command === 'operatorname') {
+          flushPlain();
+          var textGroup = latexReadGroup(source, index);
+          output += ommlRun(textGroup.value, true);
+          index = textGroup.next;
+          continue;
+        }
+        if (command === 'left' || command === 'right' || command === ',' || command === ';' || command === ':' || command === '!') {
+          if (command === ',' || command === ';' || command === ':') plain += ' ';
+          continue;
+        }
+        plain += Object.prototype.hasOwnProperty.call(LATEX_SYMBOLS, command) ? LATEX_SYMBOLS[command] : command;
+        continue;
+      }
+      if (character === '^' || character === '_') {
+        var pendingBase = '';
+        if (plain) {
+          pendingBase = plain.slice(-1);
+          plain = plain.slice(0, -1);
+          flushPlain();
+        } else {
+          flushPlain();
+        }
+        var firstKind = character;
+        var first = latexReadGroup(source, index + 1);
+        index = first.next;
+        var secondKind = '';
+        var second = null;
+        while (/\s/.test(source.charAt(index))) index += 1;
+        if ((source.charAt(index) === '^' || source.charAt(index) === '_') && source.charAt(index) !== firstKind) {
+          secondKind = source.charAt(index);
+          second = latexReadGroup(source, index + 1);
+          index = second.next;
+        }
+        var base = pendingBase ? null : output.match(/(<m:(?:r|f|rad)>[\s\S]*?<\/m:(?:r|f|rad)>)$/);
+        var baseXml = pendingBase ? ommlRun(pendingBase, false) : (base ? base[1] : ommlRun('', false));
+        if (base) output = output.slice(0, -baseXml.length);
+        var sub = firstKind === '_' ? first.value : (secondKind === '_' ? second.value : null);
+        var sup = firstKind === '^' ? first.value : (secondKind === '^' ? second.value : null);
+        output += appendScript(baseXml, sub, sup);
+        continue;
+      }
+      if (character === '{' || character === '}') {
+        index += 1;
+        continue;
+      }
+      plain += character;
+      index += 1;
+    }
+    flushPlain();
+    return output || ommlRun(source, false);
+  }
+
+  function makeDocxMath(latex) {
+    return '<m:oMath>' + latexToOmmlNodes(latex) + '</m:oMath>';
+  }
+
+  function makeDocxRichRuns(item, isBold) {
+    var segments = item && Array.isArray(item.segments) && item.segments.length
+      ? item.segments
+      : [{ type: 'text', text: item && item.text ? item.text : '' }];
+    return segments.map(function (segment) {
+      return segment.type === 'math'
+        ? makeDocxMath(segment.latex)
+        : makeDocxTextRun(segment.text || '', isBold);
+    }).join('');
+  }
+
   function makeDocxParagraph(item) {
     var type = item && item.type ? item.type : 'paragraph';
     var value = item && item.text ? item.text : '';
@@ -861,7 +1098,12 @@
     } else if (type === 'code') {
       properties = '<w:pPr><w:pStyle w:val="NoSpacing"/></w:pPr>';
     }
-    return '<w:p>' + properties + makeDocxTextRun(value, false) + '</w:p>';
+    var richItem = Object.assign({}, item, { text: value });
+    if (type === 'bullet' || type === 'numbered') {
+      var prefix = type === 'bullet' ? '- ' : String(item.marker || '');
+      richItem.segments = [{ type: 'text', text: prefix }].concat(item.segments || [{ type: 'text', text: item.text || '' }]);
+    }
+    return '<w:p>' + properties + makeDocxRichRuns(richItem, false) + '</w:p>';
   }
 
   function dataUrlToBlob(dataUrl) {
@@ -1605,9 +1847,12 @@
       '</w:p>';
   }
 
-  function makeDocxCellParagraphs(text, isHeader) {
+  function makeDocxCellParagraphs(text, isHeader, segments) {
     var lines = String(text == null ? '' : text).replace(/\r\n?/g, '\n').split('\n');
     if (!lines.length) lines = [''];
+    if (Array.isArray(segments) && segments.some(function (segment) { return segment.type === 'math'; })) {
+      return '<w:p>' + makeDocxRichRuns({ text: text, segments: segments }, isHeader) + '</w:p>';
+    }
     return lines.map(function (line) {
       var runProperties = isHeader ? '<w:rPr><w:b/></w:rPr>' : '';
       return '<w:p><w:r>' + runProperties + '<w:t xml:space="preserve">' +
@@ -1638,7 +1883,7 @@
           '<w:vAlign w:val="top"/>' +
           '</w:tcPr>';
         return '<w:tc>' + cellProperties +
-          makeDocxCellParagraphs(cell.text, !!cell.header) +
+          makeDocxCellParagraphs(cell.text, !!cell.header, cell.segments) +
           '</w:tc>';
       }).join('');
       return '<w:tr>' + rowProperties + cells + '</w:tr>';
@@ -1774,6 +2019,7 @@
       'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" ' +
       'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" ' +
       'xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" ' +
+      'xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" ' +
       'xmlns:v="urn:schemas-microsoft-com:vml" ' +
       'xmlns:o="urn:schemas-microsoft-com:office:office">' +
       '<w:body>' +

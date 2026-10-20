@@ -37,18 +37,23 @@ const MarkdownBold = (() => {
         return output;
     }
 
-    /** 인라인 코드를 임시 토큰으로 보호해 코드 안의 **는 무시하되, 코드 앞뒤를 감싼 **는 처리한다. */
+    /** 인라인 코드와 TeX 수식을 임시 토큰으로 보호한다. */
     function preprocessInlineCodeAware(line) {
-        const codeTokens = [];
-        const codeRe = /(`+)([\s\S]*?)\1/g;
-        const protectedLine = line.replace(codeRe, function (match) {
-            const token = '\uE000MDPRO_INLINE_CODE_' + codeTokens.length + '\uE001';
-            codeTokens.push(match);
+        const opaqueTokens = [];
+        const protect = function (match) {
+            const token = '\uE000MDPRO_OPAQUE_' + opaqueTokens.length + '\uE001';
+            opaqueTokens.push(match);
             return token;
-        });
+        };
+        // MathRender의 수식 보호보다 이 전처리기가 먼저 실행된다. 수식 안의
+        // **p 및 < 비교기호를 Markdown 강조/HTML로 오인하지 않도록 선보호한다.
+        const mathRe = /\\{1,2}\([\s\S]*?\\{1,2}\)|\\{1,2}\[[\s\S]*?\\{1,2}\]|\$\$[\s\S]*?\$\$|\$(?!\$)[^$\n]+\$/g;
+        let protectedLine = line.replace(mathRe, protect);
+        const codeRe = /(`+)([\s\S]*?)\1/g;
+        protectedLine = protectedLine.replace(codeRe, protect);
         let output = preprocessBoldText(protectedLine);
-        codeTokens.forEach(function (code, index) {
-            output = output.split('\uE000MDPRO_INLINE_CODE_' + index + '\uE001').join(code);
+        opaqueTokens.forEach(function (content, index) {
+            output = output.split('\uE000MDPRO_OPAQUE_' + index + '\uE001').join(content);
         });
         return output;
     }

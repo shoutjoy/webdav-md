@@ -78,6 +78,22 @@ test('explicit math and legacy mathematical expressions still render', async () 
   }
 });
 
+test('math inside ordinary parentheses does not expose nested dollar delimiters', async () => {
+  const root = await load();
+  const source = String.raw`하위차원 적재치(\(\beta\)): 물리적 환경(\(\beta = .792\)), 적재치 제곱합 (\(\sum \beta^2\)):`;
+  const prepared = root.MathRender.prepareMarkdown(source);
+  assert.ok(prepared.includes(String.raw`($\beta$)`), prepared);
+  assert.ok(prepared.includes(String.raw`($\beta = .792$)`), prepared);
+  assert.ok(prepared.includes(String.raw`($\sum \beta^2$)`), prepared);
+  assert.doesNotMatch(prepared, /\\\(\$/);
+
+  const html = root.MathRender.renderMarkdownSync(root.marked, source);
+  assert.ok(html.includes(String.raw`($\beta$)`), html);
+  assert.ok(html.includes(String.raw`($\sum \beta^2$)`), html);
+  assert.doesNotMatch(html, /\\\(\$|\$\\\)/);
+  assert.doesNotMatch(html, /MATHSEG/);
+});
+
 test('malformed AI math wrappers drop only decorative boundary ampersands', async () => {
   const root = await load();
   const source = String.raw`**직원경험 ↔ 직무배태성 (\\(&r = .966&\\)):** 공유분산 \\(&r^2&\\) 및 $&\\sqrt{\\text{AVE}}&$`;
