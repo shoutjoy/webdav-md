@@ -58,7 +58,19 @@
 
     function unescapeMarkdownSyntax(text) {
         return transformOutsideFencedCode(text, function (line) {
-            return line.replace(ESCAPED_MD_TOKEN_RE, '$1');
+            // AI/table conversions sometimes escape Markdown punctuation more
+            // than once (for example `0.904\\\\**`). A single replacement
+            // leaves `0.904\\**`, whose remaining backslash is displayed as
+            // a won sign in Korean fonts. Peel only consecutive escapes that
+            // end at known Markdown punctuation; TeX commands and math
+            // delimiters are deliberately outside ESCAPED_MD_TOKEN_RE.
+            let next = String(line || '');
+            let previous = '';
+            while (next !== previous) {
+                previous = next;
+                next = next.replace(ESCAPED_MD_TOKEN_RE, '$1');
+            }
+            return next;
         });
     }
 
