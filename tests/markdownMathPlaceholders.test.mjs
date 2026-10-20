@@ -77,3 +77,23 @@ test('explicit math and legacy mathematical expressions still render', async () 
     assert.doesNotMatch(html, /MATHSEG/);
   }
 });
+
+test('malformed AI math wrappers drop only decorative boundary ampersands', async () => {
+  const root = await load();
+  const source = String.raw`**직원경험 ↔ 직무배태성 (\\(&r = .966&\\)):** 공유분산 \\(&r^2&\\) 및 $&\\sqrt{\\text{AVE}}&$`;
+
+  for (const html of [root.MathRender.renderMarkdownSync(root.marked, source), root.AIChatMarkdown.toHtml(source)]) {
+    assert.ok(html.includes('$r = .966$'), html);
+    assert.ok(html.includes('$r^2$'));
+    assert.ok(html.includes('$\\sqrt{\\text{AVE}}$'));
+    assert.doesNotMatch(html, /[($]\s*&|&\s*[)$]/);
+    assert.doesNotMatch(html, /MATHSEG/);
+  }
+});
+
+test('valid TeX alignment ampersands remain untouched', async () => {
+  const root = await load();
+  const source = String.raw`$$\begin{aligned}a &= b \\ c &= d\end{aligned}$$`;
+  const html = root.MathRender.renderMarkdownSync(root.marked, source);
+  assert.ok(html.includes(String.raw`a &amp;= b \\ c &amp;= d`), html);
+});
