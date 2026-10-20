@@ -118,6 +118,15 @@
             }
 
             normalized = rebuilt.join('\n')
+                // Some AI responses escape TeX delimiters for a second Markdown
+                // pass (\\\\(...\\\\)). Collapse only complete paired delimiters;
+                // ordinary TeX commands and line breaks remain unchanged.
+                .replace(/\\\\\s*\(([\s\S]*?)\\\\\s*\)/g, function (_, inner) {
+                    return '\\(' + String(inner || '').trim() + '\\)';
+                })
+                .replace(/\\\\\s*\[([\s\S]*?)\\\\\s*\]/g, function (_, inner) {
+                    return '\\[' + String(inner || '').trim() + '\\]';
+                })
                 .replace(/\\\s*\[([\s\S]*?)\\\s*\]/g, function (_, inner) {
                     return '$$\n' + String(inner || '').trim() + '\n$$';
                 })
@@ -333,9 +342,59 @@
                     .replace(/>/g, '&gt;');
             }
 
+            function normalizeMathSegment(seg) {
+                var source = String(seg || '');
+                var open = '';
+                var close = '';
+                var body = source;
+
+                if (source.slice(0, 3) === '\\\\(' && source.slice(-3) === '\\\\)') {
+                    open = '\\(';
+                    close = '\\)';
+                    body = source.slice(3, -3);
+                } else if (source.slice(0, 3) === '\\\\[' && source.slice(-3) === '\\\\]') {
+                    open = '\\[';
+                    close = '\\]';
+                    body = source.slice(3, -3);
+                } else if (source.slice(0, 2) === '\\(' && source.slice(-2) === '\\)') {
+                    open = '\\(';
+                    close = '\\)';
+                    body = source.slice(2, -2);
+                } else if (source.slice(0, 2) === '\\[' && source.slice(-2) === '\\]') {
+                    open = '\\[';
+                    close = '\\]';
+                    body = source.slice(2, -2);
+                } else if (source.slice(0, 2) === '$$' && source.slice(-2) === '$$') {
+                    open = '$$';
+                    close = '$$';
+                    body = source.slice(2, -2);
+                } else if (source.charAt(0) === '$' && source.charAt(source.length - 1) === '$') {
+                    open = '$';
+                    close = '$';
+                    body = source.slice(1, -1);
+                }
+
+                if (!open) return source;
+
+                // AI output occasionally uses Markdown-style ampersands to decorate
+                // an entire TeX expression: \(&r=.9&\). Outside an alignment
+                // environment those ampersands are invalid and MathJax reports
+                // "Misplaced &". Remove only a single pair at the outer boundary;
+                // preserve &=, matrices, aligned rows, and all interior ampersands.
+                var match = body.match(/^(\s*)&([^&]*)&(\s*)$/);
+                if (match && !/\\begin\s*\{|\\\\(?:\s|$)/.test(body)) {
+                    body = match[1] + match[2] + match[3];
+                }
+                // The same double-escaping often affects TeX commands such as
+                // \\sqrt or \\text. A true TeX row break is followed by spacing
+                // or the end of the expression, so leave that form intact.
+                body = body.replace(/\\\\(?=[A-Za-z])/g, '\\');
+                return open + body + close;
+            }
+
             function pushSlot(out, seg) {
                 var token = '@@MATHSEG_' + slots.length + '@@';
-                slots.push(String(seg || ''));
+                slots.push(normalizeMathSegment(seg));
                 out.push(token);
             }
 
@@ -346,6 +405,16 @@
                 var end = -1;
 
                 while (i < s.length) {
+                    if (s.slice(i, i + 3) === '\\\\(' || s.slice(i, i + 3) === '\\\\[') {
+                        var doubledClose = s.slice(i, i + 3) === '\\\\(' ? '\\\\)' : '\\\\]';
+                        end = s.indexOf(doubledClose, i + 3);
+                        if (end >= 0) {
+                            pushSlot(out, s.slice(i, end + 3));
+                            i = end + 3;
+                            continue;
+                        }
+                    }
+
                     if (s[i] === '\\' && s[i + 1] === '[') {
                         end = s.indexOf('\\]', i + 2);
                         if (end >= 0) {
