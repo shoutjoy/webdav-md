@@ -92,6 +92,7 @@ const mermaidHistorySearch = document.getElementById('mermaid-history-search');
 const mermaidHistoryList = document.getElementById('mermaid-history-list');
 const mermaidAiPanel = document.getElementById('image-to-mermaid');
 const mermaidAiCollapseBtn = document.getElementById('mermaid-ai-collapse-btn');
+const mermaidAiProviderToggleBtn = document.getElementById('mermaid-ai-provider-toggle-btn');
 const documentSelectionImportBtn = document.getElementById('document-selection-import-btn');
 
 let renderTimer = null;
@@ -113,6 +114,7 @@ let mermaidImageTypingTimer = null;
 let mermaidHistoryRecords = [];
 const TOOLBAR_LAYOUT_KEY = 'mdv_mermaid_toolbar_layout_v1';
 const MERMAID_AI_COLLAPSED_KEY = 'mdv_mermaid_ai_panel_collapsed_v1';
+const MERMAID_AI_PROVIDER_COLLAPSED_KEY = 'mdv_mermaid_ai_provider_collapsed_v1';
 
 function setDocumentSelectionImportButton(message, isError) {
   if (!documentSelectionImportBtn) return;
@@ -154,6 +156,31 @@ function initMermaidAiPanelState() {
     collapsed = saved === null ? true : saved === 'true';
   } catch (error) {}
   applyMermaidAiPanelState(collapsed);
+}
+
+function applyMermaidAiProviderControlsState(collapsed) {
+  if (!mermaidAiPanel) return;
+  mermaidAiPanel.classList.toggle('ai-provider-collapsed', !!collapsed);
+  if (mermaidAiProviderToggleBtn) {
+    mermaidAiProviderToggleBtn.textContent = collapsed ? 'AI 모델 ▸' : 'AI 모델 ▾';
+    mermaidAiProviderToggleBtn.title = collapsed ? 'AI 공급자·모델 펼치기' : 'AI 공급자·모델 접기';
+    mermaidAiProviderToggleBtn.setAttribute('aria-expanded', String(!collapsed));
+  }
+}
+
+function toggleMermaidAiProviderControls() {
+  const collapsed = !(mermaidAiPanel && mermaidAiPanel.classList.contains('ai-provider-collapsed'));
+  applyMermaidAiProviderControlsState(collapsed);
+  try { localStorage.setItem(MERMAID_AI_PROVIDER_COLLAPSED_KEY, collapsed ? 'true' : 'false'); } catch (error) {}
+}
+
+function initMermaidAiProviderControlsState() {
+  let collapsed = true;
+  try {
+    const saved = localStorage.getItem(MERMAID_AI_PROVIDER_COLLAPSED_KEY);
+    collapsed = saved === null ? true : saved === 'true';
+  } catch (error) {}
+  applyMermaidAiProviderControlsState(collapsed);
 }
 
 function readToolbarLayout() {
@@ -1934,6 +1961,7 @@ initPaneDivider();
 initToolbarLayout();
 initCollapsedExampleSelect();
 initMermaidAiPanelState();
+initMermaidAiProviderControlsState();
 initPreviewWheelZoom();
 applyEditorThemeUI();
 applyEditorScale();
@@ -1944,4 +1972,15 @@ renderWithStartupRecovery();
 // Keep image analysis on the provider/model selected in this editor.
 if (window.parent !== window && window.parent.AIToolProviders) {
   window.parent.AIToolProviders.mount(document.getElementById('image-to-mermaid'), 'mermaid');
+  const controls = mermaidAiPanel.querySelector('.ai-tool-provider-controls');
+  if (controls) {
+    mermaidAiPanel.insertBefore(mermaidAiProviderToggleBtn, document.getElementById('mermaid-history-open'));
+    mermaidAiPanel.insertBefore(controls, document.getElementById('mermaid-history-open'));
+    const refresh = controls.querySelector('button');
+    if (refresh) {
+      refresh.textContent = '↻';
+      refresh.title = '모델 새로고침';
+      refresh.setAttribute('aria-label', '모델 새로고침');
+    }
+  }
 }

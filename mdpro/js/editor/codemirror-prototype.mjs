@@ -6,6 +6,7 @@ import { searchKeymap, highlightSelectionMatches } from 'https://esm.sh/@codemir
 const COMMENT_START = '<!--';
 const COMMENT_END = '-->';
 const DATA_IMAGE_URL_RE = /data:image\/([a-z0-9.+-]+);base64,[a-z0-9+/=]+/gi;
+const DATA_IMAGE_HTML_TAG_RE = /<img\b[^>]*>/gi;
 const DATA_IMAGE_FOLD_MIN_LENGTH = 512;
 const setNonPrintingEffect = StateEffect.define();
 
@@ -96,6 +97,7 @@ class DataImageFoldWidget extends WidgetType {
             '<span class="cm-data-image-fold-badge">image_data \u00b7 ' + formatDataSize(this.base64Length) + ' \uc811\ud798</span>';
         button.addEventListener('mousedown', event => {
             event.preventDefault();
+            event.stopPropagation();
             view.dispatch({ selection: { anchor: this.from + 1 }, scrollIntoView: true });
             view.focus();
         });
@@ -109,13 +111,35 @@ function buildDataImageDecorations(state) {
     const source = state.doc.toString();
     const selection = state.selection.main;
     const ranges = [];
+    const coveredRanges = [];
+    DATA_IMAGE_HTML_TAG_RE.lastIndex = 0;
+    let tagMatch;
+    while ((tagMatch = DATA_IMAGE_HTML_TAG_RE.exec(source))) {
+        DATA_IMAGE_URL_RE.lastIndex = 0;
+        const imageMatch = DATA_IMAGE_URL_RE.exec(tagMatch[0]);
+        if (!imageMatch || imageMatch[0].length < DATA_IMAGE_FOLD_MIN_LENGTH) continue;
+        const from = tagMatch.index;
+        const to = from + tagMatch[0].length;
+        // The complete HTML image is one fold unit. Even while it is expanded,
+        // suppress the nested data-URL fold so src and alt never split apart.
+        coveredRanges.push({ from, to });
+        // A caret at `to` is the normal post-insert position and is outside
+        // the tag. Only keep the source expanded while editing its interior.
+        if (selection.from > from && selection.from < to) continue;
+        const prefixLength = imageMatch[0].indexOf(',') + 1;
+        ranges.push(Decoration.replace({
+            widget: new DataImageFoldWidget(imageMatch[1], imageMatch[0].length - prefixLength, from),
+            inclusive: false
+        }).range(from, to));
+    }
     DATA_IMAGE_URL_RE.lastIndex = 0;
     let match;
     while ((match = DATA_IMAGE_URL_RE.exec(source))) {
         const from = match.index;
         const to = from + match[0].length;
         if (match[0].length < DATA_IMAGE_FOLD_MIN_LENGTH) continue;
-        if (selection.from >= from && selection.from <= to) continue;
+        if (coveredRanges.some(range => from >= range.from && to <= range.to)) continue;
+        if (selection.from > from && selection.from < to) continue;
         const prefixLength = match[0].indexOf(',') + 1;
         ranges.push(Decoration.replace({
             widget: new DataImageFoldWidget(match[1], match[0].length - prefixLength, from),
@@ -123,6 +147,27 @@ function buildDataImageDecorations(state) {
         }).range(from, to));
     }
     return Decoration.set(ranges, true);
+}
+
+function collapseExpandedDataImageTag(event, view) {
+    if (event.button !== 0) return false;
+    const position = view.posAtCoords({ x: event.clientX, y: event.clientY });
+    if (position == null) return false;
+    const source = view.state.doc.toString();
+    DATA_IMAGE_HTML_TAG_RE.lastIndex = 0;
+    let tagMatch;
+    while ((tagMatch = DATA_IMAGE_HTML_TAG_RE.exec(source))) {
+        const tagFrom = tagMatch.index;
+        const tagTo = tagFrom + tagMatch[0].length;
+        if (position < tagFrom || position > tagTo) continue;
+        DATA_IMAGE_URL_RE.lastIndex = 0;
+        if (!DATA_IMAGE_URL_RE.test(tagMatch[0])) return false;
+        event.preventDefault();
+        view.dispatch({ selection: { anchor: tagTo }, scrollIntoView: true });
+        view.focus();
+        return true;
+    }
+    return false;
 }
 
 const dataImageDecorations = StateField.define({
@@ -386,6 +431,9 @@ function mount(textarea, options = {}) {
                 commentDecorations,
                 dataImageDecorations,
                 nonPrintingDecorations,
+                EditorView.domEventHandlers({
+                    mousedown: collapseExpandedDataImageTag
+                }),
                 editorPlaceholder(textarea.getAttribute('placeholder') || '생각을 입력하세요'),
                 EditorView.lineWrapping,
                 EditorView.updateListener.of(update => {

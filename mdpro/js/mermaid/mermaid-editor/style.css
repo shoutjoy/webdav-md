@@ -120,15 +120,19 @@ body {
 @media (max-width:900px) { #top-bar.toolbar-floating ~ #main { padding-left:16px; } }
 
 #image-to-mermaid { position:relative; display:grid; grid-template-columns:minmax(180px,.8fr) minmax(260px,1.7fr) repeat(4,max-content); align-items:center; gap:8px; padding:8px 16px; border-bottom:1px solid var(--border); background:#eef3f8; }
-#mermaid-ai-collapse-btn { align-self:center; justify-self:start; min-height:36px; padding:6px 10px; border:1px solid #94a3b8; border-radius:7px; background:#fff; color:#334155; font-size:11px; font-weight:800; line-height:1; white-space:nowrap; cursor:pointer; }
+#mermaid-ai-collapse-btn,
+#mermaid-ai-provider-toggle-btn { align-self:center; justify-self:start; min-height:36px; padding:6px 10px; border:1px solid #94a3b8; border-radius:7px; background:#fff; color:#334155; font-size:11px; font-weight:800; line-height:1; white-space:nowrap; cursor:pointer; }
+#mermaid-ai-provider-toggle-btn { grid-column:1 / -1; min-height:30px; }
 #image-to-mermaid.ai-collapsed { display:flex; align-items:center; justify-content:flex-end; min-height:46px; padding:7px 16px; }
 #image-to-mermaid.ai-collapsed #mermaid-image-dropzone,
 #image-to-mermaid.ai-collapsed .ai-prompt-field,
 #image-to-mermaid.ai-collapsed #mermaid-image-generate,
 #image-to-mermaid.ai-collapsed #mermaid-history-open,
 #image-to-mermaid.ai-collapsed #mermaid-document-insert,
-#image-to-mermaid.ai-collapsed .ai-tool-provider-controls,
+#image-to-mermaid.ai-collapsed #mermaid-ai-provider-toggle-btn,
 #image-to-mermaid.ai-collapsed #mermaid-image-status { display:none; }
+#image-to-mermaid.ai-collapsed .ai-tool-provider-controls { display:none !important; }
+#image-to-mermaid.ai-provider-collapsed .ai-tool-provider-controls { display:none !important; }
 #mermaid-image-dropzone { position:relative; min-height:52px; border:2px dashed #9aa9bc; border-radius:9px; background:#fff; display:flex; align-items:center; justify-content:center; overflow:hidden; cursor:pointer; outline:none; }
 #mermaid-image-dropzone:hover, #mermaid-image-dropzone.dragover, #mermaid-image-dropzone:focus { border-color:var(--accent); background:#eff6ff; }
 #mermaid-image-empty { display:flex; flex-direction:column; align-items:center; gap:3px; font-size:12px; }
@@ -161,7 +165,7 @@ body {
 .history-actions .danger { color:#b91c1c; }
 .history-empty { color:#64748b; text-align:center; padding:30px 5px; font-size:12px; }
 @media (max-width:1250px) { #image-to-mermaid { grid-template-columns:minmax(155px,.7fr) minmax(230px,1.5fr) repeat(4,max-content); gap:6px; padding-inline:10px; } }
-@media (max-width:920px) { #image-to-mermaid { grid-template-columns:1fr 1fr; } .ai-prompt-field,#mermaid-image-status { grid-column:1 / -1; } #mermaid-image-generate,#mermaid-history-open,#mermaid-document-insert,#mermaid-ai-collapse-btn { width:100%; } }
+@media (max-width:920px) { #image-to-mermaid { grid-template-columns:1fr 1fr; } .ai-prompt-field,#mermaid-image-status { grid-column:1 / -1; } #mermaid-image-generate,#mermaid-history-open,#mermaid-document-insert,#mermaid-ai-collapse-btn,#mermaid-ai-provider-toggle-btn { width:100%; } }
 
 #editor-pane,
 #preview-pane {
@@ -464,4 +468,26 @@ body {
   background: #0b1220;
 }
 
-#image-to-mermaid .ai-tool-provider-controls { grid-column: 1 / -1; }
+#image-to-mermaid { display:flex; flex-wrap:nowrap; gap:6px; padding:7px 10px; }
+#image-to-mermaid > * { flex-shrink:0; }
+#mermaid-image-dropzone { flex:0 1 140px; min-width:100px; }
+#image-to-mermaid .ai-prompt-field { flex:1 1 210px; min-width:120px; }
+#image-to-mermaid .ai-prompt-field textarea { height:48px; }
+#image-to-mermaid .ref-generate { padding-inline:8px; }
+#image-to-mermaid #mermaid-ai-provider-toggle-btn { min-height:30px; width:auto; padding-inline:6px; order:0; }
+#image-to-mermaid .ai-tool-provider-controls { display:flex; flex-wrap:nowrap !important; flex:0 1 330px; min-width:210px; gap:5px !important; margin:0 !important; }
+#image-to-mermaid .ai-tool-provider-controls select { width:0; flex:1 1 120px; }
+#image-to-mermaid .ai-tool-provider-controls button { flex:0 0 28px; width:28px; padding:5px !important; }
+#image-to-mermaid .ai-tool-provider-controls [role="status"]:empty { display:none; }
+#image-to-mermaid .ai-tool-provider-controls [role="status"]:not(:empty) { position:absolute; top:100%; left:10px; z-index:2; padding:3px 6px; background:#eef3f8; }
+#image-to-mermaid #mermaid-image-status:empty { display:none; }
+#image-to-mermaid #mermaid-image-status:not(:empty) { position:absolute; top:100%; left:10px; z-index:2; background:#eef3f8; }
+@media (max-width:1050px) {
+  #image-to-mermaid { overflow-x:auto; }
+  #image-to-mermaid .ai-prompt-field { flex:0 0 160px; }
+  #image-to-mermaid .ai-tool-provider-controls { flex:0 0 260px; }
+  #image-to-mermaid #mermaid-image-generate,
+  #image-to-mermaid #mermaid-history-open,
+  #image-to-mermaid #mermaid-document-insert,
+  #image-to-mermaid #mermaid-ai-collapse-btn { width:auto; }
+}
