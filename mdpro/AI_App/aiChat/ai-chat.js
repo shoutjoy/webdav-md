@@ -2390,7 +2390,7 @@
         + (liveStream.maxOutputTokens ? ' / 최대 ' + formatStreamNumber(liveStream.maxOutputTokens) : '') + ' tok';
     }
     if (speedEl) speedEl.textContent = measuredTps ? measuredTps.toFixed(1) + ' tok/s' : '첫 토큰 대기';
-    var showLiveReasoning = state.responseMode === 'reasoning' && state.showReasoning && state.provider !== 'lemonade';
+    var showLiveReasoning = state.responseMode === 'reasoning' && state.showReasoning;
     if (reasoningWrap) reasoningWrap.hidden = !showLiveReasoning;
     if (reasoningBody) {
       reasoningBody.classList.toggle('waiting', !liveStream.reasoning);
@@ -2456,7 +2456,7 @@
       liveStream.stage = '대화 문맥 처리 ' + Math.round((Number(event.progress) || 0) * 100) + '%';
       liveStream.progress = 15 + Math.max(0, Math.min(1, Number(event.progress) || 0)) * 20;
     } else if (type === 'prompt_processing.end') {
-      liveStream.stage = state.responseMode === 'quick' || state.provider === 'lemonade'
+      liveStream.stage = state.responseMode === 'quick' || state.fastMode
         ? '문맥 처리 완료 · 첫 응답 토큰 대기'
         : '문맥 처리 완료 · 첫 추론 토큰 대기';
       liveStream.progress = Math.max(liveStream.progress, 35);
@@ -7176,7 +7176,7 @@
         academicEvidenceCount: academicProfile ? academicProfile.count : 0,
         academicEvidenceTokens: academicProfile ? academicProfile.fullEvidenceTokens : 0,
         retainForContinuation: true,
-        disableThinking: state.provider === 'lemonade',
+        disableThinking: state.provider === 'lemonade' && (state.responseMode !== 'reasoning' || state.fastMode || academicSearchActive),
         preserveModelStyle: (state.generalAnswer || localNativeQuality) && !academicSearchActive && !internetSearchActive && !state.fastMode && !state.realtimeDocWrite,
         messages: requestMessages,
         onStreamEvent: streamHandler,

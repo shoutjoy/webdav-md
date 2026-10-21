@@ -158,7 +158,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260914-serpapi-vault-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?v=20261021-csv-table-window-1',
+    aiChat: './AI_App/aiChat/ai-chat.js?v=20261021-csv-table-window-1&reasoning=20261022-1',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20261021-data-image-fold-4'
@@ -20328,10 +20328,11 @@ window.AIChatBridge = Object.freeze({
                     top_p: lemonade ? connection.topP : undefined
                 };
                 if (effectiveMaxTokens > 0) requestBody.max_tokens = effectiveMaxTokens;
-                if (lemonade && (request.disableThinking === true || request.mode !== 'reasoning')) {
-                    requestBody.chat_template_kwargs = { enable_thinking: false };
-                    requestBody.enable_thinking = false;
-                    requestBody.thinking = false;
+                if (lemonade) {
+                    const enableThinking = request.mode === 'reasoning' && request.disableThinking !== true && !request.fastMode;
+                    requestBody.chat_template_kwargs = { enable_thinking: enableThinking };
+                    requestBody.enable_thinking = enableThinking;
+                    requestBody.thinking = enableThinking;
                 }
                 if (typeof request.onStreamEvent === 'function') {
                     return await streamOpenAICompatibleChat(connection, requestBody, controller.signal, request.onStreamEvent);
