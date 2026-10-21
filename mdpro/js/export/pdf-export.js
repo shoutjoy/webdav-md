@@ -967,6 +967,28 @@
     }
   }
 
+  function normalizeEscapedOrderedMarkers(root) {
+    var skippedTags = /^(?:CODE|PRE|SCRIPT|STYLE|MATH|MJX-CONTAINER)$/i;
+
+    function visit(node, skipped) {
+      if (!node) return;
+      if (node.nodeType === 3) {
+        if (!skipped) node.nodeValue = String(node.nodeValue || '').replace(/(\d+)\\\.(?=\s|$)/g, '$1.');
+        return;
+      }
+      if (node.nodeType !== 1 && node.nodeType !== 9 && node.nodeType !== 11) return;
+      var tagName = String(node.tagName || '');
+      var shouldSkip = skipped || skippedTags.test(tagName) ||
+        !!(node.classList && (node.classList.contains('katex') || node.classList.contains('pdf-math-preserved')));
+      Array.prototype.forEach.call(node.childNodes || [], function (child) {
+        visit(child, shouldSkip);
+      });
+    }
+
+    visit(root, false);
+    return root;
+  }
+
   async function openPreview(options) {
     var payload = options || {};
     if (!global.document || typeof global.DOMParser !== 'function') throw new Error('PDF preview requires a browser DOM.');
@@ -975,6 +997,7 @@
     ensureStyle();
 
     var parsed = parseSource(payload.html);
+    normalizeEscapedOrderedMarkers(parsed.root);
     await preservePdfMath(parsed.root);
     var fileName = sanitizeFileBase(payload.fileName) + '.pdf';
     var quality = readStoredQuality();
@@ -1478,6 +1501,7 @@
       clampPdfProgress: clampPdfProgress,
       pdfSplitText: pdfSplitText,
       cloneTextSlice: cloneTextSlice,
+      normalizeEscapedOrderedMarkers: normalizeEscapedOrderedMarkers,
       mermaidLabelLines: mermaidLabelLines,
       replaceMermaidForeignObjectsWithSvgText: replaceMermaidForeignObjectsWithSvgText
     })

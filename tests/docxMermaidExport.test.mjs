@@ -174,3 +174,14 @@ test('DOCX export removes broken image and backslash prefixes from relationship 
   assert.doesNotMatch(documentXml, /\\image|\\rightarrow|\\to|\\→|₩→/);
   assert.match(documentXml, /직원경험\(독립\).*→.*직원몰입\(매개\).*→.*직무배태성\(종속\)/);
 });
+
+test('DOCX export removes the Markdown escape before numbered heading dots', async () => {
+  const { api, files } = loadDocxExport();
+  await api.createBlob({
+    content: String.raw`### 1\. 교육산업의 존재론적 질문: 무엇이 교육을 교육답게 만드는가?`
+  });
+
+  const documentXml = files.get('word/document.xml');
+  assert.match(documentXml, /1\. 교육산업의 존재론적 질문/);
+  assert.doesNotMatch(documentXml, /1\\\. 교육산업의 존재론적 질문/);
+});

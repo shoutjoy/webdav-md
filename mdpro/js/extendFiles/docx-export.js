@@ -78,6 +78,7 @@
 
   function normalizeDocxPlainTextSymbols(value) {
     return String(value == null ? '' : value)
+      .replace(/(\d+)\\\.(?=\s|$)/g, '$1.')
       .replace(/[\\₩](?:rightarrow|to)(?=\s*[\p{L}\p{N}(])/gu, '→')
       .replace(/[\\₩]image(?=\s*[\p{L}\p{N}(])/gu, '→')
       .replace(/[\\₩](?=[←→↔⇐⇒⇔])/g, '');
