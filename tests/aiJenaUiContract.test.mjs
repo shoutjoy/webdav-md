@@ -165,6 +165,22 @@ test('generated AI images open the large preview by mouse or keyboard', () => {
   assert.match(chatStyles, /\.ai-chat-image-gallery img \{[^}]*cursor:\s*zoom-in/s);
 });
 
+test('AI Jena CSV attachments open as an accessible table while XLSX extraction stays unchanged', () => {
+  assert.match(chatScript, /function isCsvAttachment\(attachment\)/);
+  assert.match(chatScript, /function parseCsvAttachmentRows\(text\)[\s\S]*MdViewerFileFormat[\s\S]*parseCsvRows/);
+  assert.match(chatScript, /function openCsvAttachmentWindow\(attachment\)[\s\S]*createElement\('table'\)/);
+  assert.match(chatScript, /parseCsvAttachmentRows\(attachment\.csvText \|\| attachment\.text\)/);
+  assert.match(chatScript, /function createCsvAttachmentButton\(attachment, text\)[\s\S]*button\.type = 'button'/);
+  assert.match(chatScript, /CSV 내용을 새 창의 표로 열기/);
+  assert.match(chatScript, /renderPendingAttachments\(\)[\s\S]*createCsvAttachmentButton\(attachment, labelText\)/);
+  assert.match(chatScript, /appendUserAttachmentGallery\(item, message\)[\s\S]*createCsvAttachmentButton\(attachment, fileText\)/);
+  assert.match(chatStyles, /\.ai-chat-csv-attachment:focus-visible/);
+  assert.match(appScript, /extension === '\.docx' \|\| extension === '\.pptx' \|\| extension === '\.xlsx'[\s\S]*extractAIChatOfficeText\(file, extension\)/);
+  assert.match(appScript, /csvText: extension === '\.csv' \|\| mimeType === 'text\/csv' \? text : ''/);
+  assert.match(markup, /ai-chat\.css\?v=20261021-csv-table-window-1/);
+  assert.match(appScript, /ai-chat\.js\?v=20261021-csv-table-window-1/);
+});
+
 test('Lemonade image models use the image generation endpoint and existing AI Jena image result flow', () => {
   assert.match(appScript, /function isLemonadeImageModel\(modelOrId\)/);
   assert.match(appScript, /labels\.includes\('image'\)[\s\S]*recipe === 'sd-cpp'/);
@@ -207,8 +223,8 @@ test('selection import reflows by the AI Jena composer width', () => {
   assert.match(chatStyles, /@container \(max-width: 430px\)[\s\S]*\.ai-chat-panel:not\(\.layout-floating\) \.ai-chat-compose-actions/);
   assert.match(chatStyles, /\.ai-chat-import-selection \{[\s\S]*grid-column:\s*span 4[\s\S]*text-overflow:\s*clip/);
   assert.match(chatStyles, /\.ai-chat-realtime-toolbar \{[\s\S]*grid-column:\s*span 3/);
-  assert.match(markup, /ai-chat\.css\?v=20261019-settings-cleanup-1/);
-  assert.match(appScript, /ai-chat\.js\?v=20261019-img-gen-preview-1/);
+  assert.match(markup, /ai-chat\.css\?v=20261021-csv-table-window-1/);
+  assert.match(appScript, /ai-chat\.js\?v=20261021-csv-table-window-1/);
 });
 
 test('AI Jena exposes and applies FAST, quick, reasoning, and hard output token limits', () => {

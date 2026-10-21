@@ -47,6 +47,17 @@ test('single infographic app opens internally and receives the protected Gemini 
   assert.match(singleInfographicSource, /state\.apiKey = String\(data\.apiKey/);
 });
 
+test('single infographic text workflows use a supported stable Gemini model', () => {
+  assert.match(singleInfographicSource, /DEFAULT_TEXT_MODEL\s*=\s*["']gemini-2\.5-flash["']/);
+  assert.match(singleInfographicSource, /id="singleAiStudioModelSettings"/);
+  assert.match(singleInfographicSource, /id="singleTextModelSelect"/);
+  assert.match(singleInfographicSource, /SINGLE_TEXT_MODEL_STORAGE_KEY/);
+  assert.match(singleInfographicSource, /function listSingleAiStudioTextModels\(apiKey\)/);
+  assert.match(singleInfographicSource, /function mergeSingleTextModelOptions\(select, models\)/);
+  assert.match(singleInfographicSource, /encodeURIComponent\(state\.textModel \|\| DEFAULT_TEXT_MODEL\)/);
+  assert.doesNotMatch(singleInfographicSource, /gemini-2\.5-flash-preview-09-2025/);
+});
+
 test('both infographic apps select a persisted Gemini image model with 3.1 Flash Lite as default', () => {
   for (const source of [singleInfographicSource, infographicSource]) {
     assert.match(source, /gemini-3\.1-flash-image/);
