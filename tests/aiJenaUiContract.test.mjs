@@ -262,10 +262,11 @@ test('AI Jena applies model-sized token profiles with a 180 second limit', () =>
   assert.match(chatScript, /applyModelTokenProfile\(state\.lmModel, false\)/);
 });
 
-test('realtime reasoning uses separate reasoning and final-answer budgets', () => {
-  assert.match(chatScript, /var separateRealtimeReasoning = state\.realtimeDocWrite[\s\S]*state\.responseMode === 'reasoning'/);
-  assert.match(chatScript, /maxOutputTokens: configuredModeOutputLimit\('reasoning', false\)/);
-  assert.match(chatScript, /mode: 'quick',[\s\S]*disableThinking: true,[\s\S]*maxOutputTokens: configuredModeOutputLimit\('quick', false\)/);
+test('realtime writing streams one response directly into the document and retains the chat record', () => {
+  assert.doesNotMatch(chatScript, /separateRealtimeReasoning|planningResult|planningMemo/);
+  assert.match(chatScript, /if \(state\.realtimeDocWrite\) beginRealtimeDocForCurrentGeneration\(\);\s*var result = await getBridge\(\)\.complete\(baseRequest\)/);
+  assert.match(chatScript, /state\.realtimeDocWrite && !state\.fastMode && state\.responseMode === 'reasoning'[\s\S]*질문의 난이도에 필요한 만큼만 검토/);
+  assert.match(chatScript, /content: sections\.answer,[\s\S]*realtimeDocRecord: realtimeDocExclusive/);
   assert.match(chatScript, /if \(state\.realtimeDocWrite\) beginRealtimeDocForCurrentGeneration\(\)/);
   assert.match(chatScript, /continuation: true,[\s\S]*finishRealtimeDocStream\(continued\)/);
   assert.match(appScript, /function fitOpenAICompatibleMessages\(messages, contextLength, requestedOutputTokens, reasoningMode, inputTokenCap\)/);

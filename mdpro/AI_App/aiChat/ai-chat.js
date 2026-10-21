@@ -2462,25 +2462,31 @@
       liveStream.progress = Math.max(liveStream.progress, 35);
     } else if (type === 'reasoning.start') {
       liveStream.phase = 'generating';
-      liveStream.stage = '실시간 추론 중';
+      liveStream.stage = state.realtimeDocWrite ? '추론 중 · 문서 작성 대기' : '실시간 추론 중';
       liveStream.progress = Math.max(liveStream.progress, 35);
     } else if (type === 'reasoning.delta') {
       if (!liveStream.firstTokenAt) liveStream.firstTokenAt = Date.now();
       liveStream.phase = 'generating';
-      liveStream.stage = '실시간 추론 중';
+      liveStream.stage = state.realtimeDocWrite ? '추론 중 · 문서 작성 대기' : '실시간 추론 중';
       liveStream.reasoning += String(event.content || '');
     } else if (type === 'reasoning.end') {
-      liveStream.stage = '추론 완료 · 답변 토큰 대기';
+      liveStream.stage = state.realtimeDocWrite ? '추론 완료 · 첫 본문 토큰 대기' : '추론 완료 · 답변 토큰 대기';
     } else if (type === 'message.start') {
       liveStream.phase = 'generating';
-      liveStream.stage = '최종 답변을 실시간 생성하는 중';
+      liveStream.stage = state.realtimeDocWrite ? '첫 본문 토큰 대기 · 문서 작성 대기' : '첫 답변 토큰 대기';
     } else if (type === 'message.delta') {
+      if (!String(event.content || '')) return;
       if (!liveStream.firstTokenAt) liveStream.firstTokenAt = Date.now();
       liveStream.phase = 'generating';
       liveStream.stage = '최종 답변을 실시간 생성하는 중';
       liveStream.answer += String(event.content || '');
       if (realtimeDocActive) {
         streamDeltaToRealtimeDoc(event.content);
+      }
+      if (state.realtimeDocWrite) {
+        liveStream.stage = realtimeDocWritten
+          ? '문서에 실시간 작성 중'
+          : '본문 수신 중 · 문서 작성 대기';
       }
     } else if (type === 'message.end') {
       liveStream.stage = '답변 생성 완료 · 통계를 확인하는 중';
@@ -2513,7 +2519,7 @@
 
   function updateThinkingProgress() {
     if (!state.running) return;
-    if (liveStream && liveStream.phase === 'connecting' && !liveStream.firstTokenAt) {
+    if (isActiveImageModel() && liveStream && liveStream.phase === 'connecting' && !liveStream.firstTokenAt) {
       liveStream.stage = getThinkingStage(Math.max(0, (Date.now() - thinkingStartedAt) / 1000));
     }
     updateLiveStreamDom();
@@ -3247,7 +3253,7 @@
       realtimeDocExclusive = true;
       if (liveStream && liveStream.answer) streamDeltaToRealtimeDoc(liveStream.answer);
       if (streamInit && streamInit.isReplacing) {
-        setStatus('선택한 텍스트를 대체하여 실시간 작성 중...', 'loading');
+        setStatus('선택 영역 대체 준비 완료 · 첫 본문 토큰 대기', 'loading');
       }
       return true;
     } catch (err) {
@@ -3272,8 +3278,8 @@
       cleanText = cleanText.replace(/\[\/?(?:EXPLANATION|ANSWER)\]/gi, '');
       if (cleanText.length > realtimeDocWritten.length) {
         var delta = cleanText.slice(realtimeDocWritten.length);
-        realtimeDocWritten = cleanText;
         bridge.writeRealtimeDocStreamChunk(delta);
+        realtimeDocWritten = cleanText;
       }
     } catch (_) {}
   }
@@ -7140,7 +7146,10 @@
             state.realtimeDocWrite
               ? ('현재 활성 문서에 실시간으로 직접 작성하는 모드입니다. ' + (pendingUser && pendingUser.selectedDocText ? '문서에서 [선택한 문서 텍스트]를 대체하여 들어갈 완성된 최종 내용만 첫 단어부터 작성하세요.' : '문서에 바로 들어갈 최종 본문 내용만 첫 단어부터 작성하세요.') + ' [EXPLANATION]이나 [ANSWER] 같은 태그, 목차, 서론 설명, 인사말, 메타 발언을 일절 출력하지 말고 바로 본문만 작성하세요.')
               : 'FAST mode. Use only the latest user message and answer directly with no explanation, rationale, preface, checklist, or meta-commentary.',
-            'Keep the response concise and do not restate the request.',
+            state.fastMode ? 'Keep the response concise and do not restate the request.' : '사용자가 요청한 분량과 깊이를 충실히 반영하고, 요청 문장을 반복하지 마세요.',
+            state.realtimeDocWrite && !state.fastMode && state.responseMode === 'reasoning'
+              ? '질문의 난이도에 필요한 만큼만 검토한 뒤, 도출한 결론·근거·구체적 사례를 본문에 반영하세요. 같은 초안을 반복 작성하거나 이미 충족한 형식 조건을 거듭 점검하지 마세요. 사용자가 지정한 분량과 형식을 우선하고 검토가 끝나면 바로 최종 본문을 출력하세요.'
+              : '',
             writingStyleInstruction({ academic: false }),
             sentenceOnlyInstruction(),
             MERMAID_DARK_MODE_PROMPT_RULE,
@@ -7182,53 +7191,10 @@
         onStreamEvent: streamHandler,
         systemInstruction: requestSystemInstruction
       };
-      var separateRealtimeReasoning = state.realtimeDocWrite
-        && state.responseMode === 'reasoning'
-        && !state.fastMode
-        && !academicSearchActive
-        && !internetSearchActive
-        && (state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'litertlm' || state.provider === 'lemonade' || state.provider === 'ollama-npu');
-      var result;
-      if (separateRealtimeReasoning) {
-        setStatus('추론 TOK를 사용해 문서 작성 내용을 먼저 검토하는 중...', 'loading');
-        var planningResult = await getBridge().complete(Object.assign({}, baseRequest, {
-          mode: 'reasoning',
-          maxOutputTokens: configuredModeOutputLimit('reasoning', false),
-          preserveModelStyle: false,
-          systemInstruction: [
-            '실시간 문서 작성 전의 별도 검토 단계입니다.',
-            '원래 요청을 분석하여 최종 본문에 반영할 핵심 논점, 순서, 누락 방지 조건을 간결한 내부 작업 메모로 정리하세요.',
-            '완성된 최종 본문을 쓰지 말고, 검토 결과만 짧게 작성하세요.'
-          ].join(' ')
-        }));
-        assertGenerationActive(requestRevision);
-        var planningMemo = String(planningResult && planningResult.text || '').trim().slice(0, 1600);
-        if (liveStream) {
-          liveStream.answer = '';
-          liveStream.exactOutputTokens = 0;
-          liveStream.exactReasoningTokens = 0;
-          liveStream.hasExactStats = false;
-          liveStream.firstTokenAt = 0;
-          liveStream.stage = '추론 완료 · 최종 답변 스트림을 시작하는 중';
-          liveStream.progress = 35;
-        }
-        beginRealtimeDocForCurrentGeneration();
-        result = await getBridge().complete(Object.assign({}, baseRequest, {
-          mode: 'quick',
-          disableThinking: true,
-          maxOutputTokens: configuredModeOutputLimit('quick', false),
-          systemInstruction: [
-            requestSystemInstruction,
-            planningMemo ? '사전 검토 요약(최종 본문에는 언급하지 않음):\n' + planningMemo : '',
-            '추론 단계는 이미 끝났습니다. 이제 별도의 즉시 TOK 예산으로 최종 본문만 실시간 출력하세요.'
-          ].filter(Boolean).join('\n\n')
-        }));
-        result.reasoning = String(planningResult && (planningResult.reasoning || planningResult.text) || '');
-        result.reasoningUsage = planningResult && planningResult.usage || null;
-      } else {
-        if (state.realtimeDocWrite) beginRealtimeDocForCurrentGeneration();
-        result = await getBridge().complete(baseRequest);
-      }
+      // Stream the same model response straight into the document. Reasoning
+      // stays in the chat; only message deltas are written to the editor.
+      if (state.realtimeDocWrite) beginRealtimeDocForCurrentGeneration();
+      var result = await getBridge().complete(baseRequest);
       if (nativeInternetSearch) {
         pendingUser.internetSources = normalizeInternetSources(result && result.internetSources);
         pendingUser.internetSearchEngine = 'Google Search · Gemini grounding';

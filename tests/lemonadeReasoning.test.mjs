@@ -39,3 +39,82 @@ test('Lemonade live rendering shows received reasoning while the final answer is
   context.updateLiveStreamDom();
   assert.equal(getNode('ai-chat-live-reasoning').hidden, true);
 });
+
+test('reasoning and empty answer events never claim document writing has started', () => {
+  const written = [];
+  const context = vm.createContext({
+    state: { running: true, realtimeDocWrite: true, provider: 'lemonade' },
+    liveStream: { reasoning: '', answer: '', progress: 2 },
+    realtimeDocActive: false, realtimeDocWritten: '',
+    providerDisplayName: () => 'Lemonade', scheduleLiveStreamRender() {},
+    updateLiveStreamDom() {}, isActiveImageModel: () => false,
+    getThinkingStage() { throw new Error('Elapsed time must not fabricate a stage'); },
+    streamDeltaToRealtimeDoc(chunk) { written.push(chunk); context.realtimeDocWritten += chunk; },
+    getBridge: () => ({ finishRealtimeDocStream() {} }),
+    parseAssistantSections: text => ({ answer: text })
+  });
+  vm.runInContext(chat.slice(chat.indexOf('  function handleStreamEvent('), chat.indexOf('  function startThinkingProgress(')), context);
+  const emit = event => context.handleStreamEvent({ provider: 'lemonade', ...event });
+  emit({ type: 'reasoning.start' });
+  emit({ type: 'reasoning.delta', content: '검토 메모' });
+  assert.equal(context.liveStream.answer, '');
+  assert.equal(context.liveStream.reasoning, '검토 메모');
+  assert.match(context.liveStream.stage, /추론 중 · 문서 작성 대기/);
+  assert.equal(written.length, 0);
+  emit({ type: 'reasoning.end' });
+  assert.match(context.liveStream.stage, /추론 완료 · 첫 본문 토큰 대기/);
+  context.liveStream.phase = 'connecting';
+  emit({ type: 'message.start' });
+  emit({ type: 'message.delta', content: '' });
+  context.updateThinkingProgress();
+  assert.match(context.liveStream.stage, /첫 본문 토큰 대기/);
+  context.realtimeDocActive = true;
+  emit({ type: 'message.delta', content: '실제 본문' });
+  assert.deepEqual(written, ['실제 본문']);
+  assert.equal(context.liveStream.stage, '문서에 실시간 작성 중');
+});
+
+test('one request writes body chunks before completion while reasoning stays out of the document', async () => {
+  let calls = 0;
+  let documentText = '';
+  let finish;
+  const context = vm.createContext({
+    state: { running: true, realtimeDocWrite: true, provider: 'lemonade' },
+    liveStream: { reasoning: '', answer: '', progress: 2 },
+    realtimeDocActive: false, realtimeDocWritten: '', realtimeDocAccumulated: '',
+    providerDisplayName: () => 'Lemonade', scheduleLiveStreamRender() {},
+    parseAssistantSections: text => ({ answer: text }),
+    beginRealtimeDocForCurrentGeneration() { context.realtimeDocActive = true; },
+    getBridge: () => ({
+      complete(request) {
+        calls++;
+        assert.equal(request.mode, 'reasoning');
+        assert.equal(request.disableThinking, false);
+        request.onStreamEvent({ type: 'reasoning.delta', content: '근거를 검토' });
+        assert.equal(documentText, '');
+        request.onStreamEvent({ type: 'message.delta', content: '첫 문장. ' });
+        assert.equal(documentText, '첫 문장. ');
+        return new Promise(resolve => { finish = () => {
+          request.onStreamEvent({ type: 'message.delta', content: '둘째 문장.' });
+          request.onStreamEvent({ type: 'chat.end' });
+          resolve({ text: documentText, reasoning: '근거를 검토' });
+        }; });
+      },
+      writeRealtimeDocStreamChunk(delta) { documentText += delta; },
+      finishRealtimeDocStream(text) { documentText = text; }
+    })
+  });
+  vm.runInContext(chat.slice(chat.indexOf('  function handleStreamEvent('), chat.indexOf('  function updateThinkingProgress(')), context);
+  vm.runInContext(chat.slice(chat.indexOf('  function streamDeltaToRealtimeDoc('), chat.indexOf('  function setOpen(')), context);
+  context.baseRequest = { mode: 'reasoning', disableThinking: false, onStreamEvent: context.handleStreamEvent };
+  const start = chat.indexOf('      // Stream the same model response');
+  const flow = chat.slice(start, chat.indexOf('      if (nativeInternetSearch)', start));
+  const pending = vm.runInContext('(async () => {' + flow + '; return result; })()', context);
+  assert.equal(documentText, '첫 문장. ');
+  assert.equal(calls, 1);
+  finish();
+  const result = await pending;
+  assert.equal(documentText, '첫 문장. 둘째 문장.');
+  assert.equal(result.reasoning, '근거를 검토');
+  assert.equal(calls, 1);
+});

@@ -1,7 +1,7 @@
 'use strict';
 
 const CACHE_PREFIX = 'md-viewer-pwa-';
-const CACHE_VERSION = '20261022-lemonade-reasoning-1';
+const CACHE_VERSION = '20261022-lemonade-reasoning-3';
 const STATIC_CACHE = CACHE_PREFIX + 'static-' + CACHE_VERSION;
 const RUNTIME_CACHE = CACHE_PREFIX + 'runtime-' + CACHE_VERSION;
 const MAX_RUNTIME_ENTRIES = 80;
