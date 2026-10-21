@@ -381,6 +381,110 @@
         }
     }
 
+    function installManagerResizeHandles(dialog) {
+        if (!dialog || dialog.dataset.resizeHandlesReady === 'true') return;
+        dialog.dataset.resizeHandlesReady = 'true';
+
+        var style = document.getElementById('tidy-manager-resize-style');
+        if (!style) {
+            style = document.createElement('style');
+            style.id = 'tidy-manager-resize-style';
+            style.textContent = [
+                '#tidy-manager-dialog .tidy-manager-resize-shield{display:none;position:absolute;inset:0;z-index:20;background:transparent}',
+                '#tidy-manager-dialog.tidy-manager-resizing .tidy-manager-resize-shield{display:block}',
+                '#tidy-manager-dialog .tidy-manager-resize-handle{position:absolute;z-index:30;touch-action:none;background:transparent}',
+                '#tidy-manager-dialog .tidy-manager-resize-handle::after{content:"";position:absolute;background:#22d3ee;opacity:.72;border-radius:2px;box-shadow:0 0 0 1px rgba(2,6,23,.72)}',
+                '#tidy-manager-dialog .tidy-manager-resize-n{left:18px;right:18px;top:-5px;height:10px;cursor:n-resize}',
+                '#tidy-manager-dialog .tidy-manager-resize-s{left:18px;right:18px;bottom:-5px;height:10px;cursor:s-resize}',
+                '#tidy-manager-dialog .tidy-manager-resize-w{top:18px;bottom:18px;left:-5px;width:10px;cursor:w-resize}',
+                '#tidy-manager-dialog .tidy-manager-resize-e{top:18px;bottom:18px;right:-5px;width:10px;cursor:e-resize}',
+                '#tidy-manager-dialog .tidy-manager-resize-n::after,#tidy-manager-dialog .tidy-manager-resize-s::after{left:50%;width:44px;height:4px;transform:translateX(-50%)}',
+                '#tidy-manager-dialog .tidy-manager-resize-n::after{top:3px}',
+                '#tidy-manager-dialog .tidy-manager-resize-s::after{bottom:3px}',
+                '#tidy-manager-dialog .tidy-manager-resize-w::after,#tidy-manager-dialog .tidy-manager-resize-e::after{top:50%;width:4px;height:44px;transform:translateY(-50%)}',
+                '#tidy-manager-dialog .tidy-manager-resize-w::after{left:3px}',
+                '#tidy-manager-dialog .tidy-manager-resize-e::after{right:3px}',
+                '#tidy-manager-dialog .tidy-manager-resize-nw,#tidy-manager-dialog .tidy-manager-resize-ne,#tidy-manager-dialog .tidy-manager-resize-sw,#tidy-manager-dialog .tidy-manager-resize-se{width:20px;height:20px}',
+                '#tidy-manager-dialog .tidy-manager-resize-nw{left:-5px;top:-5px;cursor:nw-resize}',
+                '#tidy-manager-dialog .tidy-manager-resize-ne{right:-5px;top:-5px;cursor:ne-resize}',
+                '#tidy-manager-dialog .tidy-manager-resize-sw{left:-5px;bottom:-5px;cursor:sw-resize}',
+                '#tidy-manager-dialog .tidy-manager-resize-se{right:-5px;bottom:-5px;cursor:se-resize}',
+                '#tidy-manager-dialog .tidy-manager-resize-nw::after,#tidy-manager-dialog .tidy-manager-resize-ne::after,#tidy-manager-dialog .tidy-manager-resize-sw::after,#tidy-manager-dialog .tidy-manager-resize-se::after{width:11px;height:11px}',
+                '#tidy-manager-dialog .tidy-manager-resize-nw::after{left:4px;top:4px;border-radius:3px 0 0 0}',
+                '#tidy-manager-dialog .tidy-manager-resize-ne::after{right:4px;top:4px;border-radius:0 3px 0 0}',
+                '#tidy-manager-dialog .tidy-manager-resize-sw::after{left:4px;bottom:4px;border-radius:0 0 0 3px}',
+                '#tidy-manager-dialog .tidy-manager-resize-se::after{right:4px;bottom:4px;border-radius:0 0 3px 0}'
+            ].join('');
+            document.head.appendChild(style);
+        }
+
+        var shield = document.createElement('div');
+        shield.className = 'tidy-manager-resize-shield';
+        shield.setAttribute('aria-hidden', 'true');
+        dialog.appendChild(shield);
+
+        ['n', 's', 'w', 'e', 'nw', 'ne', 'sw', 'se'].forEach(function (direction) {
+            var handle = document.createElement('div');
+            handle.className = 'tidy-manager-resize-handle tidy-manager-resize-' + direction;
+            handle.dataset.direction = direction;
+            handle.setAttribute('aria-hidden', 'true');
+            handle.addEventListener('pointerdown', function (event) {
+                if (event.button !== 0) return;
+                event.preventDefault();
+                var rect = dialog.getBoundingClientRect();
+                var startX = event.clientX;
+                var startY = event.clientY;
+                var minWidth = Math.min(520, Math.max(320, window.innerWidth - 24));
+                var minHeight = Math.min(360, Math.max(240, window.innerHeight - 24));
+                var edgeGap = 6;
+                dialog.classList.add('tidy-manager-resizing');
+                handle.setPointerCapture(event.pointerId);
+
+                function move(moveEvent) {
+                    var dx = moveEvent.clientX - startX;
+                    var dy = moveEvent.clientY - startY;
+                    var left = rect.left;
+                    var top = rect.top;
+                    var right = rect.right;
+                    var bottom = rect.bottom;
+                    if (direction.indexOf('w') !== -1) left = Math.min(Math.max(edgeGap, rect.left + dx), right - minWidth);
+                    if (direction.indexOf('e') !== -1) right = Math.max(Math.min(window.innerWidth - edgeGap, rect.right + dx), left + minWidth);
+                    if (direction.indexOf('n') !== -1) top = Math.min(Math.max(edgeGap, rect.top + dy), bottom - minHeight);
+                    if (direction.indexOf('s') !== -1) bottom = Math.max(Math.min(window.innerHeight - edgeGap, rect.bottom + dy), top + minHeight);
+                    dialog.style.left = Math.round(left) + 'px';
+                    dialog.style.top = Math.round(top) + 'px';
+                    dialog.style.width = Math.round(right - left) + 'px';
+                    dialog.style.height = Math.round(bottom - top) + 'px';
+                }
+
+                function stop() {
+                    dialog.classList.remove('tidy-manager-resizing');
+                    handle.removeEventListener('pointermove', move);
+                    handle.removeEventListener('pointerup', stop);
+                    handle.removeEventListener('pointercancel', stop);
+                }
+                handle.addEventListener('pointermove', move);
+                handle.addEventListener('pointerup', stop);
+                handle.addEventListener('pointercancel', stop);
+            });
+            dialog.appendChild(handle);
+        });
+    }
+
+    function placeManagerDialog(dialog) {
+        var rect = dialog.getBoundingClientRect();
+        var width = Math.min(rect.width, window.innerWidth - 12);
+        var height = Math.min(rect.height, window.innerHeight - 12);
+        dialog.style.inset = 'auto';
+        dialog.style.margin = '0';
+        dialog.style.maxWidth = 'none';
+        dialog.style.maxHeight = 'none';
+        dialog.style.left = Math.max(6, Math.round((window.innerWidth - width) / 2)) + 'px';
+        dialog.style.top = Math.max(6, Math.round((window.innerHeight - height) / 2)) + 'px';
+        dialog.style.width = Math.round(width) + 'px';
+        dialog.style.height = Math.round(height) + 'px';
+    }
+
     function openManager() {
         if (global.TidyActions && typeof global.TidyActions.closeMenu === 'function') global.TidyActions.closeMenu();
         var dialog = document.getElementById('tidy-manager-dialog');
@@ -396,7 +500,11 @@
             dialog.appendChild(frame);
             document.body.appendChild(dialog);
         }
-        if (!dialog.open) dialog.showModal();
+        installManagerResizeHandles(dialog);
+        if (!dialog.open) {
+            dialog.show();
+            placeManagerDialog(dialog);
+        }
         return true;
     }
 

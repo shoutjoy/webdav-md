@@ -89,13 +89,30 @@ test('JENA selects cached models and applies generated code with the older bridg
 
 test('manager reuses an internal dialog without opening another browser window', () => {
   const nodes = new Map();
-  const document = { currentScript:null, getElementById:id=>nodes.get(id), createElement:tag=>({tag,style:{},setAttribute(){},appendChild(child){this.child=child;},showModal(){this.open=true;},close(){this.open=false;}}), body:{appendChild(node){nodes.set(node.id,node);}} };
-  const window = {open(){throw new Error('External popup must not be used');}};
+  const listeners = [];
+  const createElement = tag => ({
+    tag, style:{}, dataset:{}, children:[], className:'',
+    classList:{add(){},remove(){}},
+    setAttribute(){},
+    appendChild(child){this.children.push(child);},
+    addEventListener(type){listeners.push(type);},
+    setPointerCapture(){},
+    getBoundingClientRect(){return {left:20,top:20,right:980,bottom:740,width:960,height:720};},
+    show(){this.open=true;},
+    showModal(){throw new Error('Manager must remain non-modal');},
+    close(){this.open=false;}
+  });
+  const document = { currentScript:null, getElementById:id=>nodes.get(id), createElement, head:{appendChild(node){nodes.set(node.id,node);}}, body:{appendChild(node){nodes.set(node.id,node);}} };
+  const window = {innerWidth:1200,innerHeight:900,open(){throw new Error('External popup must not be used');}};
   vm.runInContext(source,vm.createContext({window,document,URL,TextEncoder,TextDecoder,console}));
   assert.equal(window.TidyScriptManager.openManager(),true);
   const dialog=nodes.get('tidy-manager-dialog');
-  assert.equal(dialog.child.tag,'iframe');
+  assert.equal(dialog.children[0].tag,'iframe');
+  assert.deepEqual(dialog.children.filter(node=>node.dataset.direction).map(node=>node.dataset.direction),['n','s','w','e','nw','ne','sw','se']);
+  assert.equal(listeners.filter(type=>type==='pointerdown').length,8);
   assert.equal(dialog.open,true);
+  assert.equal(dialog.style.left,'120px');
+  assert.equal(dialog.style.top,'90px');
   window.TidyScriptManager.closeManager();
   assert.equal(dialog.open,false);
   window.TidyScriptManager.openManager();

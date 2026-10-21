@@ -185,3 +185,35 @@ test('DOCX export removes the Markdown escape before numbered heading dots', asy
   assert.match(documentXml, /1\. 교육산업의 존재론적 질문/);
   assert.doesNotMatch(documentXml, /1\\\. 교육산업의 존재론적 질문/);
 });
+
+test('DOCX export converts Markdown bold markers around special characters into bold Word runs', async () => {
+  const { api, files } = loadDocxExport();
+  await api.createBlob({
+    content: [
+      '일반 **특수문자 → ± ≥ & (중요)** 일반',
+      '- **기호: ★ / ※ / ①**',
+      '| 항목 | 값 |',
+      '| --- | --- |',
+      '| 상태 | **완료 ✓** |'
+    ].join('\n')
+  });
+
+  const documentXml = files.get('word/document.xml');
+  assert.match(documentXml, /<w:r><w:rPr><w:b\/><\/w:rPr><w:t[^>]*>특수문자 → ± ≥ &amp; \(중요\)<\/w:t><\/w:r>/);
+  assert.match(documentXml, /<w:r><w:rPr><w:b\/><\/w:rPr><w:t[^>]*>기호: ★ \/ ※ \/ ①<\/w:t><\/w:r>/);
+  assert.match(documentXml, /<w:r><w:rPr><w:b\/><\/w:rPr><w:t[^>]*>완료 ✓<\/w:t><\/w:r>/);
+  assert.doesNotMatch(documentXml, /\*\*/);
+});
+
+test('DOCX export does not leave bold markers split around an inline equation', async () => {
+  const { api, files } = loadDocxExport();
+  await api.createBlob({
+    content: String.raw`결과는 **\(\beta \ge .50\)** 이다.`
+  });
+
+  const documentXml = files.get('word/document.xml');
+  assert.match(documentXml, /<m:oMath>/);
+  assert.match(documentXml, />β(?:<|\s)/);
+  assert.match(documentXml, />[^<]*≥[^<]*</);
+  assert.doesNotMatch(documentXml, /\*\*/);
+});

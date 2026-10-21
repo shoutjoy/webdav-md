@@ -144,13 +144,36 @@
     return segments.length ? segments : [{ type: 'text', text: source }];
   }
 
+  function splitBoldMarkdownSegments(value) {
+    var source = String(value == null ? '' : value);
+    var segments = [];
+    var pattern = /(\*\*|__)([\s\S]+?)\1/g;
+    var cursor = 0;
+    var match;
+    while ((match = pattern.exec(source))) {
+      if (match.index > cursor) {
+        segments.push({ text: source.slice(cursor, match.index), bold: false });
+      }
+      segments.push({ text: match[2], bold: true });
+      cursor = pattern.lastIndex;
+    }
+    if (cursor < source.length) segments.push({ text: source.slice(cursor), bold: false });
+    return segments.length ? segments : [{ text: source, bold: false }];
+  }
+
   function makeRichTextSegments(value) {
-    return splitMathSegments(value).map(function (segment) {
-      if (segment.type === 'math') return segment;
-      return { type: 'text', text: normalizeDocxPlainTextSymbols(stripInlineMarkdown(segment.text)) };
-    }).filter(function (segment) {
-      return segment.type === 'math' || !!segment.text;
+    var output = [];
+    splitBoldMarkdownSegments(value).forEach(function (boldSegment) {
+      splitMathSegments(boldSegment.text).forEach(function (segment) {
+        if (segment.type === 'math') {
+          output.push(Object.assign({}, segment, { bold: boldSegment.bold }));
+          return;
+        }
+        var text = normalizeDocxPlainTextSymbols(stripInlineMarkdown(segment.text));
+        if (text) output.push({ type: 'text', text: text, bold: boldSegment.bold });
+      });
     });
+    return output;
   }
 
   function splitMarkdownTableRow(line) {
@@ -1079,7 +1102,7 @@
     return segments.map(function (segment) {
       return segment.type === 'math'
         ? makeDocxMath(segment.latex)
-        : makeDocxTextRun(segment.text || '', isBold);
+        : makeDocxTextRun(segment.text || '', isBold || !!segment.bold);
     }).join('');
   }
 
@@ -1851,7 +1874,9 @@
   function makeDocxCellParagraphs(text, isHeader, segments) {
     var lines = String(text == null ? '' : text).replace(/\r\n?/g, '\n').split('\n');
     if (!lines.length) lines = [''];
-    if (Array.isArray(segments) && segments.some(function (segment) { return segment.type === 'math'; })) {
+    if (Array.isArray(segments) && segments.some(function (segment) {
+      return segment.type === 'math' || !!segment.bold;
+    })) {
       return '<w:p>' + makeDocxRichRuns({ text: text, segments: segments }, isHeader) + '</w:p>';
     }
     return lines.map(function (line) {
