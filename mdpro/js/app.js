@@ -158,7 +158,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260914-serpapi-vault-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?v=20261019-img-gen-preview-1',
+    aiChat: './AI_App/aiChat/ai-chat.js?v=20261021-csv-table-window-1',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20261021-data-image-fold-4'
@@ -19968,7 +19968,15 @@ async function extractAIChatAttachment(file) {
     else throw new Error('지원하지 않는 첨부 형식입니다: ' + name);
     text = String(text || '').trim();
     if (!text) throw new Error('추출할 텍스트가 없습니다: ' + name);
-    return { kind: 'document', name: name, type: mimeType, size: file.size, text: text.slice(0, 160000), truncated: text.length > 160000 };
+    return {
+        kind: 'document',
+        name: name,
+        type: mimeType,
+        size: file.size,
+        text: text.slice(0, 160000),
+        truncated: text.length > 160000,
+        csvText: extension === '.csv' || mimeType === 'text/csv' ? text : ''
+    };
 }
 
 function aiChatDataUrlToFile(dataUrl, name) {

@@ -6358,6 +6358,131 @@
     return bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + 'MB' : Math.max(1, Math.round(bytes / 1024)) + 'KB';
   }
 
+  function isCsvAttachment(attachment) {
+    if (!attachment || attachment.kind !== 'document') return false;
+    return /\.csv$/i.test(String(attachment.name || '')) || String(attachment.type || '').toLowerCase() === 'text/csv';
+  }
+
+  function parseCsvAttachmentRows(text) {
+    var formatApi = root.MdViewerFileFormat;
+    if (formatApi && typeof formatApi.parseCsvRows === 'function') {
+      return formatApi.parseCsvRows(String(text || ''), ',');
+    }
+    var source = String(text || '').replace(/^\uFEFF/, '');
+    var rows = [];
+    var row = [];
+    var cell = '';
+    var quoted = false;
+    for (var index = 0; index < source.length; index += 1) {
+      var character = source[index];
+      var next = source[index + 1];
+      if (quoted) {
+        if (character === '"' && next === '"') {
+          cell += '"';
+          index += 1;
+        } else if (character === '"') {
+          quoted = false;
+        } else {
+          cell += character;
+        }
+      } else if (character === '"') {
+        quoted = true;
+      } else if (character === ',') {
+        row.push(cell);
+        cell = '';
+      } else if (character === '\r' || character === '\n') {
+        if (character === '\r' && next === '\n') index += 1;
+        row.push(cell);
+        rows.push(row);
+        row = [];
+        cell = '';
+      } else {
+        cell += character;
+      }
+    }
+    row.push(cell);
+    if (row.length > 1 || row[0] !== '' || rows.length === 0) rows.push(row);
+    return rows;
+  }
+
+  function openCsvAttachmentWindow(attachment) {
+    if (!isCsvAttachment(attachment)) return false;
+    var popup = root.open('', 'ai-jena-csv-' + Date.now(), 'popup=yes,width=1180,height=760,resizable=yes,scrollbars=yes');
+    if (!popup) {
+      setStatus('CSV 새 창이 차단되었습니다. 브라우저에서 팝업을 허용해 주세요.', 'error');
+      return false;
+    }
+    var rows = parseCsvAttachmentRows(attachment.csvText || attachment.text);
+    var columnCount = rows.reduce(function (largest, row) { return Math.max(largest, row.length); }, 0);
+    var doc = popup.document;
+    doc.title = String(attachment.name || 'CSV 보기');
+    doc.documentElement.lang = 'ko';
+    doc.head.innerHTML = '';
+    doc.body.innerHTML = '';
+    var meta = doc.createElement('meta');
+    meta.name = 'viewport';
+    meta.content = 'width=device-width, initial-scale=1';
+    doc.head.appendChild(meta);
+    var style = doc.createElement('style');
+    style.textContent = 'html{color-scheme:light dark}body{margin:0;background:#f6f8fb;color:#172033;font:14px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}header{position:sticky;top:0;z-index:2;padding:14px 18px;border-bottom:1px solid #cbd5e1;background:#fff}h1{margin:0;font-size:18px;word-break:break-all}p{margin:4px 0 0;color:#64748b}.table-wrap{overflow:auto;padding:14px 18px 24px}table{border-collapse:separate;border-spacing:0;min-width:100%;background:#fff;border:1px solid #cbd5e1}th,td{min-width:90px;max-width:480px;padding:7px 9px;border-right:1px solid #dbe3ee;border-bottom:1px solid #dbe3ee;text-align:left;vertical-align:top;white-space:pre-wrap;overflow-wrap:anywhere}thead th{position:sticky;top:72px;z-index:1;background:#e9eff8;font-weight:700}tbody th{position:sticky;left:0;background:#f3f6fa;color:#64748b;text-align:right;font-weight:600}tr:last-child>*{border-bottom:0}tr>*:last-child{border-right:0}@media(prefers-color-scheme:dark){body{background:#0f172a;color:#e5edf8}header,table{background:#172033;border-color:#46556d}header{border-color:#46556d}p{color:#aebbd0}th,td{border-color:#344158}thead th{background:#26354d}tbody th{background:#202d42;color:#b8c5d8}}';
+    doc.head.appendChild(style);
+    var header = doc.createElement('header');
+    var title = doc.createElement('h1');
+    title.textContent = attachment.name || 'CSV 보기';
+    var summary = doc.createElement('p');
+    summary.textContent = rows.length + '행 · ' + columnCount + '열';
+    header.appendChild(title);
+    header.appendChild(summary);
+    doc.body.appendChild(header);
+    var wrapper = doc.createElement('div');
+    wrapper.className = 'table-wrap';
+    var table = doc.createElement('table');
+    var head = doc.createElement('thead');
+    var headRow = doc.createElement('tr');
+    var corner = doc.createElement('th');
+    corner.scope = 'col';
+    corner.textContent = '#';
+    headRow.appendChild(corner);
+    for (var column = 0; column < columnCount; column += 1) {
+      var columnHeader = doc.createElement('th');
+      columnHeader.scope = 'col';
+      columnHeader.textContent = String(column + 1);
+      headRow.appendChild(columnHeader);
+    }
+    head.appendChild(headRow);
+    table.appendChild(head);
+    var body = doc.createElement('tbody');
+    rows.forEach(function (values, rowIndex) {
+      var tableRow = doc.createElement('tr');
+      var rowHeader = doc.createElement('th');
+      rowHeader.scope = 'row';
+      rowHeader.textContent = String(rowIndex + 1);
+      tableRow.appendChild(rowHeader);
+      for (var cellIndex = 0; cellIndex < columnCount; cellIndex += 1) {
+        var tableCell = doc.createElement('td');
+        tableCell.textContent = values[cellIndex] == null ? '' : String(values[cellIndex]);
+        tableRow.appendChild(tableCell);
+      }
+      body.appendChild(tableRow);
+    });
+    table.appendChild(body);
+    wrapper.appendChild(table);
+    doc.body.appendChild(wrapper);
+    popup.focus();
+    return true;
+  }
+
+  function createCsvAttachmentButton(attachment, text) {
+    var button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'ai-chat-csv-attachment';
+    button.textContent = text;
+    button.title = 'CSV 내용을 새 창의 표로 열기';
+    button.setAttribute('aria-label', String(attachment.name || 'CSV 첨부') + ' 새 창에서 표로 열기');
+    button.addEventListener('click', function () { openCsvAttachmentWindow(attachment); });
+    return button;
+  }
+
   function renderPendingAttachments() {
     var host = document.getElementById('ai-chat-attachments');
     if (!host) return;
@@ -6379,9 +6504,12 @@
         icon.textContent = '📄';
         item.appendChild(icon);
       }
-      var label = document.createElement('span');
-      label.className = 'ai-chat-attachment-name';
-      label.textContent = attachment.name + ' · ' + formatAttachmentSize(attachment.size);
+      var labelText = attachment.name + ' · ' + formatAttachmentSize(attachment.size);
+      var label = isCsvAttachment(attachment)
+        ? createCsvAttachmentButton(attachment, labelText)
+        : document.createElement('span');
+      label.classList.add('ai-chat-attachment-name');
+      if (!isCsvAttachment(attachment)) label.textContent = labelText;
       item.appendChild(label);
       var remove = document.createElement('button');
       remove.type = 'button';
@@ -6481,9 +6609,12 @@
         figure.appendChild(caption);
         gallery.appendChild(figure);
       } else {
-        var file = document.createElement('div');
-        file.className = 'ai-chat-message-file';
-        file.textContent = '📄 ' + (attachment.name || '첨부 문서');
+        var fileText = '📄 ' + (attachment.name || '첨부 문서');
+        var file = isCsvAttachment(attachment)
+          ? createCsvAttachmentButton(attachment, fileText)
+          : document.createElement('div');
+        file.classList.add('ai-chat-message-file');
+        if (!isCsvAttachment(attachment)) file.textContent = fileText;
         gallery.appendChild(file);
       }
     });

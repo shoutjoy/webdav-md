@@ -1529,7 +1529,11 @@ body.ai-chat-history-resizing { cursor: ew-resize !important; user-select: none 
 .ai-chat-message-attachments figcaption { padding: 5px 7px; overflow: hidden; color: #c9d7eb; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .ai-chat-message-file { padding: 8px 10px; border: 1px solid #647da4; border-radius: 8px; background: #1c2b43; color: #dce8f8; font-size: 11px; }
 .ai-chat-attachment-name { max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ai-chat-attachment-chip button { width: 20px; height: 20px; padding: 0; border: 0; background: transparent; color: #ffb4bd; font-size: 17px; line-height: 1; cursor: pointer; }
+.ai-chat-csv-attachment { appearance: none; margin: 0; padding: 0; border: 0; background: transparent; color: #8ec5ff; font: inherit; text-align: left; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; cursor: pointer; }
+.ai-chat-csv-attachment:hover { color: #c4e1ff; }
+.ai-chat-csv-attachment:focus-visible { border-radius: 3px; outline: 2px solid #69aef8; outline-offset: 2px; }
+.ai-chat-message-file.ai-chat-csv-attachment { display: block; width: 100%; padding: 7px 9px; }
+.ai-chat-attachment-chip > button:not(.ai-chat-csv-attachment) { width: 20px; height: 20px; padding: 0; border: 0; background: transparent; color: #ffb4bd; font-size: 17px; line-height: 1; cursor: pointer; }
 .ai-chat-composer textarea {
   width: 100%;
   min-height: 70px;
@@ -1630,6 +1634,8 @@ body.theme-light .ai-chat-provider-row select,
 body.theme-light .ai-chat-writing-style-row select,
 body.theme-light .ai-chat-composer textarea { background: #fff; color: #172033; }
 body.theme-light .ai-chat-attachment-chip { border-color: #c4cfdf; background: #f3f6fb; color: #27364d; }
+body.theme-light .ai-chat-csv-attachment { color: #135ea8; }
+body.theme-light .ai-chat-csv-attachment:hover { color: #0b3f78; }
 body.theme-light .ai-chat-message-attachments figure,
 body.theme-light .ai-chat-message-file { border-color: #c4cfdf; background: #f3f6fb; color: #27364d; }
 body.theme-light .ai-chat-message-attachments figcaption { color: #475569; }
