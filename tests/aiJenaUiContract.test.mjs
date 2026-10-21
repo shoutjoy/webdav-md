@@ -273,10 +273,12 @@ test('realtime reasoning uses separate reasoning and final-answer budgets', () =
   assert.match(appScript, /render_interval_ms: provider === 'lemonade' \? 160 : 80/);
 });
 
-test('Lemonade skips prolonged hidden thinking and streams the final answer immediately', () => {
-  assert.match(chatScript, /disableThinking: state\.provider === 'lemonade'/);
-  assert.match(chatScript, /showLiveReasoning = state\.responseMode === 'reasoning' && state\.showReasoning && state\.provider !== 'lemonade'/);
-  assert.match(chatScript, /state\.responseMode === 'quick' \|\| state\.provider === 'lemonade'[\s\S]*첫 응답 토큰 대기/);
+test('Lemonade enables thinking in reasoning mode and displays streamed reasoning', () => {
+  assert.match(chatScript, /disableThinking: state\.provider === 'lemonade' && \(state\.responseMode !== 'reasoning' \|\| state\.fastMode \|\| academicSearchActive\)/);
+  assert.match(chatScript, /showLiveReasoning = state\.responseMode === 'reasoning' && state\.showReasoning;/);
+  assert.match(chatScript, /state\.responseMode === 'quick' \|\| state\.fastMode[\s\S]*첫 응답 토큰 대기/);
+  assert.match(appScript, /const enableThinking = request\.mode === 'reasoning' && request\.disableThinking !== true && !request\.fastMode/);
+  assert.match(appScript, /chat_template_kwargs = \{ enable_thinking: enableThinking \}/);
 });
 
 test('AI Jena offers an editable continuation prompt with persisted Auto approval', () => {
