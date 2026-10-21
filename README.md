@@ -1,5 +1,13 @@
 # React + Vite
 
+## Jena Table development and porting
+
+Jena Table converts uploaded or pasted table images and supplied text into editable Markdown tables through the shared AI Jena provider/model bridge. It includes safe table preview rendering, a large preview window, fullscreen editing, document insertion, and cursor-aware row/column editing.
+
+Implementation contracts, AI request formats, Markdown parsing rules, MDPro porting steps, regression checks, and runtime verification are documented in [docs/JENA_TABLE_DEVELOPMENT_GUIDE.md](docs/JENA_TABLE_DEVELOPMENT_GUIDE.md).
+
+[docs/INLINE_IMAGE_FOLDING_RULES.md](docs/INLINE_IMAGE_FOLDING_RULES.md) defines the mandatory CodeMirror contract for Base64 inline-image folding. It requires each HTML `<img>` to fold and unfold as one unit, prevents nested `src`-only folds, specifies cache invalidation across the module loader and service worker, and requires a real browser fold-unfold-refold check.
+
 ## Math rendering rules
 
 [docs/MATH_RENDER_RULES.md](docs/MATH_RENDER_RULES.md) defines the mandatory `MDPRO-MATH-RENDER-CONTRACT` for Markdown/MathJax rendering in the main view, PV/miniPV, AI previews, print/PDF, and native Word equations in DOCX. It includes rules for escaped delimiters, Markdown emphasis conflicts, nested parentheses, code spans, cache updates, porting, and required regression cases. Follow it before changing or copying math-rendering behavior to another MDPro app.

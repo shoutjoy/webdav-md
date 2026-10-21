@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'webdav-viewer-v16-lemonade-image-edit';
+const CACHE_VERSION = 'webdav-viewer-v17-unified-data-image-fold';
 const APP_SHELL = ['./', './manifest.webmanifest', './webdav.svg', './webdav-maskable.svg'];
 
 self.addEventListener('install', (event) => {

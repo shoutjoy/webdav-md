@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Mermaid Editor Pro</title>
-  <link rel="stylesheet" href="style.css?v=20261021-ai-collapse-18" />
+  <link rel="stylesheet" href="style.css?v=20261021-ai-inline-21" />
   <script src="https://cdn.jsdelivr.net/npm/mermaid@11.14.0/dist/mermaid.min.js"></script>
 </head>
 
@@ -198,11 +198,12 @@
       <textarea id="mermaid-image-prompt" rows="2">이미지의 구조, 텍스트, 연결 방향, 그룹과 색상 의미를 분석해 원본과 최대한 비슷한 Mermaid 다이어그램을 만들어 주세요.</textarea>
     </label>
     <button id="mermaid-image-generate" type="button" class="btn ref-generate" disabled>
-      <span class="run-icon" aria-hidden="true">▶</span> 실행 · Mermaid 코드 생성
+      <span class="run-icon" aria-hidden="true">▶</span> ME실행
     </button>
     <button id="mermaid-history-open" type="button" class="btn ref-history-btn" onclick="toggleMermaidHistory()">저장 기록</button>
     <button id="mermaid-document-insert" type="button" class="btn ref-insert-btn" onclick="insertIntoDocumentAndClose()">문서 삽입</button>
     <button id="mermaid-ai-collapse-btn" type="button" onclick="toggleMermaidAiPanel()" aria-expanded="true">AI 영역 접기</button>
+    <button id="mermaid-ai-provider-toggle-btn" type="button" onclick="toggleMermaidAiProviderControls()" aria-expanded="false">AI 공급자·모델 펼치기</button>
     <div id="mermaid-image-status" aria-live="polite"></div>
     <aside id="mermaid-history-panel" hidden>
       <div class="history-head"><strong>inDB Mermaid 생성 기록</strong><button type="button" onclick="toggleMermaidHistory(false)" aria-label="닫기">×</button></div>
@@ -258,6 +259,6 @@
   </main>
 
   <script src="../mermaid-label-sanitizer.js?v=20260729-2"></script>
-  <script src="app.js?v=20261020-wysiwyg-export-1"></script>
+  <script src="app.js?v=20261021-ai-inline-21"></script>
 </body>
 </html>

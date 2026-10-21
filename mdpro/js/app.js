@@ -161,7 +161,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiChat: './AI_App/aiChat/ai-chat.js?v=20261019-img-gen-preview-1',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
-    codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20260925-nonprinting-3'
+    codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20261021-data-image-fold-4'
 });
 const optionalScriptLoads = new Map();
 
