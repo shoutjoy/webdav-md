@@ -869,9 +869,12 @@ function renderMiniPreviewContent() {
             }
         } catch (_) {}
         try {
-            if (snapshot.features.hasMermaid && window.MermaidTRT && typeof window.MermaidTRT.renderIn === 'function') {
+            // The shared renderer also recognizes untagged diagram declarations.
+            // The snapshot flag only detects explicitly tagged Mermaid fences.
+            if (window.MermaidTRT && typeof window.MermaidTRT.renderIn === 'function') {
                 window.MermaidTRT.renderIn(miniPreviewContent)
                     .then(function () {
+                        if (!isCurrentMiniRender()) return;
                         scheduleMiniPreviewScrollSync(0);
                         applyMiniPreviewLineSync();
                     })

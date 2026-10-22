@@ -161,7 +161,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiChat: './AI_App/aiChat/ai-chat.js?v=20261021-csv-table-window-1&reasoning=20261022-3',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
-    codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20261021-data-image-fold-4'
+    codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20261022-document-theme-1'
 });
 const optionalScriptLoads = new Map();
 
@@ -9486,6 +9486,89 @@ function guessNextCaptionNumber(mode) {
     return max + 1;
 }
 
+// Work on source offsets so caption titles, attributes and surrounding Markdown stay intact.
+function renumberTableCaptions(markdown) {
+    const source = String(markdown || '');
+    const changes = [];
+    let count = 0;
+    // Consume code and comments before looking for actual caption spans.
+    const tokens = /^( {0,3})(`{3,}|~{3,})[^\r\n]*\r?\n[\s\S]*?(?:^ {0,3}\2[ \t]*\r?$|(?![\s\S]))|<!--[\s\S]*?(?:-->|(?![\s\S]))|(`+)[\s\S]*?\3(?!`)|<span\b[^>]*>[\s\S]*?<\/span\s*>/gim;
+    let match;
+    while ((match = tokens.exec(source))) {
+        const span = match[0];
+        if (!/^<span\b/i.test(span)) continue;
+        const opening = span.match(/^<span\b[^>]*>/i)[0];
+        const classes = opening.match(/\bclass\s*=\s*(["'])(.*?)\1/i);
+        if (!classes || !classes[2].split(/\s+/).includes('tbl-caption')) continue;
+        const body = span.slice(opening.length);
+        const prefix = body.match(/^(\s*(?:(?:<|&lt;)표\s+|표\s+|Table\s+))(\d+)(?=(?:>|&gt;|\.))/i);
+        if (!prefix) continue;
+        count += 1;
+        const insert = String(count);
+        if (prefix[2] === insert) continue;
+        const from = match.index + opening.length + prefix[1].length;
+        changes.push({ from: from, to: from + prefix[2].length, insert: insert });
+    }
+    let result = source;
+    for (let i = changes.length - 1; i >= 0; i -= 1) {
+        const change = changes[i];
+        result = result.slice(0, change.from) + change.insert + result.slice(change.to);
+    }
+    return { markdown: result, count: count, changes: changes };
+}
+
+function renumberTableCaptionsInDocument() {
+    syncEditModeStateFromDom();
+    if (!isEditMode || !editorTextarea) {
+        showToast('편집 모드에서 사용하세요.');
+        return;
+    }
+    const result = renumberTableCaptions(editorTextarea.value);
+    if (!result.count) {
+        showToast('재정렬할 표 캡션이 없습니다.');
+        return;
+    }
+    if (result.changes.length) {
+        const scrollTop = editorTextarea.scrollTop;
+        const scrollLeft = editorTextarea.scrollLeft;
+        const mapPosition = function (position) {
+            let delta = 0;
+            for (const change of result.changes) {
+                if (position < change.from) break;
+                if (position <= change.to) return change.from + delta + Math.min(position - change.from, change.insert.length);
+                delta += change.insert.length - (change.to - change.from);
+            }
+            return position + delta;
+        };
+        const start = mapPosition(editorTextarea.selectionStart);
+        const end = mapPosition(editorTextarea.selectionEnd);
+        const cmView = editorTextarea.__mdCm6View;
+        if (cmView) {
+            cmView.dispatch({
+                changes: result.changes,
+                selection: { anchor: start, head: end },
+                userEvent: 'input.tableCaptionRenumber'
+            });
+        } else {
+            editorTextarea.value = result.markdown;
+            editorTextarea.setSelectionRange(start, end);
+        }
+        currentMarkdown = result.markdown;
+        editorTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+        editorTextarea.scrollTop = scrollTop;
+        editorTextarea.scrollLeft = scrollLeft;
+        renderMarkdown();
+        if (activeSidebarTab === 'toc') renderTOC();
+        performAutoSave();
+    }
+    const ui = getCaptionUi('table');
+    if (ui.numberInput) ui.numberInput.value = String(result.count + 1);
+    updateCaptionInsertPreview('table');
+    showToast(result.changes.length
+        ? '표 캡션 ' + result.count + '개의 번호를 문서 순서대로 재정렬했습니다.'
+        : '표 캡션 번호가 이미 문서 순서대로 정렬되어 있습니다.');
+}
+
 function prepareCaptionPanel(mode) {
     if (!isEditMode || !editorTextarea) {
         showToast('Use this in edit mode.');
@@ -13622,13 +13705,25 @@ function ensureTableInsertPickerBuilt() {
             cell.className = 'w-4 h-4 rounded-[2px] border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 hover:border-indigo-500';
             cell.dataset.rows = String(r);
             cell.dataset.cols = String(c);
+            cell.style.display = r <= 3 ? '' : 'none';
             cell.onmouseenter = function () { previewTableInsertSize(r, c); };
+            cell.onfocus = function () { previewTableInsertSize(r, c); };
             cell.onclick = function () { selectTableInsertSize(r, c); };
             grid.appendChild(cell);
         }
     }
+    grid.dataset.visibleRows = '3';
     grid.addEventListener('mouseleave', function () {
         previewTableInsertSize(0, 0);
+    });
+}
+
+function resetTableInsertGridRows() {
+    const grid = document.getElementById('table-insert-grid');
+    if (!grid) return;
+    grid.dataset.visibleRows = '3';
+    grid.querySelectorAll('button[data-rows][data-cols]').forEach(function (cell) {
+        cell.style.display = Number(cell.dataset.rows) <= 3 ? '' : 'none';
     });
 }
 
@@ -13641,11 +13736,15 @@ function previewTableInsertSize(rows, cols) {
     }
     const grid = document.getElementById('table-insert-grid');
     if (!grid) return;
+    // Keep one spare row below the pointer, up to the existing ten-row limit.
+    const visibleRows = Math.min(10, Math.max(Number(grid.dataset.visibleRows) || 3, rows + 1));
+    grid.dataset.visibleRows = String(visibleRows);
     const cells = grid.querySelectorAll('button[data-rows][data-cols]');
     for (let i = 0; i < cells.length; i += 1) {
         const cell = cells[i];
         const r = Number(cell.dataset.rows || 0);
         const c = Number(cell.dataset.cols || 0);
+        cell.style.display = r <= visibleRows ? '' : 'none';
         const on = rows > 0 && cols > 0 && r <= rows && c <= cols;
         cell.classList.toggle('bg-amber-300', on);
         cell.classList.toggle('border-amber-500', on);
@@ -13658,6 +13757,7 @@ function closeTableInsertPicker() {
     const panel = document.getElementById('table-insert-picker');
     if (!panel) return;
     panel.classList.add('hidden');
+    resetTableInsertGridRows();
     previewTableInsertSize(0, 0);
 }
 
@@ -13683,7 +13783,10 @@ function toggleTableInsertPicker() {
     const panel = document.getElementById('table-insert-picker');
     if (!panel) return;
     panel.classList.toggle('hidden');
-    if (!panel.classList.contains('hidden')) previewTableInsertSize(0, 0);
+    if (!panel.classList.contains('hidden')) {
+        resetTableInsertGridRows();
+        previewTableInsertSize(0, 0);
+    }
 }
 
 function getMarkdownTableStructureAtCursor(text, cursor) {

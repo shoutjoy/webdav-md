@@ -1441,9 +1441,6 @@
         }
 
         /* 편집창 전용 라이트 모드 (버튼으로 토글) */
-        #content-viewport.editor-light-mode {
-            background-color: #f8fafc;
-        }
         #content-viewport.editor-light-mode #viewer-edit-ta {
             background-color: #ffffff;
             color: #1e293b;
@@ -1652,8 +1649,8 @@
             color: #94a3b8;
             -webkit-text-fill-color: #94a3b8;
         }
-        #content-viewport.editor-light-mode.custom-scrollbar::-webkit-scrollbar-track { background: #e2e8f0; }
-        #content-viewport.editor-light-mode.custom-scrollbar::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #cbd5e1 0%, #94a3b8 100%); border-color: #e2e8f0; }
+        html:not(.dark) #content-viewport.custom-scrollbar::-webkit-scrollbar-track { background: #e2e8f0; }
+        html:not(.dark) #content-viewport.custom-scrollbar::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #cbd5e1 0%, #94a3b8 100%); border-color: #e2e8f0; }
 
         /* Keep wheel input inside the editor. At the textarea's scroll limits the
            browser must not chain the gesture to the hidden view-mode scroller. */
@@ -3585,11 +3582,6 @@ html:not(.dark) #app-status-footer button {
 
 /* Footer document-theme toggle: edit and rendered view share one theme,
    independently from the surrounding application chrome. */
-#drop-zone.document-light-mode #content-viewport,
-#drop-zone.document-light-mode #viewer-container {
-    background: #f8fafc !important;
-}
-
 #drop-zone.document-light-mode #editor-doc-wrap,
 #drop-zone.document-light-mode #viewer-container #viewer {
     background: #fff !important;
@@ -3624,8 +3616,9 @@ html:not(.dark) #app-status-footer button {
 #drop-zone.document-light-mode .markdown-body td { border-color: #cbd5e1; }
 #drop-zone.document-light-mode .markdown-body thead th { background-color: #f1f5f9; }
 
-#drop-zone.document-dark-mode #content-viewport,
-#drop-zone.document-dark-mode #viewer-container {
+/* The canvas follows the application theme; only the sheet follows the footer. */
+html.dark #content-viewport,
+html.dark #viewer-container {
     background: #020617 !important;
 }
 
