@@ -13,7 +13,7 @@
         }
     };
 
-    var DEFAULT_SCRIPT_URL = 'js/math_render/math_render.js';
+    var DEFAULT_SCRIPT_URL = 'js/math_render/math_render.js?v=20261023-literal-single-tilde-1';
     var DEFAULT_MATHJAX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js';
     var TYPESET_QUEUES = typeof WeakMap === 'function' ? new WeakMap() : null;
     var fallbackTypesetQueue = Promise.resolve();
@@ -463,6 +463,21 @@
                         if (end >= 0) {
                             pushSlot(out, s.slice(i, end + 1));
                             i = end + 1;
+                            continue;
+                        }
+                    }
+
+                    // Marked accepts ~text~ as deletion, which joins unrelated
+                    // ranges such as insa_i1~insa_i4, insa_p1~insa_p4. Protect
+                    // lone tildes through parsing, then restore the literal
+                    // character (also inside URLs/attributes). Keep ~~ deletion
+                    // and escaped tildes under the Markdown parser's control.
+                    if (s[i] === '~' && s[i - 1] !== '~' && s[i + 1] !== '~') {
+                        var backslashes = 0;
+                        for (var b = i - 1; b >= 0 && s[b] === '\\'; b -= 1) backslashes += 1;
+                        if (backslashes % 2 === 0) {
+                            pushSlot(out, '~');
+                            i += 1;
                             continue;
                         }
                     }
