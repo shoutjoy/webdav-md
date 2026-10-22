@@ -14,7 +14,9 @@ const { chromium } = require('playwright');
       th,td { border:1px solid #789;padding:6px;height:22px }
     </style><div id="content"></div>`);
     const source = fs.readFileSync(path.join(__dirname, '../mdpro/js/UI_PV/editpv.js'), 'utf8');
-    await page.addScriptTag({ content: source.slice(source.indexOf('function previewPopupFits('), source.indexOf('function previewPopupSplitPreformatted(')) });
+    const layoutSource = source.slice(source.indexOf('const PREVIEW_PV_PAGE_LAYOUT_STORAGE_KEY'), source.indexOf('const PREVIEW_PV_HEADER_SCALE_STORAGE_KEY'));
+    await page.addScriptTag({ content: layoutSource });
+    await page.addScriptTag({ content: source.slice(source.indexOf('function previewPopupFindWordBoundary('), source.indexOf('function previewPopupSplitPreformatted(')) });
     const result = await page.evaluate(() => {
       const content = document.getElementById('content');
       const headers = '<thead><tr>' + ['Latent','Item','Est','SE','std','Z','CR','AVE'].map(x => `<th>${x}</th>`).join('') + '</tr></thead>';
@@ -65,6 +67,7 @@ const { chromium } = require('playwright');
     await page.addScriptTag({ content: source.slice(source.indexOf('function previewPopupSplitPreformatted('), source.indexOf('function applyPreviewPopupViewport(')) });
     await page.addScriptTag({ content: `
       var previewPopupWindow = window;
+      var previewPopupScale = 1;
       function isPreviewPopupAlive() { return true; }
       function getPreviewPopupPageMargins() { return {top:0,right:0,bottom:0,left:0}; }
       function previewPopupApplyPageMarginState() {}
@@ -122,6 +125,23 @@ const { chromium } = require('playwright');
       assert.ok(value.sizes.every(size => size.width <= 501 && size.font >= 11));
     }
     console.log('PV table sizing passed:', JSON.stringify(sizing));
+    const sparse = await page.evaluate(() => {
+      const root = document.createElement('div');
+      const expected = Array.from({length:20}, (_, i) => {
+        const cells = ['item_'+i, '', '', '', '', ''];
+        cells[1 + Math.floor(i / 4)] = (0.959 - i / 100).toFixed(3);
+        return cells;
+      });
+      expected.splice(9, 0, ['all_empty', '', '', '', '', '']);
+      root.innerHTML = '<p style="height:350px;margin:0">Before sparse table</p><table><thead><tr>'+['source','MR1','MR4','MR2','MR3','MR5'].map(x=>'<th>'+x+'</th>').join('')+'</tr></thead><tbody>'+expected.map(row=>'<tr>'+row.map(x=>'<td>'+x+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
+      const original = root.innerHTML;
+      previewPopupRenderPaginatedPages(root);
+      const actual = Array.from(document.querySelectorAll('#pv-pages table tbody > tr'), row => Array.from(row.cells, c => c.textContent));
+      return {expected, actual, unchanged: root.innerHTML === original};
+    });
+    assert.deepEqual(sparse.actual, sparse.expected, 'Sparse table must retain every empty cell and column on every page');
+    assert.ok(sparse.unchanged);
+    console.log('PV sparse table full pagination passed');
   } finally {
     await browser.close();
   }

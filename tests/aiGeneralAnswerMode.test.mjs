@@ -13,21 +13,22 @@ function writingInstruction(state) {
   return runtime.writingStyleInstruction({ academic: false });
 }
 
-test('general answer mode omits AI Jena forced writing-style instructions', () => {
-  assert.equal(writingInstruction({ generalAnswer: true, writingStyle: 'academic' }), '');
-  assert.equal(writingInstruction({ generalAnswer: true, writingStyle: 'polite' }), '');
+test('original mode applies the selected academic or polite tone', () => {
+  assert.match(writingInstruction({ generalAnswer: true, writingStyle: 'academic' }), /-이다, -한다, -였다/);
+  assert.match(writingInstruction({ generalAnswer: true, writingStyle: 'polite' }), /정중한 한국어 존댓말/);
+  assert.doesNotMatch(source, /(?:select|writingStyle)\.disabled = state\.running \|\| state\.generalAnswer/);
 });
 
-test('original mode bypasses every AI Jena answer-style and structure preset', () => {
+test('original mode bypasses presets but respects the explicit sentence-only choice', () => {
   assert.match(source, /function originalAnswerInstruction\(\)/);
-  assert.match(source, /original means model-native output/);
-  assert.match(source, /function originalAnswerInstruction\(\)\s*{[\s\S]*?return '';/);
+  assert.match(source, /original means model-native structure/);
+  assert.match(source, /return \[writingStyleInstruction\(\{ academic: false \}\), sentenceOnlyInstruction\(\)\]/);
   assert.match(source, /:\s*state\.generalAnswer\s*\?\s*originalAnswerInstruction\(\)/s);
   assert.match(source, /:\s*\[\s*'You are a capable conversational assistant\./s);
 });
 
 test('original mode preserves model-authored sections and bypasses bridge mode instructions', () => {
-  assert.match(source, /preserveModelStyle:\s*state\.generalAnswer/);
+  assert.match(source, /preserveModelStyle:\s*\(state\.generalAnswer \|\| localNativeQuality\)/);
   assert.match(source, /preserveModelAnswer\s*\?\s*\{ answer: responseStatus\.answer/);
   const appSource = fs.readFileSync(new URL('../mdpro/js/app.js', import.meta.url), 'utf8');
   assert.match(appSource, /const modeInstruction = request\.preserveModelStyle === true\s*\? ''/);

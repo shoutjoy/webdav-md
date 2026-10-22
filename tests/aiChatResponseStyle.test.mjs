@@ -53,11 +53,21 @@ test('Ollama receives the current style without rewriting previous turns', () =>
   assert.ok(request.messages[1].content.includes('한국어 학술체'));
 });
 
-test('Original mode and internal requests do not acquire style instructions', () => {
+test('internal requests without a selected tone do not acquire style instructions', () => {
   const { context } = harness();
   for (const request of [
     { provider: 'ollama', responseStyle: '', messages: [] },
     { provider: 'ollama-npu', messages: [] },
     { provider: 'aistudio', responseStyle: 'academic', messages: [] }
   ]) assert.equal(context.applyLocalAIChatResponseStyle(request), request);
+});
+
+test('Lemonade original replies receive the selected academic tone near the latest question', () => {
+  const { context } = harness();
+  const messages = [{ role: 'user', content: '잠재프로파일 분석을 설명해줘' }];
+  const prepared = context.applyLocalAIChatResponseStyle({ provider: 'lemonade', preserveModelStyle: true, responseStyle: 'academic', messages });
+  assert.match(prepared.systemInstruction, /한국어 학술체/);
+  assert.match(prepared.messages[0].content, /-이다\/-한다/);
+  assert.equal(prepared.preserveModelStyle, true);
+  assert.equal(messages[0].content, '잠재프로파일 분석을 설명해줘');
 });
