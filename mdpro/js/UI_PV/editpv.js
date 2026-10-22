@@ -1362,6 +1362,103 @@ function previewPopupSplitContainerChildren(element, content) {
     return fragments.length > 1 ? fragments : null;
 }
 
+function previewPopupFitTableWidth(source, content) {
+    const table = source.cloneNode(true);
+    const available = content.clientWidth;
+    if (!available) return [table];
+    const normalize = function (target) {
+        target.removeAttribute('width');
+        target.style.setProperty('width', '100%', 'important');
+        target.style.setProperty('min-width', '0', 'important');
+        target.style.setProperty('max-width', '100%', 'important');
+        target.style.setProperty('table-layout', 'auto', 'important');
+        target.style.setProperty('white-space', 'normal', 'important');
+        Array.from(target.querySelectorAll('th,td')).forEach(function (cell) {
+            cell.style.setProperty('min-width', '0', 'important');
+            cell.style.setProperty('white-space', 'normal', 'important');
+        });
+    };
+    normalize(table);
+    content.appendChild(table);
+    const win = table.ownerDocument.defaultView;
+    const fontSize = parseFloat(win.getComputedStyle(table).fontSize) || 16;
+    const width = Math.max(table.getBoundingClientRect().width, table.scrollWidth);
+    if (width <= available + 1) { table.remove(); return [table]; }
+
+    // Build logical columns, including cells occupied by a preceding rowspan.
+    // Only cut at boundaries that no colspan crosses.
+    const entries = [];
+    let columns = 0;
+    Array.from(table.children).filter(function (section) { return /^(THEAD|TBODY|TFOOT)$/.test(section.tagName); }).forEach(function (section) {
+        const occupied = [];
+        Array.from(section.rows).forEach(function (row, rowIndex) {
+            let column = 0;
+            Array.from(row.cells).forEach(function (cell) {
+                while (occupied[column] > rowIndex) column += 1;
+                const end = column + cell.colSpan;
+                entries.push({ cell, start: column, end });
+                const rowEnd = cell.rowSpan === 0 ? section.rows.length : rowIndex + cell.rowSpan;
+                for (let c = column; c < end; c += 1) occupied[c] = rowEnd;
+                column = end;
+                columns = Math.max(columns, end);
+            });
+        });
+    });
+    const safe = function (boundary) { return !entries.some(function (entry) { return entry.start < boundary && entry.end > boundary; }); };
+    const widths = Array(columns).fill(0);
+    entries.forEach(function (entry) {
+        const each = entry.cell.getBoundingClientRect().width / (entry.end - entry.start);
+        for (let c = entry.start; c < entry.end; c += 1) widths[c] = Math.max(widths[c], each);
+    });
+    table.remove();
+    const minimumScale = Math.max(0.8, 11 / fontSize);
+    const bands = [];
+    const repeatKey = columns > 2 && safe(1);
+    let start = 0;
+    if (available / width < minimumScale && columns > 1) {
+        while (start < columns) {
+            let best = start;
+            let total = start > 0 && repeatKey ? widths[0] : 0;
+            for (let end = start + 1; end <= columns; end += 1) {
+                total += widths[end - 1];
+                if (total * minimumScale <= available && safe(end)) best = end;
+            }
+            // A merged column group can be wider than the paper. Preserve it
+            // intact and allow wrapping instead of cutting its cell contents.
+            if (best === start) {
+                best = start + 1;
+                while (best < columns && !safe(best)) best += 1;
+            }
+            bands.push([start, best]);
+            start = best;
+        }
+    }
+    if (bands.length < 2) bands.splice(0, bands.length, [0, columns]);
+    return bands.map(function (band, index) {
+        const clone = table.cloneNode(true);
+        const copied = Array.from(clone.rows).filter(function (row) { return row.closest('table') === clone; }).flatMap(function (row) { return Array.from(row.cells); });
+        entries.forEach(function (entry, i) {
+            if (!(entry.start >= band[0] && entry.end <= band[1]) && !(index > 0 && repeatKey && entry.end <= 1)) copied[i].remove();
+        });
+        Array.from(clone.children).filter(function (child) { return child.tagName === 'COLGROUP'; }).forEach(function (group) { group.remove(); });
+        if (index > 0 && clone.caption) clone.caption.remove();
+        normalize(clone);
+        content.appendChild(clone);
+        const naturalWidth = Math.max(clone.getBoundingClientRect().width, clone.scrollWidth);
+        const scale = Math.min(1, available / naturalWidth);
+        clone.style.setProperty('font-size', Math.max(11, fontSize * scale) + 'px', 'important');
+        Array.from(clone.querySelectorAll('th,td')).forEach(function (cell) {
+            const style = win.getComputedStyle(cell);
+            cell.style.setProperty('padding-left', Math.max(2, parseFloat(style.paddingLeft) * scale) + 'px', 'important');
+            cell.style.setProperty('padding-right', Math.max(2, parseFloat(style.paddingRight) * scale) + 'px', 'important');
+            cell.style.setProperty('overflow-wrap', 'anywhere', 'important');
+        });
+        if (clone.scrollWidth > available + 1) clone.style.setProperty('table-layout', 'fixed', 'important');
+        clone.remove();
+        return clone;
+    });
+}
+
 function previewPopupSplitTableRows(table, content) {
     if (String(table.tagName || '').toLowerCase() !== 'table') return null;
     const rows = Array.from(table.querySelectorAll('tbody > tr')).filter(function (row) {
@@ -1528,6 +1625,22 @@ function previewPopupRenderPaginatedPages(sourceRoot) {
         });
     } catch (_) {}
 
+    const margins = getPreviewPopupPageMargins();
+    previewPopupApplyPageMarginState(margins);
+    pagesRoot.innerHTML = '';
+    pagesRoot.style.setProperty('--pv-page-scale', '1');
+    const state = { pages: [] };
+    let current = previewPopupAddPage(pagesRoot, margins);
+    state.pages.push(current);
+
+    // Fit the output copy before measuring page heights. Column continuations
+    // remain ordinary tables, so the existing rowspan-safe pagination applies.
+    Array.from(prepared.querySelectorAll('table')).filter(function (table) {
+        return !table.parentElement.closest('table');
+    }).forEach(function (table) {
+        table.replaceWith(...previewPopupFitTableWidth(table, current.content));
+    });
+
     const units = Array.prototype.slice.call(prepared.childNodes).reduce(function (acc, node) {
         if (node.nodeType === 1) {
             acc.push(node);
@@ -1540,14 +1653,6 @@ function previewPopupRenderPaginatedPages(sourceRoot) {
         }
         return acc;
     }, []);
-
-    const margins = getPreviewPopupPageMargins();
-    previewPopupApplyPageMarginState(margins);
-    pagesRoot.innerHTML = '';
-    pagesRoot.style.setProperty('--pv-page-scale', '1');
-    const state = { pages: [] };
-    let current = previewPopupAddPage(pagesRoot, margins);
-    state.pages.push(current);
 
     function place(element, depth) {
         if (!element || depth > 24) {

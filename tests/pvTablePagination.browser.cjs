@@ -61,6 +61,67 @@ const { chromium } = require('playwright');
     assert.deepEqual(result.nested, [4, 4]);
     result.widths[0].forEach((width, i) => assert.ok(Math.abs(width - result.widths[1][i]) < 1));
     console.log('PV table browser regression passed:', JSON.stringify(result));
+    // Exercise the complete pagination path, not only the width helper.
+    await page.addScriptTag({ content: source.slice(source.indexOf('function previewPopupSplitPreformatted('), source.indexOf('function applyPreviewPopupViewport(')) });
+    await page.addScriptTag({ content: `
+      var previewPopupWindow = window;
+      function isPreviewPopupAlive() { return true; }
+      function getPreviewPopupPageMargins() { return {top:0,right:0,bottom:0,left:0}; }
+      function previewPopupApplyPageMarginState() {}
+    ` });
+    await page.addStyleTag({ content: '.pv-page{width:680px;height:400px;margin:16px;background:white}.pv-page-content{width:100%;height:100%;overflow:hidden}' });
+    const wide = await page.evaluate(() => {
+      const pages = document.createElement('div'); pages.id = 'pv-pages'; document.body.appendChild(pages);
+      const root = document.createElement('div');
+      const names = ['n_profiles','EEV','EEI','EEE','EII','VVI','VII','VVV','final','sig','extra1','extra2'];
+      root.innerHTML = '<table><thead><tr>' + names.map(n => '<th>'+n+'</th>').join('') + '</tr></thead><tbody>' +
+        Array.from({length:5}, (_, r) => '<tr><td>'+(r+1)+'</td>'+names.slice(1).map((_, c) => '<td>'+(-1858.048 - r - c).toFixed(3)+'</td>').join('')+'</tr>').join('')+'</tbody></table><p>AFTER TABLE</p>';
+      const original = root.innerHTML;
+      previewPopupRenderPaginatedPages(root);
+      const tables = Array.from(pages.querySelectorAll('table'));
+      return {
+        count: tables.length,
+        headers: tables.flatMap(t => Array.from(t.tHead.rows[0].cells, c => c.textContent)),
+        first: tables.map(t => t.tHead.rows[0].cells[0].textContent),
+        fits: tables.every(t => t.getBoundingClientRect().right <= t.closest('.pv-page-content').getBoundingClientRect().right + 1 && t.scrollWidth <= 681),
+        after: pages.textContent.includes('AFTER TABLE'), unchanged: root.innerHTML === original,
+        rows: tables.map(t => t.tBodies[0].rows.length)
+      };
+    });
+    assert.ok(wide.count > 1);
+    for (const name of ['EEV','EEI','EEE','EII','VVI','VII','VVV','final','sig','extra1','extra2']) assert.ok(wide.headers.includes(name), name);
+    assert.ok(wide.first.every(name => name === 'n_profiles'));
+    assert.ok(wide.fits);
+    assert.ok(wide.after && wide.unchanged);
+    assert.ok(wide.rows.every(count => count === 5));
+    console.log('PV full pagination wide table passed:', JSON.stringify(wide));
+    const sizing = await page.evaluate(() => {
+      const content = document.getElementById('content');
+      content.style.width = '500px';
+      function check(count) {
+        const source = document.createElement('table');
+        source.style.fontSize = '16px';
+        source.innerHTML = '<thead><tr>'+Array.from({length:count}, (_,i) => '<th>H'+i+'</th>').join('')+'</tr></thead><tbody><tr>'+Array.from({length:count}, () => '<td>-1858.048</td>').join('')+'</tr></tbody>';
+        const original = source.outerHTML;
+        const parts = previewPopupFitTableWidth(source, content);
+        return { count: parts.length, unchanged: source.outerHTML === original, sizes: parts.map(part => {
+          content.appendChild(part);
+          const value = {width:part.scrollWidth, font:parseFloat(getComputedStyle(part).fontSize)};
+          part.remove(); return value;
+        }) };
+      }
+      return { narrow: check(2), moderate: check(6), wide: check(14) };
+    });
+    assert.equal(sizing.narrow.count, 1);
+    assert.equal(sizing.narrow.sizes[0].font, 16);
+    assert.equal(sizing.moderate.count, 1);
+    assert.ok(sizing.moderate.sizes[0].font < 16);
+    assert.ok(sizing.wide.count > 1);
+    for (const value of Object.values(sizing)) {
+      assert.ok(value.unchanged);
+      assert.ok(value.sizes.every(size => size.width <= 501 && size.font >= 11));
+    }
+    console.log('PV table sizing passed:', JSON.stringify(sizing));
   } finally {
     await browser.close();
   }
