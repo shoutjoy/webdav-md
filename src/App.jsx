@@ -8,6 +8,7 @@ import MdproEditor from './components/MdproEditor.jsx';
 import FileExplorer from './components/FileExplorer.jsx';
 import LoginPage from './components/LoginPage.jsx';
 import TopNav from './components/TopNav.jsx';
+import { AUTOSAVE_INTERVAL_KEY, normalizeAutosaveMinutes } from './webdavAutosave.js';
 import MobileWdocButton from './components/MobileWdocButton.jsx';
 import RenameModal from './components/RenameModal.jsx';
 import CreateDestinationModal from './components/CreateDestinationModal.jsx';
@@ -323,7 +324,8 @@ export default function App() {
   const [mediaPreviewUrl, setMediaPreviewUrl] = useState('');
   const [editorLoading, setEditorLoading] = useState(false);
   const [isWebDavSaving, setIsWebDavSaving] = useState(false);
-  const [autosaveEnabled, setAutosaveEnabled] = useState(() => localStorage.getItem(AUTOSAVE_ENABLED_KEY) === 'true');
+  const [autosaveEnabled, setAutosaveEnabled] = useState(() => localStorage.getItem(AUTOSAVE_ENABLED_KEY) !== 'false');
+  const [autosaveMinutes, setAutosaveMinutes] = useState(() => normalizeAutosaveMinutes(localStorage.getItem(AUTOSAVE_INTERVAL_KEY)));
   const [showHiddenItems, setShowHiddenItems] = useState(() => localStorage.getItem(SHOW_HIDDEN_ITEMS_KEY) === 'true');
   const [defaultSharePassword, setDefaultSharePassword] = useState(() => localStorage.getItem(DEFAULT_SHARE_PASSWORD_KEY) || '');
   const [shareTarget, setShareTarget] = useState(null);
@@ -2325,6 +2327,13 @@ export default function App() {
             panelResizeEnabled
             onSave={handleSaveFile}
             autosaveEnabled={autosaveEnabled}
+            autosaveMinutes={autosaveMinutes}
+            onAutosaveSettingsChange={(enabled, minutes) => {
+              setAutosaveEnabled(enabled);
+              setAutosaveMinutes(normalizeAutosaveMinutes(minutes));
+              localStorage.setItem(AUTOSAVE_ENABLED_KEY, String(enabled));
+              localStorage.setItem(AUTOSAVE_INTERVAL_KEY, String(normalizeAutosaveMinutes(minutes)));
+            }}
             onSaveAs={handleSaveFileAs}
             onDocumentChange={handleEditorDocumentChange}
             onSaveImageToFolder={handleSaveImageToFolder}

@@ -4655,3 +4655,16 @@ body.img2math-window-moving * { user-select: none !important; }
     .img2math-model-select-wrap,
     #img2math-model-select { width: 100%; }
 }
+
+/* Opaque selection colors keep caption controls legible in both app themes. */
+#table-caption-panel button.caption-option-selected,
+#figure-caption-panel button.caption-option-selected {
+    background-color: #4338ca;
+    color: #ffffff;
+    border-color: #818cf8;
+}
+#table-caption-panel button.caption-option-selected:hover,
+#figure-caption-panel button.caption-option-selected:hover {
+    background-color: #3730a3;
+    color: #ffffff;
+}
