@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'webdav-viewer-v20-pv-empty-cells-page-layout';
+const CACHE_VERSION = 'webdav-viewer-v21-pv-mermaid-render';
 const APP_SHELL = ['./', './manifest.webmanifest', './webdav.svg', './webdav-maskable.svg'];
 
 self.addEventListener('install', (event) => {
