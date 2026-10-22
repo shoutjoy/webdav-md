@@ -550,7 +550,7 @@ function getPreviewPopupStylesheetLinks() {
 function getPreviewPopupDocumentHtml() {
     const mathHead = (typeof MathRender !== 'undefined' && MathRender && typeof MathRender.getHeadTags === 'function')
         ? MathRender.getHeadTags({
-            scriptUrl: new URL('./js/math_render/math_render.js?v=20261021-no-nested-dollar-1', window.location.href).href
+            scriptUrl: new URL('./js/math_render/math_render.js?v=20261023-literal-single-tilde-1', window.location.href).href
         })
         : '';
     const imageResizeHead = '<script src="' + escapePreviewAttribute(new URL('./js/viewmode/image-resize.js?v=20260815-pv-restore-1', window.location.href).href) + '"></script>';

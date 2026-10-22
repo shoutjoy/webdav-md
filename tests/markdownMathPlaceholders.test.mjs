@@ -113,3 +113,48 @@ test('valid TeX alignment ampersands remain untouched', async () => {
   const html = root.MathRender.renderMarkdownSync(root.marked, source);
   assert.ok(html.includes(String.raw`a &amp;= b \\ c &amp;= d`), html);
 });
+
+test('single-tilde variable ranges survive parsers that accept single-tilde deletion', async () => {
+  const root = await load();
+  const rows = [
+    ['insa', '강사인사_지도관리', 'a1–a4', 'insa_i1~insa_i4, insa_p1~insa_p4'],
+    ['parn', '학부모_의사소통', 'b1–b4', 'parn_i5~parn_i8, parn_p5~parn_p8'],
+    ['oper', '운영방침_결정', 'c1–c4', 'oper_i9~oper_i12, oper_p9~oper_p12'],
+    ['work', '문서생성_업무구조화', 'd1–d4', 'work_i13~work_i16, work_p13~work_p16'],
+    ['resp', '검증_책임적활용', 'e1–e4', 'resp_i17~resp_i20, resp_p17~resp_p20'],
+  ];
+  const source = '| 영역 코드 | 구성개념 | 문항 | 중요도·실행도 변수 |\n| --- | --- | --- | --- |\n'
+    + rows.map(row => '| ' + row.join(' | ') + ' |').join('\n');
+  const parse = root.marked.parse;
+  root.marked.parse = text => {
+    // Unlike markdown-it, the production Marked parser also accepts ~text~.
+    assert.doesNotMatch(text, /(^|[^~])~(?!~)/);
+    return parse(text);
+  };
+  for (const html of [
+    root.MathRender.renderMarkdownSync(root.marked, source),
+    await root.MathRender.renderMarkdownSafe(root.marked, source),
+    root.AIChatMarkdown.toHtml(source),
+  ]) {
+    assert.match(html, /<table>/);
+    for (const row of rows) assert.ok(html.includes(row[3]), html);
+    assert.doesNotMatch(html, /<(?:del|s)>|MATHSEG/);
+  }
+});
+
+test('range protection preserves deletion, code, math, escapes and URL tildes', async () => {
+  const root = await load();
+  const source = String.raw`1~4, 5~8; ~~삭제~~; \~표시\~; $a~b$; `
+    + '`a~b~c`\n~~~text\na~b~c\n~~~\n'
+    + '[링크](https://example.com/~user/a~b) <span title="a~b~c">범위</span>';
+  const html = root.MathRender.renderMarkdownSync(root.marked, source);
+  assert.ok(html.includes('1~4, 5~8'));
+  assert.match(html, /<s>삭제<\/s>/);
+  assert.ok(html.includes('~표시~'));
+  assert.ok(html.includes('$a~b$'));
+  assert.match(html, /<code>a~b~c<\/code>/);
+  assert.match(html, /<code class="language-text">a~b~c/);
+  assert.ok(html.includes('href="https://example.com/~user/a~b"'));
+  assert.ok(html.includes('title="a~b~c"'));
+  assert.doesNotMatch(html, /MATHSEG/);
+});
