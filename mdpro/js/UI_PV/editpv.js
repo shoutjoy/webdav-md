@@ -53,6 +53,62 @@ const PREVIEW_MERMAID_DARK_THEME_VARIABLES = {
     noteBorderColor: '#c2410c'
 };
 const PREVIEW_PV_THEME_STORAGE_KEY = 'md_viewer_pv_theme_v1';
+const PREVIEW_PV_PAGE_LAYOUT_STORAGE_KEY = 'md_viewer_pv_page_layout_v1';
+
+function getPreviewPopupPageLayout() {
+    try {
+        const mode = localStorage.getItem(PREVIEW_PV_PAGE_LAYOUT_STORAGE_KEY);
+        if (mode === 'two' || mode === 'matrix') return mode;
+    } catch (_) {}
+    return 'single';
+}
+
+let previewPopupPageLayout = getPreviewPopupPageLayout();
+
+function previewPopupPageLayoutToolbar() {
+    return '<button id="pv-two-page-toggle" type="button" aria-pressed="false" onclick="window.opener&&window.opener.previewPopupTogglePageLayout(\'two\')">2페이지 보기</button>'
+        + '<button id="pv-matrix-toggle" type="button" aria-pressed="false" onclick="window.opener&&window.opener.previewPopupTogglePageLayout(\'matrix\')">매트릭스보기</button>';
+}
+
+function previewPopupPageLayoutStyles() {
+    return '@media screen{body[data-pv-page-layout="two"]:not(.pv-editor-mode):not(.pv-file-mode) #pv-pages,body[data-pv-page-layout="matrix"]:not(.pv-editor-mode):not(.pv-file-mode) #pv-pages{display:grid;grid-template-columns:repeat(var(--pv-layout-columns,2),max-content);justify-content:center;align-items:start;align-content:start;gap:14px;}'
+        + 'body[data-pv-page-layout="two"] #pv-pages>.pv-page,body[data-pv-page-layout="matrix"] #pv-pages>.pv-page{zoom:var(--pv-layout-zoom,1);transform:none;margin:0;}'
+        + '#pv-toolbar button[aria-pressed="true"]{background:#c7d2fe;border-color:#6366f1;color:#312e81;}}';
+}
+
+function previewPopupSyncPageLayout() {
+    if (!isPreviewPopupAlive()) return;
+    const win = previewPopupWindow;
+    const doc = win.document;
+    const pages = doc.getElementById('pv-pages');
+    if (!pages) return;
+    const mode = previewPopupPageLayout;
+    doc.body.dataset.pvPageLayout = mode;
+    const viewport = doc.getElementById('pv-viewport');
+    const available = Math.max(1, (viewport ? viewport.clientWidth : win.innerWidth) - 32);
+    const columns = mode === 'matrix' ? Math.max(1, Math.min(6, Math.floor((available + 14) / 274))) : 2;
+    const first = pages.querySelector('.pv-page');
+    const width = first ? first.offsetWidth : 794;
+    const zoom = Math.max(0.05, Math.min(Number(previewPopupScale) || 1, (available - (columns - 1) * 14) / (width * columns)));
+    pages.style.setProperty('--pv-layout-columns', String(columns));
+    pages.style.setProperty('--pv-layout-zoom', String(zoom));
+    [['pv-two-page-toggle', 'two'], ['pv-matrix-toggle', 'matrix']].forEach(function (entry) {
+        const button = doc.getElementById(entry[0]);
+        if (button) button.setAttribute('aria-pressed', String(mode === entry[1]));
+    });
+    if (!win.__pvPageLayoutResizeBound) {
+        win.addEventListener('resize', previewPopupSyncPageLayout);
+        win.__pvPageLayoutResizeBound = true;
+    }
+}
+
+function previewPopupTogglePageLayout(mode) {
+    if (mode !== 'two' && mode !== 'matrix') return false;
+    previewPopupPageLayout = previewPopupPageLayout === mode ? 'single' : mode;
+    try { localStorage.setItem(PREVIEW_PV_PAGE_LAYOUT_STORAGE_KEY, previewPopupPageLayout); } catch (_) {}
+    previewPopupSyncPageLayout();
+    return true;
+}
 const PREVIEW_PV_HEADER_SCALE_STORAGE_KEY = 'md_viewer_pv_header_scale_v1';
 const PREVIEW_PV_HEADER_BACKGROUND_REMOVED_STORAGE_KEY = 'md_viewer_pv_header_background_removed_v1';
 
@@ -602,6 +658,7 @@ function getPreviewPopupDocumentHtml() {
         + '#pv-content .pv-image-stage{display:flex;align-items:center;justify-content:center;min-height:calc(100vh - 150px);padding:18px;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:10px;background-color:#eef2f7;background-image:linear-gradient(45deg,#dbe2ea 25%,transparent 25%),linear-gradient(-45deg,#dbe2ea 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#dbe2ea 75%),linear-gradient(-45deg,transparent 75%,#dbe2ea 75%);background-size:24px 24px;background-position:0 0,0 12px,12px -12px,-12px 0;}'
         + '#pv-content .pv-open-image{display:block;max-width:100%;height:auto;max-height:calc(100vh - 190px);object-fit:contain;box-shadow:0 12px 32px rgba(15,23,42,.18);}'
         + '#pv-image-insert-modal[hidden]{display:none!important;}#pv-image-insert-modal{position:fixed;inset:0;z-index:2147483646;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(15,23,42,.28);box-sizing:border-box;}#pv-image-panel{width:min(660px,calc(100vw - 36px));max-height:calc(100vh - 36px);overflow:auto;padding:20px;border:1px solid #cbd5e1;border-radius:10px;background:#f8fafc;color:#334155;box-shadow:0 24px 60px rgba(15,23,42,.38);box-sizing:border-box;}html.dark #pv-image-panel{border-color:#475569;background:#1e293b;color:#e2e8f0;}#pv-image-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}#pv-image-head h3{margin:0;font-size:16px;}#pv-image-head button,#pv-image-actions button,#pv-image-output button{height:32px;padding:0 12px;border:1px solid #94a3b8;border-radius:5px;background:#fff;color:#334155;font-weight:750;cursor:pointer;}#pv-image-zones{display:grid;grid-template-columns:1fr 1fr;margin-bottom:14px;border:1px solid #cbd5e1;border-radius:10px;overflow:hidden;}#pv-image-zones button{min-height:112px;padding:14px;border:0;border-right:1px dashed #cbd5e1;background:#f8fafc;color:#4f46e5;font-size:14px;font-weight:800;cursor:pointer;}#pv-image-zones button:last-child{border-right:0;color:#475569;}#pv-image-zones button.is-dragging{background:#e0e7ff;}html.dark #pv-image-zones,html.dark #pv-image-zones button{border-color:#475569;}html.dark #pv-image-zones button{background:#172033;color:#a5b4fc;}html.dark #pv-image-zones button:last-child{color:#cbd5e1;}#pv-image-zones small{display:block;margin-top:7px;color:#64748b;font-size:10px;font-weight:600;}#pv-image-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}#pv-image-actions .imgbb{background:#0f766e;color:#fff;border-color:#115e59;}#pv-image-actions .internal{background:#0369a1;color:#fff;border-color:#075985;}#pv-image-url-wrap{padding:12px;border-radius:6px;background:#e2e8f0;}html.dark #pv-image-url-wrap{background:#334155;}#pv-image-url-wrap label{display:block;margin-bottom:7px;font-size:12px;font-weight:800;color:#64748b;}html.dark #pv-image-url-wrap label{color:#cbd5e1;}#pv-image-url{width:100%;height:38px;padding:0 10px;border:1px solid #cbd5e1;border-radius:5px;background:#fff;color:#0f172a;box-sizing:border-box;}#pv-image-output{display:flex;gap:28px;margin-top:8px;}#pv-image-output button{height:26px;padding:0;border:0;background:transparent;color:#334155;font-size:12px;}html.dark #pv-image-output button{color:#e2e8f0;}#pv-image-status{min-height:17px;margin-top:10px;color:#64748b;font-size:11px;}#pv-image-status.is-error{color:#dc2626;}#pv-image-preview{display:block;max-width:100%;max-height:170px;margin-top:8px;border:1px solid #cbd5e1;border-radius:6px;object-fit:contain;}@media(max-width:560px){#pv-image-zones{grid-template-columns:1fr;}#pv-image-zones button{border-right:0;border-bottom:1px dashed #cbd5e1;}#pv-image-zones button:last-child{border-bottom:0;}}'
+        + previewPopupPageLayoutStyles()
         + '</style></head><body><div id=\"pv-root\"><div id=\"pv-toolbar\">'
         + '<strong style=\"margin-right:3px;font-size:12px\">PV</strong>'
         + '<button class=\"pv-file-button\" type=\"button\" onclick=\"window.opener&&window.opener.choosePreviewPopupFile(\'image\')\">이미지 열기</button>'
@@ -624,6 +681,7 @@ function getPreviewPopupDocumentHtml() {
         + '<button class=\"pv-send-button pv-edit-action\" type=\"button\" onclick=\"window.opener&&window.opener.applyPreviewPopupEditsToOriginal()\">원본 노트에 반영</button>'
         + '<button class=\"pv-export-button pv-edit-action\" type=\"button\" onclick=\"window.opener&&window.opener.previewPopupExport()\">내보내기</button>'
         + '<span id=\"pv-draft-status\" class=\"pv-edit-action\">원본과 동기화</span>'
+        + previewPopupPageLayoutToolbar()
         + '<button id=\"pv-theme-toggle\" class=\"pv-theme-button\" type=\"button\" aria-pressed=\"false\" onclick=\"window.opener&&window.opener.previewPopupToggleTheme()\">다크</button>'
         + '<button type=\"button\" onclick=\"window.opener&&window.opener.previewPopupPrint()\">인쇄</button>'
         + '<button type=\"button\" onclick=\"window.close()\">닫기</button>'
@@ -1318,7 +1376,10 @@ function previewPopupCloneTextSlice(element, start, end) {
 }
 
 function previewPopupSplitTextElement(element, content) {
-    if (!element || element.querySelector('img,svg,canvas,video,iframe,table')) return null;
+    // A table with no room for its first row must move to the next page.
+    // Text slicing drops empty TDs and shifts all subsequent column values.
+    if (!element || /^(?:TABLE|THEAD|TBODY|TFOOT|TR|TH|TD)$/.test(element.tagName)
+        || element.querySelector('img,svg,canvas,video,iframe,table')) return null;
     const text = String(element.textContent || '');
     if (text.length < 2) return null;
     let low = 1;
@@ -1629,6 +1690,7 @@ function previewPopupRenderPaginatedPages(sourceRoot) {
     previewPopupApplyPageMarginState(margins);
     pagesRoot.innerHTML = '';
     pagesRoot.style.setProperty('--pv-page-scale', '1');
+    pagesRoot.style.setProperty('--pv-layout-zoom', '1');
     const state = { pages: [] };
     let current = previewPopupAddPage(pagesRoot, margins);
     state.pages.push(current);
@@ -1730,6 +1792,7 @@ function previewPopupRenderPaginatedPages(sourceRoot) {
             pageState.number.textContent = (index + 1) + ' / ' + state.pages.length;
         }
     });
+    previewPopupSyncPageLayout();
 }
 
 function applyPreviewPopupViewport() {
@@ -1790,6 +1853,7 @@ function applyPreviewPopupViewport() {
     previewPopupRefreshMarginControls();
     syncPreviewPopupHeaderSettingsUi();
     previewPopupScheduleEditPageGuides();
+    previewPopupSyncPageLayout();
 }
 
 function previewPopupApplyHeaderScaleToElements(doc, fontSize, scale) {
