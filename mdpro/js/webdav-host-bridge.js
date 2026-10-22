@@ -101,6 +101,21 @@
             menu.id = 'webdav-save-dropdown-menu';
             menu.className = 'hidden absolute z-[90] right-0 top-[calc(100%+6px)] min-w-40 p-1.5 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 shadow-xl';
             menu.innerHTML = '<button type="button" data-action="save-as" class="w-full px-3 py-2 rounded flex items-center gap-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"><i data-lucide="cloud-upload" class="w-4 h-4"></i><span>WDSaveAs</span></button><div class="my-1 border-t border-slate-200 dark:border-slate-700"></div><button type="button" data-action="save-close" class="w-full px-3 py-2 rounded flex items-center gap-2 text-left text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"><i data-lucide="save" class="w-4 h-4"></i><span>저장 후 닫기</span></button>';
+            const autosaveRow = document.createElement('div');
+            autosaveRow.className = 'mt-1 border-t border-slate-200 dark:border-slate-700 px-3 pt-2 pb-1 flex items-center gap-2 whitespace-nowrap text-xs text-slate-700 dark:text-slate-200';
+            autosaveRow.innerHTML = '<label for="webdav-autosave-enabled">자동저장</label><input id="webdav-autosave-enabled" type="checkbox" checked aria-label="WebDAV 자동저장"><input id="webdav-autosave-minutes" type="number" value="10" min="1" max="1440" step="1" aria-label="자동저장 간격 (분)" class="w-12 px-1 py-1 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-center"><span>min</span>';
+            menu.appendChild(autosaveRow);
+            const autosaveEnabled = autosaveRow.querySelector('#webdav-autosave-enabled');
+            const autosaveMinutes = autosaveRow.querySelector('#webdav-autosave-minutes');
+            function changeAutosaveSettings() {
+                const raw = Number(autosaveMinutes.value);
+                const minutes = Number.isFinite(raw) && raw >= 1 ? Math.min(1440, Math.floor(raw)) : 10;
+                autosaveMinutes.value = String(minutes);
+                window.parent.postMessage({ type: 'webdav-autosave-settings-change', enabled: autosaveEnabled.checked, minutes: minutes }, location.origin);
+            }
+            autosaveEnabled.addEventListener('change', changeAutosaveSettings);
+            autosaveMinutes.addEventListener('change', changeAutosaveSettings);
+            window.parent.postMessage({ type: 'webdav-autosave-settings-request' }, location.origin);
             toggle.addEventListener('click', function (event) {
                 event.stopPropagation();
                 const opening = menu.classList.contains('hidden');
@@ -186,6 +201,13 @@
     window.addEventListener('message', function (event) {
         const data = event.data;
         if (event.source !== window.parent || event.origin !== location.origin) return;
+        if (data?.type === 'webdav-autosave-settings') {
+            const enabled = document.getElementById('webdav-autosave-enabled');
+            const minutes = document.getElementById('webdav-autosave-minutes');
+            if (enabled) enabled.checked = data.enabled === true;
+            if (minutes) minutes.value = String(data.minutes || 10);
+            return;
+        }
         if (data?.type === 'webdav-open-image-insert') {
             openImageInsertFromFma(data.image).catch(function (error) {
                 if (typeof window.showToast === 'function') window.showToast(error.message || String(error), 'error');
@@ -202,7 +224,7 @@
         }
         if (data?.type === 'webdav-document-saved') {
             if (!window.__webdavHostDocument || String(data.path || '') !== window.__webdavHostDocument.path) return;
-            savedDocumentText = currentDocumentText();
+            savedDocumentText = typeof data.content === 'string' ? data.content : currentDocumentText();
             lastReportedDocumentText = savedDocumentText;
             reportDocumentChange(true);
             return;

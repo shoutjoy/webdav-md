@@ -9438,7 +9438,7 @@ function renderCaptionAlignmentButtons(mode) {
         btn.textContent = alignment.label;
         btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
         btn.className = 'flex-1 px-2.5 py-1.5 rounded-md border text-xs font-semibold ' + (selected
-            ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200'
+            ? 'caption-option-selected'
             : 'border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700');
         btn.addEventListener('click', function () {
             captionInsertState.tableAlignment = alignment.id;
@@ -9460,8 +9460,9 @@ function renderCaptionFormatButtons(mode) {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.textContent = format.label;
+        btn.setAttribute('aria-pressed', format.id === currentFormat ? 'true' : 'false');
         btn.className = 'px-2.5 py-1.5 rounded-md border text-xs font-semibold ' + (format.id === currentFormat
-            ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-200'
+            ? 'caption-option-selected'
             : 'border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700');
         btn.addEventListener('click', function () {
             captionInsertState[ui.mode + 'Format'] = format.id;
@@ -13736,8 +13737,10 @@ function previewTableInsertSize(rows, cols) {
     }
     const grid = document.getElementById('table-insert-grid');
     if (!grid) return;
-    // Keep one spare row below the pointer, up to the existing ten-row limit.
-    const visibleRows = Math.min(10, Math.max(Number(grid.dataset.visibleRows) || 3, rows + 1));
+    // Follow the current selection in both directions, with at least three rows.
+    const visibleRows = rows > 0
+        ? Math.min(10, Math.max(3, rows + 1))
+        : (Number(grid.dataset.visibleRows) || 3);
     grid.dataset.visibleRows = String(visibleRows);
     const cells = grid.querySelectorAll('button[data-rows][data-cols]');
     for (let i = 0; i < cells.length; i += 1) {
