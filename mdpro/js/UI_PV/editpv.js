@@ -1364,16 +1364,48 @@ function previewPopupSplitContainerChildren(element, content) {
 
 function previewPopupSplitTableRows(table, content) {
     if (String(table.tagName || '').toLowerCase() !== 'table') return null;
-    const rows = Array.prototype.slice.call(table.querySelectorAll('tbody > tr'));
+    const rows = Array.from(table.querySelectorAll('tbody > tr')).filter(function (row) {
+        return row.closest('table') === table;
+    });
     if (rows.length < 2) return null;
-    const makeTable = function () {
-        const clone = table.cloneNode(false);
-        Array.prototype.slice.call(table.children).forEach(function (child) {
-            const tag = String(child.tagName || '').toLowerCase();
-            if (tag === 'tbody' || tag === 'tfoot') return;
-            clone.appendChild(child.cloneNode(true));
+
+    // Measure the complete table at the paper width, before removing rows.
+    // Otherwise auto layout recalculates different column widths per page.
+    const template = table.cloneNode(true);
+    content.appendChild(template);
+    try {
+        const ownRows = Array.from(template.rows).filter(function (row) { return row.closest('table') === template; });
+        const columnCount = Math.max(...ownRows.map(function (row) {
+            return Array.from(row.cells).reduce(function (sum, cell) { return sum + cell.colSpan; }, 0);
+        }));
+        const fullRow = ownRows.find(function (row) {
+            return row.cells.length === columnCount && Array.from(row.cells).every(function (cell) { return cell.colSpan === 1; });
         });
-        clone.appendChild(table.ownerDocument.createElement('tbody'));
+        const widths = fullRow && Array.from(fullRow.cells, function (cell) { return cell.getBoundingClientRect().width; });
+        const total = widths && widths.reduce(function (sum, width) { return sum + width; }, 0);
+        if (total > 0) {
+            Array.from(template.children).filter(function (child) { return child.tagName === 'COLGROUP'; }).forEach(function (group) { group.remove(); });
+            const group = table.ownerDocument.createElement('colgroup');
+            widths.forEach(function (width) {
+                const col = table.ownerDocument.createElement('col');
+                col.style.width = (100 * width / total) + '%';
+                group.appendChild(col);
+            });
+            template.insertBefore(group, template.querySelector('thead, tbody, tfoot, tr'));
+            template.style.tableLayout = 'fixed';
+        }
+    } finally {
+        template.remove();
+    }
+    const makeTable = function (start, end) {
+        const clone = template.cloneNode(true);
+        const copiedRows = Array.from(clone.querySelectorAll('tbody > tr')).filter(function (row) { return row.closest('table') === clone; });
+        copiedRows.forEach(function (row, index) { if (index < start || index >= end) row.remove(); });
+        Array.from(clone.children).forEach(function (child) {
+            if (child.tagName === 'TBODY' && !child.children.length) child.remove();
+            if (child.tagName === 'TFOOT' && end < rows.length) child.remove();
+            if (child.tagName === 'CAPTION' && start > 0) child.remove();
+        });
         return clone;
     };
 
@@ -1382,29 +1414,26 @@ function previewPopupSplitTableRows(table, content) {
     // advances to a fresh page. Building every fragment against `content` here
     // used the first page's remaining height for all subsequent pages, which
     // commonly turned a four-row table into four one-row tables.
-    const fitting = makeTable();
-    const fittingBody = fitting.querySelector('tbody');
-    let splitIndex = rows.length;
+    let splitIndex = 0;
+    let spanEnd = 0;
     for (let index = 0; index < rows.length; index += 1) {
-        const row = rows[index].cloneNode(true);
-        fittingBody.appendChild(row);
-        if (!previewPopupMeasureCandidate(content, fitting.cloneNode(true))) {
-            fittingBody.removeChild(row);
-            splitIndex = index;
-            break;
-        }
+        const sectionEnd = rows.lastIndexOf(rows[index].parentElement.lastElementChild) + 1;
+        Array.from(rows[index].cells).forEach(function (cell) {
+            const end = cell.rowSpan === 0 ? sectionEnd : Math.min(sectionEnd, index + cell.rowSpan);
+            spanEnd = Math.max(spanEnd, end);
+        });
+        const boundary = index + 1;
+        // A continuation must never lose cells originating on the previous page.
+        if (boundary < spanEnd || boundary === rows.length) continue;
+        if (!previewPopupMeasureCandidate(content, makeTable(0, boundary))) break;
+        splitIndex = boundary;
     }
 
     // No row fits in the remaining space: let place() move the intact table to
     // the next page before attempting a split there.
     if (splitIndex <= 0 || splitIndex >= rows.length) return null;
 
-    const remainder = makeTable();
-    const remainderBody = remainder.querySelector('tbody');
-    rows.slice(splitIndex).forEach(function (row) {
-        remainderBody.appendChild(row.cloneNode(true));
-    });
-    return [fitting, remainder];
+    return [makeTable(0, splitIndex), makeTable(splitIndex, rows.length)];
 }
 
 function previewPopupSplitPreformatted(element, content) {

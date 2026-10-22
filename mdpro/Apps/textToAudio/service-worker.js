@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'webdav-viewer-v17-unified-data-image-fold';
+const CACHE_VERSION = 'webdav-viewer-v18-pv-table-rowspan';
 const APP_SHELL = ['./', './manifest.webmanifest', './webdav.svg', './webdav-maskable.svg'];
 
 self.addEventListener('install', (event) => {
