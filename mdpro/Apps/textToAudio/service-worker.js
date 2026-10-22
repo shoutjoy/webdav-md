@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'webdav-viewer-v18-pv-table-rowspan';
+const CACHE_VERSION = 'webdav-viewer-v19-pv-table-width';
 const APP_SHELL = ['./', './manifest.webmanifest', './webdav.svg', './webdav-maskable.svg'];
 
 self.addEventListener('install', (event) => {
