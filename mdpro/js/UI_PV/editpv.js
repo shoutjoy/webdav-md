@@ -564,6 +564,9 @@ function getPreviewPopupDocumentHtml() {
         + 'html,body{margin:0;padding:0;height:100%;font-family:Inter,"Noto Sans KR","Malgun Gothic",system-ui,-apple-system,"Segoe UI",sans-serif;background:#e2e8f0;color:#1e293b;color-scheme:light;}'
         + 'html.dark,html.dark body{background:#0b1220;color:#e2e8f0;color-scheme:dark;}'
         + '#pv-root{height:100%;}'
+        // Keep one scroll owner inside the live window. Percentage heights on
+        // the document plus a fixed toolbar produced nested browser scrollbars.
+        + '@media screen{html.pv-print-preview,html.pv-print-preview body{width:100%;height:100%;min-width:0;min-height:0;overflow:hidden;}#pv-root{position:fixed;inset:0;width:auto;height:auto;display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden;}#pv-root>#pv-toolbar{position:relative;flex:0 0 auto;width:100%;}#pv-root>#pv-viewport{flex:1 1 0;min-width:0;min-height:0;width:100%;height:auto;padding:16px 24px 48px;overscroll-behavior:contain;scrollbar-gutter:stable;}#pv-root #pv-pages{width:max-content;min-width:100%;}#pv-root .pv-page{zoom:var(--pv-page-scale,1);transform:none;}}'
         + '#pv-toolbar{display:flex;align-items:center;gap:5px;padding:6px 8px;background:#0f172a;border-bottom:1px solid #334155;color:#e2e8f0;position:fixed;top:0;left:0;right:0;z-index:9999;box-sizing:border-box;overflow-x:auto;white-space:nowrap;min-height:42px;}'
         + '#pv-toolbar button{height:28px;padding:2px 8px;border:1px solid #94a3b8;background:#fff;border-radius:5px;font-size:12px;font-weight:750;color:#1e293b;cursor:pointer;line-height:1;}'
         + '#pv-toolbar button:hover{background:#e2e8f0;}#pv-toolbar button:disabled{opacity:.45;cursor:not-allowed;}'
@@ -1433,6 +1436,7 @@ function previewPopupSplitTextElement(element, content) {
 }
 
 function previewPopupSplitContainerChildren(element, content) {
+    if (element.classList.contains('trt-mermaid-wrapper')) return null;
     const tag = String(element.tagName || '').toLowerCase();
     if (!/^(?:div|section|article|blockquote|ul|ol|dl)$/.test(tag)) return null;
     const children = Array.prototype.slice.call(element.children);
@@ -1724,6 +1728,59 @@ function previewPopupRenderPaginatedPages(sourceRoot) {
     const state = { pages: [] };
     let current = previewPopupAddPage(pagesRoot, margins);
     state.pages.push(current);
+
+    // Fit whole diagrams and images on the output copy, before splitting their
+    // containing blocks. Never inherit an interactive, clipped Mermaid viewport.
+    current.content.appendChild(prepared);
+    Array.from(prepared.querySelectorAll('.trt-mermaid-wrapper')).forEach(function (wrapper, diagramIndex) {
+        const svg = wrapper.querySelector('svg');
+        if (!svg) return;
+        // The hidden source and output share a document. Duplicate marker IDs
+        // make arrowheads resolve into the hidden SVG and disappear in Chrome.
+        const ids = new Map();
+        [svg].concat(Array.from(svg.querySelectorAll('[id]'))).forEach(function (node) {
+            if (!node.id) return;
+            const next = 'pv-output-' + diagramIndex + '-' + node.id;
+            ids.set(node.id, next);
+            node.id = next;
+        });
+        const references = function (value) {
+            return value.replace(/#([\w-]+)/g, function (match, id) { return ids.has(id) ? '#' + ids.get(id) : match; });
+        };
+        [svg].concat(Array.from(svg.querySelectorAll('*'))).forEach(function (node) {
+            Array.from(node.attributes).forEach(function (attribute) {
+                if (attribute.name !== 'id') node.setAttribute(attribute.name, references(attribute.value));
+            });
+            if (node.tagName.toLowerCase() === 'style') node.textContent = references(node.textContent);
+        });
+        wrapper.style.cssText = 'display:block;width:100%;min-width:0;min-height:0;height:auto;padding:12px;margin:16px 0;overflow:visible;box-sizing:border-box;';
+        wrapper.querySelectorAll('.trt-pv-mermaid-viewport,.trt-pv-mermaid-canvas').forEach(function (node) {
+            node.style.cssText = 'display:block;width:100%;height:auto;min-height:0;overflow:visible;transform:none;';
+        });
+        const box = String(svg.getAttribute('viewBox') || '').trim().split(/[\s,]+/).map(Number);
+        const naturalWidth = getPreviewPopupMermaidNaturalWidth(svg);
+        const naturalHeight = box.length === 4 && box[3] > 0 ? box[3] : svg.getBoundingClientRect().height;
+        if (!(naturalWidth > 0 && naturalHeight > 0)) return;
+        const scale = Math.min(1, (wrapper.clientWidth - 26) / naturalWidth,
+            (current.content.clientHeight - 60) / naturalHeight);
+        svg.style.setProperty('width', (naturalWidth * scale) + 'px', 'important');
+        svg.style.setProperty('height', (naturalHeight * scale) + 'px', 'important');
+        svg.style.setProperty('max-width', '100%', 'important');
+        svg.style.setProperty('transform', 'none', 'important');
+    });
+    Array.from(prepared.querySelectorAll('img')).filter(function (image) {
+        return !image.closest('.note-cover-page');
+    }).forEach(function (image) {
+        const rect = image.getBoundingClientRect();
+        if (!(rect.width > 0 && rect.height > 0)) return;
+        const scale = Math.min(1, (image.parentElement.clientWidth || current.content.clientWidth) / rect.width,
+            (current.content.clientHeight - 48) / rect.height);
+        if (scale < 1) {
+            image.style.setProperty('width', (rect.width * scale) + 'px', 'important');
+            image.style.setProperty('height', (rect.height * scale) + 'px', 'important');
+        }
+    });
+    current.content.removeChild(prepared);
 
     // Fit the output copy before measuring page heights. Column continuations
     // remain ordinary tables, so the existing rowspan-safe pagination applies.
@@ -3191,6 +3248,30 @@ async function updatePreviewPopupContent() {
     // The snapshot flag only detects explicitly tagged fences. Scan the actual
     // code nodes too; the renderer exits immediately when there are no diagrams.
     try { await renderMermaidInPreviewPopup(target); } catch (e) {}
+    // External images must be decoded before the hidden source is cloned and
+    // measured; otherwise pagination uses zero or incomplete intrinsic sizes.
+    try { await Promise.all(Array.from(target.querySelectorAll('img')).map(async function (image) {
+        image.loading = 'eager';
+        if (!image.getAttribute('src')) return;
+        let timer;
+        try {
+            await Promise.race([
+                typeof image.decode === 'function' ? image.decode() : new Promise(function (resolve, reject) {
+                    if (image.complete) return image.naturalWidth ? resolve() : reject(new Error('Image load failed'));
+                    image.addEventListener('load', resolve, { once: true });
+                    image.addEventListener('error', reject, { once: true });
+                }),
+                new Promise(function (_, reject) {
+                    timer = setTimeout(function () { reject(new Error('Image load timed out')); }, 20000);
+                })
+            ]);
+        } finally { clearTimeout(timer); }
+    })); } catch (_) {
+        if (token === previewPopupRenderToken && typeof showToast === 'function') {
+            showToast('PV 이미지를 불러오지 못했습니다. 이미지 주소와 연결 상태를 확인한 뒤 PV를 다시 열어 주세요.');
+        }
+        return;
+    }
     if (token !== previewPopupRenderToken || !isPreviewPopupAlive()
         || !isMarkdownRenderSnapshotCurrent(snapshot)) return;
     applyPreviewPopupViewport();

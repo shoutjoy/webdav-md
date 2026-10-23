@@ -92,6 +92,40 @@ const MarkdownIt = require('markdown-it');
     const single = await rects();
     assert.ok(single[1].y > single[0].y);
     assert.deepEqual(await rows(), expected);
+    // Windowed -> maximized -> narrow -> restored: only the PV viewport
+    // should scroll, and it must always fill the area below the toolbar.
+    for (const size of [{width:1100,height:820},{width:1844,height:1018},{width:700,height:900},{width:1100,height:820}]) {
+      await popup.setViewportSize(size);
+      const shell = await popup.evaluate(() => {
+        const viewport=document.getElementById('pv-viewport'),toolbar=document.getElementById('pv-toolbar');
+        const v=viewport.getBoundingClientRect(),t=toolbar.getBoundingClientRect();
+        return {window:{width:innerWidth,height:innerHeight},viewport:{left:v.left,right:v.right,top:v.top,bottom:v.bottom},
+          toolbar:{right:t.right,bottom:t.bottom},outerOverflow:document.documentElement.scrollHeight-innerHeight,
+          scrollable:viewport.scrollHeight>viewport.clientHeight};
+      });
+      assert.ok(Math.abs(shell.viewport.right-size.width)<=1,JSON.stringify(shell));
+      assert.ok(Math.abs(shell.viewport.bottom-size.height)<=1,JSON.stringify(shell));
+      assert.ok(Math.abs(shell.viewport.top-shell.toolbar.bottom)<=1,JSON.stringify(shell));
+      assert.ok(shell.outerOverflow<=1,JSON.stringify(shell));
+      assert.ok(shell.scrollable);
+    }
+    await popup.mouse.move(650,500);
+    await popup.mouse.wheel(0,650);
+    await popup.waitForFunction(() => document.getElementById('pv-viewport').scrollTop>100);
+    assert.equal(await popup.evaluate(() => document.scrollingElement.scrollTop),0,'Wheel scrolling must not move the outer document');
+    await popup.locator('#pv-viewport').evaluate(viewport=>{viewport.scrollTop=0;});
+    // Single-page zoom must reserve its scaled width and height in the layout;
+    // transforms alone left overlapping pages and an unreachable left edge.
+    await popup.locator('#pv-pages').evaluate(pages=>pages.style.setProperty('--pv-page-scale','1.6'));
+    const enlarged=await rects();
+    assert.ok(enlarged[0].x>=0);
+    assert.ok(enlarged[1].y>=enlarged[0].bottom);
+    await popup.locator('#pv-pages').evaluate(pages=>pages.style.setProperty('--pv-page-scale','1'));
+    if (process.env.PV_PROOF_DIR) {
+      await popup.setViewportSize({width:1844,height:1018});
+      await popup.locator('.pv-page').nth(1).evaluate(page=>page.scrollIntoView({block:'start'}));
+      await popup.screenshot({path:path.join(process.env.PV_PROOF_DIR,'pv-resized-full-window.png')});
+    }
     console.log('Actual PV popup passed: sparse Markdown cells, page boundaries, two-page/matrix clicks, resize, persistence, print width, toolbar preservation. Pages:', pageCount);
     await context.close();
   } finally { await browser.close(); }
