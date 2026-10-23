@@ -2892,12 +2892,11 @@ body.sidebar-storage-github-hidden #tab-storage-github-link {
 /* Selection text style dialog (Alt+L) */
 .text-style-modal {
     padding: 16px;
-    background: rgba(15, 23, 42, .46);
-    -webkit-backdrop-filter: blur(3px);
-    backdrop-filter: blur(3px);
+    pointer-events: none;
 }
 
 .text-style-panel {
+    pointer-events: auto;
     width: min(680px, calc(100vw - 24px));
     max-height: min(860px, calc(100vh - 32px));
     display: flex;
@@ -2917,6 +2916,8 @@ body.sidebar-storage-github-hidden #tab-storage-github-link {
 }
 
 .text-style-header {
+    cursor: move;
+    touch-action: none;
     display: flex;
     align-items: flex-start;
     justify-content: space-between;

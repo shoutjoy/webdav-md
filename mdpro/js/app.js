@@ -158,7 +158,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260914-serpapi-vault-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?v=20261023-local-auto-tone-1&reasoning=20261022-3',
+    aiChat: './AI_App/aiChat/ai-chat.js?v=20261023-original-native-1&reasoning=20261022-3',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20261022-document-theme-1'
@@ -9386,7 +9386,7 @@ function buildCaptionHtml(mode, formatId, number, title, alignment) {
     const body = String(title || '').trim() || '내용';
     const alignmentClass = mode === 'table'
         ? ' tbl-caption-align-' + normalizeCaptionAlignment(alignment)
-        : '';
+        : ' tbl-caption-align-center';
     return '<span class="tbl-caption' + alignmentClass + '">' + format.build(n) + ' ' + escapeCaptionHtml(body) + '</span>';
 }
 
@@ -9415,9 +9415,9 @@ function updateCaptionInsertPreview(mode) {
         numberInput ? numberInput.value : 1,
         textInput ? textInput.value : ''
     );
-    if (ui.mode === 'table') {
-        preview.style.textAlign = normalizeCaptionAlignment(captionInsertState.tableAlignment);
-    }
+    preview.style.textAlign = ui.mode === 'table'
+        ? normalizeCaptionAlignment(captionInsertState.tableAlignment)
+        : 'center';
 }
 
 function renderCaptionAlignmentButtons(mode) {
@@ -18158,7 +18158,7 @@ async function listNPUModels(signal) {
 // Keep the current UI tone ahead of long app prompts and near the latest
 // question for local templates that give little weight to the system role.
 function applyLocalAIChatResponseStyle(request) {
-    if (!request || !['ollama', 'ollama-npu', 'lemonade'].includes(request.provider)
+    if (!request || request.originalAnswer === true || !['ollama', 'ollama-npu', 'lemonade'].includes(request.provider)
         || !['academic', 'polite'].includes(request.responseStyle)) return request;
     const tone = request.responseStyle === 'academic'
         ? '한국어 학술체. 본문은 객관적으로 서술하고 -이다/-한다/-하였다 등의 종결을 사용한다. -습니다/-해요를 섞지 않는다. 예: 이 결과는 관련성을 시사한다.'

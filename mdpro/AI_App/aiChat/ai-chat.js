@@ -300,7 +300,7 @@
   }
 
   function writingStyleInstruction(options) {
-    // The selected tone applies independently of original answer structure.
+    if (state.generalAnswer) return '';
     var academicContext = !!(options && options.academic);
     if (state.writingStyle === 'academic') {
       var customPrompt = typeof root.getAIWritingStylePrompt === 'function'
@@ -331,7 +331,7 @@
   }
 
   function sentenceOnlyInstruction() {
-    if (!state.sentenceOnly) return '';
+    if (state.generalAnswer || !state.sentenceOnly) return '';
     return [
       '[필수 문장 전용 출력 규칙]',
       '최종 답변은 자연스럽게 이어지는 완결된 문장과 문단으로만 작성한다.',
@@ -344,13 +344,13 @@
   }
 
   function originalAnswerInstruction() {
-    // original means model-native structure with the selected writing tone.
-    return [writingStyleInstruction({ academic: false }), sentenceOnlyInstruction()].filter(Boolean).join(' ');
+    // original leaves tone, structure, and wording to the model and user.
+    return '';
   }
 
   function normalizeSentenceOnlyOutput(value) {
     var text = String(value || '');
-    if (!state.sentenceOnly) return text;
+    if (state.generalAnswer || !state.sentenceOnly) return text;
     // Protect literal code and explicit math before removing prose decoration.
     // This only processes the new AI answer, never the source document.
     var protectedParts = [];
@@ -913,7 +913,7 @@
       + '      </div>'
       + '      <div class="ai-chat-writing-style-row">'
       + '        <label class="ai-chat-writing-style-control">답변 문체<select id="ai-chat-writing-style"><option value="academic">학술체</option><option value="polite">존댓말</option></select></label>'
-      + '        <label class="ai-chat-general-answer-toggle" title="모델 고유의 답변 구성을 사용하며 선택한 학술체·존댓말과 문장 작성 설정은 적용합니다."><input type="checkbox" id="ai-chat-general-answer"><span>original</span></label>'
+      + '        <label class="ai-chat-general-answer-toggle" title="문체·문장 작성 보정과 기본 출력 지시 없이 모델 고유의 응답을 사용합니다. 실시간 문서 쓰기는 유지합니다."><input type="checkbox" id="ai-chat-general-answer"><span>original</span></label>'
       + '        <label>답변 표시<select id="ai-chat-answer-appearance"><option value="current">다크</option><option value="plain-light">라이트</option></select></label>'
       + '        <label class="ai-chat-insert-expand-toggle" title="켜면 각 AI 답변 아래에 삽입 방식을 펼쳐 표시합니다."><input type="checkbox" id="ai-chat-insert-expand"><span>삽입방식</span></label>'
       + '      </div>'
@@ -2540,7 +2540,7 @@
       liveStream.phase = 'complete';
       if (realtimeDocActive) {
         try {
-          var cleanFinal = normalizeSentenceOnlyOutput(parseAssistantSections(liveStream.answer).answer);
+          var cleanFinal = normalizeSentenceOnlyOutput(state.generalAnswer ? liveStream.answer : parseAssistantSections(liveStream.answer).answer);
           getBridge().finishRealtimeDocStream(cleanFinal);
           realtimeDocActive = false;
         } catch (_) {}
@@ -3161,12 +3161,12 @@
     if (checkbox) checkbox.checked = state.generalAnswer;
     if (select) {
       select.disabled = state.running;
-      select.title = 'original 모드에서도 선택한 답변 문체를 적용합니다.';
+      select.title = state.generalAnswer ? 'original 모드에서는 문체 설정을 적용하지 않습니다.' : '답변에 적용할 문체를 선택합니다.';
     }
     updateHeaderModel();
     if (announce) {
       setStatus(state.generalAnswer
-        ? 'original을 켰습니다. 모델 고유의 답변 구성에 선택한 ' + writingStyleLabel(state.writingStyle) + ' 문체를 적용합니다.'
+        ? 'original을 켰습니다. 문체·문장 보정 없이 모델 고유의 응답을 사용합니다.'
         : 'original을 껐습니다. 선택한 답변 문체를 다시 적용합니다.', 'ok');
     }
   }
@@ -4973,6 +4973,8 @@
       }
       var result = await getBridge().complete(applySentenceOnlyRequest({
         provider: state.provider,
+        originalAnswer: state.generalAnswer,
+        preserveModelStyle: state.generalAnswer && !academicSearch,
         responseStyle: normalizeWritingStyle(state.writingStyle),
         model: activeProviderModel(),
         mode: 'quick',
@@ -4984,7 +4986,9 @@
         previousResponseId: null,
         messages: continuationMessages,
         onStreamEvent: state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'litertlm' || state.provider === 'aistudio' || state.provider === 'lemonade' || state.provider === 'openai-compatible' ? handleStreamEvent : undefined,
-        systemInstruction: nextContentInstruction
+        systemInstruction: state.generalAnswer && !academicSearch
+          ? originalAnswerInstruction()
+          : nextContentInstruction
           ? '직전 답변의 문체와 형식을 그대로 유지한다. 사용자가 지정한 다음 부분의 완성된 한국어 본문만 즉시 출력한다. 추론, 계획, 설명, 기존 내용의 반복은 출력하지 않는다.'
           : academicSearch
           ? academicContinuationInstruction(evidence, splitAcademic ? requestedPart : 0, continuationEvidenceProfile)
@@ -7198,6 +7202,8 @@
         ? academicSystemInstruction(academicEvidence, splitAcademicResponse ? 1 : 0, academicProfile)
         : internetSearchActive
           ? (nativeInternetSearch ? nativeInternetSystemInstruction() : internetSystemInstruction(internetEvidence))
+        : state.generalAnswer
+          ? originalAnswerInstruction()
         : state.fastMode || state.realtimeDocWrite
           ? [
             state.realtimeDocWrite
@@ -7212,9 +7218,7 @@
             MERMAID_DARK_MODE_PROMPT_RULE,
             'For a Mermaid request, return exactly one fenced mermaid code block and nothing else.'
           ].join(' ')
-        : state.generalAnswer
-          ? originalAnswerInstruction()
-          : localNativeQuality
+        : localNativeQuality
             ? nativeQualityAnswerInstruction(text)
           : [
             'You are a capable conversational assistant. Answer in Korean unless the user requests another language.',
@@ -7231,6 +7235,7 @@
       var streamHandler = state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'litertlm' || state.provider === 'aistudio' || state.provider === 'lemonade' || state.provider === 'openai-compatible' ? handleStreamEvent : undefined;
       var baseRequest = {
         provider: state.provider,
+        originalAnswer: state.generalAnswer,
         responseStyle: normalizeWritingStyle(state.writingStyle),
         model: activeProviderModel(),
         mode: academicSearchActive ? 'quick' : state.responseMode,
@@ -7243,7 +7248,7 @@
         academicEvidenceTokens: academicProfile ? academicProfile.fullEvidenceTokens : 0,
         retainForContinuation: true,
         disableThinking: state.provider === 'lemonade' && (state.responseMode !== 'reasoning' || state.fastMode || academicSearchActive),
-        preserveModelStyle: (state.generalAnswer || localNativeQuality) && !academicSearchActive && !internetSearchActive && !state.fastMode && !state.realtimeDocWrite,
+        preserveModelStyle: (state.generalAnswer || (localNativeQuality && !state.fastMode && !state.realtimeDocWrite)) && !academicSearchActive && !internetSearchActive,
         messages: requestMessages,
         onStreamEvent: streamHandler,
         systemInstruction: requestSystemInstruction
@@ -7267,7 +7272,7 @@
       var reasoningStatus = extractModelStatus(result && result.reasoning ? String(result.reasoning) : '');
       if (reasoningStatus.notice && !responseStatus.notice) responseStatus.notice = reasoningStatus.notice;
       var reasoningText = reasoningStatus.answer;
-      var preserveModelAnswer = (state.generalAnswer || localNativeQuality) && !academicSearchActive && !internetSearchActive && !state.fastMode && !state.realtimeDocWrite;
+      var preserveModelAnswer = baseRequest.preserveModelStyle;
       var separatedResponse = separateEmbeddedReasoning(responseStatus.answer, reasoningText, preserveModelAnswer);
       responseStatus.answer = separatedResponse.answer;
       reasoningText = separatedResponse.reasoning;
