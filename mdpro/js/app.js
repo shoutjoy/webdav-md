@@ -3643,6 +3643,14 @@ function applyMarkdownImageSizeHints(rootElement) {
     if (!rootElement || typeof rootElement.querySelectorAll !== 'function') return 0;
     let applied = 0;
     rootElement.querySelectorAll('img').forEach(function (image) {
+        // Author CSS (including reset styles) overrides HTML presentational
+        // attributes. Keep explicit HTML sizes in the shared render pipeline.
+        ['width', 'height'].forEach(function (property) {
+            const value = String(image.getAttribute(property) || '').trim();
+            if (!image.style[property] && /^\d+(?:\.\d+)?(?:px|mm|cm|in|pt|%)?$/.test(value)) {
+                image.style[property] = /^\d+(?:\.\d+)?$/.test(value) ? value + 'px' : value;
+            }
+        });
         const hintNode = image.nextSibling;
         if (!hintNode || hintNode.nodeType !== 3) return;
         const text = String(hintNode.nodeValue || '');
