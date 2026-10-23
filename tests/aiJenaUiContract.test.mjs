@@ -178,7 +178,7 @@ test('AI Jena CSV attachments open as an accessible table while XLSX extraction 
   assert.match(appScript, /extension === '\.docx' \|\| extension === '\.pptx' \|\| extension === '\.xlsx'[\s\S]*extractAIChatOfficeText\(file, extension\)/);
   assert.match(appScript, /csvText: extension === '\.csv' \|\| mimeType === 'text\/csv' \? text : ''/);
   assert.match(markup, /ai-chat\.css\?v=20261021-csv-table-window-1/);
-  assert.match(appScript, /ai-chat\.js\?v=20261023-local-auto-tone-1/);
+  assert.match(appScript, /ai-chat\.js\?v=20261023-original-native-1/);
 });
 
 test('Lemonade image models use the image generation endpoint and existing AI Jena image result flow', () => {
@@ -224,7 +224,7 @@ test('selection import reflows by the AI Jena composer width', () => {
   assert.match(chatStyles, /\.ai-chat-import-selection \{[\s\S]*grid-column:\s*span 4[\s\S]*text-overflow:\s*clip/);
   assert.match(chatStyles, /\.ai-chat-realtime-toolbar \{[\s\S]*grid-column:\s*span 3/);
   assert.match(markup, /ai-chat\.css\?v=20261021-csv-table-window-1/);
-  assert.match(appScript, /ai-chat\.js\?v=20261023-local-auto-tone-1/);
+  assert.match(appScript, /ai-chat\.js\?v=20261023-original-native-1/);
 });
 
 test('AI Jena exposes and applies FAST, quick, reasoning, and hard output token limits', () => {

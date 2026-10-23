@@ -38,6 +38,7 @@
     ]);
 
     let savedSelection = null;
+    let activeTextarea = null;
     let initialized = false;
     let fontDatabase = null;
     let sqliteStorage = null;
@@ -597,6 +598,19 @@
         if (family) style.push('font-family:' + family);
         if (/^#[0-9a-f]{6}$/i.test(String(safe.color || ''))) style.push('color:' + safe.color);
         if (/^#[0-9a-f]{6}$/i.test(String(safe.backgroundColor || ''))) style.push('background-color:' + safe.backgroundColor);
+        // Keep line breaks and table delimiters outside inline HTML wrappers.
+        if (/[\r\n]/.test(source) || /^\s*\|/.test(source)) {
+            return source.split(/(\r?\n)/).map(function (line) {
+                if (!line.trim() || /^\r?\n$/.test(line)) return line;
+                if (/^\s*\|/.test(line)) {
+                    return line.split(/(\\.|`+[^`]*`+|\|)/).map(function (part) {
+                        return !part.trim() || part === '|' || /^[:\s-]+$/.test(part)
+                            ? part : buildStyledHtml(part, safe);
+                    }).join('');
+                }
+                return buildStyledHtml(line, safe);
+            }).join('');
+        }
         let html = source;
         if (style.length) {
             const styleAttribute = style.join(';').replace(/&/g, '&amp;').replace(/"/g, '&quot;');
@@ -678,7 +692,9 @@
             if (typeof opts.showToast === 'function') opts.showToast('편집 모드에서 텍스트를 선택한 뒤 Alt+L을 눌러 주세요.');
             return false;
         }
+        activeTextarea = textarea;
         savedSelection = {
+            source: textarea.value,
             start: Number(textarea.selectionStart) || 0,
             end: Number(textarea.selectionEnd) || 0,
             scrollTop: Number(textarea.scrollTop) || 0,
@@ -692,6 +708,23 @@
         const first = doc.getElementById('style-font-size-number');
         if (first && typeof first.focus === 'function') first.focus();
         return true;
+    }
+
+    function captureSelection() {
+        const doc = getDocument();
+        const modal = doc && doc.getElementById('text-style-modal');
+        if (!activeTextarea || !modal || modal.classList.contains('hidden')) return;
+        const cm = activeTextarea.__mdCm6View;
+        const active = doc.activeElement;
+        if (active !== activeTextarea && !(cm && cm.dom.contains(active))) return;
+        savedSelection = {
+            source: activeTextarea.value,
+            start: Number(activeTextarea.selectionStart) || 0,
+            end: Number(activeTextarea.selectionEnd) || 0,
+            scrollTop: Number(activeTextarea.scrollTop) || 0,
+            scrollLeft: Number(activeTextarea.scrollLeft) || 0
+        };
+        updateSelectionSummary(activeTextarea);
     }
 
     function close(options) {
@@ -708,6 +741,7 @@
             textarea.scrollTop = savedSelection.scrollTop;
             textarea.scrollLeft = savedSelection.scrollLeft;
         }
+        activeTextarea = null;
         return true;
     }
 
@@ -715,7 +749,11 @@
         const doc = getDocument();
         const opts = options || {};
         const textarea = opts.textarea || (doc && doc.getElementById('viewer-edit-ta'));
-        if (!textarea || !savedSelection) return { ok: false, message: '선택 영역을 찾지 못했습니다.' };
+        if (!textarea || textarea !== activeTextarea || !savedSelection) return { ok: false, message: '선택 영역을 찾지 못했습니다.' };
+        captureSelection();
+        if (savedSelection.source !== textarea.value) {
+            return { ok: false, message: '문서가 변경되었습니다. 적용할 텍스트를 다시 선택해 주세요.' };
+        }
         const start = Math.max(0, Math.min(savedSelection.start, textarea.value.length));
         const end = Math.max(start, Math.min(savedSelection.end, textarea.value.length));
         if (start === end) return { ok: false, message: '먼저 서식을 적용할 텍스트를 선택해 주세요.' };
@@ -725,8 +763,17 @@
         const html = buildStyledHtml(selected, settings);
         textarea.focus();
         textarea.setSelectionRange(start, end);
-        if (doc && typeof doc.execCommand === 'function') doc.execCommand('insertText', false, html);
-        else textarea.setRangeText(html, start, end, 'select');
+        const cm = textarea.__mdCm6View;
+        if (cm) {
+            cm.dispatch({
+                changes: { from: start, to: end, insert: html },
+                selection: { anchor: start, head: start + html.length },
+                userEvent: 'input'
+            });
+        } else {
+            textarea.setRangeText(html, start, end, 'select');
+            textarea.dispatchEvent(new root.Event('input', { bubbles: true }));
+        }
         textarea.setSelectionRange(start, start + html.length);
         textarea.scrollTop = savedSelection.scrollTop;
         textarea.scrollLeft = savedSelection.scrollLeft;
@@ -828,13 +875,36 @@
 
         const addFont = doc.getElementById('text-style-add-font');
         if (addFont) addFont.addEventListener('click', addFontsFromInput);
-        const modal = doc.getElementById('text-style-modal');
-        if (modal) modal.addEventListener('mousedown', function (event) {
-            if (event.target === modal && typeof root.closeTextStyleModal === 'function') root.closeTextStyleModal();
+        ['selectionchange', 'select', 'mouseup', 'keyup', 'input'].forEach(function (name) {
+            doc.addEventListener(name, captureSelection);
+        });
+        const panel = doc.getElementById('text-style-modal-panel');
+        const header = panel && panel.querySelector('.text-style-header');
+        if (header) header.addEventListener('pointerdown', function (event) {
+            if (event.button !== 0 || event.target.closest('button, input, select, a')) return;
+            const rect = panel.getBoundingClientRect();
+            const dx = event.clientX - rect.left;
+            const dy = event.clientY - rect.top;
+            header.setPointerCapture(event.pointerId);
+            event.preventDefault();
+            const move = function (next) {
+                panel.style.position = 'fixed';
+                panel.style.left = Math.max(0, Math.min(root.innerWidth - rect.width, next.clientX - dx)) + 'px';
+                panel.style.top = Math.max(0, Math.min(root.innerHeight - rect.height, next.clientY - dy)) + 'px';
+            };
+            const stop = function () {
+                header.removeEventListener('pointermove', move);
+                header.removeEventListener('pointerup', stop);
+                header.removeEventListener('pointercancel', stop);
+            };
+            header.addEventListener('pointermove', move);
+            header.addEventListener('pointerup', stop);
+            header.addEventListener('pointercancel', stop);
         });
         doc.addEventListener('keydown', function (event) {
             const activeModal = doc.getElementById('text-style-modal');
             if (!activeModal || activeModal.classList.contains('hidden')) return;
+            if (!activeModal.contains(event.target)) return;
             if (event.key === 'Escape') {
                 event.preventDefault();
                 event.stopPropagation();

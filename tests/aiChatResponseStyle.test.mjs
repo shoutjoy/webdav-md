@@ -62,12 +62,15 @@ test('internal requests without a selected tone do not acquire style instruction
   ]) assert.equal(context.applyLocalAIChatResponseStyle(request), request);
 });
 
-test('Lemonade original replies receive the selected academic tone near the latest question', () => {
+test('original replies bypass local tone injection for all supported local providers', () => {
   const { context } = harness();
-  const messages = [{ role: 'user', content: '잠재프로파일 분석을 설명해줘' }];
-  const prepared = context.applyLocalAIChatResponseStyle({ provider: 'lemonade', preserveModelStyle: true, responseStyle: 'academic', messages });
-  assert.match(prepared.systemInstruction, /한국어 학술체/);
-  assert.match(prepared.messages[0].content, /-이다\/-한다/);
-  assert.equal(prepared.preserveModelStyle, true);
-  assert.equal(messages[0].content, '잠재프로파일 분석을 설명해줘');
+  for (const provider of ['lemonade', 'ollama', 'ollama-npu']) {
+    for (const responseStyle of ['academic', 'polite']) {
+      const request = { provider, originalAnswer: true, preserveModelStyle: true, responseStyle,
+        systemInstruction: '', messages: [{ role: 'user', content: '잠재프로파일 분석을 설명해줘' }] };
+      assert.equal(context.applyLocalAIChatResponseStyle(request), request);
+      assert.equal(request.systemInstruction, '');
+      assert.equal(request.messages[0].content, '잠재프로파일 분석을 설명해줘');
+    }
+  }
 });

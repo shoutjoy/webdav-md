@@ -40,17 +40,17 @@ function runtimeForSentenceMode(enabled = true) {
   return runtime;
 }
 
-test('selected-document Markdown cannot bypass the sentence choice in original or continuation requests', () => {
+test('selected-document Markdown cannot bypass the sentence choice in normal or continuation requests', () => {
   const runtime = runtimeForSentenceMode();
   const messages = [{ role: 'user', content: '#### 1. 최적 프로파일 수 결정\n결과를 작성해줘' }];
   const request = runtime.applySentenceOnlyRequest({ messages, systemInstruction: '기존 형식을 유지한다.' });
   assert.match(request.systemInstruction, /필수 문장 전용 출력 규칙/);
   assert.match(request.messages[0].content, /그 형식을 따라 하지 않는다/);
   assert.equal(messages[0].content, '#### 1. 최적 프로파일 수 결정\n결과를 작성해줘');
-  assert.match(runtime.originalAnswerInstruction(), /문장과 문단으로만/);
+  assert.equal(runtime.originalAnswerInstruction(), '');
   assert.match(source, /complete\(applySentenceOnlyRequest\(\{/);
   runtime.state.sentenceOnly = false;
-  assert.equal(runtime.originalAnswerInstruction(), '선택한 문체');
+  assert.equal(runtime.originalAnswerInstruction(), '');
   assert.equal(runtime.applySentenceOnlyRequest({ messages }).messages, messages);
 });
 
@@ -76,8 +76,8 @@ test('prose cleanup preserves explicit math, code, citations, and subscripts exa
   }
 });
 
-test('both document completion and stored chat use sentence cleanup', () => {
-  assert.match(source, /cleanFinal = normalizeSentenceOnlyOutput\(parseAssistantSections\(liveStream.answer\).answer\)/);
+test('both document completion and stored chat use sentence cleanup outside original mode', () => {
+  assert.match(source, /cleanFinal = normalizeSentenceOnlyOutput\(state.generalAnswer \? liveStream.answer : parseAssistantSections\(liveStream.answer\).answer\)/);
   assert.match(source, /sections.answer = normalizeSentenceOnlyOutput\(sections.answer\);[\s\S]*finishRealtimeDocStream\(sections.answer\)/);
   assert.match(source, /continued = normalizeSentenceOnlyOutput\(continued\)/);
 });
@@ -107,4 +107,30 @@ test('stream completion replaces raw Markdown in the document with the same fina
   assert.equal(written, runtime.normalizeSentenceOnlyOutput(raw));
   assert.equal(written, '최적 프로파일 수 결정: 5개 프로파일로 결정하였다.');
   assert.equal(runtime.realtimeDocActive, false);
+});
+
+test('original bypasses sentence prompts and cleanup with sentence mode saved as enabled', () => {
+  const runtime = runtimeForSentenceMode();
+  runtime.state.generalAnswer = true;
+  const raw = '[ANSWER]\n## 결과\n\n1. **MR1** 요인이다.\n\n|요인|적재량|\n|---|---|\n|MR1|.861|';
+  const request = { messages: [{ role: 'user', content: '결과를 해석해줘' }], systemInstruction: '' };
+  assert.equal(runtime.sentenceOnlyInstruction(), '');
+  assert.equal(runtime.applySentenceOnlyRequest(request), request);
+  assert.equal(runtime.normalizeSentenceOnlyOutput(raw), raw);
+  let written;
+  Object.assign(runtime, {
+    liveStream: { answer: raw, maxOutputTokens: 0 }, realtimeDocActive: true,
+    providerDisplayName: () => 'Lemonade', scheduleLiveStreamRender: () => {},
+    parseAssistantSections: () => { throw new Error('original must preserve model sections'); },
+    getBridge: () => ({ finishRealtimeDocStream: text => { written = text; } })
+  });
+  const start = source.indexOf('  function handleStreamEvent(');
+  const end = source.indexOf('\n  function ', start + 10);
+  vm.runInContext(source.slice(start, end), runtime);
+  runtime.handleStreamEvent({ type: 'chat.end', result: { stats: {} } });
+  assert.equal(written, raw);
+  assert.equal(runtime.realtimeDocActive, false);
+  runtime.state.generalAnswer = false;
+  assert.match(runtime.sentenceOnlyInstruction(), /필수 문장 전용/);
+  assert.notEqual(runtime.normalizeSentenceOnlyOutput(raw), raw);
 });
