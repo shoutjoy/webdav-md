@@ -9496,21 +9496,26 @@ function guessNextCaptionNumber(mode) {
 }
 
 // Work on source offsets so caption titles, attributes and surrounding Markdown stay intact.
-function renumberTableCaptions(markdown) {
+function renumberCaptions(markdown, mode) {
     const source = String(markdown || '');
+    const figure = mode === 'figure';
     const changes = [];
     let count = 0;
     // Consume code and comments before looking for actual caption spans.
-    const tokens = /^( {0,3})(`{3,}|~{3,})[^\r\n]*\r?\n[\s\S]*?(?:^ {0,3}\2[ \t]*\r?$|(?![\s\S]))|<!--[\s\S]*?(?:-->|(?![\s\S]))|(`+)[\s\S]*?\3(?!`)|<span\b[^>]*>[\s\S]*?<\/span\s*>/gim;
+    const tokens = /^( {0,3})(`{3,}|~{3,})[^\r\n]*\r?\n[\s\S]*?(?:^ {0,3}\2[ \t]*\r?$|(?![\s\S]))|<!--[\s\S]*?(?:-->|(?![\s\S]))|(`+)[\s\S]*?\3(?!`)|<span\b[^>]*>[\s\S]*?<\/span\s*>|^ {0,3}(?:\*\*|__)?(?:\[(?:그림|Fig(?:ure)?\.?)\s+\d+\](?![ \t]*(?:\(|\[|:))|(?:그림|Fig(?:ure)?\.?)\s+\d+\.)(?=[ \t\r]|$|\*\*|__)[^\r\n]*/gim;
     let match;
     while ((match = tokens.exec(source))) {
         const span = match[0];
-        if (!/^<span\b/i.test(span)) continue;
-        const opening = span.match(/^<span\b[^>]*>/i)[0];
-        const classes = opening.match(/\bclass\s*=\s*(["'])(.*?)\1/i);
-        if (!classes || !classes[2].split(/\s+/).includes('tbl-caption')) continue;
+        let opening = '';
+        if (/^<span\b/i.test(span)) {
+            opening = span.match(/^<span\b[^>]*>/i)[0];
+            const classes = opening.match(/\bclass\s*=\s*(["'])(.*?)\1/i);
+            if (!classes || !classes[2].split(/\s+/).includes('tbl-caption')) continue;
+        } else if (!figure || !/^ {0,3}(?:\*\*|__)?(?:\[|그림|Fig)/i.test(span)) continue;
         const body = span.slice(opening.length);
-        const prefix = body.match(/^(\s*(?:(?:<|&lt;)표\s+|표\s+|Table\s+))(\d+)(?=(?:>|&gt;|\.))/i);
+        const prefix = figure
+            ? body.match(/^(\s*(?:\*\*|__)?(?:\[(?:그림|Fig(?:ure)?\.?)\s+|(?:그림|Fig(?:ure)?\.?)\s+))(\d+)(?=\]|\.)/i)
+            : body.match(/^(\s*(?:(?:<|&lt;)표\s+|표\s+|Table\s+))(\d+)(?=(?:>|&gt;|\.))/i);
         if (!prefix) continue;
         count += 1;
         const insert = String(count);
@@ -9526,15 +9531,32 @@ function renumberTableCaptions(markdown) {
     return { markdown: result, count: count, changes: changes };
 }
 
+function renumberTableCaptions(markdown) {
+    return renumberCaptions(markdown, 'table');
+}
+
+function renumberFigureCaptions(markdown) {
+    return renumberCaptions(markdown, 'figure');
+}
+
 function renumberTableCaptionsInDocument() {
+    return renumberCaptionsInDocument('table');
+}
+
+function renumberFigureCaptionsInDocument() {
+    return renumberCaptionsInDocument('figure');
+}
+
+function renumberCaptionsInDocument(mode) {
+    const label = mode === 'figure' ? '그림' : '표';
     syncEditModeStateFromDom();
     if (!isEditMode || !editorTextarea) {
         showToast('편집 모드에서 사용하세요.');
         return;
     }
-    const result = renumberTableCaptions(editorTextarea.value);
+    const result = renumberCaptions(editorTextarea.value, mode);
     if (!result.count) {
-        showToast('재정렬할 표 캡션이 없습니다.');
+        showToast('재정렬할 ' + label + ' 캡션이 없습니다.');
         return;
     }
     if (result.changes.length) {
@@ -9556,7 +9578,7 @@ function renumberTableCaptionsInDocument() {
             cmView.dispatch({
                 changes: result.changes,
                 selection: { anchor: start, head: end },
-                userEvent: 'input.tableCaptionRenumber'
+                userEvent: 'input.' + mode + 'CaptionRenumber'
             });
         } else {
             editorTextarea.value = result.markdown;
@@ -9570,12 +9592,12 @@ function renumberTableCaptionsInDocument() {
         if (activeSidebarTab === 'toc') renderTOC();
         performAutoSave();
     }
-    const ui = getCaptionUi('table');
+    const ui = getCaptionUi(mode);
     if (ui.numberInput) ui.numberInput.value = String(result.count + 1);
-    updateCaptionInsertPreview('table');
+    updateCaptionInsertPreview(mode);
     showToast(result.changes.length
-        ? '표 캡션 ' + result.count + '개의 번호를 문서 순서대로 재정렬했습니다.'
-        : '표 캡션 번호가 이미 문서 순서대로 정렬되어 있습니다.');
+        ? label + ' 캡션 ' + result.count + '개의 번호를 문서 순서대로 재정렬했습니다.'
+        : label + ' 캡션 번호가 이미 문서 순서대로 정렬되어 있습니다.');
 }
 
 function prepareCaptionPanel(mode) {

@@ -4,10 +4,61 @@ import test from 'node:test';
 import vm from 'node:vm';
 
 const source = readFileSync(new URL('../mdpro/js/app.js', import.meta.url), 'utf8');
-const functions = source.slice(source.indexOf('function renumberTableCaptions('), source.indexOf('function prepareCaptionPanel('));
+const functions = source.slice(source.indexOf('function renumberCaptions('), source.indexOf('function prepareCaptionPanel('));
 const context = vm.createContext({});
 vm.runInContext(functions, context);
 const renumber = context.renumberTableCaptions;
+
+test('renumbers all six figure caption formats without touching titles or table numbers', () => {
+    const formats = ['[그림 81]', '그림 42.', '[Fig 42]', 'Fig 81.', '[Figure 12]', 'Figure 42.'];
+    const source = formats.map(prefix => '<span class="tbl-caption tbl-caption-align-center" data-keep="yes">'+prefix+' 설명: 그림 42, 2026년 <b>결과</b></span>').join('\r\n');
+    const result = context.renumberFigureCaptions(source);
+    const expected = formats.map((prefix,index)=>'<span class="tbl-caption tbl-caption-align-center" data-keep="yes">'+prefix.replace(/\d+/,String(index+1))+' 설명: 그림 42, 2026년 <b>결과</b></span>').join('\r\n');
+    assert.equal(result.markdown,expected);
+    assert.equal(result.count,6);
+    assert.equal(context.renumberFigureCaptions(expected).changes.length,0);
+    assert.equal(renumber(source).markdown,source);
+});
+
+test('orders existing plain Markdown captions together with inserted HTML captions and protects references/code', () => {
+    const ignored = [
+        '본문 [그림 99] 참조 / Figure 70. 결과',
+        '[그림 99](#figure-99)', '[그림 99]: https://example.test/image.png',
+        '[그림 99]를 참조하세요.', 'Fig 3.5 is a section reference',
+        '    [그림 99] 들여쓴 코드',
+        '`<span class="tbl-caption">[그림 99] 코드</span>`',
+        '```html\n<span class="tbl-caption">[그림 99] 코드</span>\n```',
+        '~~~md\n[그림 99] 코드\n~~~',
+        '<!--\n[그림 99] 주석\n-->',
+        '<span class="tbl-caption"><표 99> 표</span>'
+    ].join('\n\n');
+    const captions = '**[그림 42]** 유지할 제목 12\n\n<span class="tbl-caption">[Fig 98] 제목 42</span>\n\nFigure 82. Title\n\n[Figure 41] 마지막';
+    const result = context.renumberFigureCaptions(ignored+'\n\n'+captions);
+    assert.equal(result.count,4);
+    assert.equal(result.markdown,ignored+'\n\n'+captions.replace('[그림 42]','[그림 1]').replace('[Fig 98]','[Fig 2]').replace('Figure 82.','Figure 3.').replace('[Figure 41]','[Figure 4]'));
+});
+
+test('figure action updates the document in one undo transaction and the next figure number', () => {
+    const context = vm.createContext({});
+    vm.runInContext(functions, context);
+    const input='<span class="tbl-caption">[그림 18] A</span>\n<span class="tbl-caption">그림 9. B</span>';
+    let transaction, previewMode, saved=0;
+    const numberInput={value:'99'};
+    const textarea={value:input,selectionStart:input.length,selectionEnd:input.length,scrollTop:120,scrollLeft:7,
+        dispatchEvent() {},__mdCm6View:{dispatch(value) {transaction=value;}}};
+    Object.assign(context,{syncEditModeStateFromDom() {},isEditMode:true,editorTextarea:textarea,currentMarkdown:input,activeSidebarTab:'',
+        Event:class {},getCaptionUi(mode) {assert.equal(mode,'figure');return {numberInput};},
+        updateCaptionInsertPreview(mode) {previewMode=mode;},renderMarkdown() {},performAutoSave() {saved++;},showToast() {}});
+    context.renumberFigureCaptionsInDocument();
+    assert.equal(transaction.changes.length,2);
+    assert.equal(transaction.userEvent,'input.figureCaptionRenumber');
+    assert.equal(context.currentMarkdown,context.renumberFigureCaptions(input).markdown);
+    assert.equal(previewMode,'figure');
+    assert.equal(numberInput.value,'3');
+    assert.equal(saved,1);
+    assert.equal(textarea.scrollTop,120);
+    assert.equal(textarea.scrollLeft,7);
+});
 
 test('renumbers mixed caption formats in source order and preserves titles and attributes', () => {
     const before = [
