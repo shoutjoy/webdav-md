@@ -8,6 +8,7 @@ async function load() {
   const window = {};
   vm.runInNewContext(await readFile(new URL('../mdpro/js/math_render/math_render.js', import.meta.url), 'utf8'), { window });
   vm.runInNewContext(await readFile(new URL('../mdpro/AI_App/aiChat/ai-chat-markdown.js', import.meta.url), 'utf8'), { window });
+  vm.runInNewContext(await readFile(new URL('../mdpro/js/Markdown_bold.js', import.meta.url), 'utf8'), { window });
   const parser = new MarkdownIt({ html: true });
   window.marked = { parse: text => parser.render(text) };
   return window;
@@ -24,6 +25,44 @@ test('R member access inside code never consumes subsequent math', async () => {
       assert.doesNotMatch(html, /MATHSEG/);
     }
   }
+});
+
+test('report significance cells and numeric labels survive Smart Bold and every Markdown entry point', async () => {
+  const root = await load();
+  const source = '| item | sig_star | ipa_label | estimate |\n| --- | --- | --- | --- |\n'
+    + [1, 2, 3].map(n => '| ' + n + ' | ' + '*'.repeat(n) + ' | ' + n + '*'.repeat(n) + ' | .42' + '*'.repeat(n) + ' |').join('\n');
+  for (const input of [source, root.MarkdownBold.preprocessBold(source)]) {
+    for (const html of [root.MathRender.renderMarkdownSync(root.marked, input), await root.MathRender.renderMarkdownSafe(root.marked, input), root.AIChatMarkdown.toHtml(input)]) {
+      const literal = html.replace(/&#42;/g, '*');
+      for (const n of [1, 2, 3]) {
+        assert.ok(literal.includes('<td>' + '*'.repeat(n) + '</td>'), literal);
+        assert.ok(literal.includes('<td>' + n + '*'.repeat(n) + '</td>'), literal);
+        assert.ok(literal.includes('<td>.42' + '*'.repeat(n) + '</td>'), literal);
+      }
+      assert.doesNotMatch(html, /<(?:b|i|strong|em)>|MATHSEG|MDPRO_OPAQUE/);
+    }
+  }
+});
+
+test('significance legends preserve stars without changing emphasis, code, math or horizontal rules', async () => {
+  const root = await load();
+  const source = '**굵게** *기울임* ***둘 다*** **2024**\n\n'
+    + '유의성: *p<.05, **p<.01, ***p<.001; 값 -2.3*, .42**.\n\n'
+    + '`1*** | **p<.01`\n\n```text\n*** | 1***\n```\n\n***\n\n'
+    + String.raw`$x_i * y_i$ 및 \(*p<.05, **p<.01, ***p<.001\)`;
+  const html = root.MathRender.renderMarkdownSync(root.marked, root.MarkdownBold.preprocessBold(source));
+  const literal = html.replace(/&#42;/g, '*');
+  assert.ok(literal.includes('*p&lt;.05, **p&lt;.01, ***p&lt;.001'), literal);
+  assert.ok(literal.includes('값 -2.3*, .42**.'), literal);
+  assert.match(html, /<b>굵게<\/b>/);
+  assert.match(html, /<em>기울임<\/em>/);
+  assert.match(html, /<b><i>둘 다<\/i><\/b>/);
+  assert.match(html, /<b>2024<\/b>/);
+  assert.match(html, /<code>1\*\*\* \| \*\*p&lt;\.01<\/code>/);
+  assert.match(html, /<code class="language-text">\*\*\* \| 1\*\*\*/);
+  assert.match(html, /<hr>/);
+  assert.ok(html.includes('$x_i * y_i$'));
+  assert.doesNotMatch(html, /MATHSEG|MDPRO_OPAQUE/);
 });
 
 test('documents and Jena retain quoted placeholders and intentional deletion', async () => {

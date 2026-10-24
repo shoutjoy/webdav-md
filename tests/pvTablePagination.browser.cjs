@@ -47,7 +47,7 @@ const { chromium } = require('playwright');
         rowCounts: parts.map(p => p.tBodies[0].rows.length),
         firstCells: parts.map(p => p.tBodies[0].rows[0].cells[0].textContent),
         headers: parts.map(p => p.tHead.rows[0].cells.length),
-        captions: parts.map(p => !!p.caption), footers: parts.map(p => !!p.tFoot), widths,
+        captions: parts.map(p => p.caption && p.caption.textContent), footers: parts.map(p => !!p.tFoot), widths,
         blocked: blocked === null,
         zero: zero.map(p => p.tBodies[0].rows.length),
         nested: nested.map(p => Array.from(p.querySelectorAll('tbody > tr')).filter(r => r.closest('table') === p).length)
@@ -56,7 +56,7 @@ const { chromium } = require('playwright');
     assert.deepEqual(result.rowCounts, [4, 4]);
     assert.deepEqual(result.firstCells, ['oper', 'work']);
     assert.deepEqual(result.headers, [8, 8]);
-    assert.deepEqual(result.captions, [true, false]);
+    assert.deepEqual(result.captions, ['Results', '표 연결 (이전 페이지에서 계속)']);
     assert.deepEqual(result.footers, [false, true]);
     assert.ok(result.blocked);
     assert.deepEqual(result.zero, [4, 4]);
@@ -88,7 +88,8 @@ const { chromium } = require('playwright');
         first: tables.map(t => t.tHead.rows[0].cells[0].textContent),
         fits: tables.every(t => t.getBoundingClientRect().right <= t.closest('.pv-page-content').getBoundingClientRect().right + 1 && t.scrollWidth <= 681),
         after: pages.textContent.includes('AFTER TABLE'), unchanged: root.innerHTML === original,
-        rows: tables.map(t => t.tBodies[0].rows.length)
+        rows: tables.map(t => t.tBodies[0].rows.length),
+        labels: tables.map(t => t.querySelector('caption[data-pv-table-continuation]')?.textContent || '')
       };
     });
     assert.ok(wide.count > 1);
@@ -97,6 +98,8 @@ const { chromium } = require('playwright');
     assert.ok(wide.fits);
     assert.ok(wide.after && wide.unchanged);
     assert.ok(wide.rows.every(count => count === 5));
+    assert.equal(wide.labels[0], '');
+    wide.labels.slice(1).forEach((label, index) => assert.equal(label, '표 연결 (' + (index + 2) + '/' + wide.count + ')'));
     console.log('PV full pagination wide table passed:', JSON.stringify(wide));
     const sizing = await page.evaluate(() => {
       const content = document.getElementById('content');

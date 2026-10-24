@@ -1,5 +1,13 @@
 # Repository UI preservation rules
 
+## Required MDpro development handoff
+
+- For every MDpro feature, fix, refactor or cross-app port, follow `docs/mdpro-development/README.md`.
+- Before finishing, create/update the change document under `docs/mdpro-development/changes/`, update the index, and include concrete code changes, target-specific adaptation, verification evidence and a copyable implementation prompt for the other app.
+- Preserve the other app's independent code. Do not copy complete files over it merely because the feature names match. Document unavailable target inspection as unverified.
+- Record the MDproViewer Tauri impact and pending work in the change document and build queue. Follow the target's `Docs/mdpro-development/TAURI_BUILD.md` when a Tauri build is requested there.
+- Documentation-only changes do not require a recursively generated handoff. Do not auto-port, auto-build, commit or deploy merely to complete documentation.
+
 ## Required math rendering contract
 
 - Before changing Markdown math parsing, MathJax loading/typesetting, view/PV rendering, or DOCX/PDF math output, read and follow `docs/MATH_RENDER_RULES.md` (`MDPRO-MATH-RENDER-CONTRACT`).

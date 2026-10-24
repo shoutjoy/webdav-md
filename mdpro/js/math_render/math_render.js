@@ -13,7 +13,7 @@
         }
     };
 
-    var DEFAULT_SCRIPT_URL = 'js/math_render/math_render.js?v=20261023-literal-single-tilde-1';
+    var DEFAULT_SCRIPT_URL = 'js/math_render/math_render.js?v=20261024-statistical-stars-1';
     var DEFAULT_MATHJAX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js';
     var TYPESET_QUEUES = typeof WeakMap === 'function' ? new WeakMap() : null;
     var fallbackTypesetQueue = Promise.resolve();
@@ -332,6 +332,17 @@
                 run();
             });
         },
+        protectStatisticalMarkers: function (text) {
+            function literalStars(match) { return match.replace(/\*/g, '&#42;'); }
+            return String(text || '')
+                // A cell containing only significance stars is not emphasis.
+                .replace(/(^|\|)[ \t]*\*{1,3}(?=[ \t]*\|)/gm, literalStars)
+                .replace(/\|[ \t]*\*{1,3}[ \t]*$/gm, literalStars)
+                // Numeric estimates / item labels: .42**, 1***, -2.3*.
+                .replace(/(^|[^\w*\\])(-?(?:\d+(?:\.\d+)?|\.\d+))\*{1,3}(?!\*)(?=$|[\s|.,;:!?)\]])/g, literalStars)
+                // Significance legends, including < which must remain text.
+                .replace(/(^|[\s(,;:])\*{1,3}(?=\s*p\s*(?:[<=>≤≥]|&lt;|&gt;))/gi, literalStars);
+        },
         protectMathSegments: function (md) {
             var src = String(md || '');
             // Code spans (including multi-backtick spans) and fenced blocks own
@@ -486,7 +497,7 @@
                     i += 1;
                 }
 
-                return out.join('');
+                return MathRender.protectStatisticalMarkers(out.join(''));
             }
 
             var cursor = 0;

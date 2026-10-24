@@ -51,6 +51,11 @@ const MarkdownBold = (() => {
         let protectedLine = line.replace(mathRe, protect);
         const codeRe = /(`+)([\s\S]*?)\1/g;
         protectedLine = protectedLine.replace(codeRe, protect);
+        // The main view runs Smart Bold before Markdown parsing. Protect report
+        // stars here too, before *** | 1*** can become a bold/italic pair.
+        if (typeof window !== 'undefined' && window.MathRender) {
+            protectedLine = window.MathRender.protectStatisticalMarkers(protectedLine);
+        }
         let output = preprocessBoldText(protectedLine);
         opaqueTokens.forEach(function (content, index) {
             output = output.split('\uE000MDPRO_OPAQUE_' + index + '\uE001').join(content);
