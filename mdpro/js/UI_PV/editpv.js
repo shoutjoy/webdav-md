@@ -550,7 +550,7 @@ function getPreviewPopupStylesheetLinks() {
 function getPreviewPopupDocumentHtml() {
     const mathHead = (typeof MathRender !== 'undefined' && MathRender && typeof MathRender.getHeadTags === 'function')
         ? MathRender.getHeadTags({
-            scriptUrl: new URL('./js/math_render/math_render.js?v=20261023-literal-single-tilde-1', window.location.href).href
+            scriptUrl: new URL('./js/math_render/math_render.js?v=20261024-statistical-stars-1', window.location.href).href
         })
         : '';
     const imageResizeHead = '<script src="' + escapePreviewAttribute(new URL('./js/viewmode/image-resize.js?v=20260815-pv-restore-1', window.location.href).href) + '"></script>';
@@ -1457,6 +1457,16 @@ function previewPopupSplitContainerChildren(element, content) {
     return fragments.length > 1 ? fragments : null;
 }
 
+function previewPopupSetTableContinuation(table, label) {
+    // A caption travels with its table through measurement, pagination and
+    // printing, so the indicator cannot be orphaned at the end of a page.
+    if (table.caption) table.caption.remove();
+    const caption = table.createCaption();
+    caption.setAttribute('data-pv-table-continuation', 'true');
+    caption.textContent = label;
+    caption.style.cssText = 'caption-side:top;text-align:right;font-size:0.85em;font-weight:600;line-height:1.4;padding:0 0 6px;color:inherit;';
+}
+
 function previewPopupFitTableWidth(source, content) {
     const table = source.cloneNode(true);
     const available = content.clientWidth;
@@ -1536,7 +1546,7 @@ function previewPopupFitTableWidth(source, content) {
             if (!(entry.start >= band[0] && entry.end <= band[1]) && !(index > 0 && repeatKey && entry.end <= 1)) copied[i].remove();
         });
         Array.from(clone.children).filter(function (child) { return child.tagName === 'COLGROUP'; }).forEach(function (group) { group.remove(); });
-        if (index > 0 && clone.caption) clone.caption.remove();
+        if (index > 0) previewPopupSetTableContinuation(clone, '표 연결 (' + (index + 1) + '/' + bands.length + ')');
         normalize(clone);
         content.appendChild(clone);
         const naturalWidth = Math.max(clone.getBoundingClientRect().width, clone.scrollWidth);
@@ -1596,8 +1606,11 @@ function previewPopupSplitTableRows(table, content) {
         Array.from(clone.children).forEach(function (child) {
             if (child.tagName === 'TBODY' && !child.children.length) child.remove();
             if (child.tagName === 'TFOOT' && end < rows.length) child.remove();
-            if (child.tagName === 'CAPTION' && start > 0) child.remove();
+            if (child.tagName === 'CAPTION' && start > 0 && !child.hasAttribute('data-pv-table-continuation')) child.remove();
         });
+        if (start > 0 && !clone.querySelector('caption[data-pv-table-continuation]')) {
+            previewPopupSetTableContinuation(clone, '표 연결 (이전 페이지에서 계속)');
+        }
         return clone;
     };
 
