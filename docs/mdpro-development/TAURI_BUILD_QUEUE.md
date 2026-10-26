@@ -6,6 +6,22 @@
 
 | ID | 적용 항목 | 대상 웹 소스 | 웹 검증 | 프런트엔드 준비 | 네이티브 빌드 | 설치 앱 검증 |
 | --- | --- | --- | --- | --- | --- | --- |
+| MDPRO-20261027-FMA-PERSON | [반복 편집 인물 보존](changes/2026-10-27-fma-person-preservation.md) | identity/cameraOnly·공급자 차이 확인·미이식 | WebDAV 67개·빌드 성공, 서버 연결 실패·실화질 미검증 | 미실행 | 미실행 | 미실행 |
+| MDPRO-20261027-LINK-PERSIST | [링크 삽입 원문 보존](changes/2026-10-27-link-insert-persistence.md) | 대상 모달 native execCommand 확인·미이식 | WebDAV 14개·빌드 통과, 실제 UI 미검증 | 미실행 | 미실행 | 미실행 |
+| MDPRO-20261027-FMA-JENA-WAIT | [FMA Jena 92% 표시·편집 대기](changes/2026-10-27-fma-jena-progress-and-edit-wait.md) | 대상 가상92% 존재·공급자 구조 차이·미이식 | 대상 미실행 | 미실행 | 미실행 | 미실행 |
+| MDPRO-20261027-FMA-SPLIT-CLOSE | [FMA 공급자 버튼 분리·이미지 편집 닫기](changes/2026-10-27-fma-provider-buttons-and-close.md) | Viewer 기존 버튼 보존·닫기 개선 미이식 | WebDAV 51개·빌드·Edge 다크/라이트 열기·닫기 | 미실행 | 미실행 | 미실행 |
+| MDPRO-20261027-FMA-JENA-CONNECTION | [FMA Jena 공급자·모델 선택과 연결](changes/2026-10-27-fma-jena-provider-and-transport.md) | 대상 독립 공급자/Google 경로 확인·미이식 | 대상 미실행 | 미실행 | 미실행 | 미실행 |
+| MDPRO-20261027-IMAGE-QUALITY | [Lemonade 이미지 원본 해상도·품질 설정](changes/2026-10-27-lemonade-image-quality.md) | Viewer 원본 존재·이번 WebDAV 적응, 대상 런타임 미수정 | WebDAV 90개·빌드·UI 저장 복원, 실생성 backend_error | 미실행 | 미실행 | 미실행 |
+| MDPRO-20261027-IMAGE-PREVIEW | [원본 크기 이미지 미리보기·창 조작](changes/2026-10-27-original-size-image-preview.md) | 대상 이동·5방향 조절 존재·원본 배율/스크롤 정책 미이식 | 미실행 | 미실행 | 미실행 | 미실행 |
+| MDPRO-20261027-LEMONADE-SAVE-BORDER | [Lemonade 저장 버튼 테두리](changes/2026-10-27-lemonade-save-button-border.md) | 대상 저장 버튼 확인 필요·미이식 | 실제 UI 미검증 | 미실행 | 미실행 | 미실행 |
+| MDPRO-20261027-APIKEY-FOLD | [API Key 입력 기본 접기](changes/2026-10-27-openai-api-key-fold.md) | Viewer 고유 ID 보존 필요·미이식 | 실제 UI 미검증 | 미실행 | 미실행 | 미실행 |
+| MDPRO-20261026-LLAMACPP | [llama.cpp 주소 기반 연결](changes/2026-10-27-llamacpp-address-only.md) | Viewer 원본 3개 자산 구현 확인·이번 WebDAV 이식만 수행 | WebDAV 70개·빌드 통과, Viewer UI/실제 추론 미검증 | 미실행 | 미실행 | 미실행 |
+| MDPRO-20261026-UPLOAD-ACTIONS | [업로드 이미지 도구와 접기](changes/2026-10-26-uploaded-image-actions.md) | 대상 갤러리 차이 확인·미이식 | 미실행 | 미실행 | 미실행 | 미실행 |
+| MDPRO-20261026-FLUX9B-VRAM | [Flux 9B 저메모리 프로필](changes/2026-10-26-flux9b-low-vram.md) | 자산 수정 없음·동일 로컬 서버 프로필 공유 | 대상 설치 앱 미실행 | 불필요 | 불필요 | 미실행 |
+| MDPRO-20261026-FACE-REFERENCE | [이미지 재생성 얼굴 참조 유지](changes/2026-10-26-image-face-reference.md) | 대상 복수 참조 전송 확인·프롬프트/원본 보존 미이식 | 미실행 | 미실행 | 미실행 | 미실행 |
+| MDPRO-20261026-LEMONADE-MODELS | [Lemonade 설치 모델 전체 표시](changes/2026-10-26-lemonade-installed-model-list.md) | 공급자 구조 차이·하위 목록·로더 버전·ENV 동기화 확인 대기·미수정 | 미실행 | 미실행 | 미실행 | 미실행 |
+| MDPRO-20261026-FMA-INSERT | [내부 FMA → 문서 IMG 전달](changes/2026-10-26-fma-document-insert.md) | 구형 수신 확인·메시지 계약 추가 확인·미수정 | 미실행 | 미실행 | 미실행 | 미실행 |
+| MDPRO-20261026-AI-IMAGES | [이미지 입력과 질문 첨부 복원](changes/2026-10-26-ai-chat-image-attachments.md) | 대상 동등 경로 일부 확인·추가 차이 미적용 | 미실행 | 미실행 | 미실행 | 미실행 |
 | MDPRO-20261026-DOCX-MERMAID | [Word Mermaid 이미지·원본 코드 보존](changes/2026-10-26-docx-mermaid-images.md) | 차이 확인·미이식 | 미실행 | 미실행 | 미실행 | 미실행 |
 | MDPRO-20261024-STATS-PV-A | 통계 별표 보존 | 미이식 | 미실행 | 미실행 | 미실행 | 미실행 |
 | MDPRO-20261024-STATS-PV-B | 넓은 표 열 분할 선행 기능 및 표 연결 caption | 미이식 | 미실행 | 미실행 | 미실행 | 미실행 |

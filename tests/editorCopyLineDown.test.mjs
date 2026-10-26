@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 
-const source = readFileSync(new URL('../mdpro/js/app.js', import.meta.url), 'utf8');
+const source = readFileSync(new URL('../mdpro/js/app.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const markup = readFileSync(new URL('../mdpro/index.html', import.meta.url), 'utf8');
 const editorShell = readFileSync(new URL('../src/components/MdproEditor.jsx', import.meta.url), 'utf8');
 

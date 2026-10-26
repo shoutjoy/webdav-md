@@ -146,7 +146,7 @@
     function viewerUrl(title) {
         const url = new URL('./Apps/fmaviewer/index.html', document.baseURI || global.location.href);
         url.searchParams.set('embedded', '1');
-        url.searchParams.set('v', '20260806-import-choice-2');
+        url.searchParams.set('v', '20261027-edit-wait-2');
         if (title) url.searchParams.set('title', title);
         return url.href;
     }
@@ -559,7 +559,9 @@
             try {
                 if (data.type === 'fmaviewer-crop-image') await openCrop(image);
                 if (data.type === 'fmaviewer-remove-background') await openBackgroundRemover(image);
-                if (data.type === 'fmaviewer-open-image-insert') await openImageInsertFromViewer(image);
+                if (data.type === 'fmaviewer-open-image-insert' || data.type === 'fmaviewer-send-to-mdpro-img') {
+                    await openImageInsertFromViewer(image);
+                }
                 if (data.type === 'fmaviewer-insert-internal') await saveInternalAndInsert(image);
                 if (data.type === 'fmaviewer-upload-imgbb') await uploadToImgbbAndInsert(image);
             } catch (error) {

@@ -9,39 +9,94 @@
     const status = document.getElementById("fmaLemonadeStatus");
     let busy = false;
     function host() { return typeof getMdproSettingsHost === "function" ? getMdproSettingsHost() : window; }
+    window.getFmaLemonadeBaseUrl = () => {
+        const storage = host().localStorage;
+        const direct = location.hostname === "shoutjoy.github.io" || location.protocol === "file:";
+        return (direct ? (storage.getItem("ss_openai_compatible_base_url_lemonade") || "http://localhost:13305/api/v1") : "/api/lemonade/v1").replace(/\/+$/, "");
+    };
     function selected() { return host().localStorage.getItem("ss_image_model_lemonade") || fallback; }
     window.getFmaLemonadeImageModel = () => host().localStorage.getItem("ss_image_provider") === "lemonade" ? selected() : "";
-    window.requestFmaLemonadeImage = async (input, signal) => {
-        const storage = host().localStorage;
-        const model = window.getFmaLemonadeImageModel();
-        const direct = location.hostname === "shoutjoy.github.io" || location.protocol === "file:";
-        const base = direct ? (storage.getItem("ss_openai_compatible_base_url_lemonade") || "http://localhost:13305/api/v1") : "/api/lemonade/v1";
-        const prompt = input.filter(item => item.type === "text").map(item => item.text).join("\n\n");
-        const pictures = input.filter(item => item.type === "image");
-        let body;
-        const headers = { Accept: "application/json", Authorization: "Bearer lemonade" };
-        const size = storage.getItem("ss_lemonade_image_size") || "512x512";
-        if (pictures.length) {
-            body = new FormData();
-            body.append("model", model); body.append("prompt", prompt);
-            body.append("size", size); body.append("response_format", "b64_json");
-            body.append("n", "1"); body.append("steps", storage.getItem("ss_lemonade_image_steps") || "4");
-            body.append("cfg_scale", storage.getItem("ss_lemonade_image_cfg_scale") || "1");
-            pictures.forEach((picture, index) => {
-                const bytes = Uint8Array.from(atob(picture.data), char => char.charCodeAt(0));
-                body.append(index === 0 ? "image" : "image[]", new Blob([bytes], { type: picture.mime_type }), `reference-${index}.png`);
+    window.waitForFmaLemonadeIdle = async (base, signal, onPhase) => {
+        const started = Date.now();
+        while (true) {
+            if (signal?.aborted) throw new DOMException("작업이 정지되었습니다.", "AbortError");
+            const timeout = AbortSignal.timeout(15000);
+            const response = await fetch(base + "/health", {
+                headers: { Accept: "application/json", Authorization: "Bearer lemonade" },
+                signal: signal ? AbortSignal.any([signal, timeout]) : timeout
             });
-        } else {
-            headers["Content-Type"] = "application/json";
-            body = JSON.stringify({ model, prompt, size, n: 1, response_format: "b64_json", steps: Number(storage.getItem("ss_lemonade_image_steps")) || 4, cfg_scale: Number(storage.getItem("ss_lemonade_image_cfg_scale") || 1) });
+            if (!response.ok) throw new Error(`Lemonade 상태 확인 실패 (HTTP ${response.status})`);
+            const health = await response.json();
+            if (!Array.isArray(health.all_models_loaded)) throw new Error("Lemonade 이미지 서버 상태를 확인할 수 없습니다.");
+            const busy = health.all_models_loaded.some(row => (row.type === "image" || row.recipe === "sd-cpp")
+                && (row.is_busy || row.is_streaming || row.status === "in_use"));
+            if (!busy) return;
+            if (Date.now() - started >= 600000) throw new Error("이전 Lemonade 이미지 작업이 아직 실행 중입니다. 서버 작업 종료 후 다시 실행하세요.");
+            onPhase?.("이전 Lemonade 이미지 작업 종료 대기 중입니다. 중지된 브라우저 요청도 서버에서 계산 중일 수 있습니다.");
+            await new Promise((resolve, reject) => {
+                function cancel() { clearTimeout(timer); reject(new DOMException("작업이 정지되었습니다.", "AbortError")); }
+                const timer = setTimeout(() => { signal?.removeEventListener("abort", cancel); resolve(); }, 2000);
+                signal?.addEventListener("abort", cancel, { once: true });
+                if (signal?.aborted) { signal.removeEventListener("abort", cancel); cancel(); }
+            });
         }
-        const response = await fetch(base.replace(/\/+$/, "") + (pictures.length ? "/images/edits" : "/images/generations"), { method: "POST", headers, body, signal });
-        const data = await response.json();
-        if (!response.ok || data.error) throw new Error(data.error?.message || `Lemonade 이미지 요청 실패 (${response.status})`);
-        const image = data.data?.[0];
-        if (!image?.b64_json) throw new Error("Lemonade 응답에 이미지가 없습니다.");
-        const mimeType = image.mime_type || "image/png";
-        return { src: `data:${mimeType};base64,${image.b64_json}`, mimeType };
+    };
+    window.requestFmaLemonadeImage = async (input, signal, options = {}) => {
+        const storage = host().localStorage;
+        const model = options.model || window.getFmaLemonadeImageModel();
+        const base = window.getFmaLemonadeBaseUrl();
+        const prompt = input.filter(item => item.type === "text").map(item => item.text).join("\n\n");
+        if (!model || !prompt.trim()) throw new Error("Lemonade 이미지 모델과 생성 프롬프트를 확인하세요.");
+        const pictures = options.mode === "generate" ? [] : input.filter(item => item.type === "image");
+        const settings = {
+            model, prompt, size: storage.getItem("ss_lemonade_image_size") || "512x512",
+            n: 1, response_format: "b64_json",
+            steps: Number(storage.getItem("ss_lemonade_image_steps")) || 4,
+            cfg_scale: Number(storage.getItem("ss_lemonade_image_cfg_scale") || 1)
+        };
+        async function send(edit) {
+            if (signal?.aborted) throw new DOMException("작업이 정지되었습니다.", "AbortError");
+            const headers = { Accept: "application/json", Authorization: "Bearer lemonade" };
+            let body;
+            if (edit) {
+                body = new FormData();
+                Object.entries(settings).forEach(([key, value]) => body.append(key, String(value)));
+                pictures.forEach((picture, index) => {
+                    if (!picture.data) throw new Error("Lemonade 참조 이미지 데이터가 없습니다.");
+                    const bytes = Uint8Array.from(atob(picture.data), char => char.charCodeAt(0));
+                    body.append(pictures.length > 1 ? "image[]" : "image",
+                        new Blob([bytes], { type: picture.mime_type || "image/png" }), `reference-${index}.png`);
+                });
+            } else {
+                headers["Content-Type"] = "application/json";
+                body = JSON.stringify(settings);
+            }
+            await window.waitForFmaLemonadeIdle(base, signal, options.onPhase);
+            options.onPhase?.(`Lemonade · ${model} ${edit ? "원본 참조 편집" : "새 이미지 생성"} 응답 대기 중입니다.`);
+            const response = await fetch(base.replace(/\/+$/, "") + (edit ? "/images/edits" : "/images/generations"), { method: "POST", headers, body, signal });
+            const text = await response.text();
+            let data;
+            try { data = JSON.parse(text); } catch (_) { data = {}; }
+            if (!response.ok || data.error) {
+                const message = data.error?.message || (typeof data.error === "string" ? data.error : "") || text.slice(0, 300) || "이미지 요청 실패";
+                const error = new Error(`Lemonade · ${model} · HTTP ${response.status}: ${message}`);
+                error.canGenerate = [404, 405, 415, 422].includes(response.status)
+                    || (response.status >= 500 && /sd-server|generate_image returned no results|unsupported|not supported|not implemented/i.test(error.message));
+                throw error;
+            }
+            const image = data.data?.[0];
+            const encoded = image?.b64_json || image?.b64Json;
+            if (!encoded) throw new Error("Lemonade 응답에 이미지가 없습니다.");
+            const mimeType = image.mime_type || image.mimeType || "image/png";
+            return { src: `data:${mimeType};base64,${String(encoded).replace(/^data:[^;,]+;base64,/i, "")}`, mimeType, provider: "lemonade", model };
+        }
+        try {
+            return await send(pictures.length > 0);
+        } catch (error) {
+            if (error.name === "AbortError" || signal?.aborted || !pictures.length || !error.canGenerate
+                || !["edit", "pose"].includes(options.mode)) throw error;
+            throw new Error(`이미지 편집 실패: ${error.message}. 원본·참조 이미지 보존을 위해 새 이미지 생성으로 자동 전환하지 않았습니다. 연결·모델 상태를 확인하고 다시 편집하세요. 새로 생성하려면 ‘새 이미지 생성’을 선택하세요.`);
+        }
     };
     function render(ids, value) {
         select.replaceChildren();
@@ -54,8 +109,7 @@
     }
     async function request(path, body) {
         const storage = host().localStorage;
-        const direct = location.hostname === "shoutjoy.github.io" || location.protocol === "file:";
-        const base = direct ? (storage.getItem("ss_openai_compatible_base_url_lemonade") || "http://localhost:13305/api/v1") : "/api/lemonade/v1";
+        const base = window.getFmaLemonadeBaseUrl();
         const response = await fetch(base.replace(/\/+$/, "") + "/" + path, {
             method: body ? "POST" : "GET",
             headers: { Accept: "application/json", Authorization: "Bearer lemonade", ...(body ? { "Content-Type": "application/json" } : {}) },

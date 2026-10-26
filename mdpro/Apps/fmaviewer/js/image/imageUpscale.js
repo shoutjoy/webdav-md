@@ -244,7 +244,8 @@ function getAiUpscaleResolution() {
 
 function getAiStudioApiKey() {
     try {
-        const vault = window.parent && window.parent !== window ? window.parent.MDPCredentialVault : window.MDPCredentialVault;
+        const host = getMdproSettingsHost();
+        const vault = host.MDPCredentialVault;
         if (vault && typeof vault.getSecret === "function") {
             const protectedKey = String(vault.getSecret("fmaGemini") || vault.getSecret("gemini") || "").trim();
             if (protectedKey) return protectedKey;
@@ -252,6 +253,12 @@ function getAiStudioApiKey() {
             if (status && status.locked && Array.isArray(status.entries)
                 && status.entries.some(item => (item.id === "fmaGemini" || item.id === "gemini") && item.configured)) return "";
         }
+        if (typeof host.getProtectedAiCredential === "function") {
+            const key = String(host.getProtectedAiCredential("gemini", "ss_gemini_api_key") || "").trim();
+            if (key) return key;
+        }
+        const sharedKey = String(host.localStorage.getItem("ss_gemini_api_key") || "").trim();
+        if (sharedKey) return sharedKey;
     } catch (error) {
         console.warn("Encrypted API key lookup failed:", error);
     }

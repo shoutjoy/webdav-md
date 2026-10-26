@@ -8,7 +8,7 @@
     <script>if (new URLSearchParams(location.search).get('embedded') === '1') document.documentElement.classList.add('embedded-host');</script>
 
     <!-- Project Styles -->
-    <link rel="stylesheet" href="css/styles.css?v=20260908-restore-settings-theme-1">
+    <link rel="stylesheet" href="css/styles.css?v=20261027-jena-split-close-1">
     <link rel="stylesheet" href="Auth/auth.css?v=20260804-6">
 
     <!-- JSZip CDN -->
@@ -996,6 +996,7 @@
         <div class="ai-jena-dialog">
             <div id="aiJenaNotice" class="ai-jena-notice" role="status" aria-live="polite"></div>
             <header class="ai-jena-header">
+                <button id="btnAiJenaClose" type="button" title="AI Jena 닫기 · 실행 중이면 취소" aria-label="AI Jena 이미지 채팅 편집 닫기">× 닫기</button>
                 <div>
                     <h2 id="aiJenaTitle">AI Jena · 이미지 채팅 편집</h2>
                     <p>프롬프트, 선택영역 붓, 포즈 변경 또는 새 이미지 생성으로 작업합니다.</p>
@@ -1006,8 +1007,13 @@
                         <span id="aiJenaFontSizeValue">12px</span>
                         <button id="btnAiJenaFontLarger" type="button" title="글자 크게">＋</button>
                     </div>
+                    <div class="ai-jena-model-controls">
+                        <label>공급자 <select id="aiJenaProvider" aria-label="AI Jena 이미지 공급자"><option value="lemonade">Lemonade</option><option value="aistudio">AI Studio</option></select></label>
+                        <label>이미지 모델 <select id="aiJenaImageModel" aria-label="AI Jena 이미지 모델"></select></label>
+                        <button id="btnAiJenaRefreshModels" type="button" title="모델 목록 새로고침 및 연결 확인">모델 새로고침</button>
+                        <small id="aiJenaModelStatus" role="status" aria-live="polite">모델을 선택한 후 실행하세요.</small>
+                    </div>
                     <span id="aiJenaKeyStatus">AI Studio 키 확인 중</span>
-                    <button id="btnAiJenaClose" type="button" aria-label="AI Jena 닫기">×</button>
                 </div>
             </header>
             <div class="ai-jena-body">
@@ -2028,12 +2034,13 @@
     <script src="js/storage/database.js?v=20260804-2"></script>
     <script src="js/gallery/gallery.js?v=20260804-1"></script>
     <script src="js/image/imageMetadata.js?v=20260802-1"></script>
-    <script src="js/gallery/preview.js?v=20261013-bg-modal-open-2"></script>
+    <script src="js/gallery/preview.js?jenaProvider=20261027-split-close-1&v=20261013-bg-modal-open-2"></script>
     <script src="js/video/videoEditor.js?v=20260802-1"></script>
     <script src="js/image/crop.js?v=20260802-1"></script>
-    <script src="js/image/imageUpscale.js?v=20260908-image-app-links-4"></script>
-    <script src="js/image/lemonadeSettings.js?v=20261019-1"></script>
-    <script src="js/ai/aiJena.js?v=20260806-ai-settings-1"></script>
+    <script src="js/image/imageUpscale.js?v=20261027-jena-split-close-1"></script>
+    <script src="js/image/lemonadeSettings.js?v=20261027-person-preserve-1"></script>
+    <script src="js/ai/aiJenaModels.js?v=20261027-split-close-1"></script>
+    <script src="js/ai/aiJena.js?v=20261027-person-preserve-1"></script>
     <script src="js/image/imageEditor.js?v=20260802-1"></script>
     <script src="js/image/backgroundMaskEditor.js?v=20260802-1"></script>
     <script src="js/image/backgroundRemove.js?v=20261013-classic-script-3"></script>

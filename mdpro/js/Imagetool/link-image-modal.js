@@ -230,7 +230,20 @@
 
         editorTextarea.focus();
         editorTextarea.setSelectionRange(start, end);
-        document.execCommand('insertText', false, replacement);
+        // Update the editor document, not just CodeMirror's contenteditable DOM.
+        // Native insertText can look successful until a line move redraws it.
+        if (typeof deps.replaceSelectionText === 'function') {
+            deps.replaceSelectionText(replacement);
+        } else if (editorTextarea.__mdCm6View) {
+            editorTextarea.__mdCm6View.dispatch({
+                changes: { from: start, to: end, insert: replacement },
+                selection: { anchor: start + replacement.length },
+                scrollIntoView: true,
+                userEvent: 'input'
+            });
+        } else {
+            editorTextarea.setRangeText(replacement, start, end, 'end');
+        }
         close({ inputModal: deps.inputModal, editorTextarea: editorTextarea });
         editorTextarea.scrollTop = currentScrollTop;
         editorTextarea.setSelectionRange(start + replacement.length, start + replacement.length);

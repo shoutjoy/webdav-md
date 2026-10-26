@@ -33,6 +33,22 @@ WebDAV MDpro와 MDproViewer의 기능 개발, 버그 수정, 리팩터링, 이�
 
 | ID | 기술문서 | 원본 구현 | 상대 앱 적용 | Tauri |
 | --- | --- | --- | --- | --- |
+| MDPRO-20261027-FMA-PERSON | [반복 편집 인물 보존](changes/2026-10-27-fma-person-preservation.md) | 로컬 원본 참조·자동 생성 대체 방지·67개 검사·빌드 성공, 실화질 미검증 | 기존 identity/cameraOnly 차이 확인·미이식 | 웹 이식·실화질 검증 후 반영 대기 |
+| MDPRO-20261027-LINK-PERSIST | [링크 삽입 후 Alt+화살표 원문 보존](changes/2026-10-27-link-insert-persistence.md) | 구현·14개 검사·빌드 통과·실제 UI 미검증 | 대상 native 삽입 확인·미이식 | 웹 이식 후 반영 대기 |
+| MDPRO-20261027-FMA-JENA-WAIT | [FMA Jena 92% 표시·편집 대기](changes/2026-10-27-fma-jena-progress-and-edit-wait.md) | 구현·67개 검사·실제 직접/앱 프록시 참조 편집 성공 | 대상 가상92% 존재 확인·미이식 | 웹 이식 후 반영 대기 |
+| MDPRO-20261027-FMA-SPLIT-CLOSE | [FMA 공급자 버튼 분리·이미지 편집 닫기](changes/2026-10-27-fma-provider-buttons-and-close.md) | WebDAV 구현·51개 검사·빌드·Edge 다크/라이트 클릭 | Viewer 별도 버튼 문서 비교·닫기 미이식 | 닫기 이식 후 반영 대기 |
+| MDPRO-20261027-FMA-JENA-CONNECTION | [FMA Jena 공급자·모델 선택과 연결](changes/2026-10-27-fma-jena-provider-and-transport.md) | 구현·53개 검사·빌드·4B 신규 생성 성공, 실제 편집 timeout·Google/UI 미검증 | 독립 provider 차이 확인·미수정 | 웹 이식 후 반영 대기 |
+| MDPRO-20261027-IMAGE-QUALITY | [Lemonade 이미지 원본 해상도·품질 설정](changes/2026-10-27-lemonade-image-quality.md) | WebDAV 이식·90개 검사·빌드·브라우저 저장 복원, 실제 생성은 서버 오류 | Viewer 원본 읽기 비교·미수정 | 원본 웹 자산의 native 반영 대기 |
+| MDPRO-20261027-IMAGE-PREVIEW | [원본 크기 이미지 미리보기·창 조작](changes/2026-10-27-original-size-image-preview.md) | WebDAV 구현·39개 검사·빌드 통과·실제 UI 미검증 | 대상 기존 창 조작·축소 정책 차이 확인·미수정 | 배율 정책 조정 후 반영 대기 |
+| MDPRO-20261026-UPLOAD-ACTIONS | [업로드 이미지 도구와 접기](changes/2026-10-26-uploaded-image-actions.md) | WebDAV 구현·46개 검사·빌드 통과·실제 UI 미검증 | 갤러리·CSV 차이 확인·미이식 | 이식 후 반영 대기 |
+| MDPRO-20261027-LEMONADE-SAVE-BORDER | [Lemonade 저장 버튼 테두리](changes/2026-10-27-lemonade-save-button-border.md) | WebDAV 스타일 수정·검증은 기술문서 참고 | 대상 저장 버튼 확인 필요·미이식 | 이식 후 반영 대기 |
+| MDPRO-20261027-APIKEY-FOLD | [API Key 입력 기본 접기](changes/2026-10-27-openai-api-key-fold.md) | WebDAV 구현·검사/빌드 결과는 기술문서 참고 | Viewer 고유 ID 확인·미이식 | 이식 후 반영 대기 |
+| MDPRO-20261026-LLAMACPP | [llama.cpp 주소 기반 연결 이식](changes/2026-10-27-llamacpp-address-only.md) | WebDAV 이식·70개 검사·빌드 통과, 실제 UI/추론 미검증 | Viewer 원본 구현 읽기 확인·미수정 | Viewer 원본 native 반영 대기 |
+| MDPRO-20261026-FLUX9B-VRAM | [Flux 9B 8GB VRAM 실행 오류](changes/2026-10-26-flux9b-low-vram.md) | 로컬 프로필 저장·실제 256 생성/512 참조 편집·재로딩 지속성 검증 | 같은 서버 프로필 공유·대상 코드 미수정 | 자산 변경 없음·재빌드 불필요 |
+| MDPRO-20261026-FACE-REFERENCE | [이미지 재생성 얼굴 참조 유지](changes/2026-10-26-image-face-reference.md) | WebDAV 구현·60개 검사·빌드·옵션 UI 확인, 실제 얼굴 품질 미검증 | 기존 복수 참조 전송 확인·미수정 | 웹 이식 후 반영 대기 |
+| MDPRO-20261026-LEMONADE-MODELS | [Lemonade 설치 모델 전체 표시](changes/2026-10-26-lemonade-installed-model-list.md) | WebDAV 구현·캐시 버전 갱신·ENV 동기화·자동 검사·빌드, 로컬 UI 10개 검증 | 공급자 구조 차이 확인·미수정 | 대상 확인 후 반영 대기 |
+| MDPRO-20261026-FMA-INSERT | [내부 FMA → 문서 IMG 전달](changes/2026-10-26-fma-document-insert.md) | WebDAV 로컬 수정·회귀 검사·빌드, 실제 UI 미검증 | 대상 구형 수신 확인·미수정 | 메시지 계약 확인 후 반영 대기 |
+| MDPRO-20261026-AI-IMAGES | [AI Jena 이미지 입력과 첨부 복원](changes/2026-10-26-ai-chat-image-attachments.md) | WebDAV 로컬 구현·자동 검사·빌드, 실제 모델/UI 미검증 | 대상 복원·별도 비전 경로 확인, 추가 검증 필요·미수정 | 차이 검증 후 반영 대기 |
 | MDPRO-20261026-DOCX-MERMAID | [MS Word Mermaid 이미지 보존](changes/2026-10-26-docx-mermaid-images.md) | WebDAV 로컬 구현·브라우저 DOCX 생성 검증, Word 열기 미검증 | MDproViewer 차이 확인·미이식 | 이식 후 빌드 대기 |
 | MDPRO-20261024-STATS-PV | [통계 별표와 PV 표 연결](changes/2026-10-24-statistical-stars-and-pv-continuation.md) | WebDAV 로컬 구현·검증 | MDproViewer 미적용, 선행 열 분할 이식 필요 | 이식 후 빌드 대기 |
 

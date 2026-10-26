@@ -51,7 +51,7 @@ test('AI Jena exposes both Lemonade providers and their runtime bridges', () => 
   assert.match(markup, /lemonadePagesDirect=20261019-1/);
   assert.match(appScript, /const LEMONADE_MODELS_KEY = 'ss_lemonade_models_v1'/);
   assert.match(appScript, /const OPENAI_COMPATIBLE_MODELS_SOURCE_KEY = 'ss_openai_compatible_models_source_v1'/);
-  assert.match(appScript, /source !== OPENAI_COMPATIBLE_DEFAULTS\.baseUrl\) return \[\]/);
+  assert.match(appScript, /source !== expected\) return \[\]/);
   assert.match(appScript, /provider:\s*'orcarouter'[\s\S]*baseUrl:\s*'https:\/\/api\.orcarouter\.ai\/v1'/);
   assert.match(markup, /<option value="orcarouter">OrcaRouter<\/option>/);
   assert.match(appScript, /ss_orcarouter_lemonade_separation_revision'[\s\S]*orcarouter-default-v4/);
@@ -177,8 +177,8 @@ test('AI Jena CSV attachments open as an accessible table while XLSX extraction 
   assert.match(chatStyles, /\.ai-chat-csv-attachment:focus-visible/);
   assert.match(appScript, /extension === '\.docx' \|\| extension === '\.pptx' \|\| extension === '\.xlsx'[\s\S]*extractAIChatOfficeText\(file, extension\)/);
   assert.match(appScript, /csvText: extension === '\.csv' \|\| mimeType === 'text\/csv' \? text : ''/);
-  assert.match(markup, /ai-chat\.css\?v=20261021-csv-table-window-1/);
-  assert.match(appScript, /ai-chat\.js\?v=20261023-original-native-1/);
+  assert.match(markup, /ai-chat\.css\?v=20261027-image-quality-2/);
+  assert.match(appScript, /ai-chat\.js\?imageQuality=20261027-2&v=20261026-image-actions-1/);
 });
 
 test('Lemonade image models use the image generation endpoint and existing AI Jena image result flow', () => {
@@ -204,7 +204,7 @@ test('AI Jena edits generated images with the active Lemonade image model', () =
   assert.match(chatScript, /provider: useLemonade \? 'lemonade' : 'aistudio'/);
   assert.match(chatScript, /model: useLemonade \? state\.lemonadeModel/);
   assert.match(appScript, /latest\.attachments[\s\S]*item\.kind === 'image'/);
-  assert.match(appScript, /form\.append\('image',[\s\S]*openAICompatibleRequestUrl\(connection, 'images\/edits'\)/);
+  assert.match(appScript, /form\.append\(sources\.length > 1 \? 'image\[\]' : 'image',[\s\S]*openAICompatibleRequestUrl\(connection, 'images\/edits'\)/);
 });
 
 test('ImgG switches from Lemonade to AI Studio image models', () => {
@@ -223,8 +223,8 @@ test('selection import reflows by the AI Jena composer width', () => {
   assert.match(chatStyles, /@container \(max-width: 430px\)[\s\S]*\.ai-chat-panel:not\(\.layout-floating\) \.ai-chat-compose-actions/);
   assert.match(chatStyles, /\.ai-chat-import-selection \{[\s\S]*grid-column:\s*span 4[\s\S]*text-overflow:\s*clip/);
   assert.match(chatStyles, /\.ai-chat-realtime-toolbar \{[\s\S]*grid-column:\s*span 3/);
-  assert.match(markup, /ai-chat\.css\?v=20261021-csv-table-window-1/);
-  assert.match(appScript, /ai-chat\.js\?v=20261023-original-native-1/);
+  assert.match(markup, /ai-chat\.css\?v=20261027-image-quality-2/);
+  assert.match(appScript, /ai-chat\.js\?imageQuality=20261027-2&v=20261026-image-actions-1/);
 });
 
 test('AI Jena exposes and applies FAST, quick, reasoning, and hard output token limits', () => {

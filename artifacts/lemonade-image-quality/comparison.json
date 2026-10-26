@@ -1,0 +1,63 @@
+{
+  "model": "Flux-2-Klein-4B",
+  "serverVersion": "2026.42.1",
+  "recipeOptionsBefore": {
+    "cfg_scale": 1,
+    "ctx_size": 4096,
+    "height": 512,
+    "sdcpp_args": "",
+    "steps": 4,
+    "width": 512
+  },
+  "requests": [
+    {
+      "endpoint": "http://localhost:13305/api/v1/images/generations",
+      "parameters": {
+        "model": "Flux-2-Klein-4B",
+        "prompt": "A white ceramic coffee cup on natural linen beside a stainless steel spoon. Sharp focus across the entire scene, detailed linen weave, neutral daylight, realistic photograph.",
+        "size": "256x256",
+        "n": 1,
+        "seed": 42,
+        "steps": 4,
+        "cfg_scale": 1,
+        "response_format": "b64_json"
+      }
+    },
+    {
+      "endpoint": "http://localhost:13305/api/v1/images/generations",
+      "parameters": {
+        "model": "Flux-2-Klein-4B",
+        "prompt": "A white ceramic coffee cup on natural linen beside a stainless steel spoon. Sharp focus across the entire scene, detailed linen weave, neutral daylight, realistic photograph.",
+        "size": "1024x1024",
+        "n": 1,
+        "seed": 42,
+        "steps": 4,
+        "cfg_scale": 1,
+        "response_format": "b64_json"
+      }
+    }
+  ],
+  "results": [
+    {
+      "size": 256,
+      "edit": false,
+      "error": "Error: {\"error\":{\"details\":{\"backend\":\"sd-server\",\"response\":{\"error\":\"generate_image returned no results\"}},\"message\":\"generate_image returned no results\",\"status_code\":500,\"type\":\"backend_error\"}}",
+      "seconds": 1
+    },
+    {
+      "size": 1024,
+      "edit": false,
+      "error": "Error: {\"error\":{\"details\":{\"backend\":\"sd-server\",\"response\":{\"error\":\"generate_image returned no results\"}},\"message\":\"generate_image returned no results\",\"status_code\":500,\"type\":\"backend_error\"}}",
+      "seconds": 1
+    }
+  ],
+  "recipeOptionsAfter": {
+    "cfg_scale": 1,
+    "ctx_size": 4096,
+    "height": 512,
+    "sdcpp_args": "",
+    "steps": 4,
+    "width": 512
+  },
+  "recipeOptionsPreserved": true
+}
