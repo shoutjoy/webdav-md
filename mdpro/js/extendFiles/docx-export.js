@@ -136,7 +136,7 @@
         continue;
       }
       pushText(index);
-      segments.push({ type: 'math', latex: latex, display: display });
+      segments.push({ type: 'math', latex: latex, display: display, raw: source.slice(index, closeIndex + closer.length) });
       index = closeIndex + closer.length;
       textStart = index;
     }
@@ -147,18 +147,32 @@
   function splitBoldMarkdownSegments(value) {
     var source = String(value == null ? '' : value);
     var segments = [];
+    // Protect complete equations before looking for Markdown emphasis (M-02).
+    var equations = [];
+    var tokenPrefix = 'MDPRODOCXMATH';
+    while (source.indexOf(tokenPrefix) >= 0) tokenPrefix += 'X';
+    source = splitMathSegments(source).map(function (segment) {
+      if (segment.type !== 'math') return segment.text;
+      equations.push(segment.raw);
+      return tokenPrefix + (equations.length - 1) + 'END';
+    }).join('');
+    function restoreMath(text) {
+      return text.replace(new RegExp(tokenPrefix + '(\\d+)END', 'g'), function (_match, number) {
+        return equations[Number(number)];
+      });
+    }
     var pattern = /(\*\*|__)([\s\S]+?)\1/g;
     var cursor = 0;
     var match;
     while ((match = pattern.exec(source))) {
       if (match.index > cursor) {
-        segments.push({ text: source.slice(cursor, match.index), bold: false });
+        segments.push({ text: restoreMath(source.slice(cursor, match.index)), bold: false });
       }
-      segments.push({ text: match[2], bold: true });
+      segments.push({ text: restoreMath(match[2]), bold: true });
       cursor = pattern.lastIndex;
     }
-    if (cursor < source.length) segments.push({ text: source.slice(cursor), bold: false });
-    return segments.length ? segments : [{ text: source, bold: false }];
+    if (cursor < source.length) segments.push({ text: restoreMath(source.slice(cursor)), bold: false });
+    return segments.length ? segments : [{ text: restoreMath(source), bold: false }];
   }
 
   function makeRichTextSegments(value) {
@@ -1000,26 +1014,28 @@
     return { value: source.slice(start, Math.max(start, index - 1)), next: index };
   }
 
-  function ommlRun(text, normal) {
+  function ommlRun(text, normal, isBold) {
     if (!String(text || '')) return '';
-    return '<m:r>' + (normal ? '<m:rPr><m:sty m:val="p"/></m:rPr>' : '') +
+    var style = isBold ? (normal ? 'b' : 'bi') : (normal ? 'p' : '');
+    return '<m:r>' + (style ? '<m:rPr><m:sty m:val="' + style + '"/></m:rPr>' : '') +
+      (isBold ? '<w:rPr><w:b/><w:bCs/></w:rPr>' : '') +
       '<m:t xml:space="preserve">' + escapeXml(text) + '</m:t></m:r>';
   }
 
-  function latexToOmmlNodes(latex) {
+  function latexToOmmlNodes(latex, isBold, normal) {
     var source = String(latex || '').replace(/\s+/g, ' ').trim();
     var output = '';
     var plain = '';
     var index = 0;
     function flushPlain() {
-      if (plain) output += ommlRun(plain, false);
+      if (plain) output += ommlRun(plain, !!normal, isBold);
       plain = '';
     }
     function appendScript(baseXml, subValue, supValue) {
       var element = subValue != null && supValue != null ? 'sSubSup' : (subValue != null ? 'sSub' : 'sSup');
       return '<m:' + element + '><m:e>' + baseXml + '</m:e>' +
-        (subValue != null ? '<m:sub>' + latexToOmmlNodes(subValue) + '</m:sub>' : '') +
-        (supValue != null ? '<m:sup>' + latexToOmmlNodes(supValue) + '</m:sup>' : '') +
+        (subValue != null ? '<m:sub>' + latexToOmmlNodes(subValue, isBold, normal) + '</m:sub>' : '') +
+        (supValue != null ? '<m:sup>' + latexToOmmlNodes(supValue, isBold, normal) + '</m:sup>' : '') +
         '</m:' + element + '>';
     }
     while (index < source.length) {
@@ -1032,8 +1048,8 @@
           flushPlain();
           var numerator = latexReadGroup(source, index);
           var denominator = latexReadGroup(source, numerator.next);
-          output += '<m:f><m:num>' + latexToOmmlNodes(numerator.value) + '</m:num><m:den>' +
-            latexToOmmlNodes(denominator.value) + '</m:den></m:f>';
+          output += '<m:f><m:num>' + latexToOmmlNodes(numerator.value, isBold, normal) + '</m:num><m:den>' +
+            latexToOmmlNodes(denominator.value, isBold, normal) + '</m:den></m:f>';
           index = denominator.next;
           continue;
         }
@@ -1041,14 +1057,14 @@
           flushPlain();
           var root = latexReadGroup(source, index);
           output += '<m:rad><m:radPr><m:degHide m:val="1"/></m:radPr><m:deg/><m:e>' +
-            latexToOmmlNodes(root.value) + '</m:e></m:rad>';
+            latexToOmmlNodes(root.value, isBold, normal) + '</m:e></m:rad>';
           index = root.next;
           continue;
         }
         if (command === 'text' || command === 'mathrm' || command === 'mathbf' || command === 'operatorname') {
           flushPlain();
           var textGroup = latexReadGroup(source, index);
-          output += ommlRun(textGroup.value, true);
+          output += command === 'mathbf' ? latexToOmmlNodes(textGroup.value, true, true) : ommlRun(textGroup.value, true, isBold);
           index = textGroup.next;
           continue;
         }
@@ -1080,7 +1096,7 @@
           index = second.next;
         }
         var base = pendingBase ? null : output.match(/(<m:(?:r|f|rad)>[\s\S]*?<\/m:(?:r|f|rad)>)$/);
-        var baseXml = pendingBase ? ommlRun(pendingBase, false) : (base ? base[1] : ommlRun('', false));
+        var baseXml = pendingBase ? ommlRun(pendingBase, !!normal, isBold) : (base ? base[1] : ommlRun('', !!normal, isBold));
         if (base) output = output.slice(0, -baseXml.length);
         var sub = firstKind === '_' ? first.value : (secondKind === '_' ? second.value : null);
         var sup = firstKind === '^' ? first.value : (secondKind === '^' ? second.value : null);
@@ -1095,11 +1111,11 @@
       index += 1;
     }
     flushPlain();
-    return output || ommlRun(source, false);
+    return output || ommlRun(source, !!normal, isBold);
   }
 
-  function makeDocxMath(latex) {
-    return '<m:oMath>' + latexToOmmlNodes(latex) + '</m:oMath>';
+  function makeDocxMath(latex, isBold) {
+    return '<m:oMath>' + latexToOmmlNodes(latex, isBold) + '</m:oMath>';
   }
 
   function makeDocxRichRuns(item, isBold) {
@@ -1108,7 +1124,7 @@
       : [{ type: 'text', text: item && item.text ? item.text : '' }];
     return segments.map(function (segment) {
       return segment.type === 'math'
-        ? makeDocxMath(segment.latex)
+        ? makeDocxMath(segment.latex, isBold || !!segment.bold)
         : makeDocxTextRun(segment.text || '', isBold || !!segment.bold);
     }).join('');
   }
