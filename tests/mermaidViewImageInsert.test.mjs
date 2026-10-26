@@ -25,5 +25,5 @@ test('view SVG preserves rendered labels and PNG safely recreates their measured
 
 test('DOCX can request the same PNG renderer used by the view button', () => {
   assert.match(source, /exportWrapperImage: exportMermaidWrapperImage/);
-  assert.match(indexHtml, /mermaid_render\.js\?v=20261020-hq-export-locked-4/);
+  assert.match(indexHtml, /mermaid_render\.js\?v=20261026-docx-labels-1/);
 });

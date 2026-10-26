@@ -33,6 +33,7 @@ WebDAV MDpro와 MDproViewer의 기능 개발, 버그 수정, 리팩터링, 이�
 
 | ID | 기술문서 | 원본 구현 | 상대 앱 적용 | Tauri |
 | --- | --- | --- | --- | --- |
+| MDPRO-20261026-DOCX-MERMAID | [MS Word Mermaid 이미지 보존](changes/2026-10-26-docx-mermaid-images.md) | WebDAV 로컬 구현·브라우저 DOCX 생성 검증, Word 열기 미검증 | MDproViewer 차이 확인·미이식 | 이식 후 빌드 대기 |
 | MDPRO-20261024-STATS-PV | [통계 별표와 PV 표 연결](changes/2026-10-24-statistical-stars-and-pv-continuation.md) | WebDAV 로컬 구현·검증 | MDproViewer 미적용, 선행 열 분할 이식 필요 | 이식 후 빌드 대기 |
 
 이 목록은 현재 대화에서 수행한 두 기능을 초기 등록한다. 과거 전체 개발 이력을 전부 조사·등록했다는 뜻은 아니다. 이후 작업은 이 목록에 추가하고, 기존 항목의 상태를 증거에 맞춰 갱신한다.

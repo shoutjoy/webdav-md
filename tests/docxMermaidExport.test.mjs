@@ -70,6 +70,48 @@ test('DOCX export embeds the rendered Mermaid image and keeps its reusable sourc
   assert.ok(files.has('word/media/image1.png'));
 });
 
+test('DOCX includes every diagram even when Mermaid labels contain HTML', async () => {
+  const { api, files } = loadDocxExport();
+  const sources = ['flowchart LR\nA["<div>인사관리</div>"] --> B', 'flowchart TD\nC --> D'];
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+  await api.createBlob({
+    content: '설명\n\n' + sources.map(source => '```mermaid\n' + source + '\n```').join('\n\n'),
+    mermaidImages: sources.slice().reverse().map(source => ({src: png, mermaidSource: source})),
+    requireMermaidImages: true
+  });
+  const xml = files.get('word/document.xml');
+  assert.equal((xml.match(/<w:drawing>/g) || []).length, 2);
+  assert.ok(xml.includes('&lt;div&gt;인사관리&lt;/div&gt;'));
+  assert.ok(xml.indexOf('flowchart LR') < xml.indexOf('flowchart TD'));
+  assert.ok(files.has('word/media/image1.png'));
+  assert.ok(files.has('word/media/image2.png'));
+});
+
+test('DOCX supports tilde fences and does not close long fences with short backticks', async () => {
+  const { api, files } = loadDocxExport();
+  const code = 'flowchart LR\nA --> B';
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=';
+  await api.createBlob({
+    content: '````text\n```mermaid\nexample\n```\n````\n\n~~~mermaid\n' + code + '\n~~~',
+    mermaidImages: [{src: png, mermaidSource: code}], requireMermaidImages: true
+  });
+  const xml = files.get('word/document.xml');
+  assert.equal((xml.match(/<w:drawing>/g) || []).length, 1);
+  assert.ok(xml.includes('```mermaid'));
+});
+
+test('DOCX refuses to silently omit a missing or invalid required Mermaid image', async () => {
+  const code = 'flowchart LR\nA --> B';
+  for (const images of [[], [{src: 'data:image/png;base64,%%%', mermaidSource: code}]]) {
+    const { api, files } = loadDocxExport();
+    await assert.rejects(api.createBlob({
+      content: '```mermaid\n' + code + '\n```',
+      mermaidImages: images, requireMermaidImages: true
+    }));
+    assert.equal(files.has('word/document.xml'), false);
+  }
+});
+
 test('DOCX export collects rendered Mermaid SVGs from the live preview', () => {
   const { api } = loadDocxExport();
   const attributes = new Map([

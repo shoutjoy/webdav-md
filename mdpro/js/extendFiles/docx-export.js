@@ -799,6 +799,7 @@
     var items = [];
     var references = {};
     var inFence = false;
+    var fenceMarker = '';
     var fenceLanguage = '';
     var codeLines = [];
     var index = 0;
@@ -841,6 +842,9 @@
             alt: mermaidImages[imageIndex].alt || 'Mermaid diagram'
           }));
         }
+        if (!renderedMermaid && options && options.requireMermaidImages) {
+          throw new Error('DOCX: Mermaid 다이어그램 이미지를 준비하지 못했습니다. 다시 내보내 주세요.');
+        }
       }
       // DOCX keeps the editable Mermaid source together with the rendered image.
       // This is intentional: the image is the readable output and the code remains reusable.
@@ -850,13 +854,16 @@
 
     while (index < lines.length) {
       var line = String(lines[index] || '');
-      var fence = line.match(/^\s*```\s*([^\s`]*)/);
-      if (fence) {
+      var fence = line.match(/^\s{0,3}(`{3,}|~{3,})(.*)$/);
+      var closesFence = inFence && fence && fence[1][0] === fenceMarker[0] &&
+        fence[1].length >= fenceMarker.length && !fence[2].trim();
+      if (fence && (!inFence || closesFence)) {
         if (inFence) {
           flushCode();
           fenceLanguage = '';
         } else {
-          fenceLanguage = String(fence[1] || '').trim().toLowerCase();
+          fenceMarker = fence[1];
+          fenceLanguage = String(fence[2] || '').trim().split(/\s+/)[0].toLowerCase();
         }
         inFence = !inFence;
         index += 1;
@@ -1980,14 +1987,16 @@
     var extractedCovers = extractNoteCoverBlocks(String(data.content || ''));
     var markdown = extractedCovers.markdown;
     var html = String(data.html || '').trim();
-    var useHtmlSource = /<(?:html|body|article|section|div|table|h[1-6]|p|ul|ol|blockquote|pre)\b/i.test(markdown) &&
+    // HTML labels inside fenced Mermaid/code are source, not an HTML document.
+    var hasCodeFence = /^\s{0,3}(?:`{3,}|~{3,})/m.test(markdown);
+    var useHtmlSource = !hasCodeFence && /<(?:html|body|article|section|div|table|h[1-6]|p|ul|ol|blockquote|pre)\b/i.test(markdown) &&
       !/^(?:\s{0,3}#{1,6}\s|\s*[-*+]\s|\s*\d+[.)]\s)/m.test(markdown);
     var mermaidImages = Array.isArray(data.mermaidImages)
       ? data.mermaidImages.slice()
       : extractMermaidImagesFromHtml(html);
     var items = useHtmlSource
       ? htmlToDocxItems(markdown)
-      : markdownToDocxItems(markdown, { mermaidImages: mermaidImages });
+      : markdownToDocxItems(markdown, { mermaidImages: mermaidImages, requireMermaidImages: data.requireMermaidImages });
     if (!items.length && html && !extractedCovers.covers.length) items = htmlToDocxItems(html);
     items = extractedCovers.covers.map(function (config) {
       return { type: 'cover', config: config };
@@ -2004,6 +2013,7 @@
         if (item.type === 'cover') return await prepareNoteCoverAsset(item, data, imageSequence);
         return await prepareImageAsset(item, data, imageSequence);
       } catch (error) {
+        if (data.requireMermaidImages && item.mermaidSource !== undefined) throw error;
         if (global.console && typeof global.console.warn === 'function') {
           global.console.warn('[DOCX export] ' + String(error && error.message || error), item.src || '');
         }

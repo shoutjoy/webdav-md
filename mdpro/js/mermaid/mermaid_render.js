@@ -750,7 +750,12 @@
             const font = fontStyle + ' ' + fontWeight + ' ' + fontSize + 'px ' + fontFamily;
             const paragraphs = sourceObject.querySelectorAll('p');
             let lines = [];
-            const sources = paragraphs.length ? Array.from(paragraphs) : [label];
+            // Block HTML in a label can leave empty <p> siblings around its <div>.
+            // Those paragraphs must not hide the actual label text during PNG export.
+            const nonemptyParagraphs = Array.from(paragraphs).filter(function (part) {
+                return String(part.textContent || '').trim();
+            });
+            const sources = nonemptyParagraphs.length ? nonemptyParagraphs : [sourceObject];
             sources.forEach(function (part) {
                 lines = lines.concat(wrapMermaidExportLabel(part.textContent, Math.max(10, width - paddingX), font));
             });
