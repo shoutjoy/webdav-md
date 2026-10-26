@@ -7270,6 +7270,13 @@ body.side-panel-collapsed .right { width:100%; }
 /* Jena provider/model controls remain reachable in a narrow embedded FMA. */
 .ai-jena-header { flex-wrap: wrap; }
 .ai-jena-header > div:last-child { flex-wrap: wrap; min-width: 0; }
+.fma-lemonade-quality { display: grid; gap: 8px; padding: 10px; border: 1px solid #6383a9; border-radius: 8px; margin: 10px 0; }
+.fma-lemonade-quality[hidden] { display: none; }
+.fma-lemonade-quality label { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }
+.fma-lemonade-quality-fields { display: flex; flex-wrap: wrap; gap: 8px; }
+.fma-lemonade-quality input { width: 88px; min-width: 0; }
+.fma-lemonade-quality select { width: 100%; min-width: 0; }
+.fma-lemonade-quality small { line-height: 1.5; }
 .ai-jena-model-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
 .ai-jena-model-controls label { display: flex; align-items: center; gap: 4px; font-size: 11px; }
 .ai-jena-model-controls select { min-width: 0; max-width: 240px; padding: 5px; border: 1px solid #6383a9; border-radius: 6px; background: #142035; color: #e4eefc; }

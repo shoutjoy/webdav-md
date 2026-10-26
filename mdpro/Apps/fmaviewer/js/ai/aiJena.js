@@ -143,6 +143,7 @@ const AI_JENA_BUILTIN_POSE_LIBRARY = JSON.parse(JSON.stringify(AI_JENA_POSE_LIBR
 function initAiJenaFeature() {
     if (!dom.aiJenaModal) return;
     initAiJenaModelControls();
+    document.getElementById("btnNewLemonadeImage")?.addEventListener("click", () => openAiJena(-1, "lemonade"));
     dom.btnAiJenaClose.onclick = closeAiJena;
     dom.btnRunAiJena.onclick = runAiJena;
     dom.btnRunAiJenaVideo.onclick = () => {
@@ -321,7 +322,7 @@ function updateAiJenaKeyStatus(scope = document) {
     });
     if (dom.aiJenaKeyStatus) {
         const local = selection.provider === "lemonade";
-        dom.aiJenaKeyStatus.innerText = local ? `Lemonade · ${selection.model} 선택됨` : studioReady ? `AI Studio · ${selection.model} · 키 준비됨` : "AI Studio 키 필요 · 공급자를 선택하세요";
+        dom.aiJenaKeyStatus.innerText = local ? `Lemonade · ${selection.model} 선택됨` : studioReady ? `AI Studio · ${selection.model} · 키 저장됨 (권한·할당량은 실행 시 확인)` : "AI Studio 키 필요 · 공급자를 선택하세요";
         dom.aiJenaKeyStatus.classList.toggle("ready", local ? usageEnabled && Boolean(lemonadeModel) : studioReady);
     }
 }
@@ -1810,6 +1811,7 @@ async function runAiJena() {
         return;
     }
     aiJenaState.processing = true;
+    window.syncFmaLemonadeQualityControls?.();
     ["aiJenaProvider", "aiJenaImageModel"].forEach(id => {
         const control = document.getElementById(id);
         if (control) control.disabled = true;
@@ -1860,11 +1862,12 @@ async function runAiJena() {
                     : "작업이 정지되었습니다.");
         } else {
             console.error("AI Jena error:", error);
-            finishAiJenaProgress(0, "AI 처리 실패");
+            finishAiJenaProgress(0, error.code === "AI_STUDIO_QUOTA_ZERO" ? "AI Studio 프로젝트 할당량 0 · 결제·키 확인 필요" : error.code === "AI_STUDIO_RATE_LIMIT" ? "AI Studio 사용량 제한 · 할당량 확인 필요" : "AI 처리 실패");
             appendAiJenaMessage("assistant", "오류: " + error.message);
         }
     } finally {
         aiJenaState.processing = false;
+        window.syncFmaLemonadeQualityControls?.();
         ["aiJenaProvider", "aiJenaImageModel"].forEach(id => {
             const control = document.getElementById(id);
             if (control) control.disabled = false;
@@ -1915,8 +1918,8 @@ function finishAiJenaProgress(percent, message) {
     setAiJenaProgress(percent, message);
 }
 
-async function prepareAiJenaLocalImages(input, signal) {
-    const size = getMdproSettingsHost().localStorage.getItem("ss_lemonade_image_size") || "512x512";
+async function prepareAiJenaLocalImages(input, signal, quality) {
+    const size = quality ? `${quality.width}x${quality.height}` : getMdproSettingsHost().localStorage.getItem("ss_lemonade_image_size") || "512x512";
     const dimensions = size.match(/^(\d+)x(\d+)$/);
     const maxEdge = dimensions ? Math.max(256, Math.min(1536, Math.max(Number(dimensions[1]), Number(dimensions[2])))) : 512;
     let imageIndex = 0;
@@ -1946,7 +1949,7 @@ async function requestAiJenaImage(prompt, signal) {
     if (!isAiKeyUsageEnabled()) throw new Error("AI 사용이 중지되어 있습니다.");
     setAiJenaRequestPhase("원본·참조 이미지 준비 중입니다.");
     const input = [];
-    if (aiJenaState.sourceItem) {
+    if (aiJenaState.sourceItem && !(selection.provider === "lemonade" && aiJenaState.mode === "generate")) {
         const payload = await getAiImagePayload(aiJenaState.sourceItem);
         input.push({ type: "image", mime_type: payload.mimeType, data: payload.data });
         input.push({ type: "text", text: "IMAGE 1: CURRENT EDIT SOURCE. Apply the requested change to this image. Preserve its completed edits unless the request changes them." });
@@ -1986,15 +1989,19 @@ async function requestAiJenaImage(prompt, signal) {
         }
     }
     input.push({ type: "text", text: prompt });
-    if (selection.provider === "lemonade") return window.requestFmaLemonadeImage(await prepareAiJenaLocalImages(input, signal), signal, {
-        model: selection.model,
-        mode: aiJenaState.mode,
-        onPhase: setAiJenaRequestPhase,
-        onGenerationFallback: notice => {
-            appendAiJenaMessage("assistant", notice);
-            setAiJenaRequestPhase("편집 대신 새 이미지 생성 중입니다.");
-        }
-    });
+    if (selection.provider === "lemonade") {
+        const imageSettings = window.getFmaLemonadeImageSettings(selection.model);
+        return window.requestFmaLemonadeImage(await prepareAiJenaLocalImages(input, signal, imageSettings), signal, {
+            model: selection.model,
+            imageSettings,
+            mode: aiJenaState.mode,
+            onPhase: setAiJenaRequestPhase,
+            onGenerationFallback: notice => {
+                appendAiJenaMessage("assistant", notice);
+                setAiJenaRequestPhase("편집 대신 새 이미지 생성 중입니다.");
+            }
+        });
+    }
     setAiJenaRequestPhase(`AI Studio · ${selection.model} 서버 응답 대기 중입니다.`);
     return requestAiJenaStudioImage(input, signal, selection.model);
 }
@@ -2257,7 +2264,7 @@ async function addAiJenaHistoryResult(result, prompt) {
     });
     await persistAiJenaHistorySession();
     renderAiJenaHistory();
-    await selectAiJenaHistoryEntry(aiJenaState.history.length - 1, false);
+    await selectAiJenaHistoryEntry(aiJenaState.history.length - 1, false, true);
 }
 
 async function addAiJenaVideoHistoryResult(result, prompt) {
@@ -2623,9 +2630,9 @@ async function clearAllAiJenaHistory() {
     renderAiJenaHistory();
 }
 
-async function selectAiJenaHistoryEntry(index, announce = true) {
+async function selectAiJenaHistoryEntry(index, announce = true, completedResult = false) {
     const entry = aiJenaState.history[index];
-    if (!entry || aiJenaState.processing) return;
+    if (!entry || (aiJenaState.processing && !completedResult)) return;
     try {
         if (entry.mediaType === "video") {
             const blob = entry.videoBlob || await fetch(entry.src).then(response => response.blob());
