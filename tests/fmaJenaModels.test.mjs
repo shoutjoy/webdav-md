@@ -64,6 +64,39 @@ test('Google missing image reports finish reason instead of inventing a successf
   await assert.rejects(context.requestAiJenaStudioImage([], undefined, 'gemini-image'), /SAFETY.*Cannot comply/);
 });
 
+test('Google zero free-tier quota gives project billing recovery and makes exactly one request', async () => {
+  const { context, calls, controls } = harness({}, { ok: false, status: 429, body: { error: {
+    message: 'Quota exceeded for metric: generate_content_free_tier_requests, limit: 0, model: gemini-3.1-flash-image. Please retry in 13h22m52s.'
+  } } });
+  await assert.rejects(context.requestAiJenaStudioImage([], undefined, 'gemini-3.1-flash-image'), error => {
+    assert.equal(error.code, 'AI_STUDIO_QUOTA_ZERO');
+    assert.match(error.message, /프로젝트.*할당량이 0/);
+    assert.match(error.message, /결제/);
+    assert.doesNotMatch(error.message, /13h22m|test-key/);
+    return true;
+  });
+  assert.equal(calls.length, 1);
+  assert.match(controls.aiJenaModelStatus.textContent, /할당량 0/);
+});
+
+test('structured quota failure detects numeric zero and does not confuse positive limits', () => {
+  const { context } = harness();
+  const error = context.createAiJenaStudioError({ error: { message: 'Resource exhausted', details: [
+    { '@type': 'type.googleapis.com/google.rpc.QuotaFailure', violations: [{ quotaValue: 0 }] }
+  ] } }, 429, 'image-model');
+  assert.equal(error.code, 'AI_STUDIO_QUOTA_ZERO');
+  const temporary = context.createAiJenaStudioError({ error: { message: 'Quota exceeded, limit: 10' } }, 429, 'image-model');
+  assert.equal(temporary.code, 'AI_STUDIO_RATE_LIMIT');
+  assert.doesNotMatch(temporary.message, /할당량이 0/);
+});
+
+test('successful image response replaces prior quota error status', async () => {
+  const { context, controls } = harness({}, { body: { candidates: [{ content: { parts: [{ inlineData: { data: 'result' } }] } }] } });
+  controls.aiJenaModelStatus.textContent = '할당량 0';
+  await context.requestAiJenaStudioImage([], undefined, 'image-model');
+  assert.match(controls.aiJenaModelStatus.textContent, /이미지 출력을 확인/);
+});
+
 test('model refresh filters text models and persists chosen image model without changing global selection', async () => {
   const { context, controls, calls, store } = harness({}, { body: { models: [
     { name: 'models/gemini-custom-image', supportedGenerationMethods: ['generateContent'] },
@@ -88,12 +121,30 @@ test('Jena dispatches selected provider/model rather than global model or upscal
     getAiImagePayload: async () => ({ mimeType: 'image/png', data: 'original' }),
     isAiKeyUsageEnabled: () => true,
     getAiJenaImageConnection: () => ({ provider: 'lemonade', model: 'Chosen-Flux' }),
-    window: { requestFmaLemonadeImage: async (...args) => calls.push(args) }, appendAiJenaMessage() {}, setAiJenaProgress() {}, setAiJenaRequestPhase() {}, prepareAiJenaLocalImages: async input => input
+    window: { getFmaLemonadeImageSettings: () => ({ width: 768, height: 1024, steps: 8, cfgScale: 0, seed: 42 }), requestFmaLemonadeImage: async (...args) => calls.push(args) }, appendAiJenaMessage() {}, setAiJenaProgress() {}, setAiJenaRequestPhase() {}, prepareAiJenaLocalImages: async input => input
   });
   vm.runInContext(jena.slice(jena.indexOf('async function requestAiJenaImage('), jena.indexOf('async function requestAiJenaVideo(')), context);
   await context.requestAiJenaImage('change hair', undefined);
   assert.equal(calls[0][2].model, 'Chosen-Flux');
+  assert.equal(calls[0][2].imageSettings.width, 768);
+  assert.equal(calls[0][2].imageSettings.height, 1024);
   assert.equal(calls[0][0][0].data, 'original');
+});
+
+test('Lemonade new generation does not load or describe the current edit source', async () => {
+  const calls = [];
+  const context = vm.createContext({ aiJenaState: { mode: 'generate', sourceItem: {}, references: {} },
+    getAiImagePayload: async () => { throw new Error('must not load current source'); },
+    isAiKeyUsageEnabled: () => true, setAiJenaRequestPhase() {},
+    getAiJenaImageConnection: () => ({ provider: 'lemonade', model: 'Chosen-Flux' }),
+    window: { getFmaLemonadeImageSettings: () => ({ width: 512, height: 768 }), requestFmaLemonadeImage: async (...args) => calls.push(args) },
+    prepareAiJenaLocalImages: async input => input
+  });
+  vm.runInContext(jena.slice(jena.indexOf('async function requestAiJenaImage('), jena.indexOf('async function requestAiJenaVideo(')), context);
+  await context.requestAiJenaImage('a red mug');
+  assert.equal(calls[0][0].length, 1);
+  assert.equal(calls[0][0][0].text, 'a red mug');
+  assert.equal(calls[0][2].mode, 'generate');
 });
 
 test('FMA credential lookup uses owning MDPro frame and respects vault lock', () => {

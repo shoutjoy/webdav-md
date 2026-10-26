@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Archive, Check, ChevronDown, ChevronRight, Copy, Download, Edit, Eye, EyeOff, FileInput, FilePlus2, FileText, Folder, FolderInput, FolderOpen, FolderPlus, MousePointer2, PanelLeftClose, PanelLeftOpen, Settings, Share2, Trash2, Upload, X } from 'lucide-react';
+import { Archive, Check, ChevronDown, ChevronRight, Copy, Download, Edit, Eye, EyeOff, FileInput, FilePlus2, FileText, Folder, FolderInput, FolderOpen, FolderPlus, MousePointer2, PanelLeftClose, PanelLeftOpen, RefreshCw, Settings, Share2, Trash2, Upload, X } from 'lucide-react';
 import MoveDestinationModal from './MoveDestinationModal.jsx';
 import BackupSettings from './BackupSettings.jsx';
 
@@ -75,7 +75,7 @@ function TreeItem({ item, depth, expandedPaths, selectedFolderPath, activeFilePa
   </>;
 }
 
-export default function FileExplorer({ files, directoryTree, activeFilePath, loading, moveProgress, editorLoading, copiedKey, isDragging, explorerWidth, compact, folderSelectionMode, formatBytes, onDragEnter, onDragLeave, onDragOver, onDrop, onOpenDirectory, onOpenArchive, onCopyUrl, onShareFile, onOpenFile, onDownload, onRename, onMove, onMoveSelected, onDelete, onCreateFile, onCreateFolder, onRequestCreateFile, onRequestCreateFolder, onToggleCompact, showHiddenItems, onShowHiddenItemsChange, defaultSharePassword, onDefaultSharePasswordChange, backupCredentials }) {
+export default function FileExplorer({ files, directoryTree, activeFilePath, loading, refreshing, onRefresh, moveProgress, editorLoading, copiedKey, isDragging, explorerWidth, compact, folderSelectionMode, formatBytes, onDragEnter, onDragLeave, onDragOver, onDrop, onOpenDirectory, onOpenArchive, onCopyUrl, onShareFile, onOpenFile, onDownload, onRename, onMove, onMoveSelected, onDelete, onCreateFile, onCreateFolder, onRequestCreateFile, onRequestCreateFolder, onToggleCompact, showHiddenItems, onShowHiddenItemsChange, defaultSharePassword, onDefaultSharePasswordChange, backupCredentials }) {
   const [expandedPaths, setExpandedPaths] = useState(() => new Set(['/']));
   const [selectedFolderPath, setSelectedFolderPath] = useState('/');
   const [selectionMode, setSelectionMode] = useState(false);
@@ -99,15 +99,18 @@ export default function FileExplorer({ files, directoryTree, activeFilePath, loa
     const parts = String(activeFilePath).split('/').filter(Boolean);
     parts.pop();
     const folderPaths = parts.map((_, index) => `/${parts.slice(0, index + 1).join('/')}`);
-    setSelectedFolderPath(folderPaths.at(-1) || '/');
-    setExpandedPaths((paths) => new Set([...paths, '/', ...folderPaths]));
+    let scrollFrame;
     const frame = requestAnimationFrame(() => {
-      const activeRow = Array.from(document.querySelectorAll('#webdav-explorer-panel [data-remote-path]'))
-        .find((element) => element.dataset.remotePath === activeFilePath);
-      activeRow?.scrollIntoView({ block: 'nearest' });
+      setSelectedFolderPath(folderPaths.at(-1) || '/');
+      setExpandedPaths((paths) => new Set([...paths, '/', ...folderPaths]));
+      scrollFrame = requestAnimationFrame(() => {
+        const activeRow = Array.from(document.querySelectorAll('#webdav-explorer-panel [data-remote-path]'))
+          .find((element) => element.dataset.remotePath === activeFilePath);
+        activeRow?.scrollIntoView({ block: 'nearest' });
+      });
     });
-    return () => cancelAnimationFrame(frame);
-  }, [activeFilePath, directoryTree]);
+    return () => { cancelAnimationFrame(frame); cancelAnimationFrame(scrollFrame); };
+  }, [activeFilePath]);
   const toggleFolder = async (item) => {
     if (item.isDirectory) {
       setSelectedFolderPath(item.remotePath);
@@ -259,7 +262,8 @@ export default function FileExplorer({ files, directoryTree, activeFilePath, loa
       <span className="mdpro-stage-dot" aria-hidden="true"/>
       <strong>WebDAV</strong>
       <button type="button" className="webdav-explorer-label text-left" onClick={() => setSelectedFolderPath('/')} title="루트 폴더를 생성 위치로 선택">{selectedFolderPath === '/' ? '폴더 트리' : selectedFolderPath}</button>
-      <div className="webdav-explorer-actions" aria-label="새 항목 만들기">
+      <div className="webdav-explorer-actions" aria-label="WebDAV 목록 도구">
+        <button type="button" onClick={() => onRefresh([...expandedPaths, selectedFolderPath])} disabled={loading || refreshing} title="새 항목 확인: 루트·펼친 폴더·선택 폴더의 새 파일과 폴더 추가" aria-label="WebDAV 새 항목 새로고침" aria-busy={refreshing}><RefreshCw size={16} className={refreshing ? 'animate-spin' : ''}/></button>
         <button type="button" className={`webdav-selection-move ${selectionMode ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/60 dark:text-indigo-100' : ''}`} onClick={moveCheckedItems} disabled={loading} title={selectionMode ? (checkedItems.size ? `선택한 ${checkedItems.size}개 항목을 함께 이동` : '선택이동 취소') : '이동할 항목 선택 시작'} aria-label={selectionMode ? (checkedItems.size ? `선택이동 실행 ${checkedItems.size}개` : '선택이동 취소') : '선택이동 시작'}><FolderInput size={15}/><span>{selectionMode ? (checkedItems.size ? `이동 ${checkedItems.size}` : '선택취소') : '선택이동'}</span></button>
         {selectionMode && <button type="button" onClick={() => { setCheckedItems(new Map()); setSelectionMode(false); setMoveRequest(null); setMoveActionError(''); }} disabled={loading} title="선택이동 모드 해제" aria-label="선택이동 모드 해제"><X size={16}/></button>}
         <button type="button" onClick={onRequestCreateFile} disabled={loading} title="ROOT부터 위치를 선택해 새 Markdown 파일 만들기" aria-label="새 Markdown 파일 생성 위치 선택"><FilePlus2 size={16}/></button>

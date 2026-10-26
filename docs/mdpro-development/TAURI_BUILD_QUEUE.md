@@ -6,8 +6,12 @@
 
 | ID | 적용 항목 | 대상 웹 소스 | 웹 검증 | 프런트엔드 준비 | 네이티브 빌드 | 설치 앱 검증 |
 | --- | --- | --- | --- | --- | --- | --- |
+| MDPRO-20261027-JENA-IMAGE-UI | [AI Jena 이미지 설정 UI](changes/2026-10-27-jena-image-settings-ui.md) | compatible-generation 클래스 적응 필요·미이식 | WebDAV 29개·빌드·Edge 도킹 확인 | 미실행 | 미실행 | 미실행 |
+| MDPRO-20261027-FMA-LEMONADE-QUALITY | [FMA Lemonade 생성·편집과 해상도](changes/2026-10-27-fma-lemonade-quality.md) | Viewer provider·identity 구조 적응 필요·미이식 | WebDAV90개·빌드·UI·실제256×512 생성/편집 성공 | 미실행 | 미실행 | 미실행 |
+| MDPRO-20261027-WEBDAV-REFRESH | [WebDAV 새 항목 확인](changes/2026-10-27-webdav-new-items-refresh.md) | nas-webdav.js 목록·선택 구조 적응 필요·미이식 | WebDAV 9개 검사·빌드 통과, NAS/UI 미검증 | 미실행 | 미실행 | 미실행 |
+| MDPRO-20261027-FMA-STUDIO-QUOTA | [AI Studio 이미지 할당량 오류](changes/2026-10-27-fma-studio-quota.md) | Google 전송 구조 차이 확인·미이식 | WebDAV 62개 검사·빌드 통과, 실제 편집 미검증 | 미실행 | 미실행 | 미실행 |
 | MDPRO-20261027-FMA-PERSON | [반복 편집 인물 보존](changes/2026-10-27-fma-person-preservation.md) | identity/cameraOnly·공급자 차이 확인·미이식 | WebDAV 67개·빌드 성공, 서버 연결 실패·실화질 미검증 | 미실행 | 미실행 | 미실행 |
-| MDPRO-20261027-LINK-PERSIST | [링크 삽입 원문 보존](changes/2026-10-27-link-insert-persistence.md) | 대상 모달 native execCommand 확인·미이식 | WebDAV 14개·빌드 통과, 실제 UI 미검증 | 미실행 | 미실행 | 미실행 |
+| MDPRO-20261027-LINK-PERSIST | [링크 삽입·저장 원문 보존](changes/2026-10-27-link-insert-persistence.md) | 대상 native 삽입・알림・autosave 이식 대기 | WebDAV 48개·빌드·Edge 격리 디스크 저장/새로고침 통과, NAS 재열기 미확인 | 미실행 | 미실행 | 미실행 |
 | MDPRO-20261027-FMA-JENA-WAIT | [FMA Jena 92% 표시·편집 대기](changes/2026-10-27-fma-jena-progress-and-edit-wait.md) | 대상 가상92% 존재·공급자 구조 차이·미이식 | 대상 미실행 | 미실행 | 미실행 | 미실행 |
 | MDPRO-20261027-FMA-SPLIT-CLOSE | [FMA 공급자 버튼 분리·이미지 편집 닫기](changes/2026-10-27-fma-provider-buttons-and-close.md) | Viewer 기존 버튼 보존·닫기 개선 미이식 | WebDAV 51개·빌드·Edge 다크/라이트 열기·닫기 | 미실행 | 미실행 | 미실행 |
 | MDPRO-20261027-FMA-JENA-CONNECTION | [FMA Jena 공급자·모델 선택과 연결](changes/2026-10-27-fma-jena-provider-and-transport.md) | 대상 독립 공급자/Google 경로 확인·미이식 | 대상 미실행 | 미실행 | 미실행 | 미실행 |

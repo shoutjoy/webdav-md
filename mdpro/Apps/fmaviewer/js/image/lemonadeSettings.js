@@ -42,17 +42,16 @@
         }
     };
     window.requestFmaLemonadeImage = async (input, signal, options = {}) => {
-        const storage = host().localStorage;
         const model = options.model || window.getFmaLemonadeImageModel();
         const base = window.getFmaLemonadeBaseUrl();
         const prompt = input.filter(item => item.type === "text").map(item => item.text).join("\n\n");
         if (!model || !prompt.trim()) throw new Error("Lemonade 이미지 모델과 생성 프롬프트를 확인하세요.");
         const pictures = options.mode === "generate" ? [] : input.filter(item => item.type === "image");
+        const quality = options.imageSettings || window.getFmaLemonadeImageSettings(model);
         const settings = {
-            model, prompt, size: storage.getItem("ss_lemonade_image_size") || "512x512",
+            model, prompt, size: `${quality.width}x${quality.height}`,
             n: 1, response_format: "b64_json",
-            steps: Number(storage.getItem("ss_lemonade_image_steps")) || 4,
-            cfg_scale: Number(storage.getItem("ss_lemonade_image_cfg_scale") || 1)
+            steps: quality.steps, cfg_scale: quality.cfgScale, seed: quality.seed
         };
         async function send(edit) {
             if (signal?.aborted) throw new DOMException("작업이 정지되었습니다.", "AbortError");
@@ -72,7 +71,7 @@
                 body = JSON.stringify(settings);
             }
             await window.waitForFmaLemonadeIdle(base, signal, options.onPhase);
-            options.onPhase?.(`Lemonade · ${model} ${edit ? "원본 참조 편집" : "새 이미지 생성"} 응답 대기 중입니다.`);
+            options.onPhase?.(`Lemonade · ${model} · ${settings.size} · ${settings.steps} steps · ${edit ? "원본 참조 편집" : "새 이미지 생성"} 응답 대기 중입니다.`);
             const response = await fetch(base.replace(/\/+$/, "") + (edit ? "/images/edits" : "/images/generations"), { method: "POST", headers, body, signal });
             const text = await response.text();
             let data;
@@ -106,6 +105,7 @@
             select.append(option);
         });
         select.value = value;
+        window.syncFmaLemonadeQualityControls();
     }
     async function request(path, body) {
         const storage = host().localStorage;
@@ -139,13 +139,15 @@
         if (!panel.hidden) { render([], selected()); models(); }
     });
     refresh.addEventListener("click", models);
+    select.addEventListener("change", () => window.syncFmaLemonadeQualityControls());
     apply.addEventListener("click", async () => {
         if (busy) return;
         busy = true; refresh.disabled = apply.disabled = select.disabled = true;
         const model = select.value || fallback;
         status.textContent = `${model} 불러오는 중… 처음에는 시간이 걸릴 수 있습니다.`;
         try {
-            await request("load", { model_name: model, width: 512, height: 512, steps: 4, cfg_scale: 1, save_options: true });
+            const quality = window.getFmaLemonadeImageSettings(model);
+            await request("load", { model_name: model, width: quality.width, height: quality.height, steps: quality.steps, cfg_scale: quality.cfgScale, seed: quality.seed, save_options: true });
             const storage = host().localStorage;
             storage.setItem("ss_image_model_lemonade", model);
             storage.setItem("ss_image_provider", "lemonade");

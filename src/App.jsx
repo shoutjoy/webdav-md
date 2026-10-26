@@ -14,6 +14,7 @@ import RenameModal from './components/RenameModal.jsx';
 import CreateDestinationModal from './components/CreateDestinationModal.jsx';
 import SaveAsModal from './components/SaveAsModal.jsx';
 import { normalizeRemotePath } from './webdavPaths.js';
+import { getRefreshPaths, mergeDirectoryAdditions } from './webdavRefresh.js';
 import { createDirectoryVerified, deleteRemoteItemVerified, moveRemoteItemVerified, saveFileVerified } from './webdavMoveEngine.js';
 import { isDmergeFileName, readDmergeArchive } from './dmergeArchive.js';
 import { clearLoginSession, readLoginSession, writeLoginSession } from './loginSession.js';
@@ -253,6 +254,19 @@ const useDirectoryStore = create((set) => ({
     set((state) => ({
       directoryTree: updateDirectoryNode(state.directoryTree, path, entries),
     })),
+  addDirectoryDiscoveries: (path, entries) => {
+    let added = 0;
+    set((state) => {
+      const result = mergeDirectoryAdditions(state.directoryTree, path, entries);
+      added = result.added;
+      if (!added) return state;
+      return {
+        directoryTree: result.tree,
+        currentFiles: findDirectoryNode(result.tree, state.currentPath)?.entries || state.currentFiles,
+      };
+    });
+    return added;
+  },
   resetDirectoryState: () =>
     set({
       currentPath: '/',
@@ -266,6 +280,8 @@ const useDirectoryStore = create((set) => ({
 }));
 
 export default function App() {
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshInProgressRef = useRef(false);
   const [recentItems, setRecentItems] = useState([]);
   const [recentOpen, setRecentOpen] = useState(false);
   const recentKeyRef = useRef('');
@@ -834,6 +850,42 @@ export default function App() {
       setLoading(false);
     }
   }, [returnToLoginIfUnauthorized, setFullDirectoryTree, showHiddenItems]);
+
+  const refreshNewItems = async (requestedPaths) => {
+    const client = clientRef.current;
+    if (!client || loading || refreshInProgressRef.current) return;
+    refreshInProgressRef.current = true;
+    setRefreshing(true);
+    setLoading(true);
+    setError('');
+    let added = 0;
+    const failures = [];
+    try {
+      const paths = getRefreshPaths(useDirectoryStore.getState().directoryTree, requestedPaths);
+      for (const path of paths) {
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), WEB_DAV_REQUEST_TIMEOUT_MS);
+        try {
+          const items = await client.getDirectoryContents(path, { signal: controller.signal });
+          if (clientRef.current !== client) return;
+          added += useDirectoryStore.getState().addDirectoryDiscoveries(path, mapWebDavEntries(items, showHiddenItems));
+        } catch (err) {
+          if (clientRef.current !== client || returnToLoginIfUnauthorized(err)) return;
+          failures.push(`${path}: ${err?.name === 'AbortError' ? '응답 시간 초과' : err.message}`);
+        } finally {
+          window.clearTimeout(timeoutId);
+        }
+      }
+      if (failures.length) setError(`새 항목 확인 중 일부 폴더를 읽지 못했습니다. ${failures.join(' / ')}`);
+      showToast(failures.length
+        ? `새 항목 ${added}개 추가 · ${failures.length}개 폴더 확인 실패`
+        : added ? `새 파일·폴더 ${added}개를 추가했습니다.` : '확인한 폴더에 새 항목이 없습니다.');
+    } finally {
+      refreshInProgressRef.current = false;
+      setRefreshing(false);
+      setLoading(false);
+    }
+  };
 
   const navigateToDirectory = async (path) => {
     const previousPath = currentPath;
@@ -2192,6 +2244,8 @@ export default function App() {
               directoryTree={directoryTree}
               activeFilePath={selectedFile?.remotePath || ''}
               loading={loading}
+              refreshing={refreshing}
+              onRefresh={refreshNewItems}
               moveProgress={moveProgress}
               editorLoading={editorLoading}
               copiedKey={copiedKey}

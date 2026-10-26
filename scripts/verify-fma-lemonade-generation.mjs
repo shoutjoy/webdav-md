@@ -3,10 +3,13 @@ import vm from 'node:vm';
 const code = readFileSync('mdpro/Apps/fmaviewer/js/image/lemonadeSettings.js', 'utf8');
 const source = code.slice(code.indexOf('    window.waitForFmaLemonadeIdle ='), code.indexOf('    function render('));
 const base = process.argv.find(arg => arg.startsWith('--base='))?.slice(7) || 'http://localhost:13305/api/v1';
-const store = new Map([['ss_openai_compatible_base_url_lemonade', 'http://localhost:13305/api/v1']]);
+const store = new Map([['ss_openai_compatible_base_url_lemonade', 'http://localhost:13305/api/v1'],
+  ['ss_ai_chat_lemonade_image_v1:Flux-2-Klein-4B', JSON.stringify({ width: 512, height: 512, steps: 4, cfgScale: 1, seed: -1 })]]);
+const settingsHost = { localStorage: { getItem: key => store.get(key) ?? null, setItem: (key, value) => store.set(key, value) }, addEventListener() {} };
 const scope = vm.createContext({ window: { getFmaLemonadeImageModel: () => 'Flux-2-Klein-4B', getFmaLemonadeBaseUrl: () => base },
-  host: () => ({ localStorage: { getItem: key => store.get(key) ?? null } }),
+  host: () => settingsHost, getMdproSettingsHost: () => settingsHost, document: { querySelectorAll: () => [] },
   location: { protocol: 'file:', hostname: '' }, FormData, Blob, Uint8Array, atob, DOMException, AbortSignal, setTimeout, clearTimeout, fetch });
+vm.runInContext(readFileSync('mdpro/Apps/fmaviewer/js/image/lemonadeQuality.js', 'utf8'), scope);
 vm.runInContext(source, scope);
 const output = 'artifacts/fma-generation';
 mkdirSync(output, { recursive: true });

@@ -224,7 +224,10 @@
                 replacement = '<a href="' + escapeHtmlAttribute(url) + '" target="_blank">'
                     + escapeHtmlText(displayText) + '</a>';
             } else {
-                replacement = mode === 'link' ? '[' + displayText + '](' + url + ')' : '![' + displayText + '](' + url + ')';
+                // Bare spaces in a Markdown destination turn a file link into
+                // plain text when the saved source is rendered again.
+                var linkDestination = url.replace(/[\s<>]/g, encodeURIComponent);
+                replacement = mode === 'link' ? '[' + displayText + '](' + linkDestination + ')' : '![' + displayText + '](' + url + ')';
             }
         }
 
@@ -248,6 +251,10 @@
         editorTextarea.scrollTop = currentScrollTop;
         editorTextarea.setSelectionRange(start + replacement.length, start + replacement.length);
         if (typeof deps.onInserted === 'function') deps.onInserted(editorTextarea.value);
+        // Programmatic textarea/CodeMirror edits do not emit a native input
+        // event. Publish now so WebDAV, A4 pages and storage see this exact
+        // document before the user saves, switches files or reloads.
+        editorTextarea.dispatchEvent(new Event('input', { bubbles: true }));
         return replacement;
     }
 

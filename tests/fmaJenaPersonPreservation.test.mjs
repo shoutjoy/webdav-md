@@ -16,7 +16,7 @@ function harness({ provider = 'lemonade', base = '/api/lemonade/v1', mode = 'pos
     getAiJenaImageConnection: () => ({ provider, model: 'Flux-2-Klein-4B' }),
     getAiImagePayload: async item => { payloads.push(item.src); return { mimeType: 'image/png', data: item.src }; },
     prepareAiJenaLocalImages: async input => input, requestAiJenaStudioImage: send,
-    window: { requestFmaLemonadeImage: send, getFmaLemonadeBaseUrl: () => base } });
+    window: { getFmaLemonadeImageSettings: () => ({ width: 768, height: 1024, steps: 8, cfgScale: 0, seed: 42 }), requestFmaLemonadeImage: send, getFmaLemonadeBaseUrl: () => base } });
   vm.runInContext(requestCode, context);
   return { context, state, calls, payloads };
 }

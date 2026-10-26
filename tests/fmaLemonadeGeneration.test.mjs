@@ -8,7 +8,7 @@ const picture = { type: 'image', mime_type: 'image/png', data: 'aGVsbG8=' };
 const input = [picture, { type: 'text', text: 'Change hair to black' }];
 function harness(replies) {
   const calls = [];
-  const window = { getFmaLemonadeImageModel: () => 'Flux-2-Klein-4B', getFmaLemonadeBaseUrl: () => '/api/lemonade/v1', waitForFmaLemonadeIdle: async () => {} };
+  const window = { getFmaLemonadeImageModel: () => 'Flux-2-Klein-4B', getFmaLemonadeBaseUrl: () => '/api/lemonade/v1', waitForFmaLemonadeIdle: async () => {}, getFmaLemonadeImageSettings: () => ({ width: 768, height: 1024, steps: 8, cfgScale: 0, seed: 42 }) };
   const context = vm.createContext({ window, host: () => ({ localStorage: { getItem: () => null } }),
     location: { hostname: 'localhost', protocol: 'http:' }, FormData, Blob, Uint8Array, atob, DOMException,
     fetch: async (url, options) => {
@@ -42,6 +42,11 @@ test('new image mode uses generation even when an original image is open', async
   await request(input, undefined, { mode: 'generate' });
   assert.equal(calls.length, 1);
   assert.match(calls[0].url, /images\/generations$/);
+  const body = JSON.parse(calls[0].options.body);
+  assert.equal(body.size, '768x1024');
+  assert.equal(body.steps, 8);
+  assert.equal(body.cfg_scale, 0);
+  assert.equal(body.seed, 42);
 });
 
 test('multiple edit references consistently use image[] and successful edit does not generate', async () => {
@@ -50,6 +55,9 @@ test('multiple edit references consistently use image[] and successful edit does
   assert.equal(calls.length, 1);
   assert.equal(calls[0].options.body.getAll('image[]').length, 2);
   assert.equal(calls[0].options.body.get('image'), null);
+  assert.equal(calls[0].options.body.get('size'), '768x1024');
+  assert.equal(calls[0].options.body.get('cfg_scale'), '0');
+  assert.equal(calls[0].options.body.get('seed'), '42');
   assert.equal(result.generationFallback, undefined);
 });
 

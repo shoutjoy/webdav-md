@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
+import MarkdownIt from 'markdown-it';
+import { saveFileVerified } from '../src/webdavMoveEngine.js';
 
 const app = readFileSync(new URL('../mdpro/js/app.js', import.meta.url), 'utf8');
 const modal = readFileSync(new URL('../mdpro/js/Imagetool/link-image-modal.js', import.meta.url), 'utf8');
@@ -9,11 +11,13 @@ const extract = (name, next) => app.slice(app.indexOf(`function ${name}(`), app.
 
 function harness(cm, shared) {
   let text = 'before\nselected\nafter';
+  const notifications = [];
   const textarea = {
     selectionStart: 7, selectionEnd: 15, scrollTop: 42,
     get value() { return text; },
     set value(value) { text = value; },
     focus() {},
+    dispatchEvent(event) { notifications.push({ type: event.type, bubbles: event.bubbles, content: text }); },
     setSelectionRange(start, end) { this.selectionStart = start; this.selectionEnd = end; },
     setRangeText(value, start, end) { text = text.slice(0, start) + value + text.slice(end); }
   };
@@ -32,6 +36,7 @@ function harness(cm, shared) {
     'input-link-new-window': { checked: true }
   };
   const context = {
+    Event,
     window: {}, editorTextarea: textarea, currentMarkdown: text,
     activeSidebarTab: '', performAutoSave() {}, renderTOC() {},
     document: {
@@ -49,7 +54,7 @@ function harness(cm, shared) {
     onInserted(value) { context.currentMarkdown = value; }
   };
   if (shared) deps.replaceSelectionText = context.replaceEditorSelectionText;
-  return { context, textarea, edits, fields, deps };
+  return { context, textarea, edits, fields, deps, notifications };
 }
 
 for (const [cm, shared, label] of [[true, true, 'app CodeMirror'], [false, true, 'app textarea'], [true, false, 'standalone CodeMirror'], [false, false, 'standalone textarea']]) {
@@ -86,4 +91,48 @@ for (const mode of ['link', 'image', 'id']) {
 
 test('app passes the shared document insertion function to the modal', () => {
   assert.match(extract('confirmModalInsert', 'adjustPageScale'), /replaceSelectionText: replaceEditorSelectionText/);
+});
+
+for (const cm of [true, false]) {
+  test(`${cm ? 'CodeMirror' : 'textarea'} publishes inserted source immediately before save, then reloads verified bytes`, async () => {
+    const h = harness(cm, true);
+    const inserted = h.context.window.LinkImageModal.confirm(h.deps);
+    assert.equal(h.notifications.length, 1);
+    assert.equal(h.notifications[0].type, 'input');
+    assert.equal(h.notifications[0].bubbles, true);
+    assert.equal(h.notifications[0].content, h.textarea.value);
+    let savedBytes;
+    const client = {
+      async putFileContents(path, content) { savedBytes = new TextEncoder().encode(content); return true; },
+      async getFileContents() { return new TextDecoder().decode(savedBytes); }
+    };
+    await saveFileVerified(client, '/link.md', h.notifications[0].content);
+    const reopened = harness(cm, true);
+    reopened.textarea.value = await client.getFileContents();
+    assert.equal(reopened.textarea.value, `before\n${inserted}\nafter`);
+    const rendered = new MarkdownIt({ html: true }).render(reopened.textarea.value);
+    assert.match(rendered, /href="kge_분석요청 241120_arrange_report_v5.2.pdf" target="_blank"/);
+  });
+}
+
+test('autosave reads the current editor even when the input debounce has not fired', () => {
+  const h = harness(true, true);
+  vm.runInContext(extract('syncCurrentMarkdownFromEditor', 'markPersistedState'), h.context);
+  vm.runInContext(extract('performAutoSave', 'setLiveRenderInEditMode'), h.context);
+  h.context.db = null;
+  h.context.currentMarkdown = 'stale source without link';
+  h.textarea.value = '<a href="report.pdf" target="_blank">report.pdf</a>';
+  h.context.performAutoSave();
+  assert.equal(h.context.currentMarkdown, h.textarea.value);
+});
+
+test('ordinary file links with spaces remain clickable after save and Markdown reparse', () => {
+  const h = harness(true, true);
+  h.fields['input-link-new-window'].checked = false;
+  const inserted = h.context.window.LinkImageModal.confirm(h.deps);
+  assert.match(inserted, /kge_분석요청%20241120/);
+  const rendered = new MarkdownIt().render(h.notifications[0].content);
+  assert.match(rendered, /<a href="kge_/);
+  assert.match(rendered, /%20241120_arrange_report_v5\.2.pdf/);
+  assert.match(rendered, />kge_분석요청 241120_arrange_report_v5\.2.pdf<\/a>/);
 });

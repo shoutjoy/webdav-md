@@ -33,8 +33,12 @@ WebDAV MDpro와 MDproViewer의 기능 개발, 버그 수정, 리팩터링, 이�
 
 | ID | 기술문서 | 원본 구현 | 상대 앱 적용 | Tauri |
 | --- | --- | --- | --- | --- |
+| MDPRO-20261027-JENA-IMAGE-UI | [AI Jena 이미지 설정 UI](changes/2026-10-27-jena-image-settings-ui.md) | 폰트·간격·청록 카드·29개 검사·빌드·Edge 도킹 확인 | 대상 클래스 차이 확인·미이식 | 웹 이식 후 반영 대기 |
+| MDPRO-20261027-FMA-LEMONADE-QUALITY | [FMA Lemonade 생성·편집과 해상도](changes/2026-10-27-fma-lemonade-quality.md) | 모델별 크기·품질 공유·자동 원본 선택·90개 검사·빌드·실제256×512 생성/편집 성공 | Viewer provider 차이 확인·미이식 | 웹 이식 후 반영 대기 |
+| MDPRO-20261027-WEBDAV-REFRESH | [WebDAV 새 항목 새로고침](changes/2026-10-27-webdav-new-items-refresh.md) | 목록 추가 병합·9개 검사·빌드 통과, NAS/UI 미검증 | NAS refresh 구조 비교·미이식 | 웹 이식 후 반영 대기 |
+| MDPRO-20261027-FMA-STUDIO-QUOTA | [AI Studio 이미지 할당량 오류](changes/2026-10-27-fma-studio-quota.md) | 할당량 오류 안내·62개 검사·빌드 통과, 실제 편집은 계정 할당량 확인 필요 | 전송 구조 차이 확인·미이식 | 웹 이식 후 반영 대기 |
 | MDPRO-20261027-FMA-PERSON | [반복 편집 인물 보존](changes/2026-10-27-fma-person-preservation.md) | 로컬 원본 참조·자동 생성 대체 방지·67개 검사·빌드 성공, 실화질 미검증 | 기존 identity/cameraOnly 차이 확인·미이식 | 웹 이식·실화질 검증 후 반영 대기 |
-| MDPRO-20261027-LINK-PERSIST | [링크 삽입 후 Alt+화살표 원문 보존](changes/2026-10-27-link-insert-persistence.md) | 구현·14개 검사·빌드 통과·실제 UI 미검증 | 대상 native 삽입 확인·미이식 | 웹 이식 후 반영 대기 |
+| MDPRO-20261027-LINK-PERSIST | [링크 삽입·저장·새로고침 원문 보존](changes/2026-10-27-link-insert-persistence.md) | 추가 수정·48개 검사·빌드·Edge 격리 HTTP 디스크 재열기 검증, NAS 재열기·배포 미확인 | 대상 native 삽입·autosave 차이 확인·미이식 | 웹 이식 후 반영 대기 |
 | MDPRO-20261027-FMA-JENA-WAIT | [FMA Jena 92% 표시·편집 대기](changes/2026-10-27-fma-jena-progress-and-edit-wait.md) | 구현·67개 검사·실제 직접/앱 프록시 참조 편집 성공 | 대상 가상92% 존재 확인·미이식 | 웹 이식 후 반영 대기 |
 | MDPRO-20261027-FMA-SPLIT-CLOSE | [FMA 공급자 버튼 분리·이미지 편집 닫기](changes/2026-10-27-fma-provider-buttons-and-close.md) | WebDAV 구현·51개 검사·빌드·Edge 다크/라이트 클릭 | Viewer 별도 버튼 문서 비교·닫기 미이식 | 닫기 이식 후 반영 대기 |
 | MDPRO-20261027-FMA-JENA-CONNECTION | [FMA Jena 공급자·모델 선택과 연결](changes/2026-10-27-fma-jena-provider-and-transport.md) | 구현·53개 검사·빌드·4B 신규 생성 성공, 실제 편집 timeout·Google/UI 미검증 | 독립 provider 차이 확인·미수정 | 웹 이식 후 반영 대기 |

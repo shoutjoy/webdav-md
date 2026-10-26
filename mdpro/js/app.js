@@ -8458,6 +8458,7 @@ async function saveCurrentDocumentToActiveStorageQuietly(snapshot) {
 
 // --- AutoSave & Recovery ---
 function performAutoSave(options) {
+    syncCurrentMarkdownFromEditor();
     if (!db) return;
     const opts = options || {};
     const force = !!opts.force;
