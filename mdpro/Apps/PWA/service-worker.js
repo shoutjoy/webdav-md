@@ -1,7 +1,7 @@
 'use strict';
 
 const CACHE_PREFIX = 'md-viewer-pwa-';
-const CACHE_VERSION = '20261024-table-continuation-1';
+const CACHE_VERSION = '20261026-docx-mermaid-images-1';
 const STATIC_CACHE = CACHE_PREFIX + 'static-' + CACHE_VERSION;
 const RUNTIME_CACHE = CACHE_PREFIX + 'runtime-' + CACHE_VERSION;
 const MAX_RUNTIME_ENTRIES = 80;

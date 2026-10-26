@@ -150,7 +150,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     docxImport: './js/extendFiles/docx-import.js?v=20260817-dark-table-contrast-1',
     pdfJs: './js/extendFiles/pdfjs-loader.mjs?v=20260815-editable-2',
     pdfOpen: './js/extendFiles/pdf-open.js?v=20260815-editable-1',
-    docxExport: './js/extendFiles/docx-export.js?v=20261021-bold-special-chars-1',
+    docxExport: './js/extendFiles/docx-export.js?v=20261026-mermaid-images-1',
     htmlExport: './js/export/html-export.js?v=20261020-theme-layout-1',
     pdfExport: './js/export/pdf-export.js?v=20261021-numbered-dot-escape-1',
     html2canvas: './vendor/html2canvas/html2canvas.min.js?v=1.4.1',
@@ -6255,30 +6255,35 @@ async function createCurrentDocumentDocxBlob() {
         let mermaidImages = [];
         if (viewer && window.MermaidTRT && typeof window.MermaidTRT.exportWrapperImage === 'function') {
             const wrappers = Array.from(viewer.querySelectorAll('.trt-mermaid-wrapper'));
-            mermaidImages = (await Promise.all(wrappers.map(async function (wrapper) {
+            // Render in document order to avoid allocating many large canvases at once.
+            for (const [index, wrapper] of wrappers.entries()) {
                 try {
                     const rendered = await window.MermaidTRT.exportWrapperImage(wrapper, 'png');
-                    return {
+                    if (!rendered || !/^data:image\/png[;,]/i.test(rendered.dataUrl || '')) {
+                        throw new Error('PNG 이미지가 생성되지 않았습니다.');
+                    }
+                    mermaidImages.push({
                         type: 'image',
                         src: rendered.dataUrl,
                         alt: 'Mermaid diagram',
                         width: rendered.width,
                         height: rendered.height,
                         mermaidSource: String(wrapper.getAttribute('data-mermaid-original-source') || wrapper.getAttribute('data-mermaid-source') || '')
-                    };
+                    });
                 } catch (error) {
-                    console.warn('Mermaid PNG render for DOCX failed:', error);
-                    return null;
+                    throw new Error('MS Word 내보내기: Mermaid 도표 ' + (index + 1) +
+                        '의 이미지 변환에 실패했습니다. ' + String(error && error.message || error));
                 }
-            }))).filter(Boolean);
+            }
         }
-        if (!mermaidImages.length && window.DocxExport && typeof window.DocxExport.collectMermaidImages === 'function') {
-            mermaidImages = window.DocxExport.collectMermaidImages(viewer);
+        if (viewer && viewer.querySelectorAll('.trt-mermaid-wrapper').length !== mermaidImages.length) {
+            throw new Error('MS Word 내보내기: Mermaid PNG 변환기를 준비하지 못했습니다. 다시 시도해 주세요.');
         }
         return window.DocxExport.createBlob({
             content: String(currentMarkdown || ''),
             html: getRenderedHtmlForDocxExport(),
             mermaidImages,
+            requireMermaidImages: true,
             baseUrl: document.baseURI,
             resolveImage: resolveDocxExportImage
         });
