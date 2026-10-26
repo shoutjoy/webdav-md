@@ -33,6 +33,8 @@ WebDAV MDpro와 MDproViewer의 기능 개발, 버그 수정, 리팩터링, 이�
 
 | ID | 기술문서 | 원본 구현 | 상대 앱 적용 | Tauri |
 | --- | --- | --- | --- | --- |
+| MDPRO-20261027-JENA-FACE-LAYOUT | [얼굴 유지 위치 정리](changes/2026-10-27-jena-face-toggle-layout.md) | 안내 제거·파일부터 선택 가져오기 한 줄·29개 검사·빌드 통과, 실제 UI 미검증 | 대상 버튼·기능·CSS 차이 확인·미이식 | 웹 이식 후 반영 대기 |
+| MDPRO-20261027-DOCX-BOLD-MATH | [DOCX 볼드 안 수식·특수문자](changes/2026-10-27-docx-bold-math.md) | 구현·32개 검사·빌드·실제 DOCX XML 확인, Word 미검증 | 대상 OMML 차이 확인·미이식 | 웹 이식 후 반영 대기 |
 | MDPRO-20261027-JENA-IMAGE-UI | [AI Jena 이미지 설정 UI](changes/2026-10-27-jena-image-settings-ui.md) | 폰트·간격·청록 카드·29개 검사·빌드·Edge 도킹 확인 | 대상 클래스 차이 확인·미이식 | 웹 이식 후 반영 대기 |
 | MDPRO-20261027-FMA-LEMONADE-QUALITY | [FMA Lemonade 생성·편집과 해상도](changes/2026-10-27-fma-lemonade-quality.md) | 모델별 크기·품질 공유·자동 원본 선택·90개 검사·빌드·실제256×512 생성/편집 성공 | Viewer provider 차이 확인·미이식 | 웹 이식 후 반영 대기 |
 | MDPRO-20261027-WEBDAV-REFRESH | [WebDAV 새 항목 새로고침](changes/2026-10-27-webdav-new-items-refresh.md) | 목록 추가 병합·9개 검사·빌드 통과, NAS/UI 미검증 | NAS refresh 구조 비교·미이식 | 웹 이식 후 반영 대기 |

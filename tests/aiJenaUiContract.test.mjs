@@ -221,7 +221,8 @@ test('ImgG switches from Lemonade to AI Studio image models', () => {
 test('selection import reflows by the AI Jena composer width', () => {
   assert.match(chatStyles, /\.ai-chat-composer \{[^}]*container-type:\s*inline-size/s);
   assert.match(chatStyles, /@container \(max-width: 430px\)[\s\S]*\.ai-chat-panel:not\(\.layout-floating\) \.ai-chat-compose-actions/);
-  assert.match(chatStyles, /\.ai-chat-import-selection \{[\s\S]*grid-column:\s*span 4[\s\S]*text-overflow:\s*clip/);
+  assert.match(chatStyles, /grid-template-columns:\s*auto auto auto repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(chatStyles, /\.ai-chat-import-selection \{[\s\S]*grid-column:\s*span 3[\s\S]*text-overflow:\s*clip/);
   assert.match(chatStyles, /\.ai-chat-realtime-toolbar \{[\s\S]*grid-column:\s*span 3/);
   assert.match(markup, /ai-chat\.css\?v=20261027-image-quality-2/);
   assert.match(appScript, /ai-chat\.js\?imageQuality=20261027-2&v=20261026-image-actions-1/);

@@ -2287,11 +2287,13 @@ body.theme-light .ai-chat-compose-actions .ai-chat-realtime-sentence-toggle.acti
 /* Keep the composer controls within three button rows: two mode rows + one action row. */
 .ai-chat-compose-actions {
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;
+  grid-template-columns: auto auto auto minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: 4px;
 }
 .ai-chat-compose-actions > * { min-width: 0; }
+.ai-chat-compose-actions > .ai-chat-fast-toggle { box-sizing: border-box; min-height: 27px; height: 27px; padding: 3px 5px; gap: 3px; }
+.ai-chat-compose-actions > .ai-chat-fast-toggle span { flex: none; color: inherit; }
 .ai-chat-compose-actions .ai-chat-attach,
 .ai-chat-compose-actions .ai-chat-img-gen,
 .ai-chat-compose-actions .ai-chat-import-selection,
@@ -2307,11 +2309,11 @@ body.theme-light .ai-chat-compose-actions .ai-chat-realtime-sentence-toggle.acti
 }
 .ai-chat-compose-actions .ai-chat-realtime-toolbar { justify-self: start; }
 
-/* The dock can be narrow even on a wide desktop. Reflow by composer width,
-   so selection import stays readable instead of squeezing every action. */
+/* Keep file, ImgG, face preservation and selection import on the first row.
+   Reflow the remaining actions by composer width, including narrow docks. */
 @container (max-width: 430px) {
   .ai-chat-panel:not(.layout-floating) .ai-chat-compose-actions {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: auto auto auto repeat(3, minmax(0, 1fr));
     row-gap: 5px;
   }
   .ai-chat-panel:not(.layout-floating) .ai-chat-compose-actions .ai-chat-attach,
@@ -2319,7 +2321,7 @@ body.theme-light .ai-chat-compose-actions .ai-chat-realtime-sentence-toggle.acti
     width: 100%;
   }
   .ai-chat-panel:not(.layout-floating) .ai-chat-compose-actions .ai-chat-import-selection {
-    grid-column: span 4;
+    grid-column: span 3;
     width: 100%;
     overflow: visible;
     text-overflow: clip;

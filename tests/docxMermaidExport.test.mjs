@@ -259,3 +259,52 @@ test('DOCX export does not leave bold markers split around an inline equation', 
   assert.match(documentXml, />[^<]*≥[^<]*</);
   assert.doesNotMatch(documentXml, /\*\*/);
 });
+
+test('DOCX bold encloses every equation run including fractions, roots and scripts', async () => {
+  const { api, files } = loadDocxExport();
+  const equation = String.raw`\frac{\lambda_i^2}{\sqrt{1-e_i}} \ge .70`;
+  await api.createBlob({content: [
+    `일반 **기준: $${equation}$ & 중요** 일반`,
+    `- __수식: \\(${equation}\\)__`,
+    '| 항목 | 값 |', '| --- | --- |', `| **$${equation}$** | 보통 $x_i$ |`
+  ].join('\n')});
+  const xml = files.get('word/document.xml');
+  const equations = [...xml.matchAll(/<m:oMath>([\s\S]*?)<\/m:oMath>/g)].map(m => m[1]);
+  assert.equal(equations.length, 4);
+  for (const equationXml of equations.slice(0, 3)) {
+    assert.match(equationXml, /<m:f>/);
+    assert.match(equationXml, /<m:rad>/);
+    assert.match(equationXml, /<m:sSub>/);
+    for (const [run] of equationXml.matchAll(/<m:r>[\s\S]*?<\/m:r>/g)) {
+      assert.match(run, /<m:sty m:val="bi"\/>/);
+      assert.match(run, /<w:b\/><w:bCs\/>/);
+    }
+  }
+  assert.doesNotMatch(equations[3], /<w:b|m:val="bi"/);
+  assert.doesNotMatch(xml, /\*\*|__|\\frac|\\lambda/);
+});
+
+test('DOCX protects statistical stars and repeated underscores before finding bold', async () => {
+  const { api, files } = loadDocxExport();
+  await api.createBlob({content: String.raw`**판정 \(*p<.05, **p<.01, ***p<.001\) 중요** 다음 \(a__b\)`});
+  const xml = files.get('word/document.xml');
+  const equations = [...xml.matchAll(/<m:oMath>([\s\S]*?)<\/m:oMath>/g)].map(m => m[1]);
+  assert.equal(equations.length, 2);
+  assert.match(equations[0], /\*\*p&lt;\.01/);
+  assert.match(equations[0], /\*\*\*p&lt;\.001/);
+  assert.match(equations[0], /<m:sty m:val="bi"/);
+  assert.doesNotMatch(equations[1], /<w:b/);
+  assert.match(xml, /<w:rPr><w:b\/><\/w:rPr><w:t[^>]*>중요<\/w:t>/);
+});
+
+test('DOCX mathbf converts nested symbols and retains upright bold styling locally', async () => {
+  const { api, files } = loadDocxExport();
+  await api.createBlob({content: String.raw`\(\mathbf{\beta_i + \frac{1}{2}} + x\) **\(\text{CR} \ge .70\)**`});
+  const xml = files.get('word/document.xml');
+  assert.match(xml, /<m:sty m:val="b"/);
+  assert.match(xml, />β<\/m:t>/);
+  assert.match(xml, /<m:f>/);
+  assert.match(xml, /<m:sty m:val="b"\/><\/m:rPr><w:rPr><w:b\/><w:bCs\/><\/w:rPr><m:t[^>]*>CR<\/m:t>/);
+  assert.match(xml, /<m:r><m:t[^>]*> \+ x<\/m:t>/);
+  assert.doesNotMatch(xml, /\\mathbf|\\beta|\\frac/);
+});
