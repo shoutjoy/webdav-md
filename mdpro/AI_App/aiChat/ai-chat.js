@@ -203,6 +203,7 @@
     open: false,
     running: false,
     provider: 'lemonade',
+    preserveImageIdentity: true,
     providerControlsOpen: false,
     writingStyle: 'academic',
     generalAnswer: false,
@@ -935,6 +936,7 @@
       + '        </div>'
       + '      </details>'
       + '    </div>'
+      + '<details id="ai-chat-lemonade-image-settings" class="ai-chat-image-settings" hidden><summary>이미지 크기 · 품질 설정</summary><div class="ai-chat-image-settings-grid"><label class="image-setting-wide">프리셋<select id="ai-chat-image-preset"><option value="512x512">512×512 빠른 시안</option><option value="768x768">768×768 균형</option><option value="1024x1024">1024×1024 선명도 권장</option><option value="768x1024">768×1024 세로</option><option value="1024x768">1024×768 가로</option><option value="576x1024">576×1024 세로 9:16</option><option value="1024x576">1024×576 가로 16:9</option><option value="custom">직접 입력</option></select></label><label>폭<input id="ai-chat-image-width" type="number" min="256" max="1536" step="64"></label><label>높이<input id="ai-chat-image-height" type="number" min="256" max="1536" step="64"></label><label>단계<input id="ai-chat-image-steps" type="number" min="1" max="50" step="1"></label><label>CFG<input id="ai-chat-image-cfg" type="number" min="0" max="15" step="0.1"></label><label class="image-setting-wide">시드 (-1 무작위)<input id="ai-chat-image-seed" type="number" min="-1" max="2147483647" step="1"></label></div><p>Klein distilled 권장: 4단계 · CFG 1. 단계 증가가 선명도를 보장하지 않습니다. 큰 크기는 시간과 메모리를 더 사용합니다. 전체 초점이 필요하면 프롬프트에 지정하세요.</p></details>'
       + '    <div id="ai-chat-status" class="ai-chat-status" role="status" aria-live="polite"></div>'
       + '    <div id="ai-chat-messages" class="ai-chat-messages"></div>'
       + '    <div class="ai-chat-composer">'
@@ -943,6 +945,7 @@
       + '      <div id="ai-chat-attachments" class="ai-chat-attachments" aria-live="polite"></div>'
       + '      <textarea id="ai-chat-input" rows="3" placeholder="질문을 입력하세요. Enter 전송 · Shift+Enter 줄바꿈"></textarea>'
       + '      <div class="ai-chat-storage-note">대화 내용은 IndexedDB에 저장됩니다.</div>'
+      + '      <div class="ai-chat-mode-row"><label class="ai-chat-fast-toggle" title="이미지 재생성 시 첫 번째 참조의 인물 얼굴을 유지하고 요청한 동작만 변경하도록 지시합니다. 이미지 생성 모델에서 적용됩니다."><input type="checkbox" id="ai-chat-preserve-identity" checked><span>얼굴 유지</span></label><span class="ai-chat-storage-note">이미지 생성 · 첫 사진이 얼굴 기준</span></div>'
       + '      <div class="ai-chat-mode-row" role="group" aria-label="응답 모드">'
       + '        <button type="button" id="ai-chat-floating-toggle" class="ai-chat-floating-toggle" title="대화창 펼치기" aria-label="대화창 펼치기" aria-expanded="false">☰</button>'
       + '        <button type="button" data-ai-chat-mode="quick">즉시</button>'
@@ -1081,11 +1084,16 @@
     document.getElementById('ai-chat-img-gen').addEventListener('click', function () {
       toggleImgGenMode();
     });
+    document.getElementById('ai-chat-preserve-identity').addEventListener('change', function (event) {
+      state.preserveImageIdentity = event.target.checked;
+      storageSet('ss_ai_chat_preserve_image_identity', state.preserveImageIdentity ? '1' : '0');
+    });
     document.getElementById('ai-chat-file-input').addEventListener('change', function (event) {
       addAttachmentFiles(event.target.files);
       event.target.value = '';
     });
     document.getElementById('ai-chat-refresh-model').addEventListener('click', function () { refreshModels(false); });
+    document.getElementById('ai-chat-lemonade-image-settings').addEventListener('change', saveLemonadeImageControls);
     document.getElementById('ai-chat-lemonade-load-model').addEventListener('click', loadSelectedLemonadeModel);
     document.getElementById('ai-chat-provider-toggle').addEventListener('click', function () {
       syncFastLimitControls();
@@ -1185,7 +1193,7 @@
       } else {
         state.provider = (selectedProvider === 'aistudio' || selectedProvider === 'ollama' || selectedProvider === 'ollama-npu' || selectedProvider === 'litertlm' || selectedProvider === 'deepseek' || selectedProvider === 'openai-compatible' || selectedProvider === 'openai') ? selectedProvider : 'lmstudio';
         if (selectedProvider === 'openai-compatible') {
-          state.openaiCompatibleModel = storageGet('ss_openai_compatible_model_id_orcarouter', 'orcarouter/free') || 'orcarouter/free';
+          state.openaiCompatibleModel = storedOpenAICompatibleModel();
           storageSet(OPENAI_COMPATIBLE_MODEL_KEY, state.openaiCompatibleModel);
         }
       }
@@ -1220,7 +1228,7 @@
         return;
       }
       if (state.provider === 'openai-compatible') {
-        state.openaiCompatibleModel = event.target.value || 'orcarouter/free';
+        state.openaiCompatibleModel = event.target.value || '';
         storageSet(OPENAI_COMPATIBLE_MODEL_KEY, state.openaiCompatibleModel);
         updateHeaderModel();
         saveHistory();
@@ -1231,6 +1239,7 @@
         storageSet(LEMONADE_MODEL_KEY, state.lemonadeModel);
         storageSet('ss_openai_compatible_model_id_lemonade', state.lemonadeModel);
         applyModelTokenProfile(state.lemonadeModel, true);
+        updateModelModeUI();
         updateHeaderModel();
         saveHistory();
         return;
@@ -2810,7 +2819,7 @@
     } else if (state.provider === 'openai') {
       summary.textContent = 'AI 공급자 · OpenAI · ' + openaiModelLabel(state.openaiModel || DEFAULT_OPENAI_MODELS[0]);
     } else if (state.provider === 'openai-compatible') {
-      summary.textContent = 'AI 공급자 · OrcaRouter / OpenAI 호환 · ' + (state.openaiCompatibleModel || '모델 확인 필요');
+      summary.textContent = 'AI 공급자 · ' + providerDisplayName('openai-compatible') + ' · ' + (state.openaiCompatibleModel || '모델 확인 필요');
     } else if (state.provider === 'lemonade') {
       summary.textContent = 'AI 공급자 · Lemonade · ' + (state.lemonadeModel || '모델 확인 필요');
     } else {
@@ -2819,6 +2828,7 @@
   }
 
   function providerDisplayName(provider) {
+    if (provider === 'openai-compatible' && storageGet('ss_openai_compatible_provider') === 'llamacpp') return 'llama.cpp';
     var names = {
       lmstudio: 'LM Studio',
       litertlm: 'LiteRT-LM',
@@ -3358,6 +3368,7 @@
 
   function setRunning(running) {
     state.running = !!running;
+    syncLemonadeImageControls();
     var send = document.getElementById('ai-chat-send');
     var stop = document.getElementById('ai-chat-stop');
     var input = document.getElementById('ai-chat-input');
@@ -3452,6 +3463,25 @@
   function isActiveImageModel() {
     return (state.provider === 'aistudio' && isGeminiImageModel(state.geminiModel))
       || (state.provider === 'lemonade' && isLemonadeImageModel(state.lemonadeModel));
+  }
+
+  function imageIdentityMessages(messages, enabled) {
+    if (!enabled) return messages;
+    var rows = messages.slice();
+    for (var i = rows.length - 1; i >= 0; i--) {
+      if (!rows[i] || rows[i].role !== 'user') continue;
+      var images = (rows[i].attachments || []).filter(function (item) { return item && item.kind === 'image'; });
+      if (!images.length) return messages;
+      rows[i] = Object.assign({}, rows[i], { content: [
+        'Edit the supplied reference images. Use the FIRST reference image as the identity anchor for each person.',
+        'Keep the same individual: preserve facial structure, eye shape and spacing, nose, lips, jawline, skin tone, age, hairline and distinctive facial features. Do not replace, beautify or redesign the face.',
+        'Apply the requested action, body pose and expression while preserving identity, natural anatomy and a recognizable face. Change clothing, background, lighting or other details only when requested.',
+        images.length > 1 ? 'Use the LAST reference for the current scene and composition; the FIRST reference remains the identity anchor.' : '',
+        'Requested edit: ' + rows[i].content
+      ].filter(Boolean).join('\n\n') });
+      return rows;
+    }
+    return messages;
   }
 
   function isGeminiTtsModel(model) {
@@ -3650,7 +3680,44 @@
     return preferred.concat(available.filter(function (model) { return preferred.indexOf(model) < 0; }));
   }
 
+  function syncLemonadeImageControls() {
+    var panel = document.getElementById('ai-chat-lemonade-image-settings');
+    var bridge = getBridge();
+    if (!panel) return;
+    panel.hidden = state.provider !== 'lemonade' || !isLemonadeImageModel(state.lemonadeModel);
+    if (panel.hidden || !bridge || !bridge.getLemonadeImageSettings) return;
+    var settings = bridge.getLemonadeImageSettings(state.lemonadeModel);
+    var fields = { width: 'width', height: 'height', steps: 'steps', cfg: 'cfgScale', seed: 'seed' };
+    Object.keys(fields).forEach(function (name) {
+      var input = document.getElementById('ai-chat-image-' + name);
+      input.value = settings[fields[name]];
+      input.disabled = state.running;
+    });
+    var preset = document.getElementById('ai-chat-image-preset');
+    var size = settings.width + 'x' + settings.height;
+    preset.value = Array.from(preset.options).some(function (option) { return option.value === size; }) ? size : 'custom';
+    preset.disabled = state.running;
+  }
+
+  function saveLemonadeImageControls(event) {
+    if (state.running || state.provider !== 'lemonade') return;
+    var bridge = getBridge();
+    if (!bridge || !bridge.saveLemonadeImageSettings) return;
+    var preset = document.getElementById('ai-chat-image-preset');
+    if (event.target === preset && preset.value !== 'custom') {
+      var size = preset.value.split('x');
+      document.getElementById('ai-chat-image-width').value = size[0];
+      document.getElementById('ai-chat-image-height').value = size[1];
+    }
+    var settings = {};
+    var fields = { width: 'width', height: 'height', steps: 'steps', cfg: 'cfgScale', seed: 'seed' };
+    Object.keys(fields).forEach(function (name) { settings[fields[name]] = document.getElementById('ai-chat-image-' + name).value; });
+    bridge.saveLemonadeImageSettings(state.lemonadeModel, settings);
+    syncLemonadeImageControls();
+  }
+
   function updateModelModeUI() {
+    syncLemonadeImageControls();
     var imageModel = isActiveImageModel();
     var ttsModel = state.provider === 'aistudio' && isGeminiTtsModel(state.geminiModel);
     var panel = document.getElementById('ai-chat-panel');
@@ -3748,7 +3815,7 @@
       setModelOptions(compatibleModels, state.openaiCompatibleModel, false);
       var compatibleSelect = document.getElementById('ai-chat-model');
       if (compatibleSelect && compatibleSelect.value) state.openaiCompatibleModel = compatibleSelect.value;
-      storageSet(OPENAI_COMPATIBLE_MODEL_KEY, state.openaiCompatibleModel || 'orcarouter/free');
+      storageSet(OPENAI_COMPATIBLE_MODEL_KEY, state.openaiCompatibleModel || '');
     } else if (state.provider === 'lemonade') {
       var cachedLemonadeModels = [];
       try { cachedLemonadeModels = getBridge().getCachedLemonadeModels(); } catch (_) {}
@@ -3816,6 +3883,13 @@
       if (progressTimer) root.clearInterval(progressTimer);
       if (button) button.disabled = state.running;
     }
+  }
+
+  function storedOpenAICompatibleModel() {
+    var provider = storageGet('ss_openai_compatible_provider', 'orcarouter');
+    var selected = storageGet('ss_ai_chat_openai_compatible_provider', 'orcarouter');
+    if (provider === selected) return storageGet(OPENAI_COMPATIBLE_MODEL_KEY, storageGet('ss_openai_compatible_model_id_' + provider, provider === 'orcarouter' ? 'orcarouter/free' : ''));
+    return storageGet('ss_openai_compatible_model_id_' + provider, provider === 'orcarouter' ? 'orcarouter/free' : '');
   }
 
   async function refreshModels(silent, fallbackAttempted) {
@@ -3899,10 +3973,10 @@
           state.openaiModel ? 'ok' : 'error'
         );
       } else if (state.provider === 'openai-compatible') {
-        var compatibleModels = silent
+        var compatibleModels = silent && storageGet('ss_openai_compatible_provider') !== 'llamacpp'
           ? bridge.getCachedOpenAICompatibleModels()
           : await bridge.refreshOpenAICompatibleModels();
-        if (state.provider !== requestedProvider) return;
+        if (state.provider !== requestedProvider || refreshRevision !== modelRefreshRevision) return;
         setModelOptions(compatibleModels || [], state.openaiCompatibleModel, false);
         var compatibleModelSelect = document.getElementById('ai-chat-model');
         state.openaiCompatibleModel = compatibleModelSelect && compatibleModelSelect.value ? compatibleModelSelect.value : '';
@@ -3911,14 +3985,9 @@
       } else if (state.provider === 'lemonade') {
         var lemonadeModels = await bridge.refreshLemonadeModels();
         if (state.provider !== requestedProvider || refreshRevision !== modelRefreshRevision) return;
-        if (!isActiveImageModel()) {
-          var lemonadeRecords = typeof bridge.getCachedLemonadeModelRecords === 'function' ? bridge.getCachedLemonadeModelRecords() : [];
-          lemonadeModels = (lemonadeModels || []).filter(function (model) {
-            var record = lemonadeRecords.find(function (item) { return item.id === model; });
-            return !isLemonadeImageModel(model) && (!record || !Array.isArray(record.labels) || !record.labels.length || record.labels.indexOf('chat') >= 0);
-          });
-        }
-        if (!lemonadeModels || !lemonadeModels.length) throw new Error('Lemonade 서버에 사용 가능한 채팅 모델이 없습니다.');
+        // The bridge returns installed models; keep every modality visible,
+        // regardless of the currently selected model or response mode.
+        if (!lemonadeModels || !lemonadeModels.length) throw new Error('Lemonade 서버에 설치된 모델이 없습니다.');
         setModelOptions(lemonadeModels || [], state.lemonadeModel, false);
         var lemonadeModelSelect = document.getElementById('ai-chat-model');
         state.lemonadeModel = lemonadeModelSelect && lemonadeModelSelect.value ? lemonadeModelSelect.value : '';
@@ -3926,7 +3995,7 @@
         storageSet('ss_openai_compatible_model_id_lemonade', state.lemonadeModel);
         applyModelTokenProfile(state.lemonadeModel, false);
         setStatus(state.lemonadeModel
-          ? (isLemonadeImageModel(state.lemonadeModel) ? 'Lemonade 이미지 생성 모델: ' : 'Lemonade 채팅 모델: ') + state.lemonadeModel
+          ? (isLemonadeImageModel(state.lemonadeModel) ? 'Lemonade 이미지 생성 모델: ' : 'Lemonade 모델: ') + state.lemonadeModel
           : '사용 가능한 Lemonade 모델이 없습니다.', state.lemonadeModel ? 'ok' : 'error');
       } else {
         var models = await bridge.refreshGeminiModels();
@@ -5116,18 +5185,23 @@
     copyText(formatQuestionAnswer(question, message.content));
   }
 
-  function putQuestionInComposer(text, sendImmediately) {
+  function putQuestionInComposer(message, sendImmediately) {
     if (state.running) return setStatus('현재 응답이 끝난 뒤 다시 시도하세요.', 'error');
     var input = document.getElementById('ai-chat-input');
     if (!input) return setStatus('AI Jena 입력창을 찾지 못했습니다.', 'error');
-    input.value = String(text || '');
+    if (attachmentLoading) return setStatus('첨부 파일을 모두 읽은 뒤 다시 시도하세요.', 'error');
+    input.value = String(message && message.content || '');
+    pendingAttachments = (Array.isArray(message && message.attachments) ? message.attachments : []).map(function (attachment) {
+      return Object.assign({}, attachment);
+    });
+    renderPendingAttachments();
     input.focus();
     input.setSelectionRange(input.value.length, input.value.length);
     if (sendImmediately) {
-      setStatus('같은 질문을 다시 전송합니다.', 'loading');
+      setStatus('원래 첨부 파일을 포함하여 같은 질문을 다시 전송합니다.', 'loading');
       sendMessage();
     } else {
-      setStatus('질문을 입력창에 불러왔습니다. 수정한 뒤 전송하세요.', 'ok');
+      setStatus('질문과 첨부 파일을 불러왔습니다. 수정하거나 이미지를 추가·제거한 뒤 전송하세요.', 'ok');
     }
   }
 
@@ -5185,14 +5259,14 @@
     retry.textContent = '다시 질문';
     retry.title = '같은 질문을 새 요청으로 즉시 다시 전송';
     retry.disabled = state.running;
-    retry.addEventListener('click', function () { putQuestionInComposer(message.content, true); });
+    retry.addEventListener('click', function () { putQuestionInComposer(message, true); });
     actions.appendChild(retry);
     var edit = document.createElement('button');
     edit.type = 'button';
     edit.textContent = '편집';
     edit.title = '질문을 입력창으로 불러와 수정';
     edit.disabled = state.running;
-    edit.addEventListener('click', function () { putQuestionInComposer(message.content, false); });
+    edit.addEventListener('click', function () { putQuestionInComposer(message, false); });
     actions.appendChild(edit);
     var remove = document.createElement('button');
     remove.type = 'button';
@@ -6097,6 +6171,14 @@
             if (!image || !image.data) return;
             var figure = document.createElement('figure');
             var generated = document.createElement('img');
+            var caption = document.createElement('figcaption');
+            function updateImageCaption() {
+              var settings = message.imageSettings;
+              caption.textContent = '원본 이미지 · ' + generated.naturalWidth + '×' + generated.naturalHeight + ' px'
+                + (settings ? ' · ' + settings.steps + '단계 · CFG ' + settings.cfgScale : '')
+                + (Math.min(generated.naturalWidth, generated.naturalHeight) < 768 ? ' · 더 큰 크기로 새로 생성하면 원본 해상도를 높일 수 있습니다.' : '');
+            }
+            generated.addEventListener('load', updateImageCaption);
             generated.src = 'data:' + String(image.mimeType || 'image/png') + ';base64,' + image.data;
             generated.alt = 'AI가 생성한 이미지 ' + (imageIndex + 1);
             generated.loading = 'lazy';
@@ -6109,55 +6191,10 @@
               event.preventDefault();
               openGeneratedImagePreview(image, imageIndex);
             });
-            var save = document.createElement('button');
-            save.type = 'button';
-            save.textContent = '이미지 ' + (imageIndex + 1) + ' 저장';
-            save.disabled = state.running || !!image._documentInsertBusy;
-            save.addEventListener('click', function () { saveGeneratedImage(image, imageIndex); });
-            var insertImage = document.createElement('button');
-            insertImage.type = 'button';
-            insertImage.textContent = '문서삽입';
-            insertImage.title = '내부 이미지 DB에 저장한 뒤 현재 문서에 삽입';
-            insertImage.disabled = state.running || !!image._documentInsertBusy;
-            insertImage.addEventListener('click', function () { insertGeneratedImageIntoDocument(image, imageIndex, false); });
-            var uploadInsertImage = document.createElement('button');
-            uploadInsertImage.type = 'button';
-            uploadInsertImage.textContent = image.imgbbUrl ? '업로드 주소로 문서삽입' : '업로드 문서삽입';
-            uploadInsertImage.title = image.imgbbUrl
-              ? '저장된 imgBB 직접 주소를 재사용해 현재 문서에 삽입'
-              : 'imgBB에 업로드하고 직접 주소로 현재 문서에 삽입';
-            uploadInsertImage.disabled = state.running || !!image._documentInsertBusy;
-            uploadInsertImage.addEventListener('click', function () { insertGeneratedImageIntoDocument(image, imageIndex, true); });
-            var imageActions = document.createElement('div');
-            imageActions.className = 'ai-chat-generated-image-actions';
             figure.appendChild(generated);
-            imageActions.appendChild(save);
-            imageActions.appendChild(insertImage);
-            imageActions.appendChild(uploadInsertImage);
-            var editImage = document.createElement('button');
-            editImage.type = 'button';
-            editImage.textContent = '이미지 편집';
-            editImage.title = '이 이미지를 별도 편집 창에서 프롬프트로 수정';
-            editImage.disabled = state.running;
-            editImage.addEventListener('click', function () { openGeneratedImageEditor(image, imageIndex); });
-            imageActions.appendChild(editImage);
-            var copyImage = document.createElement('button');
-            copyImage.type = 'button';
-            copyImage.textContent = '이미지 복사';
-            copyImage.title = '이미지 자체를 클립보드에 복사하여 일반 문서나 Word에 붙여넣기';
-            copyImage.addEventListener('click', function () { copyGeneratedImage(image); });
-            imageActions.appendChild(copyImage);
-            var enlargeImage = document.createElement('button');
-            enlargeImage.type = 'button';
-            enlargeImage.textContent = '크게 보기';
-            enlargeImage.addEventListener('click', function () { openGeneratedImagePreview(image, imageIndex); });
-            imageActions.appendChild(enlargeImage);
-            var fmaImage = document.createElement('button');
-            fmaImage.type = 'button';
-            fmaImage.textContent = 'FMA 보기';
-            fmaImage.addEventListener('click', function () { openGeneratedImageInFma(image, imageIndex); });
-            imageActions.appendChild(fmaImage);
-            figure.appendChild(imageActions);
+            figure.appendChild(caption);
+            if (generated.complete && generated.naturalWidth) updateImageCaption();
+            figure.appendChild(createImageActionDetails(image, imageIndex, true));
             gallery.appendChild(figure);
           });
           item.appendChild(gallery);
@@ -6650,13 +6687,92 @@
     return content.trim();
   }
 
+  function createImageActionDetails(image, imageIndex, initiallyOpen) {
+    var details = document.createElement('details');
+    details.className = 'ai-chat-image-action-details';
+    details.open = typeof image._imageActionsExpanded === 'boolean' ? image._imageActionsExpanded : initiallyOpen;
+    var summary = document.createElement('summary');
+    function updateSummary() {
+      summary.textContent = '이미지 도구 · ' + (details.open ? '접기' : '펼치기');
+    }
+    updateSummary();
+    details.addEventListener('toggle', function () {
+      image._imageActionsExpanded = details.open;
+      updateSummary();
+    });
+    details.appendChild(summary);
+    var save = document.createElement('button');
+    save.type = 'button';
+    save.textContent = '이미지 ' + (imageIndex + 1) + ' 저장';
+    save.disabled = state.running || !!image._documentInsertBusy;
+    save.addEventListener('click', function () { saveGeneratedImage(image, imageIndex); });
+    var insertImage = document.createElement('button');
+    insertImage.type = 'button';
+    insertImage.textContent = '문서삽입';
+    insertImage.title = '내부 이미지 DB에 저장한 뒤 현재 문서에 삽입';
+    insertImage.disabled = state.running || !!image._documentInsertBusy;
+    insertImage.addEventListener('click', function () { insertGeneratedImageIntoDocument(image, imageIndex, false); });
+    var uploadInsertImage = document.createElement('button');
+    uploadInsertImage.type = 'button';
+    uploadInsertImage.textContent = image.imgbbUrl ? '업로드 주소로 문서삽입' : '업로드 문서삽입';
+    uploadInsertImage.title = image.imgbbUrl
+      ? '저장된 imgBB 직접 주소를 재사용해 현재 문서에 삽입'
+      : 'imgBB에 업로드하고 직접 주소로 현재 문서에 삽입';
+    uploadInsertImage.disabled = state.running || !!image._documentInsertBusy;
+    uploadInsertImage.addEventListener('click', function () { insertGeneratedImageIntoDocument(image, imageIndex, true); });
+    var imageActions = document.createElement('div');
+    imageActions.className = 'ai-chat-generated-image-actions';
+    imageActions.appendChild(save);
+    imageActions.appendChild(insertImage);
+    imageActions.appendChild(uploadInsertImage);
+    var editImage = document.createElement('button');
+    editImage.type = 'button';
+    editImage.textContent = '이미지 편집';
+    editImage.title = '이 이미지를 별도 편집 창에서 프롬프트로 수정';
+    editImage.disabled = state.running;
+    editImage.addEventListener('click', function () { openGeneratedImageEditor(image, imageIndex); });
+    imageActions.appendChild(editImage);
+    var copyImage = document.createElement('button');
+    copyImage.type = 'button';
+    copyImage.textContent = '이미지 복사';
+    copyImage.title = '이미지 자체를 클립보드에 복사하여 일반 문서나 Word에 붙여넣기';
+    copyImage.addEventListener('click', function () { copyGeneratedImage(image); });
+    imageActions.appendChild(copyImage);
+    var enlargeImage = document.createElement('button');
+    enlargeImage.type = 'button';
+    enlargeImage.textContent = '크게 보기';
+    enlargeImage.addEventListener('click', function () { openGeneratedImagePreview(image, imageIndex); });
+    imageActions.appendChild(enlargeImage);
+    var fmaImage = document.createElement('button');
+    fmaImage.type = 'button';
+    fmaImage.textContent = 'FMA 보기';
+    fmaImage.addEventListener('click', function () { openGeneratedImageInFma(image, imageIndex); });
+    imageActions.appendChild(fmaImage);
+    details.appendChild(imageActions);
+    return details;
+  }
+
+  // Forward saved URLs and UI state to the attachment without storing duplicate base64 data.
+  function attachmentImageActionSource(attachment) {
+    var match = /^data:(image\/[^;,]+);base64,([\s\S]+)$/i.exec(String(attachment.dataUrl || ''));
+    if (!match) return null;
+    var source = { mimeType: match[1], data: match[2] };
+    ['documentUrl', 'imgbbUrl', '_documentInsertBusy', '_imageActionsExpanded'].forEach(function (key) {
+      Object.defineProperty(source, key, {
+        get: function () { return attachment[key]; },
+        set: function (value) { attachment[key] = value; }
+      });
+    });
+    return source;
+  }
+
   function appendUserAttachmentGallery(item, message) {
     var attachments = Array.isArray(message && message.attachments) ? message.attachments : [];
     if (!attachments.length) return;
     item.classList.add('has-attachments');
     var gallery = document.createElement('div');
     gallery.className = 'ai-chat-message-attachments';
-    attachments.forEach(function (attachment) {
+    attachments.forEach(function (attachment, attachmentIndex) {
       if (!attachment) return;
       if (attachment.kind === 'image' && attachment.dataUrl) {
         var figure = document.createElement('figure');
@@ -6669,6 +6785,8 @@
         caption.textContent = attachment.name || '첨부 이미지';
         figure.appendChild(image);
         figure.appendChild(caption);
+        var actionSource = attachmentImageActionSource(attachment);
+        if (actionSource) figure.appendChild(createImageActionDetails(actionSource, attachmentIndex, false));
         gallery.appendChild(figure);
       } else {
         var fileText = '📄 ' + (attachment.name || '첨부 문서');
@@ -6910,6 +7028,81 @@
     );
   }
 
+  function bindImagePreviewGeometry(dialog, header, preview) {
+    var gesture = null;
+    var userAdjusted = false;
+    function bounds() {
+      return { width: Math.max(1, root.innerWidth - 16), height: Math.max(1, root.innerHeight - 16) };
+    }
+    function place(left, top, width, height) {
+      var limit = bounds();
+      width = Math.min(limit.width, Math.max(Math.min(240, limit.width), width));
+      height = Math.min(limit.height, Math.max(Math.min(160, limit.height), height));
+      dialog.style.width = width + 'px';
+      dialog.style.height = height + 'px';
+      dialog.style.left = Math.max(8, Math.min(root.innerWidth - width - 8, left)) + 'px';
+      dialog.style.top = Math.max(8, Math.min(root.innerHeight - height - 8, top)) + 'px';
+    }
+    function fitOriginal() {
+      if (userAdjusted || !preview.naturalWidth) return;
+      var limit = bounds();
+      var width = Math.min(limit.width, Math.max(240, preview.naturalWidth + 18));
+      place((root.innerWidth - width) / 2, 8, width, limit.height);
+      var height = Math.min(limit.height, preview.naturalHeight + header.getBoundingClientRect().height + 18);
+      place((root.innerWidth - width) / 2, (root.innerHeight - height) / 2, width, height);
+    }
+    function connect(surface, direction) {
+      surface.addEventListener('pointerdown', function (event) {
+        if (event.button !== 0 || (event.target.closest && event.target.closest('button'))) return;
+        event.preventDefault();
+        userAdjusted = true;
+        gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, rect: dialog.getBoundingClientRect() };
+        surface.setPointerCapture(event.pointerId);
+      });
+      surface.addEventListener('pointermove', function (event) {
+        if (!gesture || event.pointerId !== gesture.id) return;
+        var rect = gesture.rect;
+        var dx = event.clientX - gesture.x;
+        var dy = event.clientY - gesture.y;
+        if (!direction) return place(rect.left + dx, rect.top + dy, rect.width, rect.height);
+        var limit = bounds();
+        var minWidth = Math.min(240, limit.width);
+        var minHeight = Math.min(160, limit.height);
+        var left = rect.left, top = rect.top, right = rect.right, bottom = rect.bottom;
+        if (direction.indexOf('w') >= 0) left = Math.max(8, Math.min(right - minWidth, left + dx));
+        if (direction.indexOf('e') >= 0) right = Math.min(root.innerWidth - 8, Math.max(left + minWidth, right + dx));
+        if (direction.indexOf('n') >= 0) top = Math.max(8, Math.min(bottom - minHeight, top + dy));
+        if (direction.indexOf('s') >= 0) bottom = Math.min(root.innerHeight - 8, Math.max(top + minHeight, bottom + dy));
+        place(left, top, right - left, bottom - top);
+      });
+      function finish(event) {
+        if (!gesture || gesture.id !== event.pointerId) return;
+        gesture = null;
+        if (surface.hasPointerCapture(event.pointerId)) surface.releasePointerCapture(event.pointerId);
+      }
+      surface.addEventListener('pointerup', finish);
+      surface.addEventListener('pointercancel', finish);
+      surface.addEventListener('lostpointercapture', finish);
+    }
+    connect(header, '');
+    [['n', '위'], ['s', '아래'], ['w', '왼쪽'], ['e', '오른쪽'], ['se', '오른쪽 아래 모서리']].forEach(function (entry) {
+      var handle = document.createElement('div');
+      handle.className = 'ai-chat-image-preview-resize ai-chat-image-preview-resize-' + entry[0];
+      handle.title = entry[1] + ' 크기 조절';
+      handle.setAttribute('aria-label', handle.title);
+      dialog.appendChild(handle);
+      connect(handle, entry[0]);
+    });
+    function keepVisible() {
+      var rect = dialog.getBoundingClientRect();
+      place(rect.left, rect.top, rect.width, rect.height);
+    }
+    preview.addEventListener('load', fitOriginal);
+    root.addEventListener('resize', keepVisible);
+    dialog.addEventListener('close', function () { root.removeEventListener('resize', keepVisible); });
+    fitOriginal();
+  }
+
   function openGeneratedImagePreview(image, imageIndex) {
     if (!image || !image.data) return;
     var dialog = document.createElement('dialog');
@@ -6920,6 +7113,12 @@
     preview.alt = '생성 이미지 ' + (imageIndex + 1) + ' 크게 보기';
     var actions = document.createElement('div');
     actions.className = 'ai-chat-image-editor-actions';
+    var title = document.createElement('strong');
+    title.textContent = '이미지 크게 보기';
+    actions.appendChild(title);
+    var viewport = document.createElement('div');
+    viewport.className = 'ai-chat-image-preview-viewport';
+    viewport.appendChild(preview);
     var fma = document.createElement('button');
     fma.type = 'button';
     fma.textContent = 'FMA 보기';
@@ -6935,10 +7134,11 @@
     close.textContent = '닫기';
     close.addEventListener('click', function () { dialog.close(); });
     actions.append(fma, close);
-    dialog.append(actions, preview);
+    dialog.append(actions, viewport);
     dialog.addEventListener('close', function () { dialog.remove(); });
     document.body.appendChild(dialog);
     dialog.showModal();
+    bindImagePreviewGeometry(dialog, actions, preview);
     close.focus();
   }
 
@@ -6947,6 +7147,7 @@
     var previous = document.getElementById('ai-chat-image-editor');
     if (previous) return;
     var source = image;
+    var identitySource = image.identityReference || image;
     var busy = false;
     var dialog = document.createElement('dialog');
     dialog.id = 'ai-chat-image-editor';
@@ -6967,6 +7168,12 @@
     prompt.rows = 3;
     prompt.placeholder = '예: 내용을 유지하고 3×2 배치를 2×3 세로 배치로 바꿔줘';
     label.htmlFor = prompt.id;
+    var identityLabel = document.createElement('label');
+    var identityToggle = document.createElement('input');
+    identityToggle.type = 'checkbox';
+    identityToggle.checked = state.preserveImageIdentity;
+    identityToggle.id = 'ai-chat-image-edit-preserve-identity';
+    identityLabel.append(identityToggle, document.createTextNode('얼굴 유지 · 처음 참조한 인물 유지'));
     var status = document.createElement('p');
     status.setAttribute('role', 'status');
     status.textContent = '선택한 이미지를 기준으로 편집합니다. 결과에서 이어서 편집할 수 있습니다.';
@@ -6987,6 +7194,7 @@
       busy = true;
       Array.from(actions.children).forEach(function (control) { control.disabled = true; });
       prompt.disabled = true;
+      identityToggle.disabled = true;
       status.textContent = '선택한 이미지를 편집하는 중...';
       setRunning(true);
       var revision = generationStopRevision;
@@ -6996,15 +7204,20 @@
           provider: useLemonade ? 'lemonade' : 'aistudio',
           model: useLemonade ? state.lemonadeModel : (isGeminiImageModel(state.geminiModel) ? state.geminiModel : IMG_GEN_FALLBACK_MODEL),
           mode: 'quick',
-          messages: [{ role: 'user', content: '첨부한 이미지를 원본으로 편집하세요. 요청하지 않은 내용은 유지하세요. 편집 요청: ' + instruction,
-            attachments: [{ kind: 'image', name: 'edit-source.png', type: source.mimeType || 'image/png',
-              dataUrl: 'data:' + (source.mimeType || 'image/png') + ';base64,' + source.data }] }],
+          messages: imageIdentityMessages([{ role: 'user', content: '첨부한 이미지를 원본으로 편집하세요. 요청하지 않은 내용은 유지하세요. 편집 요청: ' + instruction,
+            attachments: (identityToggle.checked && identitySource.data !== source.data ? [identitySource, source] : [source]).map(function (reference, index) {
+              return { kind: 'image', name: 'edit-reference-' + index + '.png', type: reference.mimeType || 'image/png',
+                dataUrl: 'data:' + (reference.mimeType || 'image/png') + ';base64,' + reference.data };
+            }) }], identityToggle.checked),
           systemInstruction: 'Edit the supplied image according to the user request and return the edited image.'
         });
         if (revision !== generationStopRevision) throw new Error('이미지 편집이 중지되었습니다.');
         var images = result && Array.isArray(result.images) ? result.images.filter(function (item) { return item && item.data; }) : [];
         if (!images.length) throw new Error('편집된 이미지가 반환되지 않았습니다. 요청을 수정하여 다시 시도하세요.');
-        state.messages.push({ role: 'assistant', content: '이미지 편집: ' + instruction, images: images, createdAt: Date.now() });
+        if (identityToggle.checked) images.forEach(function (item) {
+          item.identityReference = { mimeType: identitySource.mimeType || 'image/png', data: identitySource.data };
+        });
+        state.messages.push({ role: 'assistant', content: '이미지 편집: ' + instruction, images: images, imageSettings: result.imageSettings || null, createdAt: Date.now() });
         saveHistory();
         source = images[0];
         updatePreview();
@@ -7018,6 +7231,7 @@
         renderMessages();
         Array.from(actions.children).forEach(function (control) { control.disabled = false; });
         prompt.disabled = false;
+        identityToggle.disabled = false;
         prompt.focus();
       }
     });
@@ -7030,7 +7244,7 @@
     button('닫기', function () { dialog.close(); });
     dialog.addEventListener('cancel', function (event) { if (busy) event.preventDefault(); });
     dialog.addEventListener('close', function () { dialog.remove(); });
-    dialog.append(title, preview, label, prompt, status, actions);
+    dialog.append(title, preview, label, prompt, identityLabel, status, actions);
     document.body.appendChild(dialog);
     dialog.showModal();
     prompt.focus();
@@ -7233,6 +7447,7 @@
             'Give the final answer directly without exposing private internal reasoning, step-by-step deliberation, planning, checklists, or meta-commentary.'
           ].join(' ');
       var streamHandler = state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'litertlm' || state.provider === 'aistudio' || state.provider === 'lemonade' || state.provider === 'openai-compatible' ? handleStreamEvent : undefined;
+      var preserveImageIdentity = isActiveImageModel() && state.preserveImageIdentity;
       var baseRequest = {
         provider: state.provider,
         originalAnswer: state.generalAnswer,
@@ -7249,7 +7464,7 @@
         retainForContinuation: true,
         disableThinking: state.provider === 'lemonade' && (state.responseMode !== 'reasoning' || state.fastMode || academicSearchActive),
         preserveModelStyle: (state.generalAnswer || (localNativeQuality && !state.fastMode && !state.realtimeDocWrite)) && !academicSearchActive && !internetSearchActive,
-        messages: requestMessages,
+        messages: preserveImageIdentity ? imageIdentityMessages(requestMessages, true) : requestMessages,
         onStreamEvent: streamHandler,
         systemInstruction: requestSystemInstruction
       };
@@ -7258,6 +7473,13 @@
       // stays in the chat; only message deltas are written to the editor.
       if (state.realtimeDocWrite) beginRealtimeDocForCurrentGeneration();
       var result = await getBridge().complete(baseRequest);
+      if (preserveImageIdentity && result && Array.isArray(result.images)) {
+        var identityAttachment = (pendingUser.attachments || []).find(function (item) { return item && item.kind === 'image'; });
+        var identityMatch = identityAttachment && String(identityAttachment.dataUrl || '').match(/^data:(image\/[^;,]+);base64,(.+)$/i);
+        if (identityMatch) result.images.forEach(function (item) {
+          item.identityReference = { mimeType: identityMatch[1], data: identityMatch[2] };
+        });
+      }
       if (nativeInternetSearch) {
         pendingUser.internetSources = normalizeInternetSources(result && result.internetSources);
         pendingUser.internetSearchEngine = 'Google Search · Gemini grounding';
@@ -7322,6 +7544,7 @@
         reasoning: state.showReasoning ? reasoningText : '',
         notice: responseStatus.notice,
         images: result && Array.isArray(result.images) ? result.images : [],
+        imageSettings: result && result.imageSettings || null,
         createdAt: Date.now(),
         provider: result.provider,
         model: result.model,
@@ -7516,8 +7739,10 @@
     state.npuModel = storageGet(NPU_MODEL_KEY, '');
     state.deepseekModel = storageGet(DEEPSEEK_MODEL_KEY, DEFAULT_DEEPSEEK_MODELS[0]);
     state.openaiModel = storageGet(OPENAI_MODEL_KEY, DEFAULT_OPENAI_MODELS[0]);
-    state.openaiCompatibleModel = storageGet('ss_openai_compatible_model_id_orcarouter', storageGet(OPENAI_COMPATIBLE_MODEL_KEY, 'orcarouter/free'));
+    state.openaiCompatibleModel = storedOpenAICompatibleModel();
     state.lemonadeModel = storageGet(LEMONADE_MODEL_KEY, storageGet('ss_openai_compatible_model_id_lemonade', LEMONADE_DEFAULT_MODEL));
+    state.preserveImageIdentity = storageGet('ss_ai_chat_preserve_image_identity', '1') !== '0';
+    document.getElementById('ai-chat-preserve-identity').checked = state.preserveImageIdentity;
     // AI Jena starts from the user-selected start layout. Popup/fullscreen
     // positions are restored from the last saved coordinates.
     var startLayoutDefaultRevision = storageGet(START_LAYOUT_DEFAULT_REVISION_KEY, '');
@@ -7579,7 +7804,7 @@
       state.litertlmModel = storageGet(LITERTLM_MODEL_KEY, state.litertlmModel);
       state.deepseekModel = storageGet(DEEPSEEK_MODEL_KEY, state.deepseekModel);
       state.openaiModel = storageGet(OPENAI_MODEL_KEY, state.openaiModel);
-      state.openaiCompatibleModel = storageGet('ss_openai_compatible_model_id_orcarouter', storageGet(OPENAI_COMPATIBLE_MODEL_KEY, state.openaiCompatibleModel));
+      state.openaiCompatibleModel = storedOpenAICompatibleModel();
       state.lemonadeModel = storageGet(LEMONADE_MODEL_KEY, storageGet('ss_openai_compatible_model_id_lemonade', state.lemonadeModel));
       state.writingStyle = normalizeWritingStyle(storageGet(WRITING_STYLE_KEY, state.writingStyle));
       state.generalAnswer = storageGet(GENERAL_ANSWER_KEY, state.generalAnswer ? '1' : '0') === '1';

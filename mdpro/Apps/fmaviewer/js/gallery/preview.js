@@ -220,20 +220,17 @@ function renderDynamicMeta(i) {
 
         if (!videoItem) actionsDiv.appendChild(upscaleBtn);
 
-        const aiJenaBtn = document.createElement("button");
-        aiJenaBtn.className = "meta-action-button ai-jena-header-button ai-jena-image-button";
-        const aiJenaReady = Boolean(window.getFmaLemonadeImageModel?.() || (typeof getUsableAiStudioApiKey === "function" && getUsableAiStudioApiKey()));
-        const aiJenaHasKey = Boolean(window.getFmaLemonadeImageModel?.() || (typeof getAiStudioApiKey === "function" && getAiStudioApiKey()));
-        aiJenaBtn.classList.toggle("ready", aiJenaReady);
-        aiJenaBtn.classList.toggle("unavailable", !aiJenaReady);
-        aiJenaBtn.style.display = aiJenaHasKey ? "inline-flex" : "none";
-        aiJenaBtn.disabled = !aiJenaReady;
-        aiJenaBtn.onclick = aiJenaReady ? () => openAiJena(idx) : null;
-        aiJenaBtn.innerText = aiJenaReady ? "✦ AI Jena" : "✦";
-        aiJenaBtn.title = aiJenaReady
-            ? "이 이미지로 AI Jena 열기"
-            : "AI API 키 사용이 중지되어 있습니다.";
-        if (!videoItem) actionsDiv.appendChild(aiJenaBtn);
+        if (!videoItem) {
+            for (const provider of ["aistudio", "lemonade"]) {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "meta-action-button ai-jena-header-button " +
+                    (provider === "lemonade" ? "ai-jena-lemonade-button" : "ai-jena-image-button");
+                button.textContent = provider === "lemonade" ? "✦ AI Jena · Lemonade" : "✦ AI Jena · AI Studio";
+                button.onclick = () => openAiJena(idx, provider);
+                actionsDiv.appendChild(button);
+            }
+        }
 
         if (!videoItem && typeof isAiUpscaleEnabled === "function" && isAiUpscaleEnabled()) {
             const aiUpscaleBtn = document.createElement("button");
@@ -244,6 +241,7 @@ function renderDynamicMeta(i) {
         }
 
         container.appendChild(actionsDiv);
+        if (!videoItem) updateAiJenaKeyStatus(container);
 
         return container;
     };

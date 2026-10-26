@@ -7266,3 +7266,40 @@ body.side-panel-collapsed .right { width:100%; }
     .header-layout-controls { gap:5px !important; margin-left:0 !important; padding-left:5px !important; }
     .header-layout-controls > div { display:none; }
 }
+
+/* Jena provider/model controls remain reachable in a narrow embedded FMA. */
+.ai-jena-header { flex-wrap: wrap; }
+.ai-jena-header > div:last-child { flex-wrap: wrap; min-width: 0; }
+.ai-jena-model-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
+.ai-jena-model-controls label { display: flex; align-items: center; gap: 4px; font-size: 11px; }
+.ai-jena-model-controls select { min-width: 0; max-width: 240px; padding: 5px; border: 1px solid #6383a9; border-radius: 6px; background: #142035; color: #e4eefc; }
+.ai-jena-model-controls button { padding: 5px 8px; border: 1px solid #6383a9; border-radius: 6px; background: #29415f; color: #e4eefc; }
+#aiJenaModelStatus { flex-basis: 100%; color: #9dcde4; overflow-wrap: anywhere; }
+
+/* Keep wrapped provider controls in the header rather than shrinking into the editor. */
+.ai-jena-header { flex: 0 0 auto; }
+.ai-jena-header > div { min-width: 0; max-width: 100%; }
+.ai-jena-header > div:last-child { flex: 1 1 460px; }
+.ai-jena-model-controls { flex: 1 1 320px; }
+.ai-jena-model-controls select { max-width: min(240px, 60vw); }
+#aiJenaProgressBar.indeterminate { background-size: 200% 100%; animation: ai-jena-waiting 1.5s linear infinite; }
+@keyframes ai-jena-waiting { from { background-position: 200% 0; } to { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) { #aiJenaProgressBar.indeterminate { animation: none; } }
+
+/* Keep the editor close control independent of wrapping provider/model controls. */
+.ai-jena-header { position: relative; padding-right: 100px; }
+#btnAiJenaClose {
+    position: absolute; top: 12px; right: 12px; z-index: 2;
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 74px; min-height: 36px; padding: 6px 10px;
+    border: 1px solid #fb7185; border-radius: 8px;
+    background: #7f1d1d; color: #fff; font-weight: 700; cursor: pointer;
+}
+#btnAiJenaClose:hover, #btnAiJenaClose:focus-visible { background: #991b1b; outline: 2px solid #fda4af; }
+html[data-theme="light"] #btnAiJenaClose { background: #fee2e2; color: #7f1d1d; border-color: #b91c1c; }
+.ai-jena-header-button.ai-jena-lemonade-button {
+    background: linear-gradient(135deg, #fdba74, #fb923c); color: #431407; border: 1px solid #f97316;
+}
+.ai-jena-header-button.ai-jena-lemonade-button:hover,
+.ai-jena-header-button.ai-jena-lemonade-button:focus-visible { outline: 2px solid #f97316; }
+html[data-theme="light"] .ai-jena-header-button.ai-jena-lemonade-button { color: #431407; }

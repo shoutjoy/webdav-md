@@ -158,7 +158,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260914-serpapi-vault-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?v=20261023-original-native-1&reasoning=20261022-3',
+    aiChat: './AI_App/aiChat/ai-chat.js?imageQuality=20261027-2&v=20261026-image-actions-1&llamacpp=20261026-1&reasoning=20261022-3',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20261022-document-theme-1'
@@ -1588,6 +1588,7 @@ const OPENAI_COMPATIBLE_DEFAULTS = Object.freeze({
 });
 const LEMONADE_DEFAULT_BASE_URL = 'http://localhost:13305/api/v1';
 const OPENAI_COMPATIBLE_PROVIDER_URLS = Object.freeze({
+    llamacpp: 'http://127.0.0.1:8080/v1',
     orcarouter: 'https://api.orcarouter.ai/v1',
     'openai-compatible': 'https://api.orcarouter.ai/v1',
     openrouter: 'https://openrouter.ai/api/v1',
@@ -1633,6 +1634,7 @@ function findCachedLemonadeModel(modelId) {
 
 function isLemonadeConnection(connection) {
     const provider = String(connection && connection.provider || localStorage.getItem('ss_openai_compatible_provider') || '').toLowerCase();
+    if (provider === 'llamacpp') return false;
     if (provider === 'lemonade') return true;
     try {
         const url = new URL(String(connection && connection.baseUrl || ''));
@@ -1648,13 +1650,19 @@ function openAICompatibleRequestUrl(connection, path) {
     return String(baseUrl || '').replace(/\/+$/, '') + '/' + String(path || '').replace(/^\/+/, '');
 }
 
-function normalizeOpenAICompatibleBaseUrl(value) {
-    const raw = String(value || '').trim() || OPENAI_COMPATIBLE_DEFAULTS.baseUrl;
+function normalizeOpenAICompatibleBaseUrl(value, providerId) {
+    let raw = String(value || '').trim() || OPENAI_COMPATIBLE_PROVIDER_URLS[providerId] || OPENAI_COMPATIBLE_DEFAULTS.baseUrl;
+    if (providerId === 'llamacpp' && !/^[a-z][a-z0-9+.-]*:\/\//i.test(raw)) raw = 'http://' + raw;
     let parsed;
     try { parsed = new URL(raw); } catch (_) { throw new Error('Base URL 형식이 올바르지 않습니다.'); }
     if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') throw new Error('Base URL은 http:// 또는 https:// 주소여야 합니다.');
     parsed.hash = '';
     parsed.search = '';
+    if (providerId === 'llamacpp') {
+        let path = parsed.pathname.replace(/\/+$/, '').replace(/\/(?:chat\/completions|models)$/i, '');
+        if (!/\/v1$/i.test(path)) path += '/v1';
+        parsed.pathname = path;
+    }
     return parsed.toString().replace(/\/+$/, '');
 }
 
@@ -1663,7 +1671,7 @@ function validateOpenAICompatibleBaseUrlUI() {
     const feedback = document.getElementById('openai-compatible-base-url-feedback');
     if (!input || !feedback) return false;
     try {
-        normalizeOpenAICompatibleBaseUrl(input.value);
+        normalizeOpenAICompatibleBaseUrl(input.value, document.getElementById('openai-compatible-provider')?.value);
         feedback.textContent = 'OpenAI 호환 API 주소를 사용할 수 있습니다.';
         feedback.className = 'text-[11px] min-h-[1rem] text-green-600 dark:text-green-400';
         return true;
@@ -1681,6 +1689,12 @@ function applyOpenAICompatibleProviderPreset() {
     baseUrl.value = OPENAI_COMPATIBLE_PROVIDER_URLS[provider.value] || OPENAI_COMPATIBLE_DEFAULTS.baseUrl;
     const apiKey = document.getElementById('openai-compatible-api-key');
     const modelId = document.getElementById('openai-compatible-model-id');
+    const id = provider.value;
+    baseUrl.value = localStorage.getItem('ss_openai_compatible_base_url_' + id) || baseUrl.value;
+    if (apiKey) apiKey.value = localStorage.getItem('ss_openai_compatible_api_key_' + id) || '';
+    if (modelId) modelId.value = localStorage.getItem('ss_openai_compatible_model_id_' + id) || (id === 'orcarouter' ? OPENAI_COMPATIBLE_DEFAULTS.modelId : '');
+    openAICompatibleModels = readOpenAICompatibleModelsCache(baseUrl.value);
+    renderOpenAICompatibleModelMenu(openAICompatibleModels);
     validateOpenAICompatibleBaseUrlUI();
 }
 
@@ -1806,9 +1820,11 @@ function prioritizeInstalledLemonadeModels(models, currentModel) {
         : records;
 }
 
-function readOpenAICompatibleModelsCache() {
+function readOpenAICompatibleModelsCache(baseUrl) {
     const source = String(localStorage.getItem(OPENAI_COMPATIBLE_MODELS_SOURCE_KEY) || '');
-    if (source !== OPENAI_COMPATIBLE_DEFAULTS.baseUrl) return [];
+    const selected = document.getElementById('openai-compatible-provider')?.value;
+    const expected = baseUrl || (selected ? document.getElementById('openai-compatible-base-url')?.value : '') || localStorage.getItem('ss_openai_compatible_base_url') || OPENAI_COMPATIBLE_DEFAULTS.baseUrl;
+    if (source !== expected) return [];
     try { return normalizeOpenAICompatibleModels(JSON.parse(localStorage.getItem(OPENAI_COMPATIBLE_MODELS_KEY) || '[]')); }
     catch (_) { return []; }
 }
@@ -1827,7 +1843,8 @@ function renderOpenAICompatibleModelMenu(models) {
     const freeOnly = document.getElementById('openai-compatible-free-models-only');
     if (!menu) return [];
     const source = normalizeOpenAICompatibleModels(models);
-    const visible = freeOnly && freeOnly.checked ? source.filter(isOpenAICompatibleFreeModel) : source;
+    const llamaCpp = document.getElementById('openai-compatible-provider')?.value === 'llamacpp';
+    const visible = !llamaCpp && freeOnly && freeOnly.checked ? source.filter(isOpenAICompatibleFreeModel) : source;
     menu.innerHTML = '';
     if (!visible.length) {
         const empty = document.createElement('div');
@@ -1862,9 +1879,9 @@ function getAIChatOpenAICompatibleModelIds(providerHint) {
     try {
         models = lemonade
             ? normalizeOpenAICompatibleModels(JSON.parse(localStorage.getItem(LEMONADE_MODELS_KEY) || '[]'))
-            : readOpenAICompatibleModelsCache();
+            : readOpenAICompatibleModelsCache(localStorage.getItem('ss_openai_compatible_base_url') || OPENAI_COMPATIBLE_DEFAULTS.baseUrl);
     } catch (_) {}
-    if (!lemonade && localStorage.getItem(OPENAI_COMPATIBLE_FREE_ONLY_KEY) !== '0') {
+    if (!lemonade && localStorage.getItem('ss_openai_compatible_provider') !== 'llamacpp' && localStorage.getItem(OPENAI_COMPATIBLE_FREE_ONLY_KEY) !== '0') {
         models = models.filter(isOpenAICompatibleFreeModel);
     }
     return models.map(function (item) { return item.id; });
@@ -1883,25 +1900,30 @@ function getOpenAICompatibleFormConnection() {
     const modelId = document.getElementById('openai-compatible-model-id');
     const providerId = String(provider && provider.value || OPENAI_COMPATIBLE_DEFAULTS.provider);
     const key = String(apiKey && apiKey.value || '').trim();
-    if (!key) throw new Error('OrcaRouter API Key를 먼저 입력하세요.');
+    if (!key && providerId !== 'llamacpp') throw new Error('API Key를 먼저 입력하세요.');
     return {
         provider: providerId,
-        baseUrl: normalizeOpenAICompatibleBaseUrl(baseUrl && baseUrl.value),
+        baseUrl: normalizeOpenAICompatibleBaseUrl(baseUrl && baseUrl.value, providerId),
         apiKey: key,
         modelId: String(modelId && modelId.value || '').trim()
     };
 }
 
-function getStoredOpenAICompatibleConnection() {
-    const provider = OPENAI_COMPATIBLE_DEFAULTS.provider;
-    const legacyIsOrcaRouter = localStorage.getItem('ss_openai_compatible_provider') !== 'lemonade';
-    const key = String(localStorage.getItem('ss_openai_compatible_api_key_orcarouter') || (legacyIsOrcaRouter ? localStorage.getItem('ss_openai_compatible_api_key') : '') || '').trim();
-    if (!key) throw new Error('OrcaRouter / OpenAI 호환 API Key가 없습니다. 설정에서 API Key를 저장하세요.');
+function getStoredOpenAICompatibleConnection(providerOverride) {
+    let provider = providerOverride || localStorage.getItem('ss_openai_compatible_provider') || OPENAI_COMPATIBLE_DEFAULTS.provider;
+    if (provider === 'lemonade') provider = OPENAI_COMPATIBLE_DEFAULTS.provider;
+    const legacy = provider !== 'llamacpp' && provider === (localStorage.getItem('ss_openai_compatible_provider') || 'orcarouter');
+    const read = function (field) {
+        return localStorage.getItem('ss_openai_compatible_' + field + '_' + provider)
+            ?? (legacy ? localStorage.getItem('ss_openai_compatible_' + field) : null) ?? '';
+    };
+    const key = String(read('api_key')).trim();
+    if (!key && provider !== 'llamacpp') throw new Error('OpenAI 호환 API Key가 없습니다. 설정에서 API Key를 저장하세요.');
     return {
         provider: provider,
-        baseUrl: normalizeOpenAICompatibleBaseUrl(localStorage.getItem('ss_openai_compatible_base_url_orcarouter') || (legacyIsOrcaRouter ? localStorage.getItem('ss_openai_compatible_base_url') : '') || OPENAI_COMPATIBLE_DEFAULTS.baseUrl),
+        baseUrl: normalizeOpenAICompatibleBaseUrl(read('base_url') || OPENAI_COMPATIBLE_PROVIDER_URLS[provider], provider),
         apiKey: key,
-        modelId: String(localStorage.getItem('ss_openai_compatible_model_id_orcarouter') || (legacyIsOrcaRouter ? localStorage.getItem('ss_openai_compatible_model_id') : '') || OPENAI_COMPATIBLE_DEFAULTS.modelId).trim()
+        modelId: String(read('model_id') || (provider === 'orcarouter' ? OPENAI_COMPATIBLE_DEFAULTS.modelId : '')).trim()
     };
 }
 
@@ -1922,29 +1944,77 @@ function getStoredLemonadeConnection() {
     };
 }
 
+function getLemonadeImageSettings(modelId, overrides) {
+    const model = String(modelId || '');
+    const record = findCachedLemonadeModel(model) || {};
+    const defaults = record.image_defaults || {};
+    const flux = /flux/i.test(model);
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem('ss_ai_chat_lemonade_image_v1:' + model) || '{}') || {}; } catch (_) {}
+    // Migrate the old provider-wide settings only to their previously selected model.
+    const legacyOwnerKey = 'ss_lemonade_image_legacy_model_v1';
+    let legacyModel = localStorage.getItem(legacyOwnerKey);
+    if (legacyModel == null) {
+        legacyModel = localStorage.getItem('ss_openai_compatible_model_id_lemonade') || LEMONADE_DEFAULT_MODEL;
+        localStorage.setItem(legacyOwnerKey, legacyModel);
+    }
+    const legacy = {};
+    if (model === legacyModel && !localStorage.getItem('ss_ai_chat_lemonade_image_v1:' + model)) {
+        const size = String(localStorage.getItem('ss_lemonade_image_size') || '').match(/^(\d+)x(\d+)$/);
+        if (size) { legacy.width = Number(size[1]); legacy.height = Number(size[2]); }
+        if (localStorage.getItem('ss_lemonade_image_steps') != null) legacy.steps = localStorage.getItem('ss_lemonade_image_steps');
+        if (localStorage.getItem('ss_lemonade_image_cfg_scale') != null) legacy.cfgScale = localStorage.getItem('ss_lemonade_image_cfg_scale');
+    }
+    const input = Object.assign({}, legacy, saved, overrides || {});
+    const number = (key, fallback, min, max, step) => {
+        const value = input[key] === '' || input[key] == null ? fallback : Number(input[key]);
+        return Math.max(min, Math.min(max, Math.round((Number.isFinite(value) ? value : fallback) / step) * step));
+    };
+    const normalized = {
+        // Klein needs native detail; a server's 256px low-memory default is a draft.
+        width: number('width', flux ? 1024 : (Number(defaults.width) || 512), 256, 1536, 64),
+        height: number('height', flux ? 1024 : (Number(defaults.height) || 512), 256, 1536, 64),
+        steps: number('steps', Number(defaults.steps) || (flux && /base/i.test(model) ? 20 : 4), 1, 50, 1),
+        cfgScale: Number(number('cfgScale', Number(defaults.cfg_scale) || (flux && /base/i.test(model) ? 4 : 1), 0, 15, 0.1).toFixed(1)),
+        seed: number('seed', -1, -1, 2147483647, 1)
+    };
+    if (Object.keys(legacy).length) localStorage.setItem('ss_ai_chat_lemonade_image_v1:' + model, JSON.stringify(normalized));
+    return normalized;
+}
+
+function saveLemonadeImageSettings(modelId, settings) {
+    const normalized = getLemonadeImageSettings(modelId, settings);
+    localStorage.setItem('ss_ai_chat_lemonade_image_v1:' + String(modelId || ''), JSON.stringify(normalized));
+    return normalized;
+}
+
 async function generateLemonadeImage(connection, model, messages, signal) {
+    const imageSettings = getLemonadeImageSettings(model);
     const latest = (Array.isArray(messages) ? messages : []).slice().reverse().find(function (message) {
         return message && message.role === 'user' && String(message.content || '').trim();
     });
     const prompt = String(latest && latest.content || '').trim();
     if (!prompt) throw new Error('생성할 이미지를 설명하세요.');
-    const source = latest && Array.isArray(latest.attachments)
-        ? latest.attachments.find(function (item) { return item && item.kind === 'image' && /^data:image\//i.test(String(item.dataUrl || '')); })
-        : null;
+    const sources = latest && Array.isArray(latest.attachments)
+        ? latest.attachments.filter(function (item) { return item && item.kind === 'image'; })
+        : [];
     let response;
-    if (source) {
-        const match = String(source.dataUrl).match(/^data:([^;,]+);base64,(.+)$/i);
-        if (!match) throw new Error('Lemonade 편집에 사용할 이미지 형식이 올바르지 않습니다.');
-        const bytes = Uint8Array.from(atob(match[2]), function (char) { return char.charCodeAt(0); });
+    if (sources.length) {
         const form = new FormData();
         form.append('model', model);
         form.append('prompt', prompt);
-        form.append('size', connection.imageSize || '512x512');
+        form.append('size', imageSettings.width + 'x' + imageSettings.height);
         form.append('n', '1');
-        form.append('steps', String(connection.imageSteps || 4));
-        form.append('cfg_scale', String(connection.imageCfgScale == null ? 1 : connection.imageCfgScale));
+        form.append('seed', String(imageSettings.seed));
+        form.append('steps', String(imageSettings.steps));
+        form.append('cfg_scale', String(imageSettings.cfgScale));
         form.append('response_format', 'b64_json');
-        form.append('image', new Blob([bytes], { type: match[1] || source.type || 'image/png' }), source.name || 'ai-jena-edit-source.png');
+        sources.forEach(function (source) {
+            const match = String(source.dataUrl || '').match(/^data:(image\/[^;,]+);base64,(.+)$/i);
+            if (!match) throw new Error('Lemonade 참조 이미지 데이터를 읽을 수 없습니다. 이미지를 다시 첨부하세요.');
+            const bytes = Uint8Array.from(atob(match[2]), function (char) { return char.charCodeAt(0); });
+            form.append(sources.length > 1 ? 'image[]' : 'image', new Blob([bytes], { type: match[1] }), source.name || 'ai-jena-edit-source.png');
+        });
         response = await fetch(openAICompatibleRequestUrl(connection, 'images/edits'), {
             method: 'POST',
             headers: { Accept: 'application/json', Authorization: 'Bearer ' + connection.apiKey },
@@ -1954,14 +2024,15 @@ async function generateLemonadeImage(connection, model, messages, signal) {
     } else {
         response = await fetch(openAICompatibleRequestUrl(connection, 'images/generations'), {
             method: 'POST',
-            headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer ' + connection.apiKey },
+            headers: openAICompatibleHeaders(connection),
             body: JSON.stringify({
                 model: model,
                 prompt: prompt,
-                size: connection.imageSize || '512x512',
+                size: imageSettings.width + 'x' + imageSettings.height,
                 n: 1,
-                steps: connection.imageSteps || 4,
-                cfg_scale: connection.imageCfgScale == null ? 1 : connection.imageCfgScale,
+                seed: imageSettings.seed,
+                steps: imageSettings.steps,
+                cfg_scale: imageSettings.cfgScale,
                 response_format: 'b64_json'
             }),
             signal: signal
@@ -1974,7 +2045,7 @@ async function generateLemonadeImage(connection, model, messages, signal) {
         return data ? { mimeType: String(item && (item.mime_type || item.mimeType) || 'image/png'), data: data } : null;
     }).filter(Boolean);
     if (!images.length) throw new Error('Lemonade 이미지 응답에서 이미지 데이터를 찾지 못했습니다.');
-    return { provider: 'lemonade', model: model, text: '요청한 이미지를 생성했습니다.', reasoning: '', images: images, finishReason: 'stop', usage: payload.usage || null };
+    return { provider: 'lemonade', model: model, text: '요청한 이미지를 생성했습니다.', reasoning: '', images: images, imageSettings: imageSettings, finishReason: 'stop', usage: payload.usage || null };
 }
 
 function lemonadeImageSizeForRatio(ratio, fallback) {
@@ -2020,7 +2091,7 @@ async function generateLemonadeSspImage(prompt, options, signal) {
     } else {
         response = await fetch(openAICompatibleRequestUrl(connection, 'images/generations'), {
             method: 'POST',
-            headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer ' + connection.apiKey },
+            headers: openAICompatibleHeaders(connection),
             body: JSON.stringify({ model: model, prompt: imagePrompt, size: size, n: 1, steps: connection.imageSteps || 4, cfg_scale: connection.imageCfgScale == null ? 1 : connection.imageCfgScale, response_format: 'b64_json' }),
             signal: signal
         });
@@ -2058,11 +2129,26 @@ async function manageOpenAICompatibleResidency(connection, model, enabled, signa
     return { loaded: !!current, pinned: !!(current && current.pinned), model: model };
 }
 
-async function fetchOpenAICompatibleModels(connection) {
+function openAICompatibleHeaders(connection, accept) {
+    const headers = { Accept: accept || 'application/json', 'Content-Type': 'application/json' };
+    if (connection.apiKey) headers.Authorization = 'Bearer ' + connection.apiKey;
+    return headers;
+}
+
+async function resolveLlamaCppModel(connection, signal) {
+    if (connection.provider !== 'llamacpp' || connection.modelId) return connection.modelId;
+    const ids = await fetchOpenAICompatibleModels(connection, signal);
+    if (!ids.length) throw new Error('llama.cpp 서버에 사용 가능한 모델이 없습니다. 서버 모델 로드를 확인하세요.');
+    connection.modelId = ids[0];
+    return connection.modelId;
+}
+
+async function fetchOpenAICompatibleModels(connection, signal) {
     const active = connection || getStoredOpenAICompatibleConnection();
     const response = await fetch(openAICompatibleRequestUrl(active, 'models'), {
         method: 'GET',
-        headers: { Accept: 'application/json', Authorization: 'Bearer ' + active.apiKey }
+        headers: openAICompatibleHeaders(active),
+        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000)
     });
     if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
     const models = normalizeOpenAICompatibleModels(await response.json());
@@ -2097,7 +2183,7 @@ async function streamOpenAICompatibleChat(connection, body, signal, onStreamEven
     emit({ type: 'transport.start', provider: provider });
     const response = await fetch(openAICompatibleRequestUrl(connection, 'chat/completions'), {
         method: 'POST',
-        headers: { Accept: 'text/event-stream, application/json', 'Content-Type': 'application/json', Authorization: 'Bearer ' + connection.apiKey },
+        headers: openAICompatibleHeaders(connection, 'text/event-stream, application/json'),
         body: JSON.stringify(Object.assign({}, body, { stream: true, stream_options: { include_usage: true } })),
         signal: signal
     });
@@ -2223,10 +2309,11 @@ async function testOpenAICompatibleConnection() {
         if (button) button.disabled = true;
         setOpenAICompatibleStatus('선택 모델에 실제 응답을 요청하는 중...', '');
         const connection = getOpenAICompatibleFormConnection();
+        await resolveLlamaCppModel(connection);
         if (!connection.modelId) throw new Error('연결 테스트에 사용할 모델을 선택하세요.');
         const response = await fetch(openAICompatibleRequestUrl(connection, 'chat/completions'), {
             method: 'POST',
-            headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer ' + connection.apiKey },
+            headers: openAICompatibleHeaders(connection),
             body: JSON.stringify({ model: connection.modelId, messages: [{ role: 'user', content: 'Reply with OK only.' }], max_tokens: 8, stream: false })
         });
         if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
@@ -2260,18 +2347,26 @@ function loadOpenAICompatibleSettingsUI(settings) {
         provider.value = source.openaiCompatibleProvider || localStorage.getItem('ss_openai_compatible_provider') || OPENAI_COMPATIBLE_DEFAULTS.provider;
         if (provider.value === 'lemonade' || !provider.value) provider.value = OPENAI_COMPATIBLE_DEFAULTS.provider;
     }
-    if (baseUrl) baseUrl.value = source.openaiCompatibleBaseUrl || localStorage.getItem('ss_openai_compatible_base_url') || OPENAI_COMPATIBLE_DEFAULTS.baseUrl;
-    if (apiKey) apiKey.value = source.openaiCompatibleApiKey || localStorage.getItem('ss_openai_compatible_api_key') || '';
-    if (modelId) modelId.value = source.openaiCompatibleModelId || localStorage.getItem('ss_openai_compatible_model_id') || OPENAI_COMPATIBLE_DEFAULTS.modelId;
-    if (!provider || provider.value !== 'lemonade') {
-        if (baseUrl) localStorage.setItem('ss_openai_compatible_base_url_orcarouter', baseUrl.value);
-        if (apiKey && apiKey.value.trim()) localStorage.setItem('ss_openai_compatible_api_key_orcarouter', apiKey.value.trim());
+    const llamaCpp = provider && provider.value === 'llamacpp';
+    if (llamaCpp) {
+        if (baseUrl) baseUrl.value = localStorage.getItem('ss_openai_compatible_base_url_llamacpp') || source.openaiCompatibleBaseUrl || OPENAI_COMPATIBLE_PROVIDER_URLS.llamacpp;
+        if (apiKey) apiKey.value = localStorage.getItem('ss_openai_compatible_api_key_llamacpp') ?? '';
+        if (modelId) modelId.value = localStorage.getItem('ss_openai_compatible_model_id_llamacpp') ?? '';
+    } else {
+        if (baseUrl) baseUrl.value = source.openaiCompatibleBaseUrl || localStorage.getItem('ss_openai_compatible_base_url') || OPENAI_COMPATIBLE_DEFAULTS.baseUrl;
+        if (apiKey) apiKey.value = source.openaiCompatibleApiKey || localStorage.getItem('ss_openai_compatible_api_key') || '';
+        if (modelId) modelId.value = source.openaiCompatibleModelId || localStorage.getItem('ss_openai_compatible_model_id') || OPENAI_COMPATIBLE_DEFAULTS.modelId;
+    }
+    if (!llamaCpp && (!provider || provider.value !== 'lemonade')) {
+        const providerId = provider && provider.value || OPENAI_COMPATIBLE_DEFAULTS.provider;
+        if (baseUrl) localStorage.setItem('ss_openai_compatible_base_url_' + providerId, baseUrl.value);
+        if (apiKey && apiKey.value.trim()) localStorage.setItem('ss_openai_compatible_api_key_' + providerId, apiKey.value.trim());
         if (modelId && modelId.value.trim()) {
-            localStorage.setItem('ss_openai_compatible_model_id_orcarouter', modelId.value.trim());
+            localStorage.setItem('ss_openai_compatible_model_id_' + providerId, modelId.value.trim());
             localStorage.setItem('ss_ai_chat_openai_compatible_model', modelId.value.trim());
         }
     }
-    if (localStorage.getItem('ss_orcarouter_lemonade_separation_revision') !== 'orcarouter-default-v4') {
+    if (!llamaCpp && localStorage.getItem('ss_orcarouter_lemonade_separation_revision') !== 'orcarouter-default-v4') {
         if (provider) provider.value = OPENAI_COMPATIBLE_DEFAULTS.provider;
         if (baseUrl) baseUrl.value = OPENAI_COMPATIBLE_DEFAULTS.baseUrl;
         localStorage.setItem('ss_openai_compatible_provider', OPENAI_COMPATIBLE_DEFAULTS.provider);
@@ -2303,28 +2398,37 @@ async function saveOpenAICompatibleSettings() {
     const modelId = document.getElementById('openai-compatible-model-id');
     const feedback = document.getElementById('openai-compatible-save-feedback');
     let normalizedBaseUrl;
-    try { normalizedBaseUrl = normalizeOpenAICompatibleBaseUrl(baseUrl && baseUrl.value); }
+    try { normalizedBaseUrl = normalizeOpenAICompatibleBaseUrl(baseUrl && baseUrl.value, provider && provider.value); }
     catch (error) { validateOpenAICompatibleBaseUrlUI(); showToast(error.message); return; }
     const data = {
         openaiCompatibleProvider: String(provider && provider.value || OPENAI_COMPATIBLE_DEFAULTS.provider),
         openaiCompatibleBaseUrl: normalizedBaseUrl,
         openaiCompatibleApiKey: String(apiKey && apiKey.value || '').trim(),
-        openaiCompatibleModelId: String(modelId && modelId.value || '').trim() || OPENAI_COMPATIBLE_DEFAULTS.modelId
+        openaiCompatibleModelId: String(modelId && modelId.value || '').trim() || (provider && provider.value === 'llamacpp' ? '' : OPENAI_COMPATIBLE_DEFAULTS.modelId)
     };
+    let discoveryError = '';
+    if (data.openaiCompatibleProvider === 'llamacpp' && !data.openaiCompatibleModelId) {
+        try {
+            data.openaiCompatibleModelId = await resolveLlamaCppModel({ provider: 'llamacpp', baseUrl: normalizedBaseUrl, apiKey: data.openaiCompatibleApiKey, modelId: '' });
+        } catch (error) { discoveryError = ' 모델 자동 조회 실패: ' + error.message + ' · 서버 주소·모델 로드·인증·CORS/HTTPS 설정을 확인하세요.'; }
+    }
     await setAiSettings(data);
+    localStorage.setItem('ss_ai_chat_provider', 'openai-compatible');
+    localStorage.setItem('ss_ai_chat_openai_compatible_provider', data.openaiCompatibleProvider);
+    localStorage.setItem('ss_orcarouter_lemonade_separation_revision', 'orcarouter-default-v4');
     localStorage.setItem('ss_openai_compatible_provider', data.openaiCompatibleProvider);
     localStorage.setItem('ss_openai_compatible_base_url', data.openaiCompatibleBaseUrl);
     localStorage.setItem('ss_openai_compatible_api_key', data.openaiCompatibleApiKey);
     localStorage.setItem('ss_openai_compatible_model_id', data.openaiCompatibleModelId);
     if (data.openaiCompatibleProvider !== 'lemonade') {
-        localStorage.setItem('ss_openai_compatible_base_url_orcarouter', data.openaiCompatibleBaseUrl);
-        localStorage.setItem('ss_openai_compatible_api_key_orcarouter', data.openaiCompatibleApiKey);
-        localStorage.setItem('ss_openai_compatible_model_id_orcarouter', data.openaiCompatibleModelId);
+        localStorage.setItem('ss_openai_compatible_base_url_' + data.openaiCompatibleProvider, data.openaiCompatibleBaseUrl);
+        localStorage.setItem('ss_openai_compatible_api_key_' + data.openaiCompatibleProvider, data.openaiCompatibleApiKey);
+        localStorage.setItem('ss_openai_compatible_model_id_' + data.openaiCompatibleProvider, data.openaiCompatibleModelId);
     }
     localStorage.setItem('ss_ai_chat_openai_compatible_model', data.openaiCompatibleModelId);
     if (baseUrl) baseUrl.value = data.openaiCompatibleBaseUrl;
     if (modelId) modelId.value = data.openaiCompatibleModelId;
-    if (feedback) feedback.textContent = '저장되었습니다. 외부 AI 앱에서 이 구성을 사용할 수 있습니다.';
+    if (feedback) feedback.textContent = '저장되었습니다. AI Jena에서 이 구성을 사용할 수 있습니다.' + discoveryError;
     if (window.AIChat && typeof window.AIChat.syncSettings === 'function') window.AIChat.syncSettings();
     showToast('OpenAI 호환 API 설정을 저장했습니다.');
 }
@@ -2368,8 +2472,8 @@ function getLemonadeFormConnection() {
         topP: Math.max(0, Math.min(1, Number(value('lemonade-top-p')) || 0.9)),
         timeoutSeconds: Math.max(30, Math.min(3600, Math.round(Number(value('lemonade-timeout-seconds')) || 580))),
         imageSize: String(value('lemonade-image-size') || '512x512'),
-        imageSteps: Math.max(1, Math.min(100, Math.round(Number(value('lemonade-image-steps')) || 4))),
-        imageCfgScale: Math.max(0, Math.min(30, Number(value('lemonade-image-cfg-scale')) || 1))
+        imageSteps: getLemonadeImageSettings(value('lemonade-model-id'), { steps: value('lemonade-image-steps') }).steps,
+        imageCfgScale: getLemonadeImageSettings(value('lemonade-model-id'), { cfgScale: value('lemonade-image-cfg-scale') }).cfgScale
     };
 }
 
@@ -2388,10 +2492,27 @@ function loadLemonadeSettingsUI() {
         'lemonade-image-cfg-scale': localStorage.getItem('ss_lemonade_image_cfg_scale') || '1'
     };
     Object.keys(values).forEach(function (id) { const node = document.getElementById(id); if (node) node.value = values[id]; });
+    syncLemonadeImageSettingsUI();
+    const modelInput = document.getElementById('lemonade-model-id');
+    if (modelInput && !modelInput.dataset.imageQualityBound) {
+        modelInput.dataset.imageQualityBound = '1';
+        modelInput.addEventListener('change', syncLemonadeImageSettingsUI);
+    }
     renderLemonadeModels(readCachedLemonadeModelRecords());
     // Refresh on settings initialization so ENV and AI Jena do not depend on
     // a manual "모델 확인" click before showing installed models.
     checkLemonadeModels().catch(function () {});
+}
+
+function syncLemonadeImageSettingsUI() {
+    const model = document.getElementById('lemonade-model-id');
+    if (!model) return;
+    const settings = getLemonadeImageSettings(model.value);
+    const size = document.getElementById('lemonade-image-size');
+    const value = settings.width + 'x' + settings.height;
+    if (size && !Array.from(size.options).some(option => option.value === value)) size.add(new Option(value, value));
+    const values = { 'lemonade-image-size': value, 'lemonade-image-steps': settings.steps, 'lemonade-image-cfg-scale': settings.cfgScale, 'lemonade-image-seed': settings.seed };
+    Object.keys(values).forEach(id => { const node = document.getElementById(id); if (node) node.value = values[id]; });
 }
 
 function renderLemonadeModels(models) {
@@ -2422,8 +2543,9 @@ async function checkLemonadeModels() {
         renderLemonadeModels(models);
         const modelInput = document.getElementById('lemonade-model-id');
         const preferredModel = preferredInstalledLemonadeModelId(models, modelInput && modelInput.value);
-        if (modelInput && preferredModel && !models.some(function (item) { return item.id === modelInput.value; })) modelInput.value = preferredModel;
+        if (modelInput && preferredModel && !models.some(function (item) { return item.id === modelInput.value; })) { modelInput.value = preferredModel; syncLemonadeImageSettingsUI(); }
         setLemonadeStatus('연결됨 · 모델 ' + models.length + '개 확인', 'ok');
+        if (window.AIChat && typeof window.AIChat.syncSettings === 'function') window.AIChat.syncSettings();
         return models;
     } catch (error) {
         setLemonadeStatus('모델 확인 실패: ' + String(error && error.message || error), 'error');
@@ -2433,6 +2555,11 @@ async function checkLemonadeModels() {
 
 async function saveLemonadeSettings() {
     const connection = getLemonadeFormConnection();
+    saveLemonadeImageSettings(connection.modelId, {
+        width: connection.imageSize.split('x')[0], height: connection.imageSize.split('x')[1],
+        steps: connection.imageSteps, cfgScale: document.getElementById('lemonade-image-cfg-scale').value,
+        seed: document.getElementById('lemonade-image-seed').value
+    });
     const fields = { base_url: connection.baseUrl, api_key: 'lemonade', model_id: connection.modelId, context_tokens: connection.contextTokens, max_output_tokens: connection.maxOutputTokens, temperature: connection.temperature, top_p: connection.topP, timeout_seconds: connection.timeoutSeconds };
     Object.keys(fields).forEach(function (name) { localStorage.setItem('ss_openai_compatible_' + name + '_lemonade', String(fields[name])); });
     localStorage.setItem('ss_lemonade_image_size', connection.imageSize);
@@ -2450,7 +2577,7 @@ async function loadLemonadeModel() {
         setLemonadeStatus(connection.modelId + ' 모델을 Load하는 중...', '');
         const imageModel = isLemonadeImageModel(findCachedLemonadeModel(connection.modelId));
         const loadOptions = imageModel
-            ? { model_name: connection.modelId, width: Number(connection.imageSize.split('x')[0]) || 512, height: Number(connection.imageSize.split('x')[1]) || 512, steps: connection.imageSteps, cfg_scale: connection.imageCfgScale, save_options: true }
+            ? { model_name: connection.modelId, save_options: false }
             : { model_name: connection.modelId, ctx_size: connection.contextTokens, save_options: true };
         const response = await fetch(openAICompatibleRequestUrl(connection, 'load'), { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer lemonade' }, body: JSON.stringify(loadOptions) });
         if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
@@ -10720,6 +10847,7 @@ function confirmModalInsert() {
         const inserted = window.LinkImageModal.confirm({
             inputModal: inputModal,
             editorTextarea: editorTextarea,
+            replaceSelectionText: replaceEditorSelectionText,
             getMode: function () { return modalMode; },
             showToast: showToast,
             onInserted: function (value) { currentMarkdown = value; }
@@ -18891,6 +19019,23 @@ function normalizeAIChatMessages(messages) {
     });
 }
 
+function aiChatMessagesWithImageContent(messages) {
+    return messages.map(function (message) {
+        const images = (message.attachments || []).filter(function (item) { return item && item.kind === 'image'; });
+        if (images.some(function (item) { return !/^data:image\/[^;,]+;base64,[A-Za-z0-9+/=\s]+$/i.test(String(item.dataUrl || '')); })) {
+            throw new Error('첨부 이미지 데이터를 찾을 수 없거나 읽을 수 없습니다. 이미지를 다시 첨부해 주세요.');
+        }
+        return {
+            role: message.role,
+            content: images.length
+                ? [{ type: 'text', text: String(message.content || '') }].concat(images.map(function (image) {
+                    return { type: 'image_url', image_url: { url: image.dataUrl } };
+                }))
+                : String(message.content || '')
+        };
+    });
+}
+
 function getAIChatLMContextLength(synced) {
     const models = synced && Array.isArray(synced.models) ? synced.models : [];
     const selected = models.find(function (item) { return item && item.id === synced.model; }) || models[0];
@@ -18921,7 +19066,7 @@ function clipAIChatHistoryMessage(message, tokenBudget) {
     const label = message && message.role === 'assistant' ? 'AI: ' : '사용자: ';
     if (!original || tokenBudget < 48) return null;
     if (estimateAIChatTokens(label + original) <= tokenBudget) {
-        return { role: message.role, content: original };
+        return Object.assign({}, message, { content: original });
     }
     const suffix = '\n\n[이전 메시지의 나머지 내용은 컨텍스트 한도에 맞춰 생략됨]';
     let low = 1;
@@ -18937,7 +19082,7 @@ function clipAIChatHistoryMessage(message, tokenBudget) {
             high = middle - 1;
         }
     }
-    return best ? { role: message.role, content: best } : null;
+    return best ? Object.assign({}, message, { content: best }) : null;
 }
 
 function retainAIChatHistory(messages, tokenBudget) {
@@ -20290,7 +20435,8 @@ window.AIChatBridge = Object.freeze({
     },
     getCachedOpenAICompatibleModels: function () {
         const models = getAIChatOpenAICompatibleModelIds('openai-compatible');
-        const selected = String(localStorage.getItem('ss_openai_compatible_model_id_orcarouter') || '').trim();
+        const selected = getStoredOpenAICompatibleConnection().modelId;
+        if (localStorage.getItem('ss_openai_compatible_provider') === 'llamacpp') return Array.from(new Set(models.concat(selected ? [selected] : [])));
         const includeSelected = localStorage.getItem(OPENAI_COMPATIBLE_FREE_ONLY_KEY) === '0'
             || isOpenAICompatibleFreeModel(selected);
         return Array.from(new Set(models.concat(includeSelected && selected ? [selected] : []).filter(Boolean)));
@@ -20299,7 +20445,10 @@ window.AIChatBridge = Object.freeze({
         await fetchOpenAICompatibleModels(getStoredOpenAICompatibleConnection());
         return getAIChatOpenAICompatibleModelIds('openai-compatible');
     },
+    getLemonadeImageSettings: getLemonadeImageSettings,
+    saveLemonadeImageSettings: saveLemonadeImageSettings,
     getCachedLemonadeModels: function () {
+        getLemonadeImageSettings(localStorage.getItem('ss_openai_compatible_model_id_lemonade') || LEMONADE_DEFAULT_MODEL);
         const records = getAIChatLemonadeModelRecords();
         const selected = String(localStorage.getItem('ss_ai_chat_lemonade_model') || localStorage.getItem('ss_openai_compatible_model_id_lemonade') || LEMONADE_DEFAULT_MODEL).trim();
         return prioritizeInstalledLemonadeModels(records, selected).map(function (item) { return item.id; });
@@ -20326,7 +20475,7 @@ window.AIChatBridge = Object.freeze({
         if (!selectedModel) throw new Error('Lemonade 모델을 선택하세요.');
         const imageModel = isLemonadeImageModel(findCachedLemonadeModel(selectedModel));
         const loadBody = imageModel
-            ? { model_name: selectedModel, width: Number(String(connection.imageSize || '').split('x')[0]) || 512, height: Number(String(connection.imageSize || '').split('x')[1]) || 512, steps: connection.imageSteps, cfg_scale: connection.imageCfgScale, save_options: true }
+            ? { model_name: selectedModel, save_options: false }
             : { model_name: selectedModel, ctx_size: connection.contextTokens, save_options: true };
         const response = await fetch(openAICompatibleRequestUrl(connection, 'load'), {
             method: 'POST',
@@ -20424,12 +20573,23 @@ window.AIChatBridge = Object.freeze({
         const controller = new AbortController();
         aiChatAbortController = controller;
         try {
+            const hasImages = (request.messages || []).some(function (message) {
+                return (message.attachments || []).some(function (item) { return item && item.kind === 'image'; });
+            });
+            if (hasImages) {
+                // Validate before any provider can silently fall back to text-only input.
+                aiChatMessagesWithImageContent(normalizeAIChatMessages(request.messages));
+                if (['lmstudio', 'ollama', 'ollama-npu', 'litertlm', 'deepseek'].includes(request.provider)) {
+                    return await completeLocalImageToolRequest(request, controller.signal);
+                }
+            }
             if (request.provider === 'ollama-npu') {
                 return await callNPUChat(request, controller.signal);
             }
             if (request.provider === 'openai-compatible' || request.provider === 'lemonade') {
                 const lemonade = request.provider === 'lemonade';
                 const connection = lemonade ? getStoredLemonadeConnection() : getStoredOpenAICompatibleConnection();
+                await resolveLlamaCppModel(connection, controller.signal);
                 const model = String(request.model || connection.modelId || '').trim();
                 if (!model) throw new Error(lemonade ? 'Lemonade 모델을 선택하세요.' : 'OrcaRouter / OpenAI 호환 모델을 선택하세요.');
                 if (lemonade && isLemonadeImageModel(findCachedLemonadeModel(model))) {
@@ -20464,7 +20624,7 @@ window.AIChatBridge = Object.freeze({
                 }
                 const requestBody = {
                     model: model,
-                    messages: messages,
+                    messages: aiChatMessagesWithImageContent(messages),
                     temperature: lemonade ? connection.temperature : undefined,
                     top_p: lemonade ? connection.topP : undefined
                 };
@@ -20480,7 +20640,7 @@ window.AIChatBridge = Object.freeze({
                 }
                 const response = await fetch(openAICompatibleRequestUrl(connection, 'chat/completions'), {
                     method: 'POST',
-                    headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer ' + connection.apiKey },
+                    headers: openAICompatibleHeaders(connection),
                     body: JSON.stringify(Object.assign({}, requestBody, { stream: false })),
                     signal: controller.signal
                 });
@@ -21635,6 +21795,8 @@ async function initAiVisibility() {
 }
 
 function openSettingsModal() {
+    const compatibleApiKeyDetails = document.getElementById('openai-compatible-api-key-details');
+    if (compatibleApiKeyDetails) compatibleApiKeyDetails.open = false;
     ensureInDbStatusUi();
     applyHeaderFileActionStyle(getHeaderFileActionStyle(), false);
     applyHeaderFeatureKeyStyle(getHeaderFeatureKeyStyle(), false);
