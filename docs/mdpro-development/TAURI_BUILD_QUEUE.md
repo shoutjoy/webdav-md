@@ -6,6 +6,7 @@
 
 | ID | 적용 항목 | 대상 웹 소스 | 웹 검증 | 프런트엔드 준비 | 네이티브 빌드 | 설치 앱 검증 |
 | --- | --- | --- | --- | --- | --- | --- |
+| MDPRO-20261029-SITES-INFOGRAPHIC | [Sites 인포그래픽 링크](changes/2026-10-29-sites-infographic-link.md) | 대상 Sites 경로 확인 필요·미이식 | WebDAV 2개 검사·빌드 통과, 실제 UI 미검증 | 미실행 | 미실행 | 미실행 |
 | MDPRO-20261027-JENA-FACE-LAYOUT | [얼굴 유지 위치 정리](changes/2026-10-27-jena-face-toggle-layout.md) | 대상 얼굴 유지·고유 생성 버튼・한 줄 CSS 대응 필요·미이식 | WebDAV 29개·빌드 통과, 실제 UI 미검증 | 미실행 | 미실행 | 미실행 |
 | MDPRO-20261027-DOCX-BOLD-MATH | [DOCX 수식 볼드](changes/2026-10-27-docx-bold-math.md) | 대상 OMML·파서·로더 적응 필요·미이식 | WebDAV 32개·빌드·DOCX XML 확인, Word 미검증 | 미실행 | 미실행 | 미실행 |
 | MDPRO-20261027-JENA-IMAGE-UI | [AI Jena 이미지 설정 UI](changes/2026-10-27-jena-image-settings-ui.md) | compatible-generation 클래스 적응 필요·미이식 | WebDAV 29개·빌드·Edge 도킹 확인 | 미실행 | 미실행 | 미실행 |

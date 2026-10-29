@@ -19,7 +19,7 @@
     let editingPreferencesSiteIndex = -1;
 
     const INFOGRAPHIC_BATCH_SITE_NAME = '인포그래픽 일괄작업';
-    const INFOGRAPHIC_BATCH_SITE_URL = 'https://share.gemini.google/c9j7dKVXR5Ay';
+    const INFOGRAPHIC_BATCH_SITE_URL = 'https://share.gemini.google/gbLtf5UsOzKs';
     const TTS2AUDIO_SITE_NAME = 'TTS2Audio';
     const TTS2AUDIO_SITE_URL = 'https://gemini.google.com/share/c7f7b1435de1?social_preview=false&skid=5242d8f3-71ff-4c13-8894-5ae8d15b552f';
 

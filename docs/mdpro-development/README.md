@@ -33,6 +33,7 @@ WebDAV MDpro와 MDproViewer의 기능 개발, 버그 수정, 리팩터링, 이�
 
 | ID | 기술문서 | 원본 구현 | 상대 앱 적용 | Tauri |
 | --- | --- | --- | --- | --- |
+| MDPRO-20261029-SITES-INFOGRAPHIC | [Sites 인포그래픽 링크](changes/2026-10-29-sites-infographic-link.md) | URL·캐시 갱신·2개 검사·빌드 통과, UI 미검증 | 대상 확인 필요·미이식 | 웹 이식 후 반영 대기 |
 | MDPRO-20261027-LEMONADE-DIAG | [Lemonade 연결·추론 지연 진단](changes/2026-10-27-lemonade-performance-diagnosis.md) | GPU PC 참고 측정·코드 미수정, 실제 대상인 별도 NPU 컴퓨터 미점검 | NPU/추론 경로 읽기 비교·미수정 | 자산 변경 없음·빌드 불필요 |
 | MDPRO-20261027-JENA-FACE-LAYOUT | [얼굴 유지 위치 정리](changes/2026-10-27-jena-face-toggle-layout.md) | 안내 제거·파일부터 선택 가져오기 한 줄·29개 검사·빌드 통과, 실제 UI 미검증 | 대상 버튼·기능·CSS 차이 확인·미이식 | 웹 이식 후 반영 대기 |
 | MDPRO-20261027-DOCX-BOLD-MATH | [DOCX 볼드 안 수식·특수문자](changes/2026-10-27-docx-bold-math.md) | 구현·32개 검사·빌드·실제 DOCX XML 확인, Word 미검증 | 대상 OMML 차이 확인·미이식 | 웹 이식 후 반영 대기 |
