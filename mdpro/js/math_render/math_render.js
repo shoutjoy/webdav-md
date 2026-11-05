@@ -13,7 +13,7 @@
         }
     };
 
-    var DEFAULT_SCRIPT_URL = 'js/math_render/math_render.js?v=20261024-statistical-stars-1';
+    var DEFAULT_SCRIPT_URL = 'js/math_render/math_render.js?v=20261104-hwp-structural-rows-1';
     var DEFAULT_MATHJAX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js';
     var TYPESET_QUEUES = typeof WeakMap === 'function' ? new WeakMap() : null;
     var fallbackTypesetQueue = Promise.resolve();
@@ -343,7 +343,7 @@
                 // Significance legends, including < which must remain text.
                 .replace(/(^|[\s(,;:])\*{1,3}(?=\s*p\s*(?:[<=>≤≥]|&lt;|&gt;))/gi, literalStars);
         },
-        protectMathSegments: function (md) {
+        protectMathSegments: function (md, options) {
             var src = String(md || '');
             // Code spans (including multi-backtick spans) and fenced blocks own
             // their dollar signs; never pair them with a later math delimiter.
@@ -400,10 +400,16 @@
                 if (match && !/\\begin\s*\{|\\\\(?:\s|$)/.test(body)) {
                     body = match[1] + match[2] + match[3];
                 }
-                // The same double-escaping often affects TeX commands such as
-                // \\sqrt or \\text. A true TeX row break is followed by spacing
-                // or the end of the expression, so leave that form intact.
-                body = body.replace(/\\\\(?=[A-Za-z])/g, '\\');
+                // A matrix row separator may be immediately followed by a
+                // letter (\\c). It is not an over-escaped command \c.
+                // Normalize environment delimiters first, then retain row
+                // separators inside structural TeX environments.
+                if (options && options.preserveStructuralRows) {
+                    body = body.replace(/\\\\(?=(?:begin|end)\s*\{)/g, '\\');
+                }
+                if (!(options && options.preserveStructuralRows && /\\begin\s*\{(?:[pbBvV]?matrix|smallmatrix|cases|aligned?|array|gathered)\}/.test(body))) {
+                    body = body.replace(/\\\\(?=[A-Za-z])/g, '\\');
+                }
                 return open + body + close;
             }
 

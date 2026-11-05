@@ -1,0 +1,22 @@
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'C:/Users/User/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const root=path.resolve(__dirname,'../mdpro');
+(async()=>{const browser=await chromium.launch({headless:true,executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe'});try{
+ const page=await browser.newPage();await page.route('http://hwp.test/**',route=>{const pathname=new URL(route.request().url()).pathname;if(pathname==='/tests/hwp-browser-fixture.html')return route.fulfill({contentType:'text/html',body:'<!doctype html><meta charset="utf-8"><base href="/"><script src="/vendor/marked/marked.umd.js"></script><script src="/vendor/jszip/jszip.min.js"></script>'});const p=path.join(root,pathname);return route.fulfill({contentType:/\.(js|mjs)$/.test(p)?'text/javascript':p.endsWith('.wasm')?'application/wasm':'text/html',body:fs.readFileSync(p)});});
+ await page.goto('http://hwp.test/tests/hwp-browser-fixture.html');
+ const app=fs.readFileSync(path.join(root,'js/app.js'),'utf8');
+ await page.addScriptTag({content:app.slice(app.indexOf('async function exportCurrentDocumentByChoice('),app.indexOf('async function readFile('))});
+ await page.evaluate(()=>{Object.assign(window,{currentMarkdown:'![test](data:image/png;base64,x)',syncCurrentMarkdownFromEditor:()=>{},getSaveCandidateFileName:()=> 'job.md',resolveDocxExportImage:()=>new Promise(resolve=>{window.resolveLateImage=resolve;}),downloads:[],toasts:[],showToast:message=>toasts.push(message),downloadBlobFile:(blob,name)=>downloads.push({name,size:blob.size})});window.firstExport=exportCurrentDocumentByChoice('hwpx');});
+ await page.waitForFunction(()=>typeof window.resolveLateImage==='function');
+ assert.equal(await page.evaluate(()=>exportCurrentDocumentByChoice('hwp')),false);
+ assert.equal(await page.locator('[data-hwp-export-progress]').count(),1);
+ assert(!(await page.evaluate(()=>toasts.join('\n'))).includes('실패'));
+ fs.mkdirSync(path.resolve(__dirname,'../artifacts/hwp-20261104-webdav'),{recursive:true});await page.screenshot({path:path.resolve(__dirname,'../artifacts/hwp-20261104-webdav/export-progress.png')});
+ await page.locator('[data-hwp-export-progress] button').click();
+ assert.equal(await page.evaluate(()=>window.firstExport),false);
+ assert.equal(await page.locator('[data-hwp-export-progress]').count(),0);
+ const retry=await page.evaluate(async()=>{window.currentMarkdown='# 다시 내보내기\n\n본문';window.resolveDocxExportImage=async()=>null;const ok=await exportCurrentDocumentByChoice('hwpx');resolveLateImage({blob:new Blob(['late'],{type:'image/png'})});return ok;});assert(retry);
+ await page.waitForTimeout(30);assert.equal(await page.evaluate(()=>downloads.length),1,'cancelled task must not download later');
+ const bounded=await page.evaluate(async()=>{const {createHwpx}=await import('/rHwp/hwpx-export.mjs?v=20261104-export-job-1');const original=setTimeout;let message;window.setTimeout=(fn,ms,...args)=>original(fn,ms===20000?20:ms,...args);try{await createHwpx({content:'![test](data:image/png;base64,x)',resolveImage:()=>new Promise(()=>{})});}catch(e){message=e.message;}finally{window.setTimeout=original;}const blob=await createHwpx({content:'재시도 본문'});return {message,size:blob.size};});assert.match(bounded.message,/내부 이미지.*지연/);assert(bounded.size>0);
+ console.log('PASS: duplicate click, live progress, cancel, late completion, image timeout, retry; one download.');
+}finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1;});

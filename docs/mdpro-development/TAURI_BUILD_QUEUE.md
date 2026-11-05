@@ -6,6 +6,8 @@
 
 | ID | 적용 항목 | 대상 웹 소스 | 웹 검증 | 프런트엔드 준비 | 네이티브 빌드 | 설치 앱 검증 |
 | --- | --- | --- | --- | --- | --- | --- |
+| MDPRO-20261104-WEBDAV-HWP | [HWP/HWPX 이식](changes/2026-11-04-hwp-hwpx-port.md) | 실제 Viewer 원본 rHwp 존재·미수정 | WebDAV69개·Chrome 열기/수식/중지 통과, PV 미완료 | 이번 작업 미실행 | 이번 작업 미실행 | 미검증 |
+| MDPRO-20261104-LM-FAST | [LM Studio FAST 추론 정책](changes/2026-11-04-lmstudio-fast-reasoning.md) | app.js 요청 정책 적응·미이식 | WebDAV 31개 통과·실속도 미측정 | 미실행 | 미실행 | 미실행 |
 | MDPRO-20261029-SITES-INFOGRAPHIC | [Sites 인포그래픽 링크](changes/2026-10-29-sites-infographic-link.md) | 대상 Sites 경로 확인 필요·미이식 | WebDAV 2개 검사·빌드 통과, 실제 UI 미검증 | 미실행 | 미실행 | 미실행 |
 | MDPRO-20261027-JENA-FACE-LAYOUT | [얼굴 유지 위치 정리](changes/2026-10-27-jena-face-toggle-layout.md) | 대상 얼굴 유지·고유 생성 버튼・한 줄 CSS 대응 필요·미이식 | WebDAV 29개·빌드 통과, 실제 UI 미검증 | 미실행 | 미실행 | 미실행 |
 | MDPRO-20261027-DOCX-BOLD-MATH | [DOCX 수식 볼드](changes/2026-10-27-docx-bold-math.md) | 대상 OMML·파서·로더 적응 필요·미이식 | WebDAV 32개·빌드·DOCX XML 확인, Word 미검증 | 미실행 | 미실행 | 미실행 |

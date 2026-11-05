@@ -27,3 +27,6 @@ Webdavmd_tauri/
 *.njsproj
 *.sln
 *.sw?
+
+# Local HWP browser verification outputs
+artifacts/hwp-20261104-webdav/

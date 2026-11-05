@@ -252,6 +252,8 @@
   function showExportTypeDialog() {
     var choices = [
       { key: 'md', label: 'MD file', tone: 'pink' },
+      { key: 'hwpx', label: '한글 HWPX (.hwpx)', tone: 'teal' },
+      { key: 'hwp', label: '한글 HWP (.hwp)', tone: 'teal' },
       { key: 'docx', label: 'MS Word (.docx)', tone: 'blue' },
       { key: 'mdd', label: 'MDD file (bundle)', tone: 'purple' },
       { key: 'zip', label: 'ZIP file', tone: 'amber' },
@@ -267,7 +269,7 @@
 
     return showChoiceDialog(
       'Export Format',
-      'MD: text only / DOCX: Microsoft Word / MDD: document + images / ZIP: markdown + images folder / HTML: single HTML document / PDF: editable A4 PDF',
+      'HWP/HWPX: 제목 스타일·표·TeX 수식 (Mermaid·일부 HTML 미지원) / MD: text only / DOCX: Microsoft Word / MDD: document + images / ZIP: markdown + images folder / HTML: single HTML document / PDF: editable A4 PDF',
       choices,
       'cancel'
     );

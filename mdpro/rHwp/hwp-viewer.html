@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><title>한글 원본 보기</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'">
+<link rel="stylesheet" href="hwp-viewer.css"></head><body>
+<header><button id="close">닫기</button><button id="reload">다시 읽기</button><button id="first">처음</button><button id="prev">이전</button>
+<label>쪽 <input id="page" type="number" min="1" value="1"></label><span id="count">/ 0</span><button id="next">다음</button><button id="last">마지막</button>
+<select id="zoom" aria-label="확대"><option value="fit">폭 맞춤</option><option value="0.5">50%</option><option value="1">100%</option><option value="1.5">150%</option><option value="2">200%</option></select>
+<button id="hwpx">HWPX로 저장</button><button id="hwp">HWP로 저장</button></header>
+<p id="status" role="status">파일을 받는 중…</p><p class="notice">본문 문단 편집 · 문단 선택 → 텍스트 수정 → 적용 → HWP/HWPX로 사본 저장. 표·수식 등 개체가 포함된 문단은 보호됩니다. 현재 Markdown은 유지됩니다. 글꼴 대체·복잡한 수식·엔진 미지원 개체는 원본 한글과 다르게 보일 수 있습니다. 정확도는 한글 원본과 대조하세요. 인쇄/PDF는 제공하지 않습니다.</p>
+<section id="text-editor"><label>본문 문단 <select id="paragraph" aria-label="편집할 본문 문단"></select></label><textarea id="text" aria-label="문단 텍스트" placeholder="수정할 문단을 선택하세요" disabled></textarea><button id="apply" disabled>수정 적용</button><span id="edit-state"></span></section><main><img id="sheet" alt="한글 문서 페이지"></main><script type="module" src="hwp-viewer.mjs?v=20261104-large-1"></script></body></html>
