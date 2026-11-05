@@ -738,9 +738,52 @@ function isDocumentFileDrag(event) {
     return types.includes('Files') || types.includes('application/x-moz-file');
 }
 
+function serializeImportedHwpPages(pages) {
+    const items = pages.length ? pages : [{direction:'portrait', html:'<p></p>'}];
+    const directions = items.map(page => page.direction === 'landscape' ? 'landscape' : 'portrait');
+    return '<!-- mdpro-a4: ' + directions[0] + ' -->\n'
+        + '<!-- mdpro-a4-orientations: ' + directions.join(',') + ' -->\n'
+        + items.map(page => page.html + '\n').join('\n<!-- mdpro-a4-page-break -->\n');
+}
+
+function isHwpFile(file) { return /\.(hwp|hwpx)$/i.test(String(file && file.name || '')); }
+async function openHwpInEditor(file, sourceOptions = {}) {
+    if (!file) return false;
+    try {
+        const openModuleUrl=new URL('./rHwp/hwp-open.mjs?v=20261104-large-1',document.baseURI||window.location.href);
+        const {chooseHwpView,openOriginalHwp}=await import(openModuleUrl.href);
+        const mode=['original','a4'].includes(sourceOptions.openMode)?sourceOptions.openMode:await chooseHwpView(file);
+        if(mode==='cancel')return false;
+        if(mode==='original')return openOriginalHwp(file,sourceOptions);
+        if (!sourceOptions.skipSavePrompt && !await confirmSaveBeforeOpeningAnotherFile()) return false;
+        if(!window.A4Pages)throw new Error('A4 편집 모듈을 불러오지 못했습니다.');
+        showToast('한글 문서를 A4 편집 보기로 가져오는 중입니다...');
+        if (typeof JSZip === 'undefined') throw new Error('ZIP 읽기 모듈을 불러오지 못했습니다.');
+        const moduleUrl = new URL('./rHwp/hwp-import.mjs?v=20261104-large-1', document.baseURI || window.location.href);
+        const {convertHwpToHtml} = await import(moduleUrl.href);
+        const imageDb=db;
+        const storeImage=imageDb&&window.ImageDB?.saveBlob?async(blob,meta)=>(await window.ImageDB.saveBlob(imageDb,blob,meta)).url:undefined;
+        const result = await convertHwpToHtml(file, {JSZip,storeImage,onProgress:phase=>showToast(phase)});
+        // Converted HTML must never be written as text over a binary HWP file.
+        const name = String(file.name || 'document.hwp').replace(/\.(hwp|hwpx)$/i, '') + '.md';
+        setCurrentDocumentInfo(name, null, {source: sourceOptions.source || 'hwp-import'});
+        updateContent(serializeImportedHwpPages(result.pages));
+        if (isEditMode) toggleMode('view');
+        markPersistedState();
+        showToast(result.warnings.length
+            ? '한글 문서를 내부에서 열었습니다. 변환 안내: ' + result.warnings.join(' / ')
+            : 'A4 편집 보기로 열었습니다. 원본 용지 방향을 적용했으며 페이지는 다시 배치됩니다.');
+        return true;
+    } catch (error) {
+        showToast('한글 문서를 열 수 없습니다: ' + (error.message || error));
+        return false;
+    }
+}
+
 async function openDroppedDocumentFile(file) {
     if (!file) return false;
     const extension = getSelectedFileExtension(file);
+    if (isHwpFile(file)) return openHwpInEditor(file);
     if (extension === '.docx') return openDocxInEditor(file);
     if (extension === '.pdf') return openPdfInEditor(file);
     await readFile(file);
@@ -5882,6 +5925,7 @@ async function handleFileSelect(event) {
     const input = event && event.target ? event.target : null;
     const file = input && input.files ? input.files[0] : null;
     if (file) {
+        if (isHwpFile(file)) { await openHwpInEditor(file); if (input) input.value = ''; return; }
         const extension = getSelectedFileExtension(file);
         const imageFile = isSelectedImageFile(file, extension);
         let nativePath = String(file.path || '').trim();
@@ -5918,6 +5962,7 @@ async function openFileFromLocalFolderExplorer(file) {
     if (!file) return false;
     const localFolderPath = arguments.length > 1 ? arguments[1] : '';
     const fileHandle = arguments.length > 2 ? arguments[2] : null;
+    if (isHwpFile(file)) return openHwpInEditor(file, {localFileHandle:fileHandle,source:'local-folder'});
     const extension = getSelectedFileExtension(file);
     const imageFile = isSelectedImageFile(file, extension);
     let nativePath = String(file.path || '').trim();
@@ -5980,6 +6025,7 @@ async function refreshCurrentLocalFileFromDisk() {
 
         const file = await handle.getFile();
         const successMessage = '파일을 새로고침했습니다: ' + (localRef.path || file.name || currentFileName);
+        if (isHwpFile(file)) return openHwpInEditor(file, {localFileHandle:handle,skipSavePrompt:true});
         if (getSelectedFileExtension(file) === '.docx') {
             return openDocxInEditor(file, {
                 source: 'local-folder',
@@ -6469,6 +6515,8 @@ function showExportTypeDialogFallback() {
     return new Promise(function (resolve) {
         const choices = [
             { key: 'md', label: 'MD file', background: '#be185d', border: '#ec4899', hover: '#db2777', focus: 'rgba(236,72,153,.38)' },
+            { key: 'hwpx', label: '한글 HWPX (.hwpx)', background: '#0f766e', border: '#14b8a6', hover: '#0d9488', focus: 'rgba(20,184,166,.38)' },
+            { key: 'hwp', label: '한글 HWP (.hwp)', background: '#0f766e', border: '#14b8a6', hover: '#0d9488', focus: 'rgba(20,184,166,.38)' },
             { key: 'docx', label: 'MS Word (.docx)', background: '#1d4ed8', border: '#3b82f6', hover: '#2563eb', focus: 'rgba(59,130,246,.38)' },
             { key: 'mdd', label: 'MDD file (bundle)', background: '#6d28d9', border: '#8b5cf6', hover: '#7c3aed', focus: 'rgba(139,92,246,.38)' },
             { key: 'zip', label: 'ZIP file', background: '#b45309', border: '#f59e0b', hover: '#d97706', focus: 'rgba(245,158,11,.38)' },
@@ -6494,7 +6542,7 @@ function showExportTypeDialogFallback() {
         card.appendChild(title);
 
         const desc = document.createElement('p');
-        desc.textContent = 'MD: text only / DOCX: Microsoft Word / MDD: document + images / ZIP: markdown + images folder / HTML: single HTML document / PDF: editable A4 PDF';
+        desc.textContent = 'HWP/HWPX: 제목 스타일·표·TeX 수식 (Mermaid·일부 HTML 미지원, 링크는 주소 병기) / MD: text only / DOCX: Microsoft Word / MDD: document + images / ZIP: markdown + images folder / HTML: single HTML document / PDF: editable A4 PDF';
         desc.style.cssText = 'margin:0 0 14px;font-size:13px;line-height:1.5;color:#cbd5e1;';
         card.appendChild(desc);
 
@@ -6558,10 +6606,56 @@ function openPdfMergeWindow() {
 }
 
 async function exportCurrentDocumentByChoice(requestedChoice) {
-    const allowedChoices = new Set(['md', 'docx', 'mdd', 'zip', 'html', 'pdf', 'github', 'cancel']);
+    const allowedChoices = new Set(['hwpx', 'hwp', 'md', 'docx', 'mdd', 'zip', 'html', 'pdf', 'github', 'cancel']);
     const normalizedChoice = typeof requestedChoice === 'string' ? requestedChoice.trim() : '';
     const choice = allowedChoices.has(normalizedChoice) ? normalizedChoice : await chooseExportType();
     if (choice === 'cancel') return false;
+    if (choice === 'hwpx' || choice === 'hwp') {
+        const running = exportCurrentDocumentByChoice.hwpJob;
+        if (running) { showToast('한글 내보내기 진행 중: ' + running.phase); return false; }
+        const job = {controller:new AbortController(), phase:'내보내기 준비 중…', started:Date.now()};
+        exportCurrentDocumentByChoice.hwpJob = job;
+        const panel = document.createElement('div');
+        panel.dataset.hwpExportProgress = 'true';
+        panel.style.cssText = 'position:fixed;right:20px;bottom:70px;z-index:100001;background:#0f172a;color:#fff;padding:14px;border:1px solid #64748b;border-radius:8px;display:flex;gap:12px;align-items:center;max-width:90vw;';
+        const label = document.createElement('span');
+        label.setAttribute('role','status');
+        const cancel = document.createElement('button');
+        cancel.type='button';cancel.textContent='중지';
+        cancel.style.cssText='padding:5px 12px;color:white;background:#b91c1c;border-radius:5px;';
+        cancel.onclick=()=>{cancel.disabled=true;job.controller.abort(new DOMException('한글 내보내기를 중지했습니다.','AbortError'));};
+        const paint = () => {label.textContent=choice.toUpperCase()+' · '+job.phase+' ('+Math.floor((Date.now()-job.started)/1000)+'초)';};
+        panel.append(label,cancel);document.body.append(panel);paint();
+        const elapsed = setInterval(paint,1000);
+        const timeout = setTimeout(()=>job.controller.abort(new Error('한글 내보내기가 오래 걸려 중단했습니다. 다시 시도하세요.')),120000);
+        let abortListener;
+        const aborted = new Promise((_,reject)=>{abortListener=()=>reject(job.controller.signal.reason);job.controller.signal.addEventListener('abort',abortListener,{once:true});});
+        try {
+            syncCurrentMarkdownFromEditor();
+            const snapshot = String(currentMarkdown || '');
+            const fileName = String(getSaveCandidateFileName() || 'document.md').replace(/\.[^.]+$/, '').replace(/[<>:"/\\|?*]/g, '_') + '.' + choice;
+            // Cross-origin classic scripts have an opaque import base. Resolve
+            // from the app document before import(), not from this script.
+            const moduleUrl = new URL('./rHwp/hwpx-export.mjs?v=20261104-styles-1', document.baseURI || window.location.href);
+            const module = await Promise.race([import(moduleUrl.href),aborted]);
+            const blob = await Promise.race([module.createHwpx({content:snapshot, resolveImage:resolveDocxExportImage, format:choice, signal:job.controller.signal, onProgress:phase=>{job.phase=phase;paint();}}),aborted]);
+            job.controller.signal.throwIfAborted();
+            downloadBlobFile(blob, fileName);
+            showToast(choice.toUpperCase() + ' 내보내기 완료. 한글에서 호환성을 확인하세요.');
+            return true;
+        } catch (error) {
+            if(error.name==='AbortError')showToast('한글 내보내기를 중지했습니다. 다시 내보낼 수 있습니다.');
+            else if(error.code==='HWP_EXPORT_BUSY')showToast('이전 한글 내보내기를 마무리하고 있습니다. 잠시 후 다시 시도하세요.');
+            else showToast('한글 내보내기 실패: ' + (error.message || error));
+            return false;
+        } finally {
+            clearTimeout(timeout);clearInterval(elapsed);
+            job.controller.signal.removeEventListener('abort',abortListener);
+            panel.remove();
+            if(exportCurrentDocumentByChoice.hwpJob===job)exportCurrentDocumentByChoice.hwpJob=null;
+        }
+    }
+
     if (choice === 'github') {
         const ok = await pushCurrentContentToGithub();
         if (ok) markPersistedState();
@@ -6671,6 +6765,7 @@ async function exportCurrentDocumentByChoice(requestedChoice) {
 }
 
 async function readFile(file, options) {
+    if (isHwpFile(file)) return openHwpInEditor(file, options || {});
     const opts = options || {};
     if (!opts.skipSavePrompt) {
         const canProceed = await confirmSaveBeforeOpeningAnotherFile();
@@ -20753,7 +20848,9 @@ window.AIChatBridge = Object.freeze({
             const messages = normalizeAIChatMessages(request.messages);
             const lastUserIndex = messages.map(function (message) { return message.role; }).lastIndexOf('user');
             if (lastUserIndex < 0) throw new Error('전송할 사용자 질문이 없습니다.');
-            const reasoningMode = request.mode === 'reasoning' && request.academicSearch !== true;
+            const fastMode = request.fastMode === true;
+            const reasoningMode = request.mode === 'reasoning' && request.academicSearch !== true
+                && request.disableThinking !== true && !fastMode;
             const continuationMode = request.continuation === true;
             const splitAcademicMode = request.splitAcademicResponse === true;
             const modeInstruction = request.preserveModelStyle === true
@@ -20774,7 +20871,6 @@ window.AIChatBridge = Object.freeze({
             const configuredMaxTokens = Math.max(1, Number(config.maxTokens) || 8192);
             const academicMaxTokens = Math.min(2400, configuredMaxTokens);
             const configuredReasoning = String(config.reasoningLevel || 'auto').toLowerCase();
-            const fastMode = request.fastMode === true;
             const configuredFastMaxTokens = Math.max(1, Number(config.fastMaxTokens) || 3000);
             const configuredQuickMaxTokens = Math.max(1, Number(config.quickMaxTokens) || 4096);
             const configuredReasoningMaxTokens = Math.max(1, Number(config.reasoningMaxTokens) || 8192);
