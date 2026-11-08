@@ -1,0 +1,16 @@
+{
+  "directPngDownload": true,
+  "pngInsertPreserved": true,
+  "pngSvgJpegSelection": true,
+  "svgToPngAndJpeg": true,
+  "mermaidForeignObjectToPngAndJpeg": true,
+  "jpegWhiteBackground": true,
+  "svgOriginalBytes": true,
+  "topcOriginalBytes": true,
+  "internalOriginalBytes": true,
+  "urlOriginalBytes": true,
+  "httpFailureHandled": true,
+  "pageErrors": [],
+  "pngWidth": 1440,
+  "pngHeight": 1368
+}

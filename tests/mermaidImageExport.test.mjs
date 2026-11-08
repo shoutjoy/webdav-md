@@ -1,39 +1,34 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-
-const editorJs = readFileSync(new URL('../mdpro/js/mermaid/mermaid-editor/app.js', import.meta.url), 'utf8');
-const editorHtml = readFileSync(new URL('../mdpro/js/mermaid/mermaid-editor/index.html', import.meta.url), 'utf8');
-const mdproHtml = readFileSync(new URL('../mdpro/index.html', import.meta.url), 'utf8');
-
-test('SVG image insertion exports a fixed-size standalone clone', () => {
-  assert.match(editorJs, /function createSvgExportClone\(svgEl\)/);
-  assert.match(editorJs, /svgClone\.setAttribute\('width', String\(size\.width\)\)/);
-  assert.match(editorJs, /svgClone\.setAttribute\('height', String\(size\.height\)\)/);
-  assert.match(editorJs, /svgClone\.style\.maxWidth = 'none'/);
-  assert.match(editorJs, /sendRenderedSvgToImageInsert[\s\S]*createSvgExportClone\(svg\)/);
+const load = p => readFileSync(new URL('../mdpro/' + p, import.meta.url), 'utf8');
+const editor = load('js/mermaid/mermaid-editor/app.js').replace(/\r\n/g, '\n');
+const helper = load('js/mermaid/mermaid-editor/image-export.js');
+const html = load('index.html');
+test('all editor image actions render current code and use the shared serializer', () => {
+  for (const action of ['sendRenderedSvgToImageInsert', 'sendRenderedPngToImageInsert', 'downloadSVG', 'downloadPNG']) {
+    assert.ok(editor.includes('async function ' + action + '() {\n  await render();'));
+  }
+  assert.match(editor, /MermaidEditorExport.serialize/);
+  assert.doesNotMatch(editor, /createSvgExportClone/);
 });
-
-test('SVG and PNG preserve rendered Mermaid HTML labels instead of rebuilding them', () => {
-  assert.match(editorJs, /function inlineMermaidHtmlLabelStyles\(sourceSvg, exportSvg\)/);
-  assert.match(editorJs, /querySelectorAll\('foreignObject, foreignObject \*'\)/);
-  assert.match(editorJs, /window\.getComputedStyle\(sourceNode\)/);
-  assert.doesNotMatch(editorJs, /replaceForeignObjectsWithSvgText\(svgEl, svgClone\)/);
+test('shared exporter measures HTML label runs and emits standalone XML', () => {
+  assert.match(helper, /createRange\(\)/);
+  assert.match(helper, /getScreenCTM\(\)/);
+  assert.match(helper, /matrix.inverse\(\)/);
+  assert.match(helper, /new XMLSerializer\(\)/);
+  assert.match(helper, /querySelector\('parsererror'\)/);
+  assert.match(helper, /stroke: 'none'/);
 });
-
-test('exports include the same preview background and high-quality smoothing', () => {
-  assert.match(editorJs, /function addMermaidPreviewBackground\(sourceSvg, exportSvg\)/);
-  assert.match(editorJs, /data-mdv-export-background/);
-  assert.match(editorJs, /ctx\.imageSmoothingQuality = 'high'/);
+test('editor export waits for fonts, caps PNG dimensions and separates preview zoom', () => {
+  assert.match(editor, /await document.fonts.ready/);
+  assert.match(editor, /8192 \/ Math.max\(size.width, size.height\)/);
+  assert.match(editor, /ctx.imageSmoothingQuality = 'high'/);
+  assert.match(editor, /let width = viewBox && viewBox.width/);
 });
-
-test('PNG insertion rasterizes the same export clone at HiDPI resolution', () => {
-  assert.match(editorJs, /const exported = createSvgExportClone\(svgEl\)/);
-  assert.match(editorJs, /Math\.max\(4, Number\(window\.devicePixelRatio\) \|\| 1\)/);
-  assert.match(editorJs, /8192 \/ Math\.max\(size\.width, size\.height\)/);
-});
-
-test('both Mermaid iframe layers load the WYSIWYG exporter cache key', () => {
-  assert.match(editorHtml, /app\.js\?v=20261020-wysiwyg-export-1/);
-  assert.match(mdproHtml, /mermaid-editor\/index\.html\?v=20261020-wysiwyg-export-1/);
+test('parent and editor load helper before callers and refresh iframe cache', () => {
+  assert.ok(html.indexOf('image-export.js') < html.indexOf('src="./imageDB/image_insert.js'));
+  const frame = load('js/mermaid/mermaid-editor/index.html');
+  assert.ok(frame.indexOf('image-export.js') < frame.indexOf('src="app.js'));
+  assert.match(html, /mermaid-editor\/index.html\?v=20261108-me-export-1/);
 });

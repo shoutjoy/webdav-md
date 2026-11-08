@@ -1,0 +1,24 @@
+graph TD
+    classDef bwStyle fill:#FFFFFF,stroke:#000000,stroke-width:1.5px,color:#000000,rx:4px,ry:4px;
+    classDef transStyle fill:none,stroke:none,color:#000000,font-weight:bold;
+    step1["1. 자료 수집 및 정리"]:::bwStyle
+    step2["2. 요인분석 적합성 검토<br><font size=2>• KMO 검정  • Bartlett 검정</font>"]:::bwStyle
+    cond{"적합한가?"}:::transStyle
+    step3["3. 요인추출<br><font size=2>(PCA, PAF, ML 등)</font>"]:::bwStyle
+    step4["4. 요인 수 결정<br><font size=2>• Eigenvalue > 1  • Scree Plot  • Parallel Analysis</font>"]:::bwStyle
+    step5["5. 요인회전<br><font size=2>• Varimax  • Promax  • Oblimin</font>"]:::bwStyle
+    step6["6. 요인적재량 검토<br><font size=2>• 적재량 ≥ .40  • 교차적재 확인</font>"]:::bwStyle
+    step7["7. 문항 삭제/수정<br><font size=2>(필요 시 반복)</font>"]:::bwStyle
+    step8["8. 요인명 부여 및 결과 해석"]:::bwStyle
+    reject["자료 재검토"]:::bwStyle
+    step1 --> step2
+    step2 --> cond
+    cond -- "아니오" --> reject
+    cond -- "예" --> step3
+    step3 --> step4
+    step4 --> step5
+    step5 --> step6
+    step6 --> step7
+    step7 --> step8
+    step8 --> reject
+    linkStyle default stroke:#000000,stroke-width:1.5px;

@@ -36,6 +36,7 @@ WebDAV MDpro와 MDproViewer의 기능 개발, 버그 수정, 리팩터링, 이�
 | MDPRO-20261104-WEBDAV-HWP | [HWP/HWPX 열기·내보내기 이식](changes/2026-11-04-hwp-hwpx-port.md) | 구현·69개 검사·Chrome 열기/수식/중지·빌드 통과, PV 별도 검사 실패 | Viewer 원본 읽기 비교·미수정 | Viewer 원본 존재·WebDAV 적응 역이식 불필요 |
 | MDPRO-20261104-LM-FAST | [LM Studio FAST 추론 정책](changes/2026-11-04-lmstudio-fast-reasoning.md) | 요청 정책 보완·31개 검사·빌드 통과, 실속도 미측정 | 대상 경로 없음·미이식 | 이식 후 반영 대기 |
 | MDPRO-20261029-SITES-INFOGRAPHIC | [Sites 인포그래픽 링크](changes/2026-10-29-sites-infographic-link.md) | URL·캐시 갱신·2개 검사·빌드 통과, UI 미검증 | 대상 확인 필요·미이식 | 웹 이식 후 반영 대기 |
+| MDPRO-20261108-IMAGE-DOWNLOAD | [Mermaid·이미지 PC 다운로드](changes/2026-11-08-mermaid-image-download.md) | WebDAV DN·toPC·ME 저장 이식, 35개 검사·실제 Chrome 두 회귀·빌드 성공 | Viewer 기존 구현 읽기 비교·미수정 | native 포함·설치 앱 미검증, 빌드 미실행 |
 | MDPRO-20261027-LEMONADE-DIAG | [Lemonade 연결·추론 지연 진단](changes/2026-10-27-lemonade-performance-diagnosis.md) | GPU PC 참고 측정·코드 미수정, 실제 대상인 별도 NPU 컴퓨터 미점검 | NPU/추론 경로 읽기 비교·미수정 | 자산 변경 없음·빌드 불필요 |
 | MDPRO-20261027-JENA-FACE-LAYOUT | [얼굴 유지 위치 정리](changes/2026-10-27-jena-face-toggle-layout.md) | 안내 제거·파일부터 선택 가져오기 한 줄·29개 검사·빌드 통과, 실제 UI 미검증 | 대상 버튼·기능·CSS 차이 확인·미이식 | 웹 이식 후 반영 대기 |
 | MDPRO-20261027-DOCX-BOLD-MATH | [DOCX 볼드 안 수식·특수문자](changes/2026-10-27-docx-bold-math.md) | 구현·32개 검사·빌드·실제 DOCX XML 확인, Word 미검증 | 대상 OMML 차이 확인·미이식 | 웹 이식 후 반영 대기 |

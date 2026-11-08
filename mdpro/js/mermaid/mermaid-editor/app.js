@@ -1478,16 +1478,23 @@ function requestMermaidFromImage() {
   window.parent.postMessage({ type: 'mdv-analyze-image-to-mermaid', requestId: mermaidImageRequestId, image: mermaidReferenceImage, aiSelection: window.parent.AIToolProviders.read('mermaid'), prompt: String(mermaidImagePrompt && mermaidImagePrompt.value || '').trim() }, '*');
 }
 
-function sendRenderedSvgToImageInsert() {
+async function sendRenderedSvgToImageInsert() {
+  await render();
   const svg = renderDiv.querySelector('svg');
   if (!svg) return alert('먼저 Mermaid 코드를 정상적으로 렌더링해 주세요.');
-  const exported = createSvgExportClone(svg);
-  const serialized = new XMLSerializer().serializeToString(exported.svg);
-  const dataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(serialized)));
-  window.parent.postMessage({ type: 'mdv-open-mermaid-svg-in-image-insert', dataUrl: dataUrl, fileName: 'mermaid-diagram-' + Date.now() + '.svg' }, '*');
+  try {
+    await document.fonts.ready;
+    const serialized = serializeRenderedSvg(svg);
+    const dataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(serialized)));
+    window.parent.postMessage({ type: 'mdv-open-mermaid-svg-in-image-insert', dataUrl: dataUrl, fileName: 'mermaid-diagram-' + Date.now() + '.svg' }, '*');
+  } catch (error) {
+    console.error('SVG image insert failed:', error);
+    alert('SVG 이미지를 만들지 못했습니다: ' + error.message);
+  }
 }
 
 async function sendRenderedPngToImageInsert() {
+  await render();
   const svg = renderDiv.querySelector('svg');
   if (!svg) return alert('먼저 Mermaid 코드를 정상적으로 렌더링해 주세요.');
   try {
@@ -1507,8 +1514,7 @@ async function sendRenderedPngToImageInsert() {
 function getMermaidSvgForConverter() {
   const svg = renderDiv.querySelector('svg');
   if (!svg) return '';
-  const exported = createSvgExportClone(svg);
-  return new XMLSerializer().serializeToString(exported.svg);
+  return serializeRenderedSvg(svg);
 }
 
 function openSvgToPngConverterWindow() {
@@ -1617,17 +1623,22 @@ window.addEventListener('message', function (event) {
   }
 });
 
-function downloadSVG() {
+async function downloadSVG() {
+  await render();
   const svg = renderDiv.querySelector('svg');
   if (!svg) {
     alert('\uB80C\uB354\uB9C1\uB41C SVG\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.');
     return;
   }
-  const exported = createSvgExportClone(svg);
-  const svgText = new XMLSerializer().serializeToString(exported.svg);
-  const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  triggerDownload(url, 'diagram.svg', true);
+  try {
+    await document.fonts.ready;
+    const blob = new Blob([serializeRenderedSvg(svg)], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    triggerDownload(url, 'diagram.svg', true);
+  } catch (error) {
+    console.error('SVG export failed:', error);
+    alert('SVG 저장에 실패했습니다: ' + error.message);
+  }
 }
 
 function triggerDownload(url, fileName, revokeObjectUrl) {
@@ -1647,92 +1658,28 @@ function triggerDownload(url, fileName, revokeObjectUrl) {
 function getSvgExportSize(svgEl) {
   const rect = svgEl.getBoundingClientRect();
   const viewBox = svgEl.viewBox && svgEl.viewBox.baseVal;
-  const visualWidth = rect.width > 0 ? rect.width : 0;
-  const visualHeight = rect.height > 0 ? rect.height : 0;
-  let width = viewBox && viewBox.width > 0 ? viewBox.width : visualWidth;
-  let height = viewBox && viewBox.height > 0 ? viewBox.height : visualHeight;
+  let width = viewBox && viewBox.width;
+  let height = viewBox && viewBox.height;
 
-  // Never export below the actual on-screen footprint. This also compensates
-  // for preview zoom without allowing a percentage-sized SVG to fall back to
-  // the browser's small 300x150 replaced-element default.
-  if (visualWidth > width && width > 0 && height > 0) {
-    height *= visualWidth / width;
-    width = visualWidth;
-  }
-  if (visualHeight > height && width > 0 && height > 0) {
-    width *= visualHeight / height;
-    height = visualHeight;
-  }
+  if (!(width > 0)) width = rect.width;
+  if (!(height > 0)) height = rect.height;
   if (!(width > 0)) width = 1200;
   if (!(height > 0)) height = 800;
 
   return { width: Math.ceil(width), height: Math.ceil(height) };
 }
 
-function createSvgExportClone(svgEl) {
-  const size = getSvgExportSize(svgEl);
-  const svgClone = svgEl.cloneNode(true);
-  svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  svgClone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-  svgClone.setAttribute('width', String(size.width));
-  svgClone.setAttribute('height', String(size.height));
-  if (!svgClone.getAttribute('viewBox')) {
-    svgClone.setAttribute('viewBox', '0 0 ' + size.width + ' ' + size.height);
-  }
-  svgClone.style.width = size.width + 'px';
-  svgClone.style.height = size.height + 'px';
-  svgClone.style.maxWidth = 'none';
-  svgClone.style.margin = '0';
-  inlineMermaidHtmlLabelStyles(svgEl, svgClone);
-  addMermaidPreviewBackground(svgEl, svgClone);
-  return { svg: svgClone, size: size };
-}
-
-function inlineMermaidHtmlLabelStyles(sourceSvg, exportSvg) {
-  const sourceNodes = sourceSvg.querySelectorAll('foreignObject, foreignObject *');
-  const exportNodes = exportSvg.querySelectorAll('foreignObject, foreignObject *');
-  const properties = [
-    'color', 'background-color', 'font-family', 'font-size', 'font-style',
-    'font-weight', 'line-height', 'letter-spacing', 'text-align', 'white-space',
-    'display', 'align-items', 'justify-content', 'flex-direction', 'box-sizing',
-    'width', 'height', 'max-width', 'padding', 'margin', 'border',
-    'border-radius', 'overflow', 'overflow-wrap', 'word-break'
-  ];
-
-  for (let i = 0; i < exportNodes.length; i++) {
-    const sourceNode = sourceNodes[i];
-    const exportNode = exportNodes[i];
-    if (!sourceNode || !exportNode) continue;
-    const computed = window.getComputedStyle(sourceNode);
-    properties.forEach(function (property) {
-      const value = computed.getPropertyValue(property);
-      if (value) exportNode.style.setProperty(property, value);
-    });
-  }
-}
-
-function addMermaidPreviewBackground(sourceSvg, exportSvg) {
-  const viewBox = sourceSvg.viewBox && sourceSvg.viewBox.baseVal;
-  const background = window.getComputedStyle(renderWrapper || renderDiv).backgroundColor;
-  if (!background || background === 'transparent' || background === 'rgba(0, 0, 0, 0)') return;
-  const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-  rect.setAttribute('data-mdv-export-background', '1');
-  rect.setAttribute('x', String(viewBox && Number.isFinite(viewBox.x) ? viewBox.x : 0));
-  rect.setAttribute('y', String(viewBox && Number.isFinite(viewBox.y) ? viewBox.y : 0));
-  rect.setAttribute('width', String(viewBox && viewBox.width > 0 ? viewBox.width : getSvgExportSize(sourceSvg).width));
-  rect.setAttribute('height', String(viewBox && viewBox.height > 0 ? viewBox.height : getSvgExportSize(sourceSvg).height));
-  rect.setAttribute('fill', background);
-  exportSvg.insertBefore(rect, exportSvg.firstChild);
+// Shared by SVG download, PNG rasterization and both image-insert actions.
+function serializeRenderedSvg(svgEl) {
+  return window.MermaidEditorExport.serialize(svgEl, previewDarkMode ? '#0b1220' : '#ffffff');
 }
 
 async function createRenderedPngBlob(svgEl) {
   let svgUrl = '';
   try {
-    const exported = createSvgExportClone(svgEl);
-    const size = exported.size;
-    const svgClone = exported.svg;
-
-    const svgText = new XMLSerializer().serializeToString(svgClone);
+    const size = getSvgExportSize(svgEl);
+    await document.fonts.ready;
+    const svgText = serializeRenderedSvg(svgEl);
     const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
     svgUrl = URL.createObjectURL(svgBlob);
     const img = new Image();
@@ -1741,11 +1688,8 @@ async function createRenderedPngBlob(svgEl) {
     if (typeof img.decode === 'function') await img.decode();
     else await new Promise(function (resolve, reject) { img.onload = resolve; img.onerror = reject; });
 
-    // Use at least 4x pixels (and honor HiDPI screens) while keeping the canvas
-    // inside a safe browser limit. The result therefore cannot be softer than
-    // the editor preview at the same displayed size.
-    const requestedScale = Math.max(4, Number(window.devicePixelRatio) || 1);
-    const exportScale = Math.min(requestedScale, 8192 / Math.max(size.width, size.height));
+    // Use the shared export quality target, with a safe canvas dimension cap.
+    const exportScale = Math.min(Math.max(8, window.devicePixelRatio || 1), 8192 / Math.max(size.width, size.height));
     const canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.round(size.width * exportScale));
     canvas.height = Math.max(1, Math.round(size.height * exportScale));
@@ -1753,6 +1697,8 @@ async function createRenderedPngBlob(svgEl) {
     if (!ctx) throw new Error('Canvas 2D context is unavailable.');
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
+    ctx.fillStyle = previewDarkMode ? '#0b1220' : '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
     return await new Promise(function (resolve, reject) {
@@ -1776,6 +1722,7 @@ function blobToDataUrl(blob) {
 }
 
 async function downloadPNG() {
+  await render();
   const svgEl = renderDiv.querySelector('svg');
   if (!svgEl) {
     alert('\uB80C\uB354\uB9C1\uB41C \uB2E4\uC774\uC5B4\uADF8\uB7A8\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.');

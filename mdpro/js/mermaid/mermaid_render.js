@@ -863,6 +863,26 @@
         }
     }
 
+    async function downloadMermaidWrapperPng(wrapper, downloadButton) {
+        if (downloadButton && downloadButton.disabled) return;
+        if (downloadButton) { downloadButton.disabled = true; downloadButton.setAttribute('aria-busy', 'true'); }
+        try {
+            if (document.fonts) await document.fonts.ready;
+            const exported = await exportMermaidWrapperImage(wrapper, 'png');
+            const link = document.createElement('a');
+            link.href = exported.dataUrl;
+            link.download = 'mermaid-diagram-' + Date.now() + '.png';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        } catch (error) {
+            console.error('Mermaid PNG download failed:', error);
+            if (typeof global.showToast === 'function') global.showToast('PNG 다운로드 실패: ' + (error.message || error));
+        } finally {
+            if (downloadButton) { downloadButton.disabled = false; downloadButton.removeAttribute('aria-busy'); }
+        }
+    }
+
     function addFixedMermaidControls(node) {
         const wrapper = node && node.closest ? node.closest('.trt-mermaid-wrapper') : null;
         if (!wrapper || wrapper.getAttribute('data-mermaid-mode') !== 'fixed') return;
@@ -880,7 +900,7 @@
                 element.addEventListener('click', function (event) {
                     event.preventDefault();
                     event.stopPropagation();
-                    action();
+                    action(element);
                 });
                 return element;
             }
@@ -906,6 +926,9 @@
             controls.appendChild(button('PNG', '현재 보이는 Mermaid를 PNG 이미지 삽입창으로 보내기', function () {
                 openMermaidWrapperInImageInsert(wrapper, 'png');
             }, 'trt-mermaid-fixed-export'));
+            controls.appendChild(button('DN', 'Mermaid를 PNG 파일로 PC에 다운로드', function (downloadButton) {
+                downloadMermaidWrapperPng(wrapper, downloadButton);
+            }, 'trt-mermaid-fixed-download'));
             controls.appendChild(button('', '', function () {
                 toggleMermaidBlockTheme(wrapper);
             }, 'trt-mermaid-theme-toggle'));

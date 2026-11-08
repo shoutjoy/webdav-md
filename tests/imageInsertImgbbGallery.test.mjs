@@ -30,7 +30,7 @@ test('selecting an imgBB catalog image returns its direct URL to the IMG insert 
     assert.match(imageInsertSource, /event\.data\.source === 'imgbb'/);
     assert.match(imageInsertSource, /input\.value = imageUrl/);
     assert.match(imageInsertSource, /setImageInsertPreview\(String\(source\.previewUrl \|\| imageUrl\)\)/);
-    assert.match(indexSource, /image_insert\.js\?v=20261010-imgbb-images-1/);
+    assert.match(indexSource, /image_insert\.js\?v=20261108-topc-1/);
 });
 
 test('gallery can open imgBB for manual browsing and import a copied direct URL', () => {
