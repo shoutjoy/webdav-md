@@ -4669,3 +4669,15 @@ body.img2math-window-moving * { user-select: none !important; }
     background-color: #3730a3;
     color: #ffffff;
 }
+
+#img-insert-download-format { width: min(380px, 92vw); padding: 20px; border: 1px solid #94a3b8; border-radius: 10px; background: #f8fafc; color: #0f172a; }
+#img-insert-download-format::backdrop { background: rgba(2,6,23,.65); }
+#img-insert-download-format form { display: grid; gap: 12px; }
+#img-insert-download-format select { padding: 8px; border: 1px solid #94a3b8; border-radius: 5px; background: #fff; color: #0f172a; }
+#img-insert-download-format form > div { display: flex; justify-content: flex-end; gap: 8px; }
+#img-insert-download-format button { padding: 6px 12px; border: 1px solid #64748b; border-radius: 5px; }
+#img-insert-download-format button[type=submit] { background: #0369a1; color: #fff; }
+#img-insert-download-format button:disabled { opacity: .55; }
+#img-insert-download-format [data-error] { font-size: 12px; }
+.dark #img-insert-download-format { background: #0f172a; color: #e2e8f0; }
+.dark #img-insert-download-format select { background: #1e293b; color: #e2e8f0; }

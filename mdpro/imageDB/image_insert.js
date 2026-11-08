@@ -69,6 +69,158 @@ function setImageInsertStatus(msg, isError) {
     el.className = 'mt-3 text-xs ' + (isError ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400');
 }
 
+function downloadImageInsertToPc() {
+    let dialog = document.getElementById('img-insert-download-format');
+    if (!dialog) {
+        dialog = document.createElement('dialog');
+        dialog.id = 'img-insert-download-format';
+        dialog.className = 'no-print';
+        dialog.setAttribute('aria-labelledby', 'img-insert-download-title');
+        dialog.innerHTML = '<form><strong id="img-insert-download-title">PC에 이미지 저장</strong><label for="img-insert-download-type">파일 형식</label><select id="img-insert-download-type"><option value="png">PNG (.png)</option><option value="svg">SVG (.svg)</option><option value="jpeg">JPEG (.jpeg)</option></select><p data-error role="status"></p><div><button type="button" data-cancel>취소</button><button type="submit">다운로드</button></div></form>';
+        document.body.appendChild(dialog);
+        dialog.querySelector('[data-cancel]').onclick = function () { dialog.close(); };
+        dialog.querySelector('form').onsubmit = async function (event) {
+            event.preventDefault();
+            const submit = dialog.querySelector('[type="submit"]');
+            if (submit.disabled) return;
+            submit.disabled = true;
+            dialog.querySelector('[data-error]').textContent = '이미지 준비 중…';
+            try {
+                const ok = await downloadImageInsertFile(dialog.querySelector('select').value);
+                if (ok) dialog.close();
+                else dialog.querySelector('[data-error]').textContent = document.getElementById('img-insert-status').textContent;
+            } finally { submit.disabled = false; }
+        };
+        dialog.addEventListener('close', function () { document.getElementById('img-insert-topc').focus(); });
+    }
+    dialog.querySelector('select').value = 'png';
+    dialog.querySelector('[data-error]').textContent = '';
+    if (!dialog.open) dialog.showModal();
+}
+
+async function prepareImageInsertSvgForCanvas(blob) {
+    const parsed = new DOMParser().parseFromString(await blob.text(), 'image/svg+xml');
+    if (parsed.querySelector('parsererror')) throw new Error('SVG XML을 읽지 못했습니다.');
+    if (!parsed.querySelector('foreignObject')) return blob;
+    if (!window.MermaidEditorExport) throw new Error('SVG 라벨 변환기가 준비되지 않았습니다. 새로고침 후 다시 시도해 주세요.');
+    // Measure HTML labels in an isolated, script-free document. CSP blocks remote assets.
+    const frame = document.createElement('iframe');
+    frame.setAttribute('sandbox', 'allow-same-origin');
+    frame.setAttribute('aria-hidden', 'true');
+    frame.style.cssText = 'position:fixed;left:-100000px;top:0;width:1600px;height:1600px;opacity:0;pointer-events:none;border:0;';
+    const loaded = new Promise(function (resolve) { frame.onload = resolve; });
+    frame.srcdoc = '<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data: blob:"><body style="margin:0">';
+    document.body.appendChild(frame);
+    try {
+        await loaded;
+        const doc = frame.contentDocument;
+        const svg = doc.importNode(parsed.documentElement, true);
+        doc.body.appendChild(svg);
+        await doc.fonts.ready;
+        if (!svg.viewBox.baseVal.width) {
+            const width = svg.width.baseVal.value;
+            const height = svg.height.baseVal.value;
+            if (!(width > 0 && height > 0)) throw new Error('SVG 크기를 확인할 수 없습니다.');
+            svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+        }
+        if (svg.querySelector('foreignObject img,foreignObject svg,foreignObject canvas')) throw new Error('HTML 라벨 안의 이미지는 SVG 텍스트로 변환할 수 없습니다.');
+        const safe = window.MermaidEditorExport.serialize(svg, 'none');
+        return new Blob([safe], { type: 'image/svg+xml' });
+    } finally { frame.remove(); }
+}
+
+async function convertImageInsertDownloadBlob(blob, format) {
+    const mime = { png: 'image/png', svg: 'image/svg+xml', jpeg: 'image/jpeg' }[format];
+    if (!mime) throw new Error('지원하지 않는 파일 형식입니다.');
+    if (blob.type.split(';')[0] === mime) return blob;
+    if (blob.type.split(';')[0] === 'image/svg+xml') blob = await prepareImageInsertSvgForCanvas(blob);
+    const url = URL.createObjectURL(blob);
+    try {
+        const image = new Image();
+        image.src = url;
+        await image.decode();
+        if (!(image.naturalWidth > 0 && image.naturalHeight > 0)) throw new Error('이미지 크기를 확인할 수 없습니다.');
+        if (format === 'svg') {
+            // Raster originals stay embedded; this is an SVG container, not vector tracing.
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+            svg.setAttribute('width', image.naturalWidth);
+            svg.setAttribute('height', image.naturalHeight);
+            svg.setAttribute('viewBox', '0 0 ' + image.naturalWidth + ' ' + image.naturalHeight);
+            const embedded = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+            embedded.setAttribute('width', image.naturalWidth);
+            embedded.setAttribute('height', image.naturalHeight);
+            embedded.setAttribute('href', await blobToDataUrlForImageInsert(blob));
+            svg.appendChild(embedded);
+            return new Blob([new XMLSerializer().serializeToString(svg)], { type: mime });
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error('이미지를 변환할 수 없습니다.');
+        if (format === 'jpeg') { context.fillStyle = '#ffffff'; context.fillRect(0, 0, canvas.width, canvas.height); }
+        context.drawImage(image, 0, 0);
+        return await new Promise(function (resolve, reject) {
+            canvas.toBlob(function (converted) { converted ? resolve(converted) : reject(new Error('이미지 변환에 실패했습니다.')); }, mime, 0.95);
+        });
+    } finally { URL.revokeObjectURL(url); }
+}
+
+async function downloadImageInsertFile(format) {
+    const button = document.getElementById('img-insert-topc');
+    if (button && button.disabled) return;
+    if (button) button.disabled = true;
+    let objectUrl = '';
+    try {
+        const input = document.getElementById('img-insert-url');
+        const preview = document.getElementById('img-insert-preview');
+        const source = String(input && input.value || preview && preview.getAttribute('src') || imageInsertCurrentDataUrl || '').trim();
+        if (!source) throw new Error('먼저 저장할 이미지를 선택해 주세요.');
+        let blob;
+        let name = '';
+        if (source.startsWith('internal://')) {
+            if (!db || !window.ImageDB) throw new Error('이미지 DB가 준비되지 않았습니다.');
+            const id = decodeURIComponent(source.slice('internal://'.length));
+            const record = await window.ImageDB.getImage(db, id);
+            if (!record || !record.blob) throw new Error('저장된 원본 이미지를 찾을 수 없습니다.');
+            blob = record.blob;
+            name = record.name || '';
+        } else {
+            const url = new URL(source, document.baseURI);
+            if (!['http:', 'https:', 'blob:', 'data:'].includes(url.protocol) ||
+                (url.protocol === 'data:' && !source.startsWith('data:image/'))) throw new Error('지원하지 않는 이미지 주소입니다.');
+            const response = await fetch(url.href);
+            if (!response.ok) throw new Error('이미지를 가져오지 못했습니다 (HTTP ' + response.status + ').');
+            blob = await response.blob();
+            if (source === imageInsertCurrentDataUrl) name = imageInsertCurrentFileName || '';
+            else if (url.protocol === 'http:' || url.protocol === 'https:') name = decodeURIComponent(url.pathname.split('/').pop() || '');
+        }
+        if (!blob || !blob.size) throw new Error('이미지 파일이 비어 있습니다.');
+        if (blob.type && !blob.type.startsWith('image/') && blob.type !== 'application/octet-stream') throw new Error('이미지 파일이 아닌 응답입니다.');
+        blob = await convertImageInsertDownloadBlob(blob, format);
+        const extension = format;
+        name = String(name || 'image_' + Date.now()).replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').replace(/[. ]+$/g, '');
+        if (extension && !new RegExp('\\.' + extension + '$', 'i').test(name)) {
+            name = name.replace(/\.(png|jpe?g|svg|webp|gif|avif|bmp|tiff?|ico)$/i, '') + '.' + extension;
+        }
+        objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = name;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setImageInsertStatus('PC 다운로드를 시작했습니다: ' + name, false);
+        return true;
+    } catch (error) {
+        setImageInsertStatus('PC 저장 실패: ' + (error.message || error), true);
+        return false;
+    } finally {
+        if (objectUrl) setTimeout(function () { URL.revokeObjectURL(objectUrl); }, 10000);
+        if (button) button.disabled = false;
+    }
+}
+
 const IMAGE_INSERT_IMGBB_CATALOG_KEY = 'mdpro_imgbb_image_catalog_v1';
 const IMAGE_INSERT_IMGBB_CATALOG_LIMIT = 500;
 
@@ -1360,3 +1512,5 @@ window.refreshImageInsertGallery = refreshImageInsertGallery;
 window.downloadImageInsertGalleryZip = downloadImageInsertGalleryZip;
 window.insertImageFromModal = insertImageFromModal;
 window.applyImageInsertDataUrl = applyImageInsertDataUrl;
+
+window.downloadImageInsertToPc = downloadImageInsertToPc;
