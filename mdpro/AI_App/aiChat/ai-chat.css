@@ -921,6 +921,7 @@ body.ai-chat-history-resizing { cursor: ew-resize !important; user-select: none 
   font-size: 11px;
 }
 .ai-chat-status.ok { color: #76e0b3; }
+.ai-chat-status:empty { display: none; }
 .ai-chat-status.error { color: #ff9da5; }
 .ai-chat-status.loading { color: #a9c8ff; }
 
