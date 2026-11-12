@@ -158,7 +158,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260914-serpapi-vault-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?imageQuality=20261027-2&v=20261026-image-actions-1&meAI=20261110-1&llamacpp=20261026-1&reasoning=20261022-3&jenaSeries=20261112-1&dockPopover=20261113-1&studioNotice=20261113-2&resumeAnswer=20261113-1',
+    aiChat: './AI_App/aiChat/ai-chat.js?imageQuality=20261027-2&v=20261026-image-actions-1&meAI=20261110-1&llamacpp=20261026-1&reasoning=20261022-3&jenaSeries=20261112-1&dockPopover=20261113-1&studioNotice=20261113-2&resumeAnswer=20261113-1&localModelLoad=20261113-1&continuationStart=20261113-1',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20261022-document-theme-1'
@@ -2214,6 +2214,85 @@ async function readOpenAICompatibleError(response) {
     return message;
 }
 
+async function loadLemonadeRuntimeModel(connection, model, options = {}) {
+    const selected = String(model || '').trim();
+    if (!selected) throw new Error('로드할 Lemonade 모델을 선택하세요.');
+    const controller = new AbortController();
+    const relay = () => controller.abort();
+    if (options.signal?.aborted) relay();
+    else options.signal?.addEventListener('abort', relay, { once: true });
+    const timer = setTimeout(relay, 300000);
+    const headers = openAICompatibleHeaders(connection, 'application/json');
+    const notify = value => { if (typeof options.onProgress === 'function') options.onProgress(value); };
+    let jobId = '';
+    async function request(path, init = {}) {
+        const response = await fetch(openAICompatibleRequestUrl(connection, path), Object.assign({ headers, signal: controller.signal, cache: 'no-store' }, init));
+        return response;
+    }
+    async function data(response) {
+        if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
+        const value = await response.json();
+        if (value.error || /^(error|failed|interrupted|paused|cancelled|canceled)$/.test(String(value.status || '').toLowerCase())) {
+            throw new Error(String(value.message || value.error?.message || value.error || 'Lemonade 모델 로드 실패'));
+        }
+        return value;
+    }
+    async function ready() {
+        const health = await data(await request('health'));
+        return (health.all_models_loaded || []).some(item => item.backend_alive !== false && item.loaded !== false && String(item.model_name || item.id || '') === selected);
+    }
+    try {
+        notify('현재 로드 상태 확인 중');
+        if (await ready()) return { provider: 'lemonade', model: selected, loaded: true, alreadyLoaded: true };
+        // Preserve the server-owned FLM/image/offload preset (Viewer contract).
+        const image = isLemonadeImageModel(findCachedLemonadeModel(selected));
+        const params = { model: selected, save_options: false };
+        if (!image && !/flm$/i.test(selected) && Number(connection.contextTokens) > 0) params.ctx_size = Number(connection.contextTokens);
+        notify('서버에 모델 로드 요청 중');
+        const response = await request('jobs', { method: 'POST', body: JSON.stringify({ name: 'WebDAV AI Jena model load', steps: [{ id: 'load_model', op: 'load', params }] }) });
+        if (response.status === 404 || response.status === 405) {
+            const body = Object.assign({}, params, { model_name: selected });
+            delete body.model;
+            await data(await request('load', { method: 'POST', body: JSON.stringify(body) }));
+        } else {
+            const job = await data(response);
+            jobId = String(job.id || '');
+            if (!jobId) throw new Error('Lemonade 로딩 작업 ID를 받지 못했습니다.');
+            while (true) {
+                const status = await data(await request('jobs/' + encodeURIComponent(jobId)));
+                if (String(status.status || '').toLowerCase() === 'completed') break;
+                notify('모델 로딩 작업 · ' + String(status.status || '대기 중'));
+                await new Promise(resolve => setTimeout(resolve, 400));
+                controller.signal.throwIfAborted();
+            }
+        }
+        notify('서버의 모델 적재 완료 확인 중');
+        if (!await ready()) throw new Error('로드 요청은 끝났지만 선택 모델의 적재 완료를 확인하지 못했습니다. 새로고침 후 확인하세요.');
+        return { provider: 'lemonade', model: selected, loaded: true };
+    } catch (error) {
+        if (controller.signal.aborted) {
+            if (jobId) {
+                await fetch(openAICompatibleRequestUrl(connection, 'jobs/' + encodeURIComponent(jobId)), { method: 'DELETE', headers, signal: AbortSignal.timeout(5000) }).catch(() => {});
+            }
+            throw new Error(options.signal?.aborted ? '모델 로드 대기를 취소했습니다. 서버 상태를 새로 확인하세요.' : '모델 로드 제한 시간(5분)을 초과했습니다.');
+        }
+        throw error;
+    } finally {
+        clearTimeout(timer);
+        options.signal?.removeEventListener('abort', relay);
+    }
+}
+
+function prepareLemonadeSingleTurnMessages(messages, model) {
+    const record = findCachedLemonadeModel(model);
+    if (!record || !Array.isArray(record.labels) || !record.labels.includes('single-turn')) return messages;
+    const turns = messages.filter(item => item.role !== 'system');
+    if (turns.length < 2) return messages;
+    const attachments = Array.from(new Set(turns.flatMap(item => item.attachments || [])));
+    const content = turns.map(item => (item.role === 'assistant' ? '[이전 답변 · 참고 문맥]' : '[사용자 요청]') + '\n' + String(item.content || '')).join('\n\n');
+    return messages.filter(item => item.role === 'system').concat({ role: 'user', content, attachments });
+}
+
 async function streamOpenAICompatibleChat(connection, body, signal, onStreamEvent) {
     const emit = typeof onStreamEvent === 'function' ? onStreamEvent : function () {};
     const provider = connection.provider === 'lemonade' ? 'lemonade' : 'openai-compatible';
@@ -2247,6 +2326,7 @@ async function streamOpenAICompatibleChat(connection, body, signal, onStreamEven
     let reasoningStarted = false;
     let reasoningEnded = false;
     let promptEnded = false;
+    const jsonResponse = /application\/json/i.test(response.headers.get('content-type') || '');
     function processPayload(payload) {
         const value = String(payload || '').trim();
         if (!value || value === '[DONE]') return;
@@ -2292,6 +2372,7 @@ async function streamOpenAICompatibleChat(connection, body, signal, onStreamEven
         const chunk = await reader.read();
         if (chunk.done) break;
         buffer += decoder.decode(chunk.value, { stream: true }).replace(/\r\n/g, '\n');
+        if (jsonResponse) continue;
         let boundary;
         while ((boundary = buffer.indexOf('\n')) >= 0) {
             const line = buffer.slice(0, boundary);
@@ -2302,6 +2383,26 @@ async function streamOpenAICompatibleChat(connection, body, signal, onStreamEven
     }
     buffer += decoder.decode();
     if (buffer.trim()) processPayload(buffer.replace(/^data:\s*/i, ''));
+    if (!text.trim() && !reasoning.trim() && provider === 'lemonade') {
+        // Some local engines finish an empty stream while switching/loading a
+        // model. Retry once as ordinary JSON without thinking; never on abort.
+        if (signal && signal.aborted) throw new DOMException('요청이 중지되었습니다.', 'AbortError');
+        const retryBody = Object.assign({}, body, {
+            stream: false, enable_thinking: false, thinking: false,
+            chat_template_kwargs: Object.assign({}, body.chat_template_kwargs, { enable_thinking: false })
+        });
+        delete retryBody.stream_options;
+        emit({ type: 'prompt_processing.start', provider: provider });
+        const retry = await fetch(openAICompatibleRequestUrl(connection, 'chat/completions'), {
+            method: 'POST', headers: openAICompatibleHeaders(connection, 'application/json'),
+            body: JSON.stringify(retryBody), signal: signal
+        });
+        if (!retry.ok) throw new Error(await readOpenAICompatibleError(retry));
+        processPayload(JSON.stringify(await retry.json()));
+        if (!text.trim() && !reasoning.trim()) {
+            throw new Error('Lemonade 서버에 연결되었지만 모델이 빈 응답을 반환했습니다. 모델 로드 상태와 컨텍스트 설정을 확인한 뒤 다시 시도하세요.');
+        }
+    }
     if (reasoningStarted && !reasoningEnded) emit({ type: 'reasoning.end', provider: provider });
     if (answerStarted) emit({ type: 'message.end', provider: provider });
     const completionTokens = Number(usage && (usage.completion_tokens || usage.output_tokens)) || 0;
@@ -2620,12 +2721,9 @@ async function loadLemonadeModel() {
     try {
         const connection = getLemonadeFormConnection();
         setLemonadeStatus(connection.modelId + ' 모델을 Load하는 중...', '');
-        const imageModel = isLemonadeImageModel(findCachedLemonadeModel(connection.modelId));
-        const loadOptions = imageModel
-            ? { model_name: connection.modelId, save_options: false }
-            : { model_name: connection.modelId, ctx_size: connection.contextTokens, save_options: true };
-        const response = await fetch(openAICompatibleRequestUrl(connection, 'load'), { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer lemonade' }, body: JSON.stringify(loadOptions) });
-        if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
+        await loadLemonadeRuntimeModel(connection, connection.modelId, {
+            onProgress: text => setLemonadeStatus(connection.modelId + ' · ' + text, '')
+        });
         await saveLemonadeSettings();
         setLemonadeStatus('모델 Load 완료 · ' + connection.modelId, 'ok');
     } catch (error) { setLemonadeStatus('모델 Load 실패: ' + String(error && error.message || error), 'error'); }
@@ -18365,6 +18463,20 @@ async function listAIStudioModels(apiKeyOverride) {
     return mergeAIChatGeminiModels(Array.from(models.keys()).sort());
 }
 
+let localLlmProxyAvailable = null;
+async function fetchLocalLlmWithAppProxy(url, options) {
+    const target = new URL(String(url), location.href);
+    const appIsLocal = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
+    const targetIsLocal = ['localhost', '127.0.0.1', '[::1]'].includes(target.hostname);
+    if (appIsLocal && targetIsLocal && target.protocol === 'http:' && ['1234', '5678', '11434'].includes(target.port)) {
+        if (!localLlmProxyAvailable) localLlmProxyAvailable = fetch('/api/local-llm/config', { signal: AbortSignal.timeout(2000) })
+            .then(r => r.ok ? r.json() : {}).then(data => data.localLlmProxy === true).catch(() => false);
+        if (await localLlmProxyAvailable) return fetch('/api/local-llm/' + target.port + target.pathname + target.search, options);
+    }
+    return fetch(url, options);
+}
+window.MDProLocalAIFetch = fetchLocalLlmWithAppProxy;
+
 function getScholarAIProviderRuntime() {
     if (scholarAIProviderRuntime) return scholarAIProviderRuntime;
     if (!window.ScholarAIProvider || typeof window.ScholarAIProvider.create !== 'function') {
@@ -18994,7 +19106,7 @@ async function requestLocalAIJson(url, options) {
     }
     let response;
     try {
-        response = await fetch(url, request);
+        response = await fetchLocalLlmWithAppProxy(url, request);
     } catch (error) {
         throw new Error('로컬 AI 서버에 연결할 수 없습니다. 서버 실행과 CORS 설정을 확인하세요. (' + (error && error.message ? error.message : error) + ')');
     }
@@ -20891,19 +21003,12 @@ window.AIChatBridge = Object.freeze({
         if (ready) return {provider:'lmstudio', model:ready.id || model, responseReady:true};
         return runtime.loadLMStudioModel(model);
     },
-    loadOpenAICompatibleTaskModel: async function (provider, model) {
+    loadOpenAICompatibleTaskModel: async function (provider, model, options) {
+        if (!/^(lemonade|lemonade-flm|ollama-npu)$/.test(provider)) throw new Error('Lemonade 공급자를 선택하세요.');
         const connection = getMermaidCompatibleConnection(provider === 'ollama-npu' ? 'lemonade-flm' : provider);
         const selected = String(model || connection.modelId || '').trim();
         if (!selected) throw new Error('로드할 모델을 선택하세요.');
-        const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 300000);
-        try {
-            const response = await fetch(openAICompatibleRequestUrl(connection, 'load'), {
-                method:'POST', headers:{Accept:'application/json','Content-Type':'application/json',Authorization:'Bearer ' + (connection.apiKey || 'lemonade')},
-                body:JSON.stringify({model_name:selected, save_options:false}), signal:controller.signal
-            });
-            if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
-            return {provider,model:selected};
-        } finally { clearTimeout(timer); }
+        return loadLemonadeRuntimeModel(connection, selected, options);
     },
     setOpenAICompatibleResidency: async function (model, enabled) {
         const connection = getStoredOpenAICompatibleConnection();
@@ -21023,23 +21128,14 @@ window.AIChatBridge = Object.freeze({
                 return prioritizeInstalledLemonadeModels(models, selected).map(function (item) { return item.id; });
             });
     },
-    loadLemonadeModel: async function (modelId) {
+    loadLemonadeModel: async function (modelId, options) {
         const connection = getStoredLemonadeConnection();
         const selectedModel = String(modelId || connection.modelId || '').trim();
         if (!selectedModel) throw new Error('Lemonade 모델을 선택하세요.');
-        const imageModel = isLemonadeImageModel(findCachedLemonadeModel(selectedModel));
-        const loadBody = imageModel
-            ? { model_name: selectedModel, save_options: false }
-            : { model_name: selectedModel, ctx_size: connection.contextTokens, save_options: true };
-        const response = await fetch(openAICompatibleRequestUrl(connection, 'load'), {
-            method: 'POST',
-            headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: 'Bearer lemonade' },
-            body: JSON.stringify(loadBody)
-        });
-        if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
+        const result = await loadLemonadeRuntimeModel(connection, selectedModel, options);
         localStorage.setItem('ss_ai_chat_lemonade_model', selectedModel);
         localStorage.setItem('ss_openai_compatible_model_id_lemonade', selectedModel);
-        return { model: selectedModel };
+        return result;
     },
     getCachedNPUModels: function () {
         return readCachedNPUModels();
@@ -21190,6 +21286,7 @@ window.AIChatBridge = Object.freeze({
                         lemonadeInputTokenCap
                     );
                 }
+                if (lemonade) messages = prepareLemonadeSingleTurnMessages(messages, model);
                 const requestBody = {
                     model: model,
                     messages: aiChatMessagesWithImageContent(messages),
@@ -21316,7 +21413,7 @@ window.AIChatBridge = Object.freeze({
                 throw abortError;
             }
             const config = getScholarAIProviderRuntime().getLMStudioConfig();
-            const client = window.LocalAI.createClient(Object.assign({}, config, { model: synced.model }));
+            const client = window.LocalAI.createClient(Object.assign({}, config, { model: synced.model, fetch: fetchLocalLlmWithAppProxy }));
             const contextLength = getAIChatLMContextLength(synced);
             const messages = normalizeAIChatMessages(request.messages);
             const lastUserIndex = messages.map(function (message) { return message.role; }).lastIndexOf('user');
@@ -21511,7 +21608,7 @@ function ensureSidebarAILoaded() {
                 return result;
             },
             refreshOllamaModels: async function () {
-                const models = await listOllamaModels();
+        const models = await listOllamaModels({ signal: AbortSignal.timeout(10000) });
                 saveStoredModelList(OLLAMA_MODELS_KEY, models);
                 return models;
             },

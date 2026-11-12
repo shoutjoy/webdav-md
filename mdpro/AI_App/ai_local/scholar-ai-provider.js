@@ -155,7 +155,7 @@
 
     function makeLMStudioClient(configPatch) {
       var localAI = requireLocalAI();
-      return localAI.createClient(Object.assign({}, getLMStudioConfig(), configPatch || {}));
+      return localAI.createClient(Object.assign({}, getLMStudioConfig(), root && root.MDProLocalAIFetch ? { fetch: root.MDProLocalAIFetch } : {}, configPatch || {}));
     }
 
     function isLMStudioConfigured() {

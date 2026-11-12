@@ -257,6 +257,8 @@
   var thinkingStartedAt = 0;
   var thinkingProgress = 0;
   var liveStream = null;
+  var localModelLoading = false;
+  var localModelLoadController = null;
   var liveStreamRenderPending = false;
   var liveStreamLastRenderAt = 0;
   var saveTimer = null;
@@ -911,6 +913,8 @@
       + '        <label>AI 공급자<select id="ai-chat-provider"><option value="lmstudio">LM Studio</option><option value="litertlm">LiteRT-LM</option><option value="aistudio">AI Studio (Gemini)</option><option value="ollama">Ollama</option><option value="lemonade">Lemonade</option><option value="ollama-npu">Lemonade NPU</option><option value="deepseek">DeepSeek (유료)</option><option value="openai-compatible">OrcaRouter / OpenAI 호환</option><option value="openai">OpenAI · ChatGPT 모델 (유료 API)</option></select></label>'
       + '        <label>모델<select id="ai-chat-model"></select></label>'
       + '        <button type="button" id="ai-chat-refresh-model" title="현재 모델 새로고침">↻</button>'
+      + '        <button type="button" id="ai-chat-local-model-load" hidden>모델 로드</button>'
+      + '        <button type="button" id="ai-chat-local-model-cancel" hidden>로드 대기 취소</button>'
       + '      </div>'
       + '      <div class="ai-chat-writing-style-row">'
       + '        <label class="ai-chat-writing-style-control">답변 문체<select id="ai-chat-writing-style"><option value="academic">학술체</option><option value="polite">존댓말</option></select></label>'
@@ -1092,6 +1096,8 @@
       event.target.value = '';
     });
     document.getElementById('ai-chat-refresh-model').addEventListener('click', function () { refreshModels(false); });
+    document.getElementById('ai-chat-local-model-load').addEventListener('click', loadSelectedLocalModel);
+    document.getElementById('ai-chat-local-model-cancel').addEventListener('click', function () { if (localModelLoadController) localModelLoadController.abort(); });
     document.getElementById('ai-chat-lemonade-image-settings').addEventListener('change', saveLemonadeImageControls);
     document.getElementById('ai-chat-lemonade-load-model').addEventListener('click', loadSelectedLemonadeModel);
     document.getElementById('ai-chat-provider-toggle').addEventListener('click', function () {
@@ -1202,7 +1208,10 @@
       saveHistory();
     });
     document.getElementById('ai-chat-model').addEventListener('change', function (event) {
-      if (state.provider === 'lmstudio') return;
+      if (state.provider === 'lmstudio') {
+        state.lmModel = event.target.value || '';
+        updateHeaderModel(); saveHistory(); return;
+      }
       clearImgGenRestoreState();
       if (state.provider === 'ollama-npu') {
         state.npuModel = event.target.value || '';
@@ -2443,7 +2452,7 @@
       reasoningBody.textContent = liveStream.reasoning || '첫 추론 토큰을 기다리는 중…';
       followLiveStreamEnd(reasoningBody, followReasoning && !!liveStream.reasoning);
     }
-    if (answerWrap) answerWrap.hidden = !!state.realtimeDocWrite;
+    if (answerWrap) answerWrap.hidden = !!(state.realtimeDocWrite && realtimeDocActive);
     if (answerBody) {
       answerBody.classList.toggle('waiting', !liveStream.answer);
       answerBody.textContent = liveStream.answer || (showLiveReasoning
@@ -2529,7 +2538,7 @@
       if (realtimeDocActive) {
         streamDeltaToRealtimeDoc(event.content);
       }
-      if (state.realtimeDocWrite) {
+      if (state.realtimeDocWrite && realtimeDocActive) {
         liveStream.stage = realtimeDocWritten
           ? '문서에 실시간 작성 중'
           : '본문 수신 중 · 문서 작성 대기';
@@ -3391,16 +3400,20 @@
     var showReasoning = document.getElementById('ai-chat-show-reasoning');
     var fastMode = document.getElementById('ai-chat-fast-mode');
     var modeButtons = document.querySelectorAll('#ai-chat-panel [data-ai-chat-mode]');
-    if (send) send.disabled = state.running || state.storageInitializing;
+    if (send) send.disabled = state.running || state.storageInitializing || localModelLoading;
     if (stop) stop.disabled = !state.running;
     if (input) input.disabled = state.running || state.storageInitializing;
-    if (provider) provider.disabled = state.running;
-    if (model) model.disabled = state.running || state.provider === 'lmstudio';
+    if (provider) provider.disabled = state.running || localModelLoading;
+    if (model) model.disabled = state.running || localModelLoading;
     if (writingStyle) writingStyle.disabled = state.running;
     if (generalAnswer) generalAnswer.disabled = state.running;
     if (answerAppearance) answerAppearance.disabled = state.running;
-    if (refresh) refresh.disabled = state.running;
-    if (lemonadeLoad) lemonadeLoad.disabled = state.running;
+    if (refresh) refresh.disabled = state.running || localModelLoading;
+    if (lemonadeLoad) lemonadeLoad.disabled = state.running || localModelLoading;
+    var localLoad = document.getElementById('ai-chat-local-model-load');
+    if (localLoad) localLoad.disabled = state.running || localModelLoading;
+    var localCancel = document.getElementById('ai-chat-local-model-cancel');
+    if (localCancel) localCancel.hidden = !localModelLoading || state.provider !== 'lemonade';
     if (importSelection) importSelection.disabled = state.running || state.storageInitializing;
     var imageModel = isActiveImageModel();
     for (var i = 0; i < modeButtons.length; i++) modeButtons[i].disabled = state.running || imageModel;
@@ -3770,10 +3783,13 @@
     var lemonadeLifecycle = document.getElementById('ai-chat-lemonade-lifecycle');
     var modeLimitSettings = document.getElementById('ai-chat-mode-limit-settings');
     if (provider) provider.value = state.provider;
+    var localLoad = document.getElementById('ai-chat-local-model-load');
+    if (localLoad) localLoad.hidden = !/^(lmstudio|lemonade|ollama)$/.test(state.provider);
     if (lemonadeLifecycle) lemonadeLifecycle.hidden = state.provider !== 'lemonade';
     if (modeLimitSettings) modeLimitSettings.hidden = false;
     if (state.provider === 'lmstudio') {
-      setModelOptions(state.lmModel ? [state.lmModel] : [], state.lmModel, true);
+      var cachedLM = getBridge().getCachedLMStudioModels();
+      setModelOptions(cachedLM && cachedLM.models || [], state.lmModel, false);
     } else if (state.provider === 'ollama') {
       var cachedOllamaModels = [];
       try { cachedOllamaModels = getBridge().getCachedOllamaModels(); } catch (ollamaCacheError) {}
@@ -3843,48 +3859,51 @@
   }
 
   async function loadSelectedLemonadeModel() {
-    if (state.provider !== 'lemonade' || state.running) return;
-    var button = document.getElementById('ai-chat-lemonade-load-model');
-    var model = String(state.lemonadeModel || '').trim();
-    if (!model) {
-      setStatus('먼저 Lemonade 모델을 선택하세요.', 'error');
-      return;
-    }
+    return loadSelectedLocalModel();
+  }
+
+  async function loadSelectedLocalModel() {
+    if (state.running || localModelLoading) return;
+    var provider = state.provider;
+    if (!/^(lmstudio|lemonade|ollama)$/.test(provider)) return;
+    var select = document.getElementById('ai-chat-model');
+    var model = String(select && select.value || '').trim();
+    if (!model) return setStatus('먼저 로드할 모델을 선택하세요.', 'error');
+    localModelLoading = true;
+    localModelLoadController = new AbortController();
+    setRunning(state.running);
     var progress = document.getElementById('ai-chat-lemonade-load-progress');
-    var progressBar = document.getElementById('ai-chat-lemonade-load-progress-bar');
-    var progressPercent = document.getElementById('ai-chat-lemonade-load-progress-percent');
-    var progressLabel = document.getElementById('ai-chat-lemonade-load-progress-label');
-    var percent = 5;
-    var progressTimer = 0;
-    function showProgress(nextPercent, label, failed) {
-      percent = Math.max(0, Math.min(100, Math.round(Number(nextPercent) || 0)));
-      if (progress) {
+    var label = document.getElementById('ai-chat-lemonade-load-progress-label');
+    var percent = document.getElementById('ai-chat-lemonade-load-progress-percent');
+    function onProgress(text) {
+      setStatus(model + ' · ' + text, 'loading');
+      if (provider === 'lemonade' && progress) {
         progress.hidden = false;
-        progress.classList.toggle('failed', !!failed);
-        progress.setAttribute('aria-valuenow', String(percent));
+        progress.removeAttribute('aria-valuenow');
+        if (label) label.textContent = text;
+        if (percent) percent.textContent = '진행 중';
       }
-      if (progressBar) progressBar.style.width = percent + '%';
-      if (progressPercent) progressPercent.textContent = percent + '%';
-      if (progressLabel) progressLabel.textContent = label;
     }
     try {
-      if (button) button.disabled = true;
-      showProgress(percent, '서버에 모델 Load 요청 전송', false);
-      progressTimer = root.setInterval(function () {
-        var increment = percent < 40 ? 4 : (percent < 70 ? 2 : 1);
-        showProgress(Math.min(92, percent + increment), percent < 45 ? '모델 파일 확인 및 준비 중' : (percent < 75 ? '모델을 메모리에 적재하는 중' : '추론 엔진을 초기화하는 중'), false);
-      }, 500);
-      setStatus(model + ' 모델을 메모리에 로드하는 중...', 'loading');
-      var result = await getBridge().loadLemonadeModel(model);
-      showProgress(100, '모델 Load 완료', false);
-      setStatus('Lemonade 모델 Load 완료 · ' + String(result && result.model || model), 'ok');
+      onProgress('모델 로드 중');
+      var bridge = getBridge();
+      var result = provider === 'lemonade'
+        ? await bridge.loadLemonadeModel(model, { signal: localModelLoadController.signal, onProgress: onProgress })
+        : provider === 'lmstudio' ? await bridge.loadLMStudioModel(model) : await bridge.loadOllamaModel(model);
+      if (provider === 'lmstudio') state.lmModel = result.model || model;
+      if (provider === 'lemonade') state.lemonadeModel = result.model || model;
+      if (provider === 'ollama') state.ollamaModel = result.model || model;
       await refreshModels(true);
+      setStatus(provider + ' 모델 로드 완료 · ' + (result.model || model) + (result.alreadyLoaded ? ' · 이미 적재됨' : ''), 'ok');
+      saveHistory();
+      updateHeaderModel();
     } catch (error) {
-      showProgress(percent, '모델 Load 실패', true);
-      setStatus('Lemonade 모델 Load 실패: ' + String(error && error.message || error), 'error');
+      setStatus(provider + ' 모델 로드 실패: ' + String(error && error.message || error), 'error');
     } finally {
-      if (progressTimer) root.clearInterval(progressTimer);
-      if (button) button.disabled = state.running;
+      if (progress) progress.hidden = true;
+      localModelLoading = false;
+      localModelLoadController = null;
+      setRunning(state.running);
     }
   }
 
@@ -3913,11 +3932,14 @@
       if (state.provider === 'lmstudio') {
         var lm = await bridge.refreshLMStudioModels();
         if (state.provider !== requestedProvider || refreshRevision !== modelRefreshRevision) return;
-        state.lmModel = lm && lm.model ? lm.model : '';
+        var selectedLM = state.lmModel;
+        state.lmModel = lm && lm.model ? lm.model : selectedLM;
         state.lmContextLength = Math.max(0, Number(lm && lm.contextLength) || 0);
-        setModelOptions(lm && lm.models ? lm.models : [], state.lmModel, true);
+        setModelOptions(lm && lm.models ? lm.models : [], state.lmModel, false);
+        var lmSelect = document.getElementById('ai-chat-model');
+        if (lmSelect) state.lmModel = lmSelect.value || '';
         applyModelTokenProfile(state.lmModel, false);
-        setStatus(state.lmModel ? '현재 LM Studio 로드 모델을 자동으로 사용합니다.' : 'LM Studio에 로드된 LLM이 없습니다.', state.lmModel ? 'ok' : 'error');
+        setStatus(lm && lm.model ? 'LM Studio 로드 모델: ' + lm.model : 'LM Studio 서버 연결됨 · 모델을 선택하고 모델 로드를 누르세요.', 'ok');
       } else if (state.provider === 'ollama') {
         var ollamaModels = await bridge.refreshOllamaModels();
         if (state.provider !== requestedProvider || refreshRevision !== modelRefreshRevision) return;
@@ -4962,7 +4984,7 @@
   }
 
   async function continueAssistantAnswer(messageIndex, requestedNextContent, automatic) {
-    if (state.running || state.storageInitializing) return;
+    if (state.running || state.storageInitializing || localModelLoading) return;
     if (automatic) {
       if (!state.autoContinueEnabled) return;
       if (autoContinuationStepCount >= MAX_AUTO_CONTINUATION_STEPS) {
@@ -5052,14 +5074,17 @@
     realtimeDocWritten = '';
     realtimeDocActive = false;
     realtimeDocExclusive = false;
-    if (state.realtimeDocWrite) beginRealtimeDocForCurrentGeneration();
     renderMessages();
     target.continuationAvailable = false;
     renderMessages();
     setStatus(splitAcademic ? '학술 분할 답변 ' + requestedPart + '/' + academicTotalParts + '을 작성하는 중...' : '이전 답변의 끊긴 지점부터 이어서 작성하는 중...', 'loading');
     try {
       if (state.realtimeDocWrite && !beginRealtimeDocForCurrentGeneration({ continuationText: originalAnswer })) {
-        throw new Error('이전 답변 뒤에서 실시간 이어쓰기를 시작하지 못했습니다. 현재 문서에 이전 답변이 있는지 확인하세요.');
+        // Keep the document untouched when its anchor has changed. Continuing
+        // in chat must still work; the result can be inserted explicitly.
+        realtimeDocActive = false;
+        realtimeDocExclusive = false;
+        setStatus('문서에서 이전 답변 위치를 찾지 못해 채팅에서 이어서 작성합니다.', 'loading');
       }
       var result = await getBridge().complete(applySentenceOnlyRequest({
         provider: state.provider,
@@ -6129,7 +6154,6 @@
           var autoApproveCheckbox = document.createElement('input');
           autoApproveCheckbox.type = 'checkbox';
           autoApproveCheckbox.checked = state.autoContinueEnabled;
-          autoApproveCheckbox.disabled = state.running;
           autoApproveCheckbox.setAttribute('aria-label', 'Auto 승인');
           var autoApproveText = document.createElement('span');
           autoApproveText.textContent = 'Auto 승인 · 완성될 때까지 제안대로 계속';
@@ -7281,7 +7305,7 @@
   }
 
   async function sendMessage() {
-    if (state.running || state.storageInitializing || compatibleResidencyBusy) return;
+    if (state.running || state.storageInitializing || compatibleResidencyBusy || localModelLoading) return;
     var requestRevision = generationStopRevision;
     if (attachmentLoading) return setStatus('첨부 파일을 모두 읽은 뒤 전송해 주세요.', 'error');
     var input = document.getElementById('ai-chat-input');
@@ -7459,8 +7483,7 @@
               : '',
             writingStyleInstruction({ academic: false }),
             sentenceOnlyInstruction(),
-            MERMAID_DARK_MODE_PROMPT_RULE,
-            'For a Mermaid request, return exactly one fenced mermaid code block and nothing else.'
+            mermaidInstructionForRequest(text, false)
           ].join(' ')
         : localNativeQuality
             ? nativeQualityAnswerInstruction(text)
@@ -7492,7 +7515,7 @@
         academicEvidenceCount: academicProfile ? academicProfile.count : 0,
         academicEvidenceTokens: academicProfile ? academicProfile.fullEvidenceTokens : 0,
         retainForContinuation: true,
-        disableThinking: state.provider === 'lemonade' && (state.responseMode !== 'reasoning' || state.fastMode || academicSearchActive),
+        disableThinking: state.provider === 'lemonade' && (state.responseMode !== 'reasoning' || state.fastMode || academicSearchActive || state.realtimeDocWrite),
         preserveModelStyle: (state.generalAnswer || (localNativeQuality && !state.fastMode && !state.realtimeDocWrite)) && !academicSearchActive && !internetSearchActive,
         messages: preserveImageIdentity ? imageIdentityMessages(requestMessages, true) : requestMessages,
         onStreamEvent: streamHandler,
@@ -7897,7 +7920,7 @@
     loadTaskModel: async function (provider, model) {
       await ensureInitialized();
       provider = provider || state.provider;
-      if (state.running) throw new Error('응답 생성 완료 후 모델을 로드하세요.');
+      if (state.running || localModelLoading) throw new Error('진행 중인 응답 생성 또는 모델 로드가 끝난 후 다시 시도하세요.');
       var bridge = getBridge();
       if (provider === 'openai-compatible') provider = state.openaiCompatibleProvider || storageGet('ss_openai_compatible_provider', 'orcarouter');
       if (provider === 'litertlm') return bridge.loadLiteRTLMModel(String(model || state.litertlmModel || '').trim());
@@ -7907,6 +7930,7 @@
       throw new Error('모델 로드는 LM Studio, Ollama, LiteRT-LM, Lemonade에서 지원합니다.');
     },
     completeTask: async function (options) {
+      if (localModelLoading) throw new Error('모델 로드가 끝난 후 다시 시도하세요.');
       var request = options || {}, controller = new AbortController();
       var timeoutMs = Number(request.timeoutMs) > 0 ? Number(request.timeoutMs) : 180000;
       var relay = function () { controller.abort(); };
