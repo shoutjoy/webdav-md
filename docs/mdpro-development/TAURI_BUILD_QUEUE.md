@@ -78,3 +78,7 @@ publish 스크립트 결과와 최종 제공 경로:
 현재 문서 등록 작업에서는 프런트엔드 준비, 네이티브 빌드, 설치 실행을 수행하지 않았다.
 
 - MDPRO-20261113-HOSTED-IMAGE-REFERRER: [imgBB 보기 로딩 정책](changes/2026-11-13-hosted-image-referrer.md). WebDAV Chrome 9항목/빌드 통과, 사용자 문서 보기/PV 미검증. Viewer 경로 없음·웹 이식/프런트엔드 준비/네이티브 빌드/설치 검증 대기. 요청에 빌드 미포함.
+
+- MDPRO-20261113-JENA-DOCK-POPOVER: [Jena Dock popover 분리](changes/2026-11-13-jena-dock-popover.md). WebDAV 방어 수정·Chrome iframe 전환/29개 계약 통과. 사용자 공백 재현/해결 미확인. Viewer 웹 이식·웹 검증·프런트엔드 준비·네이티브 빌드·설치 앱 검증 대기, 이번 요청에 빌드 미포함.
+
+- MDPRO-20261113-STUDIO-NOTICE: [AI Studio 안내 제거](changes/2026-11-13-studio-model-notice.md). 원본 구현·계약/빌드 통과. Viewer 대상 확인·웹 이식·웹 검증·프런트엔드 준비·네이티브 빌드·설치 검증 대기. 빌드 미요청.
