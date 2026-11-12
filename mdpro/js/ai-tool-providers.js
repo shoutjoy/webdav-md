@@ -11,20 +11,23 @@
         ['openai-compatible', 'OrcaRouter / OpenAI 호환', 'OpenAICompatible', 'openai_compatible'],
         ['openai', 'OpenAI · ChatGPT 모델 (유료 API)', 'OpenAI', 'openai']
     ];
+    const mountedSelections = new Map();
     function entry(provider) { return catalog.find(row => row[0] === provider); }
     function read(tool) {
+        if (mountedSelections.has(tool)) return mountedSelections.get(tool)();
         let saved;
         try { saved = JSON.parse(root.localStorage.getItem('mdv_ai_tool_' + tool) || 'null'); } catch (_) { /* Use Jena defaults. */ }
         if (!saved && tool === 'img2math') {
             try { saved = JSON.parse(root.localStorage.getItem('mdv_img2math_model_selection_v1') || 'null'); } catch (_) { /* Use Jena defaults. */ }
         }
+        if (saved && saved.provider === '') return {provider:'',model:''};
         const provider = entry(saved && saved.provider) ? saved.provider : root.localStorage.getItem('ss_ai_chat_provider') || 'lmstudio';
         const row = entry(provider) || catalog[0];
-        return { provider: row[0], model: saved && saved.provider === row[0] ? saved.model || '' : root.localStorage.getItem('ss_ai_chat_' + row[3] + '_model') || '' };
+        return { provider: row[0], model: saved && saved.provider === row[0] ? saved.model || '' : root.localStorage.getItem('ss_ai_chat_' + row[3] + '_model') || '', ...(saved && saved.openAICompatibleProvider ? {openAICompatibleProvider:saved.openAICompatibleProvider} : {}) };
     }
     function save(tool, selection) {
-        if (!entry(selection.provider)) throw new Error('지원하지 않는 AI 공급자입니다.');
-        const value = { provider: selection.provider, model: String(selection.model || '') };
+        if (selection.provider && !entry(selection.provider)) throw new Error('지원하지 않는 AI 공급자입니다.');
+        const value = { provider: selection.provider, model: String(selection.model || ''), openAICompatibleProvider: String(selection.openAICompatibleProvider || '') };
         root.localStorage.setItem('mdv_ai_tool_' + tool, JSON.stringify(value));
         return value;
     }
@@ -40,6 +43,28 @@
         const doc = container.ownerDocument;
         if (container.__aiToolPicker) return container.__aiToolPicker;
         const initial = read(tool);
+        if (root.mountAITaskPicker) {
+            const wrap = doc.createElement('div'); wrap.className = 'ai-tool-provider-controls';
+            container.appendChild(wrap);
+            const toLegacy = value => ({provider:value.provider === 'openai-compatible'
+                ? value.openAICompatibleProvider === 'lemonade' ? 'lemonade' : value.openAICompatibleProvider === 'lemonade-flm' ? 'ollama-npu' : 'openai-compatible'
+                : value.provider, model:value.model, openAICompatibleProvider:value.openAICompatibleProvider});
+            const shared = root.mountAITaskPicker(wrap, 'mdv_ai_tool_' + tool, value => {
+                const selected = toLegacy(value);
+                // Empty provider means use the current Jena setting, resolved at execution.
+                save(tool, selected);
+                if (options.modelSelect) {
+                    options.modelSelect.replaceChildren(new Option(selected.model || 'Jena 설정 사용', selected.model || ''));
+                    options.modelSelect.value = selected.model || '';
+                }
+                if (options.onChange) options.onChange(selected);
+            }, {initialSelection:initial});
+            if (options.modelSelect) options.modelSelect.hidden = true;
+            const picker = {getValue:() => toLegacy(shared.selection()), reload:shared.refresh};
+            mountedSelections.set(tool, picker.getValue);
+            container.__aiToolPicker = picker;
+            return picker;
+        }
         const wrap = doc.createElement('div');
         wrap.className = 'ai-tool-provider-controls';
         wrap.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0;max-width:100%';

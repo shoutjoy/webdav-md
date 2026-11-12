@@ -8,12 +8,13 @@ const settingsSource = source.slice(source.indexOf('function normalizeOllamaGene
 const callSource = source.slice(source.indexOf('async function callOllamaChatText('), source.indexOf('function updateOllamaSettingsModeUI('));
 
 function harness({ pending = false } = {}) {
-  const storage = new Map();
+  // These cases exercise explicit settings, after the app's existing one-time migration.
+  const storage = new Map([['ss_ai_chat_large_context_v1', '1']]);
   const requests = [];
   let timer, timeoutMs, cleared = false;
   const runtime = vm.createContext({
     URL, AbortController, OLLAMA_BASE_URL_KEY: 'base',
-    localStorage: { getItem: key => storage.get(key), removeItem: key => storage.delete(key) },
+    localStorage: { getItem: key => storage.get(key), setItem: (key, value) => storage.set(key, String(value)), removeItem: key => storage.delete(key) },
     window: { LocalAI: { loadConfig: () => ({ fastMaxTokens: 7, fastTimeoutMs: 42000 }) } },
     normalizeOllamaBaseUrl: value => value,
     normalizeAIChatMessages: messages => messages,
@@ -33,9 +34,9 @@ function harness({ pending = false } = {}) {
   });
   vm.runInContext(settingsSource + callSource, runtime);
   const controller = new AbortController();
-  const run = (mode, overrides = {}, system = '') => runtime.callOllamaChatText(
+  const run = (mode, overrides = {}, system = '', requestOptions = {}) => runtime.callOllamaChatText(
     [{ role: 'user', content: 'test' }], system, 'gemma4:e2b-gpu', controller.signal, mode, undefined,
-    { contextLength: 8192, quickMaxTokens: 11, reasoningMaxTokens: 13, temperature: 0, ...overrides }
+    { contextLength: 8192, reasoningContextLength: 8192, quickMaxTokens: 11, reasoningMaxTokens: 13, temperature: 0, ...overrides }, requestOptions
   );
   return { runtime, storage, requests, controller, run, expire: () => timer(), get timeoutMs() { return timeoutMs; }, get cleared() { return cleared; } };
 }
@@ -67,7 +68,7 @@ test('stored settings survive reads and normalize invalid values without losing 
   assert.equal(settings.temperature, 0);
   assert.equal(h.runtime.normalizeOllamaGenerationSettings({ contextLength: -5 }).contextLength, 512);
   h.storage.set('ss_ai_chat_ollama_generation_v1', '{broken');
-  assert.equal(h.runtime.getOllamaSettings().contextLength, 8192);
+  assert.equal(h.runtime.getOllamaSettings().contextLength, 32768);
 });
 
 test('context budget caps output and rejects oversized fixed input before sending', async () => {
@@ -93,4 +94,13 @@ test('user stop remains AbortError rather than a timeout', async () => {
   h.controller.abort();
   await assert.rejects(promise, { name: 'AbortError' });
   assert.equal(h.cleared, true);
+});
+
+test('Jena tasks pass their output budget and use a bounded context without changing chat settings', async () => {
+  const h = harness();
+  await h.run('reasoning', { contextLength: 65536, reasoningContextLength: 65536 }, '', { disableThinking: true, maxOutputTokens: 31 });
+  assert.equal(h.requests[0].body.options.num_ctx, 16384);
+  assert.equal(h.requests[0].body.options.num_predict, 31);
+  assert.equal(h.requests[0].body.think, false);
+  assert.equal(h.storage.get('ss_ai_chat_ollama_generation_v1'), undefined);
 });

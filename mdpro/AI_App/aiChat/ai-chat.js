@@ -7855,7 +7855,62 @@
       openAtStartLayout();
       return true;
     },
-    getTaskModels: async function (provider, refresh) {
+    checkTaskVision: async function (provider, model) {
+      await ensureInitialized();
+      if (state.running) throw new Error('응답 생성 완료 후 이미지를 점검하세요.');
+      provider = provider || state.provider;
+      return getBridge().checkTaskVision(provider, model || activeProviderModel());
+    },
+    loadTaskModel: async function (provider, model) {
+      await ensureInitialized();
+      provider = provider || state.provider;
+      if (state.running) throw new Error('응답 생성 완료 후 모델을 로드하세요.');
+      var bridge = getBridge();
+      if (provider === 'openai-compatible') provider = state.openaiCompatibleProvider || storageGet('ss_openai_compatible_provider', 'orcarouter');
+      if (provider === 'litertlm') return bridge.loadLiteRTLMModel(String(model || state.litertlmModel || '').trim());
+      if (provider === 'ollama') return bridge.loadOllamaModel(String(model || state.ollamaModel || '').trim());
+      if (provider === 'lmstudio') return bridge.loadLMStudioModel(String(model || state.lmModel || '').trim());
+      if (/^(lemonade|lemonade-flm|ollama-npu)$/.test(provider)) return bridge.loadOpenAICompatibleTaskModel(provider, String(model || '').trim());
+      throw new Error('모델 로드는 LM Studio, Ollama, LiteRT-LM, Lemonade에서 지원합니다.');
+    },
+    completeTask: async function (options) {
+      var request = options || {}, controller = new AbortController();
+      var timeoutMs = Number(request.timeoutMs) > 0 ? Number(request.timeoutMs) : 180000;
+      var relay = function () { controller.abort(); };
+      if (request.signal) { if (request.signal.aborted) relay(); else request.signal.addEventListener('abort', relay, {once:true}); }
+      var timer = setTimeout(relay, timeoutMs), abortListener;
+      var stopped = new Promise(function (_, reject) {
+        abortListener = function () { reject(new Error('생성이 중지되었거나 제한 시간을 초과했습니다.')); };
+        if (controller.signal.aborted) abortListener(); else controller.signal.addEventListener('abort', abortListener, {once:true});
+      });
+      try {
+        await Promise.race([ensureInitialized(), stopped]);
+        if (controller.signal.aborted) throw new Error('생성이 중지되었습니다.');
+        var provider = request.provider || state.provider;
+        var profile = request.openAICompatibleProvider || storageGet('ss_openai_compatible_provider', 'orcarouter');
+        if (/^(lemonade|lemonade-flm)$/.test(provider)) { profile=provider; provider='openai-compatible'; }
+        if (provider==='openai-compatible-env') provider='openai-compatible';
+        if (!/^(lmstudio|ollama-npu|litertlm|aistudio|ollama|deepseek|openai|openai-compatible)$/.test(provider)) throw new Error('지원하지 않는 AI 공급자입니다.');
+        var model = request.provider ? String(request.model || '').trim() : activeProviderModel();
+        if (request.provider && provider!=='lmstudio' && !model) throw new Error('AI 모델을 선택하세요.');
+        var messages=Array.isArray(request.messages) ? request.messages : [{role:'user',content:String(request.prompt || ''),attachments:Array.isArray(request.attachments)?request.attachments:[]}];
+        var operation=getBridge().complete({
+          provider:provider, model:model, openAICompatibleProvider:provider==='openai-compatible'?profile:undefined,
+          independent:true,signal:controller.signal,timeoutMs:timeoutMs,
+          mode:'quick',fastMode:true,disableThinking:true,task:request.task || 'jena-tool',
+          maxOutputTokens:Math.max(64,Math.min(32768,Number(request.maxOutputTokens)||8192)),
+          messages:messages,systemInstruction:String(request.systemInstruction||''),
+          onStreamEvent:function(event){if(!controller.signal.aborted && typeof request.onStreamEvent==='function') request.onStreamEvent(event);}
+        });
+        var result=await Promise.race([operation,stopped]);
+        if(controller.signal.aborted)throw new Error('생성이 중지되었습니다.');
+        return Object.assign({},result||{},{provider:result&&result.provider||provider,model:result&&result.model||model});
+      } finally {
+        clearTimeout(timer);controller.signal.removeEventListener('abort',abortListener);
+        if(request.signal)request.signal.removeEventListener('abort',relay);
+      }
+    },
+    getTaskModels: async function (provider, refresh, selectedModel) {
       await ensureInitialized();
       provider = provider || state.provider;
       var selected = provider;
@@ -7872,7 +7927,13 @@
       if (provider === 'lmstudio') models = Array.from(new Set(models.concat(config[1] || [], result && result.model || [])));
       var compatible = /^(lemonade|lemonade-flm|ollama-npu|openai-compatible-env|openai-compatible)$/.test(provider);
       var options = Array.from(document.getElementById('ai-chat-provider').options).map(function (option) { return { value: option.value === 'ollama-npu' ? 'lemonade-flm' : option.value === 'openai-compatible' ? 'openai-compatible-env' : option.value, label: option.value === 'ollama-npu' ? 'Lemonade FLM NPU' : option.textContent }; });
-      return { provider: compatible ? 'openai-compatible' : selected, model: config[1] || result && result.model || models[0] || '', models: Array.from(new Set(models)), openAICompatibleProvider: compatible ? (profile === 'ollama-npu' ? 'lemonade-flm' : profile === 'openai-compatible' ? storageGet('ss_openai_compatible_provider', 'orcarouter') : profile) : undefined, providers: options, providerLabel: (options.find(function (item) { return item.value === selected; }) || {}).label };
+      var runtime = null;
+      if (refresh && /^(ollama|litertlm)$/.test(provider) && typeof bridge.getTaskModelRuntime === 'function') {
+        try { runtime = await bridge.getTaskModelRuntime(provider, selectedModel || config[1] || models[0] || ''); }
+        catch (error) { runtime = {error:error.message || String(error)}; }
+      }
+      if (typeof root !== 'undefined' && root.AIJenaTaskPolicy) config[1] = root.AIJenaTaskPolicy.defaultModel(provider, models, selectedModel || config[1]);
+      return { runtime: runtime, provider: compatible ? 'openai-compatible' : selected, model: config[1] || result && result.model || models[0] || '', models: Array.from(new Set(models)), openAICompatibleProvider: compatible ? (profile === 'ollama-npu' ? 'lemonade-flm' : profile === 'openai-compatible' ? storageGet('ss_openai_compatible_provider', 'orcarouter') : profile) : undefined, providers: options, providerLabel: (options.find(function (item) { return item.value === selected; }) || {}).label };
     },
     close: function () { setOpen(false); }
   });

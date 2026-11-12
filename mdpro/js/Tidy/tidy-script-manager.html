@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>TIDY 사용자 JS 관리</title>
+    <title>Jena Tidy</title>
     <style>
         :root { color-scheme: dark; font-family: Inter, Pretendard, "Noto Sans KR", system-ui, sans-serif; }
         * { box-sizing: border-box; }
@@ -52,11 +52,14 @@
         .status.ok { color: #86efac; } .status.error { color: #fca5a5; }
         @media (max-width: 760px) { main { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid #1e293b; max-height: 240px; } textarea { min-height: 300px; } .editor-menu { align-items: stretch; } label.name-field { width: 100%; } label.name-field input { flex: 1; width: auto; min-width: 0; } .upload-tooltip { left: 0; transform: translate(0, -3px); } .upload-tab-help:hover .upload-tooltip, .upload-tab-help:focus-within .upload-tooltip { transform: translate(0, 0); } }
     </style>
+<link rel="stylesheet" href="./tidy-manager-layout.css?v=20261112-1">
+<link rel="stylesheet" href="./tidy-workspace.css?v=20261112-1">
+<script src="../editor/javascript-highlight.js?v=20261112-1"></script>
 </head>
 <body>
 <div class="shell">
     <header>
-        <h1>TIDY 사용자 JS 추가·관리</h1>
+        <h1>Jena Tidy</h1>
         <button class="btn" id="header-close" type="button">닫기 ✕</button>
         <p>직접 입력하거나 .js 파일을 업로드하세요. 저장한 기능은 메인 창의 TIDY 메뉴에 버튼으로 추가됩니다.</p>
     </header>
@@ -86,7 +89,7 @@
                 <input id="file" type="file" accept=".js,text/javascript,application/javascript">
                 <p class="help">업로드한 코드를 아래 편집기에 불러온 뒤 확인하고 저장합니다.</p>
             </div>
-            <label class="field"><span>변환 함수</span><textarea id="code" spellcheck="false"></textarea></label>
+            <label class="field code-field"><span>변환 함수</span><div class="tidy-syntax-editor"><pre aria-hidden="true" id="code-highlight"></pre><textarea id="code" aria-label="JavaScript 변환 함수" spellcheck="false" wrap="off"></textarea></div></label>
             <label class="row"><input id="enabled" type="checkbox" checked> TIDY 메뉴에 표시</label>
             <div class="storage">
                 <div class="help" style="margin-bottom:8px">저장 위치: inDB에는 항상 복구본을 저장합니다. 필요하면 SQLite와 GitHub에도 동기화합니다.</div>
@@ -253,6 +256,8 @@
     }).catch(function (error) { status(error && error.message ? error.message : String(error), 'error'); });
 })();
 </script>
-<script src="./tidy-jena.js?v=20261016-ai-tools-1"></script>
+<script src="./tidy-jena.js?jenaSeries=20261112-1&v=20261016-ai-tools-1"></script>
+<script src="./tidy-code-colors.js?v=20261112-1"></script>
+<script src="./tidy-workspace.js?v=20261112-1"></script>
 </body>
 </html>

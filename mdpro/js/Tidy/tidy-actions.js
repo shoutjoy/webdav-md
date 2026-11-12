@@ -30,11 +30,11 @@
 
     function closeMenu() {
         var panel = document.getElementById('tidy-quick-panel');
-        if (panel) panel.classList.add('hidden');
+        if (panel && panel.dataset.docked !== 'true') panel.classList.add('hidden');
     }
 
     function positionMenu(panel, btn) {
-        if (!panel || !btn || !document.body) return;
+        if (!panel || !btn || !document.body || panel.dataset.docked === 'true') return;
         if (typeof document.body.appendChild === 'function' && panel.parentNode !== document.body) {
             document.body.appendChild(panel);
         }
@@ -68,6 +68,11 @@
         var panel = document.getElementById('tidy-quick-panel');
         var btn = document.getElementById('btn-tidy-quick');
         if (!panel || !btn) return;
+        if (panel.dataset.docked === 'true') {
+            var title = document.querySelector('#tidy-menu-dock .tidy-dock-title');
+            if (title) title.focus();
+            return;
+        }
         bindDismiss();
         var shouldOpen = forceOpen === true ? true : panel.classList.contains('hidden');
         panel.classList.toggle('hidden', !shouldOpen);
@@ -80,7 +85,7 @@
         document.body.addEventListener('click', function (event) {
             var panel = document.getElementById('tidy-quick-panel');
             var btn = document.getElementById('btn-tidy-quick');
-            if (!panel || !btn) return;
+            if (!panel || !btn || panel.dataset.docked === 'true') return;
             var target = event.target;
             if (panel.contains(target) || btn.contains(target)) return;
             panel.classList.add('hidden');

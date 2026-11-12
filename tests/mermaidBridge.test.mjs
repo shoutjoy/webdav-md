@@ -13,6 +13,7 @@ function setup() {
     window: { MermaidAIQuality: { systemInstruction: 'preserve image labels' }, addEventListener: (_, fn) => { listener = fn; } },
     document: { getElementById: () => ({ contentWindow: frame }) },
     insertMermaidBlockFromExternal: code => calls.push(['insert', code]),
+    routeMermaidToGenSlide: () => false,
     closeMermaidEditorModal: () => calls.push(['close']),
     showToast: () => {},
   };

@@ -4687,3 +4687,9 @@ body.mermaid-workspace-split #main-workspace { box-sizing:border-box; padding-ri
 body.mermaid-workspace-split #mermaid-editor-modal-panel { border-radius:0; box-shadow:-3px 0 14px #0f172a15; }
 #mermaid-editor-modal-header { flex-wrap:wrap; gap:6px; }
 #mermaid-editor-modal-header > div { flex-wrap:wrap; }
+
+/* Jena tasks: local diagnostics stay inside the tool. */
+.jena-task-status {display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0;font-size:11px;line-height:1.5;overflow-wrap:anywhere;margin:6px 0}
+.jena-task-status button {padding:5px 12px;border:1px solid #64748b;border-radius:6px;background:transparent;color:inherit;cursor:pointer}
+.ai-tool-provider-controls {min-width:0;max-width:100%}
+@media(max-width:760px){.jena-task-status button{min-height:44px}.ai-tool-provider-controls select,.ai-tool-provider-controls button,.ai-tool-provider-controls input{max-width:100%;min-height:40px}}

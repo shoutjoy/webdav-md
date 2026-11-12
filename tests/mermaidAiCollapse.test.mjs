@@ -11,7 +11,7 @@ test('collapsed AI area keeps its controls reachable through expansion',()=>{
  assert.match(html, /id="mermaid-ai-collapse-btn"/);
 });
 test('editor loads versioned picker and quality helper before the application',()=>{
- assert.match(html,/style\.css\?v=20261110-me-ai-1/);
+ assert.match(html,/style\.css\?v=20261112-webdav-jena-1/);
  assert(html.indexOf('task-provider-picker.js') < html.indexOf('src="app.js'));
  assert(html.indexOf('ai-quality.js') < html.indexOf('src="app.js'));
 });

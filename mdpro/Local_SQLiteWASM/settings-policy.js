@@ -14,6 +14,7 @@
         highlightVisible: ['features', 'global', ['boolean'], 16],
         sitesVisible: ['features', 'global', ['boolean'], 16],
         macroVisible: ['features', 'global', ['boolean'], 16],
+        macroJenaEnabled: ['features', 'global', ['boolean'], 16],
         templateVisible: ['features', 'global', ['boolean'], 16],
         noteCoverInsertVisible: ['features', 'global', ['boolean'], 16],
         pdfMergeVisible: ['features', 'global', ['boolean'], 16],

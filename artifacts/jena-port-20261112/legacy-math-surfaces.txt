@@ -1,0 +1,13 @@
+Main contract formulas verified 16
+PV {
+  math: 0,
+  mj: false,
+  typeset: 'undefined',
+  hasBody: false,
+  url: 'http://hwp.test/index.html'
+}
+page.waitForFunction: Timeout 20000ms exceeded.
+    at C:\CusorApps\Webdav_md\webdav-md\tests\hwp-math-surfaces.browser.cjs:16:11 {
+  log: [],
+  name: 'TimeoutError'
+}

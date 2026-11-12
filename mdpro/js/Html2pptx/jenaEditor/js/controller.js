@@ -1,4 +1,4 @@
-﻿(() => {
+(() => {
   const UI_FILES = {
     main: "./ui/main.html",
     header: "./ui/header.html",
@@ -50,6 +50,7 @@
   <button class="btn" id="btnImageExport">image Export</button>
   <button class="btn" id="btnPptxExport">pptx Export</button>
   <button class="btn" id="btnScholarAI">ScholarAI</button>
+  <button class="btn" id="btnJenaSlide" disabled>Jena Slide</button>
   <input id="fileInput" type="file" accept=".mpp,.json,application/json,text/plain" style="display:none">
   <input id="pptxFileInput" type="file" accept=".pptx,.ppsx,application/vnd.openxmlformats-officedocument.presentationml.presentation" style="display:none">
 </div>`,
@@ -186,6 +187,7 @@
 
   const SCRIPT_ORDER = [
     "./js/state.js",
+    "./js/jena-slide-images.js",
     "./js/Edit/edit_text.js",
     "./js/Edit/edit_obj.js",
     "./js/Edit/Obj_layer.js",
@@ -203,9 +205,15 @@
     "./js/Export/pptModeFull.js",
     "./js/Export/pptExport.js",
     "./js/sqliteStorage.js?v=20260806-storage-feature-visibility-1",
-    "./js/main.js"
+    "../../../vendor/mammoth/mammoth.browser.min.js",
+    "../../../AI_App/aiChat/task-provider-picker.js",
+    "./js/main.js",
+    "./js/jena-slide.js",
+    "./js/jena-slide-dock.js",
+    "../../../vendor/html2canvas/html2canvas.min.js",
+    "./js/jena-slide-visuals.js"
   ];
-  const ASSET_VERSION = "20260815-pptx-import-1";
+  const ASSET_VERSION = "20261112-webdav-jena-1";
 
   const loadedScripts = new Set();
   let booted = false;
@@ -426,4 +434,3 @@
     boot();
   }
 })();
-

@@ -1,0 +1,29 @@
+[
+  {
+    "width": 1440,
+    "syntaxColors": true,
+    "save": true,
+    "workerTest": true,
+    "mockGeneration": true,
+    "fullscreen": true,
+    "errors": []
+  },
+  {
+    "width": 1000,
+    "syntaxColors": true,
+    "save": true,
+    "workerTest": true,
+    "mockGeneration": true,
+    "fullscreen": true,
+    "errors": []
+  },
+  {
+    "width": 390,
+    "syntaxColors": true,
+    "save": true,
+    "workerTest": true,
+    "mockGeneration": true,
+    "fullscreen": true,
+    "errors": []
+  }
+]

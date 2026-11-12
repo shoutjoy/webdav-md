@@ -8,6 +8,8 @@ WebDAV MDpro와 MDproViewer의 기능 개발, 버그 수정, 리팩터링, 이�
 
 | 항목 | WebDAV | MDproViewer |
 | --- | --- | --- |
+| MDPRO-20261112-WORKSPACE-UI | [Macro Dock·Viewer형 Jena Tidy·표 메뉴 앵커](changes/2026-11-12-macro-dock-tidy-workspace-table-anchor.md) | WebDAV 구현·Chrome 3화면·매크로/저장/Worker/모의 AI·빌드 통과 | Viewer UI·브리지 비교, 대상 미수정 | Viewer 빌드·설치 미실행 |
+| MDPRO-20261112-IMAGE-INSERT-DOCK | [이미지 넣기 분할 Dock](changes/2026-11-12-image-insert-dock.md) | WebDAV 구현·Chrome 1440/800/390·25개 컨트롤·웹 빌드 통과 | Viewer 우측 정렬 소스 비교·신규 분할 미적용 | Viewer 빌드·설치 미실행 |
 | 작업공간 | `C:\CusorApps\Webdav_md` | `C:\CusorApps\md-viewerVscode\md_viewer` |
 | 실제 앱 저장소 | `webdav-md/` | 작업공간 루트 |
 | 앱 소스 | `mdpro/` | 루트의 `js/`, `css/`, `AI_App/`, `index.html` 등 |
@@ -33,6 +35,9 @@ WebDAV MDpro와 MDproViewer의 기능 개발, 버그 수정, 리팩터링, 이�
 
 | ID | 기술문서 | 원본 구현 | 상대 앱 적용 | Tauri |
 | --- | --- | --- | --- | --- |
+| MDPRO-20261112-TABLE-DOCK-MERGE | [표 메뉴 상단·Dock·행/열 병합](changes/2026-11-12-table-menu-dock-merge.md) | WebDAV 구현·43개 검사·Chrome desktop/mobile·빌드 통과 | Viewer 실제 layout/병합 비교·미수정 | Viewer 자산 미수정·이번 빌드 불필요 |
+| MDPRO-20261112-TIDY-MENU-DOCK | [TIDY 메뉴 우측 도킹](changes/2026-11-12-tidy-menu-right-dock.md) | WebDAV 구현·Chrome 3폭/양 테마·기존 TIDY 5검사·웹 빌드 통과 | Viewer 기존 메뉴 Dock 소스 비교·WebDAV 적응·상대 미수정 | Viewer frontend/native/설치 미실행 |
+| MDPRO-20261112-JENA-SERIES-RUNTIME | [Jena 군 모델·연결·독립 실행·UI 안정화](changes/2026-11-12-jena-series-runtime-port.md) | WebDAV 적응 구현·도구별 브라우저/Worker/저장 왕복·실제 Lemonade fixture 확인, 최종 검증 수치는 문서 참고 | Viewer toskill 최신본·실제 소스 비교, 원본 미수정·대상별 PNG/저장/인증 차이 보존 | WebDAV 웹 빌드, Viewer frontend/native/설치 미실행 |
 | MDPRO-20261110-JENA-ALT4-DOC | [AI Jena 하단 플로팅 Alt+4 구현·모바일](changes/2026-11-10-ai-jena-alt4-bottom-floating.md) | 기존 코드 기술서 작성·UI 계약 29개 통과, 모바일 실기기 미검증·코드 미수정 | Viewer 세 배치·모바일 viewport 차이 읽기 비교·미이식 | 문서 전용·이번 재빌드 불필요 |
 | MDPRO-20261110-VITE-CLASSIC-SCRIPTS | [Vite 버튼 실행 오류](changes/2026-11-10-vite-classic-script-buttons.md) | 개발 서버 script 원문 제공·13개 검사·Chrome root/nested/React iframe·빌드 통과 | Viewer 동적 import 확인·루트 Vite 설정 없음·미수정 | 서버 전용 수정·이 항목 재빌드 불필요 |
 | MDPRO-20261110-ME-AI-SETTINGS | [ME AI 설정·압축 UI·도표별 테마](changes/2026-11-10-me-ai-settings-port.md) | WebDAV 이식·102개 검사·Chrome 4개 회귀·웹 빌드 통과, 실제 공급자 품질 미검증 | Viewer 원본 함수 읽기 비교·미수정 | frontend/네이티브/설치 앱 미실행 |

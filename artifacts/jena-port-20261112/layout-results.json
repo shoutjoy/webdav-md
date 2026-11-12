@@ -1,0 +1,18 @@
+[
+  {
+    "width": 390,
+    "mathFits": true,
+    "macroFits": true,
+    "macroSendReachable": true,
+    "slideGenerateReachable": true,
+    "pageErrors": []
+  },
+  {
+    "width": 800,
+    "mathFits": true,
+    "macroFits": true,
+    "macroSendReachable": true,
+    "slideGenerateReachable": true,
+    "pageErrors": []
+  }
+]

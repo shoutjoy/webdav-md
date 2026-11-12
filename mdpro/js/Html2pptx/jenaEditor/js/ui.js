@@ -292,6 +292,7 @@ async function openSlideShowWindow() {
 }
 
 function renderSidebar() {
+  window.JenaSlideDock?.schedule();
   els.slides.innerHTML = "";
   slides.forEach((s, i) => {
     const el = document.createElement("div");
@@ -317,7 +318,22 @@ function renderSidebar() {
     btnUp.onclick = (ev) => { ev.stopPropagation(); moveSlideUp(i); };
     btnDown.onclick = (ev) => { ev.stopPropagation(); moveSlideDown(i); };
 
+    const edit = document.createElement("button");
+    edit.className = "sact"; edit.textContent = "Edit";
+    edit.onclick = ev => { ev.stopPropagation(); cur = i; loadCurrent(); document.getElementById("jsl-editor")?.click(); els.code.focus(); };
+    actions.appendChild(edit);
     el.appendChild(actions);
+    const textEditor = document.createElement('details'); textEditor.className = 'jsl-slide-text'; textEditor.open = !!s.jenaTextExpanded;
+    const summary = document.createElement('summary'); summary.textContent = '페이지별 텍스트'; textEditor.appendChild(summary);
+    textEditor.ontoggle = () => { s.jenaTextExpanded = textEditor.open; };
+    const label = document.createElement('label');
+    const source = document.createElement('textarea'); source.value = String(s.jenaText || ''); source.placeholder = '이 슬라이드의 내용을 입력하세요.'; source.setAttribute('aria-label', `Slide ${i+1} 페이지별 텍스트`);
+    source.oninput = () => { s.jenaText = source.value; if (typeof scheduleGenSlideInDbMirror === 'function') scheduleGenSlideInDbMirror(); };
+    label.appendChild(source); textEditor.appendChild(label);
+    window.GenSlideImages?.mount(textEditor,{image:s.jenaImage,pasteTarget:source,onChange:image=>{s.jenaImage=image;if(typeof scheduleGenSlideInDbMirror==='function')scheduleGenSlideInDbMirror();}});
+    const generate = document.createElement('button'); generate.type = 'button'; generate.className = 'btn primary'; generate.textContent = '생성하기 · HTML';
+    generate.onclick = async () => { generate.disabled = true; try { await window.JenaSlide?.generateForSlide(i, source.value, s.jenaImage); } finally { generate.disabled = false; } };
+    textEditor.appendChild(generate); textEditor.addEventListener('click', e => e.stopPropagation()); textEditor.addEventListener('keydown', e => e.stopPropagation()); el.appendChild(textEditor);
     el.onclick = () => {
       cur = i;
       expandedSlideIndex = (expandedSlideIndex === i) ? -1 : i;
@@ -469,4 +485,3 @@ function moveSlideDown(index) {
   expandedSlideIndex = cur;
   loadCurrent();
 }
-

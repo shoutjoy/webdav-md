@@ -3,6 +3,15 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 
+test('PV mode cleanup tolerates a newly opened window before its body exists', () => {
+    const window = {};
+    vm.runInNewContext(readFileSync(new URL('../mdpro/js/a4-presentation.js', import.meta.url), 'utf8'), {window});
+    assert.doesNotThrow(() => window.A4Presentation.leave({document:{body:null}}));
+    const removed=[];
+    window.A4Presentation.leave({document:{body:{classList:{remove:(...names)=>removed.push(...names)}}}});
+    assert.deepEqual(removed,['a4-pv','a4-slideshow']);
+});
+
 // A DOM/event fixture for state and drawing behavior; it does not emulate CSS layout.
 function fixture() {
     function makeDocument() {

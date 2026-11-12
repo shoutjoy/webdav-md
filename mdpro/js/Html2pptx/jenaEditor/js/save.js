@@ -75,7 +75,8 @@ function scheduleGenSlideInDbMirror() {
         name: "GenSlide live autosave",
         updatedAt: Date.now(),
         currentIndex: cur,
-        slides: slides.map((s) => ({ html: String((s && s.html) || "") }))
+        jenaSlide: window.JenaSlide?.snapshot(),
+        slides: slides.map((s) => ({ html: String((s && s.html) || ""), jenaImage: s?.jenaImage || null, jenaVisual: s?.jenaVisual || null, jenaText: String((s && s.jenaText) || "") }))
       }).catch(() => {});
     } catch (_) {}
   }, 900);
@@ -92,7 +93,8 @@ function saveSlidesToInDb(nameHint) {
         name,
         updatedAt: Date.now(),
         currentIndex: cur,
-        slides: slides.map((s) => ({ html: String((s && s.html) || "") }))
+        jenaSlide: window.JenaSlide?.snapshot(),
+        slides: slides.map((s) => ({ html: String((s && s.html) || ""), jenaImage: s?.jenaImage || null, jenaVisual: s?.jenaVisual || null, jenaText: String((s && s.jenaText) || "") }))
       });
       tx.oncomplete = () => {
         try {
@@ -105,7 +107,8 @@ function saveSlidesToInDb(nameHint) {
               name,
               updatedAt: Date.now(),
               currentIndex: cur,
-              slides: slides.map((s) => ({ html: String((s && s.html) || "") }))
+              jenaSlide: window.JenaSlide?.snapshot(),
+              slides: slides.map((s) => ({ html: String((s && s.html) || ""), jenaImage: s?.jenaImage || null, jenaVisual: s?.jenaVisual || null, jenaText: String((s && s.jenaText) || "") }))
             }).catch(() => {});
           }
         } catch (_) {}
@@ -157,7 +160,8 @@ async function loadSlidesFromInDbById(id) {
       }
     });
     if (!rec || !Array.isArray(rec.slides) || !rec.slides.length) return false;
-    slides = rec.slides.map((s) => ({ html: String((s && s.html) || START_HTML) }));
+    window.JenaSlide?.restore(rec.jenaSlide);
+    slides = rec.slides.map((s) => ({ html: String((s && s.html) || START_HTML), jenaImage: s?.jenaImage || null, jenaVisual: s?.jenaVisual || null, jenaText: String((s && s.jenaText) || "") }));
     cur = clamp(Number(rec.currentIndex) || 0, 0, slides.length - 1);
     backup = String(slides[cur].html || START_HTML);
     return true;
@@ -273,4 +277,3 @@ function base64ToBlob(base64, mime) {
   for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
   return new Blob([bytes], { type: mime || "application/octet-stream" });
 }
-

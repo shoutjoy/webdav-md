@@ -251,7 +251,8 @@
 
     function leave(win) {
         if (!win || win.closed) return;
-        win.document.body.classList.remove('a4-pv', 'a4-slideshow');
+        const body = win.document && win.document.body;
+        if (body) body.classList.remove('a4-pv', 'a4-slideshow');
     }
 
     window.A4Presentation = { mount, leave, theme, resetDocument: () => { generation++; }, point, hitStroke,

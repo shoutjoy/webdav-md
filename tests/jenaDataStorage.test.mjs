@@ -56,13 +56,19 @@ test('local records survive failed upload, retry after reload and skip unchanged
     const window = { location: { search: '?webdav=1', origin: 'https://app.test' }, crypto: globalThis.crypto,
       addEventListener(type, fn) { if (type === 'message') listeners.add(fn); },
       removeEventListener(type, fn) { listeners.delete(fn); },
+      dispatchEvent() {},
     };
     window.parent = { postMessage(data) {
+      if (data.type === 'jena-read-records') {
+        queueMicrotask(() => { for (const listener of [...listeners]) listener({ source: window.parent, origin: window.location.origin,
+          data: { type: 'jena-read-result', requestId: data.requestId, ok: true, records: [] } }); });
+        return;
+      }
       uploaded.push(data.record);
       queueMicrotask(() => { for (const listener of [...listeners]) listener({ source: window.parent, origin: window.location.origin,
         data: { type: 'jena-save-result', requestId: data.requestId, ok: !failing, error: 'offline' } }); });
     } };
-    vm.runInNewContext(source, { window, URLSearchParams, Map, console,
+    vm.runInNewContext(source, { window, URLSearchParams, Map, console, CustomEvent: function () {},
       document: { getElementById() { return null; } }, localStorage: { getItem() { return '1'; } },
       indexedDB: { open() { const request = {}; queueMicrotask(() => { request.result = database; request.onsuccess(); }); return request; } },
       setTimeout(fn, delay) { const id = ++timerId; timers.set(id, { fn, delay }); return id; },
@@ -99,10 +105,17 @@ test('hides protected folder and descendants while preserving similarly named us
   assert.equal(visibleWebdavEntries([{ remotePath: '/JENA_DATA/a.json' }]).length, 0);
   assert.deepEqual(
     visibleWebdavEntries(entries, { showHidden: true }).map(entry => entry.filename),
-    ['/.mdpro_mset', '/.webdav_temp', '/JENA_DATA_OTHER', '/notes/JENA_DATA', '/notes/a.md'],
+    ['/JENA_DATA_OTHER', '/notes/JENA_DATA', '/notes/a.md'],
   );
   assert.equal(visibleWebdavEntries([{ filename: '/notes/.draft.md' }]).length, 0);
   assert.equal(visibleWebdavEntries([{ filename: '/notes/.draft.md' }], { showHidden: true }).length, 1);
+});
+
+test('WebDAV JSON storage preserves optional Slide workspace metadata without a DB migration', async () => {
+  const client = fakeClient();
+  const record = { id:'slides:fixture', recordType:'slides', slides:[{html:'<p>slide</p>',jenaText:'원문'}], jenaSlide:{version:1,pages:[{source:'원문',outline:'원고',html:'<p>slide</p>'}]} };
+  const saved = await saveJenaRecord(client, record);
+  assert.deepEqual(client.files.get(saved.path), record);
 });
 
 test('data center reads only its own JSON records, omits deletion markers and performs no writes', async () => {

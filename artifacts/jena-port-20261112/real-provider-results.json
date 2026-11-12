@@ -1,0 +1,57 @@
+[
+  {
+    "label": "text-connection",
+    "ok": true,
+    "provider": "lemonade",
+    "model": "Gemma-4-E4B-it-GGUF",
+    "text": "READY",
+    "elapsedMs": 437,
+    "firstDeltaMs": 412,
+    "usage": {
+      "completion_tokens": 2,
+      "prompt_tokens": 31,
+      "total_tokens": 33,
+      "prompt_tokens_details": {
+        "cached_tokens": 1
+      }
+    }
+  },
+  {
+    "label": "math-image",
+    "ok": true,
+    "provider": "lemonade",
+    "model": "Gemma-4-E4B-it-GGUF",
+    "text": "$x = -1/2$",
+    "elapsedMs": 348,
+    "firstDeltaMs": 195,
+    "usage": {
+      "completion_tokens": 9,
+      "prompt_tokens": 129,
+      "total_tokens": 138,
+      "prompt_tokens_details": {
+        "cached_tokens": 1
+      }
+    }
+  },
+  {
+    "label": "table-text",
+    "ok": true,
+    "provider": "lemonade",
+    "model": "Gemma-4-E4B-it-GGUF",
+    "text": "| Item | Value |\n|---|---|\n| A | 12 |\n| B | -3 |",
+    "elapsedMs": 555,
+    "firstDeltaMs": 112,
+    "usage": {
+      "completion_tokens": 25,
+      "prompt_tokens": 57,
+      "total_tokens": 82,
+      "prompt_tokens_details": {
+        "cached_tokens": 1
+      }
+    }
+  },
+  {
+    "label": "ollama-residency",
+    "models": []
+  }
+]

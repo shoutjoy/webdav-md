@@ -1,0 +1,81 @@
+{
+  "base": "/",
+  "results": [
+    {
+      "tool": "Table",
+      "textInput": true,
+      "stream": true,
+      "preview": true
+    },
+    {
+      "tool": "Table",
+      "cancelRestores": true,
+      "lateResponseIgnored": true
+    },
+    {
+      "tool": "Table",
+      "inheritCurrentJena": true
+    },
+    {
+      "tool": "Math",
+      "textInputRetained": true,
+      "multiline": true,
+      "mathJax": true,
+      "mathNodes": 1
+    },
+    {
+      "tool": "ME",
+      "isolatedRevision": true,
+      "explicitApply": true,
+      "realSvg": true
+    },
+    {
+      "tool": "Tidy",
+      "sharedPicker": true,
+      "generation": true
+    },
+    {
+      "tool": "Tidy",
+      "realWorker": true,
+      "fixedSelection": true,
+      "documentSwitchProtected": true
+    },
+    {
+      "tool": "Macro",
+      "generateDoesNotExecute": true,
+      "registerDoesNotExecute": true,
+      "explicitRun": true
+    },
+    {
+      "tool": "Slide",
+      "isolatedJsVisualRenderer": true,
+      "mppDraftRoundTrip": true,
+      "inDbDraftRoundTrip": true
+    },
+    {
+      "tool": "Slide",
+      "initialization": true,
+      "pageSplit": true,
+      "generation": true,
+      "existingScholarControl": true
+    },
+    {
+      "tool": "Slide/ME",
+      "realPngReturn": true,
+      "documentUnchanged": true
+    },
+    {
+      "tool": "SSP",
+      "singleProviderUi": true,
+      "modelFold": true
+    },
+    {
+      "tool": "Scholar",
+      "commonPicker": true,
+      "independentRequest": true
+    },
+    {
+      "pageErrors": []
+    }
+  ]
+}

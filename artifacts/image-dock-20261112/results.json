@@ -1,0 +1,26 @@
+[
+  {
+    "width": 1440,
+    "controls": 25,
+    "insert": true,
+    "resize": true,
+    "returnCloseReopenEscape": true,
+    "errors": []
+  },
+  {
+    "width": 800,
+    "controls": 25,
+    "insert": true,
+    "resize": true,
+    "returnCloseReopenEscape": true,
+    "errors": []
+  },
+  {
+    "width": 390,
+    "controls": 25,
+    "insert": true,
+    "resize": false,
+    "returnCloseReopenEscape": true,
+    "errors": []
+  }
+]

@@ -1,0 +1,47 @@
+{
+  "date": "2026-11-12",
+  "targetHead": "b795268",
+  "sourceHead": "250ab9e",
+  "unit": {
+    "passed": 181,
+    "failed": 0,
+    "log": "verification-tests.txt"
+  },
+  "build": {
+    "status": "pass",
+    "log": "build.txt",
+    "warning": "Vite chunk >500kB"
+  },
+  "static": {
+    "syntaxFiles": 37,
+    "runtimeAssetsMatchBuild": 37,
+    "diffCheck": "pass"
+  },
+  "browser": {
+    "root": "pass",
+    "nested": "pass",
+    "widths": [
+      390,
+      800
+    ],
+    "pageErrors": [],
+    "storage": [
+      "inDB",
+      "MPP v2"
+    ],
+    "slideMermaidReturn": "actual SVG to PNG"
+  },
+  "math": {
+    "actualViteMainAndPV": "pass",
+    "legacyVirtualHwpTest": "FAIL: PV body timeout; see legacy-math-surfaces.txt"
+  },
+  "liveProvider": {
+    "lemonade": "Gemma-4-E4B-it-GGUF text/image/text-table passed; small warm fixtures only",
+    "ollama": "catalog only; no loaded models",
+    "lmStudio": "ports 1234/5678 refused",
+    "others": "real inference unverified"
+  },
+  "scope": "Jena runtime/provider/model/latency/UI adaptation; deferred feature and DB parity listed in change doc",
+  "deployment": false,
+  "tauriBuild": false
+}

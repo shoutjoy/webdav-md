@@ -283,6 +283,7 @@
         return {
             entryId: String(item.entryId || ''),
             actionId: actionId,
+            name: String(item.name || ''),
             enabled: item.enabled !== false,
             hotkey: normalizeShortcutText(item.hotkey || ''),
             script: String(item.script || buildScriptForAction(actionId, actionArgs)),
@@ -394,7 +395,7 @@
         }
         body.innerHTML = macroEntries.map(function (entry) {
             const meta = getMacroActionById(entry.actionId);
-            const label = meta ? meta.label : entry.actionId;
+            const label = entry.name || (meta ? meta.label : entry.actionId);
             const hotkey = entry.hotkey || '-';
             const modeBadge = entry.targetMode === 'absolute' ? 'ABS' : 'REL';
             return ''
@@ -478,6 +479,7 @@
     }
 
     function applyMacroMenuLayout(layoutInput) {
+        if (window.MacroMenuDock?.isDocked()) return;
         const panel = getMacroMenuPanel();
         if (!panel) return;
         const layout = clampMacroMenuLayout(layoutInput || getMacroMenuLayoutFromLocal() || getDefaultMacroMenuLayout());
@@ -565,6 +567,10 @@
             } catch (error) { status.textContent = error.message; }
             finally { button.disabled = false; }
         };
+        const jenaButton=document.createElement('button');
+        jenaButton.type='button'; jenaButton.textContent='Jena Macro'; jenaButton.className='px-2 py-1 rounded border text-xs';
+        jenaButton.onclick=() => { window.TRTMacro.openJenaEditor(macroScriptEditorEntryId); };
+        document.getElementById('btn-macro-script-close').before(jenaButton);
         const closeBtn = document.getElementById('btn-macro-script-close');
         const cancelBtn = document.getElementById('btn-macro-script-cancel');
         const saveBtn = document.getElementById('btn-macro-script-save');
@@ -620,9 +626,11 @@
         closeMacroScriptEditor();
     }
 
+    let macroDocked = false;
     function closeMacroMenuPanel() {
         const panel = getMacroMenuPanel();
         if (!panel) return;
+        window.MacroMenuDock?.detach();
         panel.classList.add('hidden');
         macroHotkeyCaptureEntryId = '';
         updateMacroRecordStatusUi();
@@ -631,11 +639,13 @@
     function openMacroMenuPanel() {
         const panel = getMacroMenuPanel();
         if (!panel) return;
+        if (!window.MacroMenuDock?.isDocked()) document.body.appendChild(panel);
         panel.classList.remove('hidden');
         ensureMacroRecordModeUi();
         renderMacroList();
         updateMacroRecordStatusUi();
         bindMacroMenuInteractions();
+        window.MacroMenuDock?.apply(macroDocked);
         applyMacroMenuLayout(getMacroMenuLayoutFromLocal() || getDefaultMacroMenuLayout());
     }
 
@@ -653,14 +663,10 @@
     }
 
     function dockMacroMenuRight() {
-        const layout = clampMacroMenuLayout(getMacroMenuLayoutFromLocal() || getDefaultMacroMenuLayout());
-        const vp = getMacroMenuViewport();
-        applyMacroMenuLayout({
-            left: Math.max(8, vp.width - layout.width - 12),
-            top: layout.top,
-            width: layout.width,
-            height: layout.height
-        });
+        macroDocked = !macroDocked;
+        macroMenuDragging = macroMenuResizing = false;
+        window.MacroMenuDock?.apply(macroDocked);
+        if (!macroDocked) applyMacroMenuLayout(getMacroMenuLayoutFromLocal() || getDefaultMacroMenuLayout());
     }
 
     function toggleMacroRecord(on) {
@@ -735,6 +741,7 @@
         const entry = ensureMacroEntryShape({
             entryId: 'M' + String(macroSeq).padStart(3, '0'),
             actionId: meta.id,
+            name: String(options.name || ''),
             enabled: true,
             hotkey: '',
             targetMode: targetMode,
@@ -746,6 +753,7 @@
         macroEntries.push(entry);
         saveMacroEntriesToLocal();
         renderMacroList();
+        return entry;
     }
 
     function getMacroActionIdFromOnclickAttr(onclickValue) {
@@ -1095,6 +1103,7 @@
 
         if (header) {
             header.addEventListener('mousedown', function (e) {
+                if (window.MacroMenuDock?.isDocked()) return;
                 const target = e.target;
                 if (target && (target.closest('button') || target.closest('input') || target.closest('a'))) return;
                 const rect = panel.getBoundingClientRect();
@@ -1107,6 +1116,7 @@
 
         if (resize) {
             resize.addEventListener('mousedown', function (e) {
+                if (window.MacroMenuDock?.isDocked()) return;
                 const cur = clampMacroMenuLayout(getMacroMenuLayoutFromLocal() || getDefaultMacroMenuLayout());
                 macroMenuResizing = true;
                 macroMenuStartX = e.clientX;
@@ -1221,7 +1231,7 @@
         macroReplayDepth += 1;
         try {
             if (script) {
-                const fn = new Function(script);
+                const fn = new Function(script.startsWith('(async function(){') ? 'return ' + script : script);
                 const out = fn.call(window);
                 if (out && typeof out.then === 'function') await out;
                 return true;
@@ -1235,10 +1245,12 @@
         }
     }
 
-    function runMacroEntry(entryId) {
+    const runningEntries = new Set();
+    async function runMacroEntry(entryId) {
         const target = findEntryById(entryId);
-        if (!target) return;
-        executeMacroEntry(target);
+        if (!target || runningEntries.has(entryId)) return false;
+        runningEntries.add(entryId);
+        try { return await executeMacroEntry(target); } finally { runningEntries.delete(entryId); }
     }
 
     async function runCheckedMacroActions() {
@@ -1254,7 +1266,7 @@
             runBtn.classList.add('opacity-60', 'cursor-not-allowed');
         }
         for (let i = 0; i < targets.length; i += 1) {
-            await executeMacroEntry(targets[i]);
+            await runMacroEntry(targets[i].entryId);
         }
         if (runBtn) {
             runBtn.disabled = false;
@@ -1284,6 +1296,30 @@
     }
 
     window.TRTMacro = {
+        getCatalog: function () { return getMacroCatalog().map(item => ({id:item.id,label:item.label})); },
+        saveScript: function (input) {
+            const existing=findEntryById(input.entryId);
+            const target=existing || appendMacroEntry('script_macro', input);
+            if (!target) throw new Error('매크로를 등록할 수 없습니다.');
+            const script=typeof input.source === 'string' ? 'return window.TRTMacro.executeScript(' + JSON.stringify(input.source) + ', ' + JSON.stringify(target.entryId) + ');' : String(input.script);
+            updateMacroEntry(target.entryId, entry => Object.assign({}, entry, {script,name:String(input.name || '')}));
+            return findEntryById(target.entryId);
+        },
+        executeScript: async function (code, scopeId) {
+            macroReplayDepth += 1;
+            const id=scopeId || 'macro-preview';
+            try {
+                const AsyncFunction=Object.getPrototypeOf(async function () {}).constructor;
+                const api=window.MacroRuntime.create(id, window.MacroJena.api);
+                return await new AsyncFunction('mdpro', String(code)).call(window, api);
+            } catch (error) { window.MacroRuntime.stop(id); throw error; }
+            finally { macroReplayDepth = Math.max(0, macroReplayDepth-1); }
+        },
+        openMacroMenuPanel: openMacroMenuPanel,
+        openJenaEditor: function (id) {
+            if (!window.advancedAiFeatureFlags?.macroJena) { showToast('ENV에서 Jena Macro를 허용해 주세요.'); return false; }
+            return window.MacroJena.open(id ? findEntryById(id) : undefined);
+        },
         init: init,
         toggleMacroMenu: toggleMacroMenu,
         toggleMacroRecord: toggleMacroRecord,

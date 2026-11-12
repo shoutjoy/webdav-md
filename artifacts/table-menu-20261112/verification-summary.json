@@ -1,0 +1,18 @@
+{
+  "date": "2026-11-12",
+  "unitTests": 43,
+  "failed": 0,
+  "browserWidths": [
+    1440,
+    390
+  ],
+  "pageErrors": [],
+  "desktop": "right dock, document shrinks, scroll controls do not overlap",
+  "mobile": "bottom dock; popup/controls fit viewport",
+  "merge": "row up/down, column left/right, delimiter, undo",
+  "build": "passed",
+  "builtAssetsMatch": 5,
+  "viewerRuntimeModified": false,
+  "tauriBuilt": false,
+  "deployed": false
+}

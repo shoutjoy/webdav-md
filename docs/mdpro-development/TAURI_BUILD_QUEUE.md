@@ -6,6 +6,11 @@
 
 | ID | 적용 항목 | 대상 웹 소스 | 웹 검증 | 프런트엔드 준비 | 네이티브 빌드 | 설치 앱 검증 |
 | --- | --- | --- | --- | --- | --- | --- |
+| MDPRO-20261112-WORKSPACE-UI | [Macro/Tidy/표 메뉴](changes/2026-11-12-macro-dock-tidy-workspace-table-anchor.md) | Viewer 고유 구현 비교·선택 역이식 대기 | WebDAV Chrome 3화면·모의 AI·로컬 저장/Worker·웹 빌드 통과 | Viewer 미실행 | 요청 범위 밖·미실행 | 미실행 |
+| MDPRO-20261112-IMAGE-INSERT-DOCK | [이미지 넣기 Dock](changes/2026-11-12-image-insert-dock.md) | Viewer 기존 우측 정렬 확인·분할 Dock 미적용 | WebDAV Chrome 3화면·양 테마·삽입/복귀·빌드 통과 | Viewer 미실행 | 요청 범위 밖·미실행 | 미실행 |
+| MDPRO-20261112-TABLE-DOCK-MERGE | [표 메뉴 Dock·병합](changes/2026-11-12-table-menu-dock-merge.md) | Viewer 대응 기능 이미 존재·이번 미수정 | WebDAV 43개·Chrome 1440/390·빌드 통과 | Viewer 미실행 | 자산 미수정·불필요 | 미실행 |
+| MDPRO-20261112-TIDY-MENU-DOCK | [TIDY 메뉴 우측 도킹](changes/2026-11-12-tidy-menu-right-dock.md) | Viewer 원본 존재·pointer capture/Observer 가드 등 필요시 선택 반영·이번 미수정 | WebDAV Chrome 1440/800/390·양 테마·변환/복귀 검증 | WebDAV 웹 빌드 완료·Viewer 미실행 | 요청 범위 밖·미실행 | 미실행 |
+| MDPRO-20261112-JENA-SERIES-RUNTIME | [Jena 군 연결·작업 실행·UI 안정화](changes/2026-11-12-jena-series-runtime-port.md) | Viewer 원본 기능 존재·WebDAV 고유 안정화 역이식은 대상 코드 비교 후 선택, 이번 Viewer 미수정 | WebDAV 도구별 root/nested·Worker·MPP/inDB·실제 Lemonade 확인, 다른 실제 공급자는 구분 | WebDAV 웹 빌드만·Viewer frontend 미실행 | 이번 요청에 포함 안 됨·미실행 | 미실행 |
 | MDPRO-20261110-JENA-ALT4-DOC | [Alt+4 구현·모바일 기술서](changes/2026-11-10-ai-jena-alt4-bottom-floating.md) | Viewer floating 미구현 확인·이번 문서만 작성·대상 미수정 | WebDAV 소스/CSS 계약 29개 통과·브라우저/모바일 미검증 | 미실행·향후 이식 시 대상 절차 확인 | 문서 전용·이번 재빌드 불필요 | 미검증 |
 | MDPRO-20261110-VITE-CLASSIC-SCRIPTS | [Vite 버튼 오류 수정](changes/2026-11-10-vite-classic-script-buttons.md) | WebDAV 개발 서버 전용·Viewer 런타임 변경 없음 | Node13개·실제Vite Chrome root/nested/React iframe 통과 | 자산 변경 없음 | 이 항목 재빌드 불필요·미실행 | 미실행 |
 | MDPRO-20261110-ME-AI-SETTINGS | [ME AI 설정·고밀도 UI·테마 격리](changes/2026-11-10-me-ai-settings-port.md) | Viewer 원본 존재·WebDAV profile/저장 이전 적응은 비교 후 선택 적용 | WebDAV102개·Chrome4회귀·웹 빌드 통과, 실비전 미검증 | 이번 미실행 | 이번 미실행 | 미실행 |

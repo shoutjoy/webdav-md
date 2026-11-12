@@ -6,7 +6,7 @@
     var FILE_HEADER = 'mdviewer-tidy-script:v1';
     var sourceUrl = document.currentScript && document.currentScript.src ? document.currentScript.src : '';
     var managerUrl = sourceUrl
-        ? new URL('./tidy-script-manager.html?v=20261016-ai-tools-1', sourceUrl).href
+        ? new URL('./tidy-script-manager.html?v=20261112-compact-color-1', sourceUrl).href
         : './js/Tidy/tidy-script-manager.html';
     var deps = {};
     var scripts = [];
@@ -354,9 +354,13 @@
         var end = ta.selectionEnd;
         var hasSelection = start !== end;
         var originalText = ta.value;
+        var documentIdentity = typeof deps.getDocumentIdentity === 'function' ? deps.getDocumentIdentity() : null;
         var source = hasSelection ? originalText.substring(start, end) : originalText;
         runBusy = true;
         try {
+            await refresh();
+            record = scripts.find(function (item) { return item.id === id; });
+            if (!record || record.enabled === false) throw new Error('실행할 기능이 삭제되었거나 사용 해제되었습니다.');
             var result = await runInWorker(record.code, source, {
                 hasSelection: hasSelection,
                 scope: hasSelection ? 'selection' : 'document',
@@ -366,12 +370,15 @@
             var value = typeof result === 'string' ? result : (result && typeof result.value === 'string' ? result.value : null);
             if (value == null) throw new Error('변환 함수는 문자열 또는 { value: 문자열 }을 반환해야 합니다.');
             if (ta.value !== originalText) throw new Error('실행 중 문서가 변경되었습니다. 다시 실행하세요.');
+            if (!deps.isEditMode() || (typeof deps.getDocumentIdentity === 'function' && deps.getDocumentIdentity() !== documentIdentity)) {
+                throw new Error('실행 중 문서 또는 편집 상태가 바뀌었습니다. 다시 실행하세요.');
+            }
             if (value === source) {
                 if (typeof deps.showToast === 'function') deps.showToast(record.name + ': 바꿀 내용이 없습니다.');
                 return;
             }
             var actionDeps = typeof deps.getActionDeps === 'function' ? deps.getActionDeps() : deps;
-            global.TidyActions.applyResultToEditor({ value: value }, source, actionDeps);
+            global.TidyActions.applyResultToEditor({ value: value, selectionStart: start, selectionEnd: end, replaceSelection: hasSelection }, source, actionDeps);
             var message = result && typeof result === 'object' && result.message ? stringValue(result.message) : '';
             if (typeof deps.showToast === 'function') deps.showToast(message || (record.name + ' 적용 완료'));
         } catch (error) {
@@ -492,7 +499,7 @@
             dialog = document.createElement('dialog');
             dialog.id = 'tidy-manager-dialog';
             dialog.setAttribute('aria-label', 'TIDY 기능 개발');
-            dialog.style.cssText = 'position:fixed;inset:0;width:96vw;max-width:1800px;height:94vh;max-height:94vh;padding:0;border:1px solid #475569;border-radius:12px;background:#020617;overflow:hidden;';
+            dialog.style.cssText = 'position:fixed;z-index:200;inset:0;width:min(1180px,94vw);max-width:1180px;height:82vh;max-height:82vh;padding:0;border:1px solid #475569;border-radius:12px;background:#020617;overflow:hidden;';
             var frame = document.createElement('iframe');
             frame.src = managerUrl;
             frame.title = 'TIDY 기능 및 JS JENA 관리';
@@ -518,7 +525,16 @@
         configure: configure,
         refresh: refresh,
         openManager: openManager,
-        closeManager: function () { var dialog = document.getElementById('tidy-manager-dialog'); if (dialog) dialog.close(); },
+        closeManager: function () {
+            var dialog = document.getElementById('tidy-manager-dialog');
+            if (dialog) {
+                try {
+                    var frame = dialog.querySelector('iframe');
+                    if (frame && frame.contentWindow.TidyJenaCancel) frame.contentWindow.TidyJenaCancel();
+                } catch (_) {}
+                dialog.close();
+            }
+        },
         applyScript: applyScript,
         compileTransformer: compileTransformer,
         serializeGithubFile: serializeGithubFile,

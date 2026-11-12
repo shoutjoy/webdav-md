@@ -1,0 +1,97 @@
+✖ Ollama mode settings change the actual request, including FAST limits and thinking (2.7302ms)
+✖ stored settings survive reads and normalize invalid values without losing zero temperature (0.7011ms)
+✖ context budget caps output and rejects oversized fixed input before sending (0.7189ms)
+✖ FAST timeout cancels the stream and releases the timer (0.6652ms)
+✖ user stop remains AbortError rather than a timeout (1.7563ms)
+ℹ Error: Test "FAST timeout cancels the stream and releases the timer" at artifacts\jena-port-20261112\baseline-ollama.test.mjs:81:1 generated asynchronous activity after the test ended. This activity created the error "TypeError: localStorage.setItem is not a function" and would have caused the test to fail, but instead triggered an unhandledRejection event.
+ℹ tests 5
+ℹ suites 0
+ℹ pass 0
+ℹ fail 5
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 194.5093
+
+✖ failing tests:
+
+test at artifacts\jena-port-20261112\baseline-ollama.test.mjs:43:1
+✖ Ollama mode settings change the actual request, including FAST limits and thinking (2.7302ms)
+  TypeError: localStorage.setItem is not a function
+      at getOllamaSettings (evalmachine.<anonymous>:51:22)
+      at Object.callOllamaChatText (evalmachine.<anonymous>:58:40)
+      at Object.run (file:///C:/CusorApps/Webdav_md/webdav-md/artifacts/jena-port-20261112/baseline-ollama.test.mjs:36:62)
+      at TestContext.<anonymous> (file:///C:/CusorApps/Webdav_md/webdav-md/artifacts/jena-port-20261112/baseline-ollama.test.mjs:48:28)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.start (node:internal/test_runner/test:1003:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:358:17)
+
+test at artifacts\jena-port-20261112\baseline-ollama.test.mjs:59:1
+✖ stored settings survive reads and normalize invalid values without losing zero temperature (0.7011ms)
+  TypeError: localStorage.setItem is not a function
+      at Object.getOllamaSettings (evalmachine.<anonymous>:51:22)
+      at TestContext.<anonymous> (file:///C:/CusorApps/Webdav_md/webdav-md/artifacts/jena-port-20261112/baseline-ollama.test.mjs:62:30)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3)
+
+test at artifacts\jena-port-20261112\baseline-ollama.test.mjs:73:1
+✖ context budget caps output and rejects oversized fixed input before sending (0.7189ms)
+  TypeError: localStorage.setItem is not a function
+      at getOllamaSettings (evalmachine.<anonymous>:51:22)
+      at Object.callOllamaChatText (evalmachine.<anonymous>:58:40)
+      at Object.run (file:///C:/CusorApps/Webdav_md/webdav-md/artifacts/jena-port-20261112/baseline-ollama.test.mjs:36:62)
+      at TestContext.<anonymous> (file:///C:/CusorApps/Webdav_md/webdav-md/artifacts/jena-port-20261112/baseline-ollama.test.mjs:75:26)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7)
+
+test at artifacts\jena-port-20261112\baseline-ollama.test.mjs:81:1
+✖ FAST timeout cancels the stream and releases the timer (0.6652ms)
+  TypeError: timer is not a function
+      at Object.expire (file:///C:/CusorApps/Webdav_md/webdav-md/artifacts/jena-port-20261112/baseline-ollama.test.mjs:40:71)
+      at TestContext.<anonymous> (file:///C:/CusorApps/Webdav_md/webdav-md/artifacts/jena-port-20261112/baseline-ollama.test.mjs:84:5)
+      at Test.runInAsyncScope (node:async_hooks:214:14)
+      at Test.run (node:internal/test_runner/test:1106:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+      at Test.postRun (node:internal/test_runner/test:1235:19)
+      at Test.run (node:internal/test_runner/test:1163:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7)
+
+test at artifacts\jena-port-20261112\baseline-ollama.test.mjs:90:1
+✖ user stop remains AbortError rather than a timeout (1.7563ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    Comparison {
+  +   name: 'TypeError'
+  -   name: 'AbortError'
+    }
+  
+      at async TestContext.<anonymous> (file:///C:/CusorApps/Webdav_md/webdav-md/artifacts/jena-port-20261112/baseline-ollama.test.mjs:94:3)
+      at async Test.run (node:internal/test_runner/test:1113:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:788:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: TypeError: localStorage.setItem is not a function
+        at getOllamaSettings (evalmachine.<anonymous>:51:22)
+        at Object.callOllamaChatText (evalmachine.<anonymous>:58:40)
+        at Object.run (file:///C:/CusorApps/Webdav_md/webdav-md/artifacts/jena-port-20261112/baseline-ollama.test.mjs:36:62)
+        at TestContext.<anonymous> (file:///C:/CusorApps/Webdav_md/webdav-md/artifacts/jena-port-20261112/baseline-ollama.test.mjs:92:21)
+        at Test.runInAsyncScope (node:async_hooks:214:14)
+        at Test.run (node:internal/test_runner/test:1106:25)
+        at Test.processPendingSubtests (node:internal/test_runner/test:788:18)
+        at Test.postRun (node:internal/test_runner/test:1235:19)
+        at Test.run (node:internal/test_runner/test:1163:12)
+        at async Test.processPendingSubtests (node:internal/test_runner/test:788:7),
+    expected: { name: 'AbortError' },
+    operator: 'rejects',
+    diff: 'simple'
+  }

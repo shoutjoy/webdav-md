@@ -1,0 +1,23 @@
+[
+  {
+    "width": 1440,
+    "controls": 12,
+    "transform": true,
+    "returnCloseEscape": true,
+    "pageErrors": []
+  },
+  {
+    "width": 800,
+    "controls": 12,
+    "transform": true,
+    "returnCloseEscape": true,
+    "pageErrors": []
+  },
+  {
+    "width": 390,
+    "controls": 12,
+    "transform": true,
+    "returnCloseEscape": true,
+    "pageErrors": []
+  }
+]

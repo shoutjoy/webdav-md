@@ -1,0 +1,25 @@
+오후 12:41:43 [vite] (client) [console.error] Encountered two children with the same key, `closed`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+오후 12:41:43 [vite] (client) [console.error] Encountered two children with the same key, `closed`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+[
+  {
+    base: '/',
+    rawScript: true,
+    settingsClick: true,
+    viewEditClick: true,
+    mermaidClickRender: true,
+    mermaidThemeClick: true,
+    hwpDynamicImport: true,
+    pageErrors: []
+  },
+  { reactHostIframe: true, settingsClick: true, pageErrors: [] },
+  {
+    base: '/nested/',
+    rawScript: true,
+    settingsClick: true,
+    viewEditClick: true,
+    mermaidClickRender: true,
+    mermaidThemeClick: true,
+    hwpDynamicImport: true,
+    pageErrors: []
+  }
+]

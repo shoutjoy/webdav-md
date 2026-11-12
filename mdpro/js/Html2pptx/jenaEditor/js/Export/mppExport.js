@@ -56,8 +56,9 @@ async function buildGenSlideMppPayload() {
     version: 2,
     exportedAt: new Date().toISOString(),
     currentIndex: cur,
-    slides: slides.map((slide) => ({ html: String((slide && slide.html) || "") })),
-    images
+    slides: slides.map((slide) => ({ html: String((slide && slide.html) || ""), jenaImage: slide?.jenaImage || null, jenaVisual: slide?.jenaVisual || null, jenaText: String((slide && slide.jenaText) || "") })),
+    images,
+    jenaSlide: window.JenaSlide?.snapshot()
   };
 }
 
@@ -85,10 +86,11 @@ async function importMpp(file) {
     try { await restoreIndexedDbImagesFromMpp(data.images); } catch (_) {}
   }
   if (!Array.isArray(data.slides) || !data.slides.length) return;
+  window.JenaSlide?.restore(data.jenaSlide);
   slides = data.slides
     .map((item) => {
       if (typeof item === "string") return { html: String(item || START_HTML) };
-      return { html: String((item && item.html) || START_HTML) };
+      return { html: String((item && item.html) || START_HTML), jenaImage: item?.jenaImage || null, jenaVisual: item?.jenaVisual || null, jenaText: String((item && item.jenaText) || "") };
     })
     .filter((s) => String((s && s.html) || "").trim().length > 0);
   if (!slides.length) slides = [{ html: START_HTML }];

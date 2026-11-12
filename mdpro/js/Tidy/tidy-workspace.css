@@ -1,0 +1,82 @@
+
+        :root { color-scheme:dark; font-family:Inter,Pretendard,"Noto Sans KR",system-ui,sans-serif; --bg:#020617; --panel:#0f172a; --input:#07101f; --text:#e2e8f0; --muted:#94a3b8; --line:#334155; --accent:#67e8f9; }
+        * {box-sizing:border-box} [hidden] {display:none!important}
+        body {margin:0;background:var(--bg);color:var(--text)} button,input,textarea,select {font:inherit} button {cursor:pointer}
+        .shell {height:100vh;display:grid;grid-template-rows:auto minmax(0,1fr) auto;overflow:hidden}
+        header {padding:16px 165px 16px 18px;background:var(--panel);border-bottom:1px solid var(--line)} h1 {margin:0 0 4px;font-size:19px}
+        header p,.help {font-size:12px;color:var(--muted);line-height:1.55;margin:0;overflow-wrap:anywhere}
+        main {display:grid;grid-template-columns:230px minmax(230px,1fr) minmax(290px,350px);min-height:0;overflow:hidden}
+        main.sidebar-collapsed {grid-template-columns:44px minmax(230px,1fr) minmax(290px,350px)}
+        main.no-ai {grid-template-columns:230px minmax(230px,1fr)} main.no-ai.sidebar-collapsed {grid-template-columns:44px minmax(230px,1fr)}
+        aside {min-width:0;min-height:0;border-right:1px solid var(--line);display:flex;flex-direction:column;background:var(--panel)}
+        .sidebar-heading {display:flex;gap:5px;align-items:center;padding:9px;border-bottom:1px solid var(--line)} .sidebar-tabs {display:flex;gap:5px;flex:1}
+        #sidebar-content {padding:12px;overflow:auto;min-height:0;flex:1} .sidebar-collapsed .sidebar-tabs,.sidebar-collapsed #sidebar-content {display:none}
+        .sidebar-collapsed .sidebar-heading {padding:6px 3px} #sidebar-toggle {padding:6px 9px;font-size:20px}
+        .btn {border:1px solid #475569;border-radius:7px;background:var(--panel);color:var(--text);padding:7px 10px;font-size:12px;font-weight:700}
+        .btn:hover {border-color:#22d3ee} .btn:focus-visible,textarea:focus-visible,input:focus-visible,select:focus-visible {outline:2px solid #22d3ee;outline-offset:2px}
+        .btn:disabled {opacity:.5;cursor:default} .btn.primary {background:#0891b2;border-color:#22d3ee;color:white} .btn.danger {color:#f87171}
+        .tab.active,.sidebar-tab.active {border-color:#22d3ee;color:var(--accent)}
+        .toolbar,.row,.tabs,.jena-actions {display:flex;gap:7px;align-items:center;flex-wrap:wrap} .toolbar {margin-bottom:12px} .tabs {margin-bottom:10px}
+        .editor {display:flex;flex-direction:column;padding:12px;min-height:0;min-width:0;overflow:hidden;gap:8px}
+        .editor-heading {display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:14px} #editor-name {flex:1} .edit-tabs {margin:0}
+        label.field {display:block;margin:12px 0} label.field>span,.code-field {display:block;margin-bottom:6px;font-size:12px;font-weight:700}
+        input[type=text],textarea,select {width:100%;border:1px solid var(--line);border-radius:8px;background:var(--input);color:var(--text);padding:9px;min-width:0}
+        textarea {font-family:Consolas,"Cascadia Code",monospace;line-height:1.55;tab-size:2}
+        #code {flex:1;min-height:120px;resize:none;font-size:14px;margin:0} .code-field {margin:0} .editor-hint {font-size:11px}
+        .upload {display:none;border:1px dashed var(--line);padding:10px;border-radius:8px} .upload.visible {display:block}
+        .jena-panel {display:flex;flex-direction:column;gap:6px;min-height:0;min-width:0;border-left:1px solid var(--line);padding:12px;overflow:hidden;background:var(--panel)}
+        .jena-panel>.tabs,.jena-panel>.help,.jena-panel>.field,.jena-panel>.jena-actions,.jena-panel>details {flex-shrink:0} .jena-panel>details {margin:0;max-height:35vh;overflow:auto} .jena-panel .field {margin:0} .ai-settings {padding:6px 0} .jena-actions {margin-top:2px}
+        .jena-selectors {display:grid;grid-template-columns:1fr;gap:7px;margin:10px 0} .jena-selectors label.field {margin:0} .jena-selectors .btn {justify-self:start}
+        .jena-panel textarea {min-height:90px;height:110px;resize:vertical;font-size:12px} .jena-model {color:var(--accent);font-size:11px;overflow-wrap:anywhere}
+        .chat-log {margin:12px 0;min-height:90px;flex:1;overflow:auto;display:flex;flex-direction:column;gap:9px;border-block:1px solid var(--line);padding:10px 0}
+        .chat-message {font-size:12px;padding:9px;border-radius:8px;background:var(--input);white-space:pre-wrap;overflow-wrap:anywhere} .chat-message.user {border-left:3px solid #0891b2} .chat-message strong {display:block;margin-bottom:5px;color:var(--accent)} .chat-message .btn {margin-top:6px}
+        .storage {border:1px solid var(--line);border-radius:8px;padding:10px;margin:12px 0} .storage label {display:flex;gap:5px;font-size:12px;margin:5px 0}
+        .script-list {display:grid;gap:7px;margin-top:10px} .script-item {width:100%;text-align:left;border:1px solid var(--line);border-radius:8px;padding:9px;background:var(--input);color:var(--text);overflow-wrap:anywhere}
+        .script-item.active {border-color:#22d3ee} .script-item small {display:block;font-size:11px;color:var(--muted);margin-top:5px}
+        details {margin:12px 0;font-size:12px} summary {cursor:pointer;font-weight:700} details .help {margin-top:8px} #snapshot-btn {margin:12px 0 0}
+        .status {min-height:36px;max-height:80px;overflow:auto;padding:8px 16px;border-top:1px solid var(--line);background:var(--panel);font-size:12px;overflow-wrap:anywhere;color:var(--muted)} .status.ok {color:#86efac}.status.error {color:#fca5a5}
+        @media(prefers-color-scheme:light) {:root {color-scheme:light;--bg:#fff;--panel:#f1f5f9;--input:#fff;--text:#0f172a;--muted:#475569;--line:#cbd5e1;--accent:#0e7490} .status.ok {color:#166534}.status.error {color:#b91c1c}}
+        @media(max-width:900px) and (min-width:761px) {main {grid-template-columns:190px minmax(220px,1fr) 280px} main.sidebar-collapsed {grid-template-columns:44px minmax(220px,1fr) 280px}}
+        @media(max-width:760px) {header {padding-left:12px} .btn {min-height:44px} main,main.sidebar-collapsed,main.no-ai,main.no-ai.sidebar-collapsed {display:flex;flex-direction:column;overflow:auto} aside {flex:none;border-right:0;border-bottom:1px solid var(--line);max-height:42vh} #sidebar-content {max-height:30vh} .sidebar-collapsed .sidebar-tabs {display:flex} .sidebar-collapsed .sidebar-heading {padding:6px} .editor {min-height:400px;flex:none;overflow:visible} #code {min-height:260px} .jena-panel {flex:none;border-left:0;border-top:1px solid var(--line);overflow:visible} .chat-log {max-height:240px} }
+        #jena-picker {display:flex;max-width:100%;min-width:0} #jena-picker select {flex:1 1 130px;max-width:100%} #jena-picker [hidden] {display:none!important} #jena-picker .ai-task-connection {font-size:12px;overflow-wrap:anywhere;min-width:0;max-width:100%}
+
+        @media(min-width:761px) {
+            #sidebar{grid-column:1} #tidy-left-splitter{grid-column:2} .editor{grid-column:3} #tidy-right-splitter{grid-column:4} #jena-panel{grid-column:5}
+            #workspace {grid-template-columns:var(--tidy-left-width,230px) 8px minmax(220px,1fr) 8px var(--tidy-right-width,350px)}
+            #workspace.sidebar-collapsed {grid-template-columns:44px 0 minmax(220px,1fr) 8px var(--tidy-right-width,350px)}
+            #workspace.no-ai {grid-template-columns:var(--tidy-left-width,230px) 8px minmax(220px,1fr)}
+            #workspace.no-ai.sidebar-collapsed {grid-template-columns:44px 0 minmax(220px,1fr)}
+        }
+        .tidy-column-splitter {position:relative;cursor:col-resize;touch-action:none;background:var(--bg);outline-offset:-2px}
+        .tidy-column-splitter::after {content:'';position:absolute;left:3px;top:0;bottom:0;width:2px;background:var(--line)}
+        .tidy-column-splitter:hover::after,.tidy-column-splitter:focus-visible::after {background:#22d3ee}
+        .sidebar-collapsed #tidy-left-splitter,.no-ai #tidy-right-splitter {display:none}
+        .tidy-column-resizing {user-select:none;cursor:col-resize} .tidy-column-resizing textarea {pointer-events:none}
+        .syntax-editor {position:relative;flex:1;min-height:120px;min-width:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--input)}
+        .syntax-editor #code,.syntax-editor pre {position:absolute;inset:0;width:100%;height:100%;margin:0;padding:9px;border:0;border-radius:0;font:14px/1.55 Consolas,"Cascadia Code",monospace;letter-spacing:normal;tab-size:2;white-space:pre;overflow:auto;box-sizing:border-box}
+        .syntax-editor pre {pointer-events:none;color:var(--text);scrollbar-gutter:stable}
+        .syntax-editor #code {color:transparent;caret-color:var(--text);background:transparent;resize:none;min-height:0;scrollbar-gutter:stable}
+        .syntax-editor #code::selection {background:rgba(34,211,238,.3)}
+        .syntax-editor.is-composing pre {visibility:hidden} .syntax-editor.is-composing #code {color:var(--text)}
+        .js-keyword {color:#c4a5ff}.js-function {color:#f5d88e}.js-string {color:#a6dfad}.js-comment {color:#8fa98b}.js-number,.js-literal {color:#f6b482}.js-regexp {color:#efb0c8}.js-builtin {color:#72d8e8}.js-operator {color:#b6d8ff}
+        @media(prefers-color-scheme:light) {.js-keyword{color:#7635a5}.js-function{color:#795900}.js-string{color:#237432}.js-comment{color:#526b50}.js-number,.js-literal{color:#9e451a}.js-regexp{color:#a02658}.js-builtin{color:#006c80}.js-operator{color:#244f9a}}
+        @media(forced-colors:active) {.syntax-editor pre{display:none}.syntax-editor #code{color:CanvasText}}
+        @media(max-width:760px) {.tidy-column-splitter{display:none}.syntax-editor{flex:none;min-height:260px}}
+        .syntax-editor:not(.syntax-ready) #code {color:var(--text)} .syntax-editor:not(.syntax-ready) pre {display:none}
+        .chat-code-archive {flex-shrink:0;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--input)}
+        .chat-code-archive pre,#selected-code-preview {font:12px/1.55 Consolas,monospace;white-space:pre;max-height:220px;overflow:auto;margin:8px 0}
+        #live-code-toggle[aria-pressed="true"] {border-color:#22d3ee;color:var(--accent)}
+    
+#code-field{display:flex;flex-direction:column;flex:1;min-height:0;margin:0} #code-field .tidy-syntax-editor{flex:1;height:auto;min-height:160px} .editor>.editor-menu{display:none} #jena-panel[hidden]{display:none!important} #jena-panel>details{flex:none} #jena-panel #jena-chat{flex:1;min-height:80px;max-height:none;overflow:auto} #jena-panel textarea{min-height:80px;height:100px} #jena-panel .tidy-syntax-editor{flex:none;height:160px} #jena-panel .tidy-syntax-editor textarea{height:100%;min-height:0} #registration-panel .name-field{display:block} #registration-panel .name-field input{width:100%;margin-top:6px} #registration-panel .storage label{display:flex} #workspace .editor-menu{margin:0} #header-fullscreen{position:absolute;right:66px;top:12px} #header-close{position:absolute;right:12px;top:12px} .jena-panel #jena-chat p{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;background:var(--input);padding:8px} .jena-panel pre:not([aria-hidden]){white-space:pre-wrap;overflow-wrap:anywhere;max-height:180px;overflow:auto} #jena-sessions{max-height:230px} #workspace .tidy-syntax-editor pre{color:var(--text)} @media(max-width:760px){#code-field .tidy-syntax-editor{height:300px;flex:none}.jena-panel #jena-chat{max-height:240px}}
+
+body{color:var(--text);background:var(--bg)}
+input[type="text"],textarea,select{color:var(--text);background:var(--input);border-color:var(--line)}
+label.field>span,.help,#jena-panel summary{color:var(--muted)}
+.storage,.script-item,#jena-sessions{background:var(--panel)!important;color:var(--text)!important;border-color:var(--line)!important}
+#workspace .storage label{color:var(--text)}
+#jena-panel{overflow:auto}#jena-panel>.tabs{position:sticky;top:-12px;background:var(--panel);z-index:2;padding:5px 0}
+#workspace .tidy-syntax-editor{background:var(--input)}
+#header-fullscreen{right:76px}
+@media(prefers-color-scheme:light){.tidy-syntax-editor .js-keyword{color:#7635a5}.tidy-syntax-editor .js-function{color:#795900}.tidy-syntax-editor .js-string{color:#237432}.tidy-syntax-editor .js-comment{color:#526b50}.tidy-syntax-editor .js-number,.tidy-syntax-editor .js-literal{color:#9e451a}.tidy-syntax-editor .js-regexp{color:#a02658}.tidy-syntax-editor .js-builtin{color:#006c80}.tidy-syntax-editor .js-operator{color:#244f9a}.tidy-syntax-editor.syntax-ready textarea{caret-color:#0f172a}}
+
+#jena-panel h2{font-size:14px;margin:4px 0 8px} .sidebar-tabs .active{border-color:#22d3ee;color:var(--accent)}
