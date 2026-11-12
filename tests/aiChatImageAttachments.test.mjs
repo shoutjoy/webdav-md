@@ -7,6 +7,7 @@ const app = readFileSync('mdpro/js/app.js', 'utf8');
 const chat = readFileSync('mdpro/AI_App/aiChat/ai-chat.js', 'utf8');
 const image = { kind: 'image', name: 'portrait.png', dataUrl: 'data:image/png;base64,aGVsbG8=' };
 const helpers = app.slice(app.indexOf('function normalizeAIChatMessages('), app.indexOf('function getAIChatLMContextLength('));
+const singleTurnHelper = app.slice(app.indexOf('function prepareLemonadeSingleTurnMessages('), app.indexOf('async function streamOpenAICompatibleChat('));
 const complete = app.slice(app.indexOf('    complete: async function (request) {', app.indexOf('window.AIChatBridge = Object.freeze')), app.indexOf('    abort: function () {', app.indexOf('window.AIChatBridge = Object.freeze')));
 
 for (const provider of ['lemonade', 'openai-compatible']) {
@@ -24,7 +25,7 @@ for (const provider of ['lemonade', 'openai-compatible']) {
         streamOpenAICompatibleChat: async (_connection, payload) => { body = payload; return { text: 'description' }; },
         fetch: async (_url, options) => { body = JSON.parse(options.body); return { ok: true, json: async () => ({ choices: [{ message: { content: 'description' } }] }) }; }
       });
-      vm.runInContext(app.slice(app.indexOf('function openAICompatibleHeaders('), app.indexOf('async function fetchOpenAICompatibleModels(')) + helpers + '\nvar bridge = {' + complete + '};', context);
+      vm.runInContext(app.slice(app.indexOf('function openAICompatibleHeaders('), app.indexOf('async function fetchOpenAICompatibleModels(')) + singleTurnHelper + helpers + '\nvar bridge = {' + complete + '};', context);
       await context.bridge.complete({ provider, model: 'vision-model', onStreamEvent: streaming ? () => {} : undefined,
         messages: [{ role: 'user', content: '이 이미지를 설명해줘', attachments: [image] }] });
       assert.equal(body.model, 'vision-model');
@@ -37,7 +38,7 @@ for (const provider of ['lemonade', 'openai-compatible']) {
 
 test('missing image data fails before a text-only request is sent', async () => {
   const context = vm.createContext({ AbortController, aiChatAbortController: null, applyLocalAIChatResponseStyle: value => value });
-  vm.runInContext(app.slice(app.indexOf('function openAICompatibleHeaders('), app.indexOf('async function fetchOpenAICompatibleModels(')) + helpers + '\nvar bridge = {' + complete + '};', context);
+  vm.runInContext(app.slice(app.indexOf('function openAICompatibleHeaders('), app.indexOf('async function fetchOpenAICompatibleModels(')) + singleTurnHelper + helpers + '\nvar bridge = {' + complete + '};', context);
   await assert.rejects(context.bridge.complete({ provider: 'lemonade', messages: [{ role: 'user', content: 'describe', attachments: [{ kind: 'image' }] }] }), /이미지를 다시 첨부/);
 });
 
@@ -46,7 +47,7 @@ test('local image chat routes to vision transport and text chat retains its exis
     applyLocalAIChatResponseStyle: value => value,
     completeTaskVision: async request => ({ text: request.messages[0].attachments[0].dataUrl }),
     callNPUChat: async () => ({ text: 'text route' }) });
-  vm.runInContext(app.slice(app.indexOf('function openAICompatibleHeaders('), app.indexOf('async function fetchOpenAICompatibleModels(')) + helpers + '\nvar bridge = {' + complete + '};', context);
+  vm.runInContext(app.slice(app.indexOf('function openAICompatibleHeaders('), app.indexOf('async function fetchOpenAICompatibleModels(')) + singleTurnHelper + helpers + '\nvar bridge = {' + complete + '};', context);
   for (const provider of ['lmstudio', 'ollama', 'ollama-npu', 'litertlm', 'deepseek']) {
     assert.equal((await context.bridge.complete({ provider, messages: [{ role: 'user', content: 'describe', attachments: [image] }] })).text, image.dataUrl);
   }

@@ -1,0 +1,15 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import {readFileSync} from 'node:fs';
+const src=readFileSync(new URL('../mdpro/js/app.js',import.meta.url),'utf8');
+const fn=src.slice(src.indexOf('async function streamOpenAICompatibleChat('),src.indexOf('async function checkOpenAICompatibleModels('));
+function runtime(fetcher){const events=[],calls=[];const ctx=vm.createContext({fetch:async(...args)=>{calls.push(JSON.parse(args[1].body));return fetcher(...args)},TextDecoder,DOMException,estimateAIChatTokens:()=>10,openAICompatibleRequestUrl:()=> 'http://127.0.0.1:13305/api/v1/chat/completions',openAICompatibleHeaders:()=>({'Content-Type':'application/json'}),readOpenAICompatibleError:async r=>'HTTP '+r.status});vm.runInContext(fn,ctx);return {calls,events,run:(signal)=>ctx.streamOpenAICompatibleChat({provider:'lemonade',contextTokens:4096},{model:'gemma4e-flash-e4b-FLM',messages:[{role:'user',content:'한국어로 한 문장 인사해줘.'}],max_tokens:128,thinking:true,chat_template_kwargs:{enable_thinking:true}},signal,e=>events.push(e))};}
+const json=(text)=>new Response(JSON.stringify({choices:[{message:{content:text},finish_reason:'stop'}]},null,2),{headers:{'Content-Type':'application/json'}});
+const sse=(text)=>new Response('data: '+JSON.stringify({choices:[{delta:{content:text}}]})+'\n\ndata: [DONE]\n\n',{headers:{'Content-Type':'text/event-stream'}});
+test('pretty JSON returned for streaming request is parsed once',async()=>{const r=runtime(()=>json('정상 본문'));assert.equal((await r.run()).text,'정상 본문');assert.equal(r.calls.length,1);});
+test('empty Lemonade stream retries once without thinking and emits recovered text',async()=>{let n=0;const r=runtime(()=>++n===1?sse(''):json('복구된 본문'));assert.equal((await r.run()).text,'복구된 본문');assert.equal(r.calls.length,2);assert.equal(r.calls[1].stream,false);assert.equal(r.calls[1].thinking,false);assert.equal(r.calls[1].chat_template_kwargs.enable_thinking,false);assert(r.events.some(e=>e.type==='message.delta'&&e.content==='복구된 본문'));});
+test('second empty response reports model error without further retry',async()=>{const r=runtime(()=>json(''));await assert.rejects(r.run(),/모델이 빈 응답/);assert.equal(r.calls.length,2);});
+test('normal streamed output does not retry',async()=>{const r=runtime(()=>sse('스트림 본문'));assert.equal((await r.run()).text,'스트림 본문');assert.equal(r.calls.length,1);});
+test('abort and HTTP failures never cause empty-response retries',async()=>{const controller=new AbortController();const r=runtime(()=>{controller.abort();return sse('')});await assert.rejects(r.run(controller.signal),{name:'AbortError'});assert.equal(r.calls.length,1);const bad=runtime(()=>new Response('error',{status:500}));await assert.rejects(bad.run(),/HTTP 500/);assert.equal(bad.calls.length,1);});
+test('actual local Lemonade model returns text through production stream parser',{skip:process.env.LEMONADE_LIVE!=='1'},async()=>{const r=runtime(fetch);const result=await r.run(AbortSignal.timeout(45000));assert(result.text.trim());console.log(JSON.stringify({liveModel:result.model,text:result.text,requests:r.calls.length}));});

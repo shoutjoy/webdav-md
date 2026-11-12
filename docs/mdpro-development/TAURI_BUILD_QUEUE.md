@@ -84,3 +84,9 @@ publish 스크립트 결과와 최종 제공 경로:
 - MDPRO-20261113-STUDIO-NOTICE: [AI Studio 안내 제거](changes/2026-11-13-studio-model-notice.md). 원본 구현·빈 안내 영역 CSS/캐시2차 보완·계약/빌드 통과. Viewer 대상 확인·웹 이식·웹 검증·프런트엔드 준비·네이티브 빌드·설치 검증 대기. 빌드 미요청.
 
 - MDPRO-20261113-RESUME-ANSWER: [중단 답변 이어쓰기](changes/2026-11-13-resume-answer.md). WebDAV Chrome 모의 중단→이어쓰기/32개 검사·빌드 통과. Viewer 대상 비교·웹 이식·웹 검증·프런트엔드 준비·네이티브 빌드·설치 앱 검증 대기. 빌드 미요청.
+
+- MDPRO-20261113-LEMONADE-EMPTY: [Lemonade 빈 응답 복구](changes/2026-11-13-lemonade-empty-response.md). 원본 자동/브라우저 모의/로컬 실모델·빌드 통과. Viewer 비교·웹 이식·웹 검증·프런트엔드 준비·네이티브 빌드·설치 검증 대기. 빌드 미요청.
+
+- MDPRO-20261113-LOCAL-MODEL-LOAD: [Viewer 로딩 이식](changes/2026-11-13-local-model-loading-port.md). WebDAV 세 공급자 실서버 목록·LM/Ollama 로드/생성·Lemonade health 확인. Viewer(C:\CusorApps\MDPRO\MDproViewer)는 참고 원본 미수정, frontend/native/설치 검증 미실행·이번 빌드 불필요. Vite 중계는 Viewer native에 직접 복사 금지.
+
+- MDPRO-20261113-CONTINUATION-START: [이어쓰기/Auto/시작 지연](changes/2026-11-13-continuation-start.md). WebDAV 실제 클릭·실모델 첫 본문714ms 확인. Viewer 함수 대응·웹 이식·웹 검증·프런트엔드 준비·native/설치 검증 미실행, 빌드 미요청.

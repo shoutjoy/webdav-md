@@ -7,6 +7,7 @@ import { createWebSearchMiddleware } from './src/webSearchProxy.js';
 import { createShareMiddleware } from './src/shareServer.js';
 import { createBackupMiddleware } from './src/backupServer.js';
 import { createLMStudioServerMiddleware } from './src/lmStudioServer.js';
+import { createLocalLlmProxyMiddleware } from './src/localLlmProxy.js';
 import { createLemonadeProxyMiddleware } from './src/lemonadeProxy.js';
 import { createSystemUsageMiddleware } from './src/systemUsageServer.js';
 import { createMdproScriptMiddleware } from './src/mdproScriptServer.js';
@@ -53,6 +54,7 @@ export default defineConfig(({ mode }) => {
             defaultImageModel: env.LEMONADE_DEFAULT_IMAGE_MODEL,
           }));
           server.middlewares.use(createLMStudioServerMiddleware());
+          server.middlewares.use(createLocalLlmProxyMiddleware());
           server.middlewares.use(createBackupMiddleware());
           server.middlewares.use(createShareMiddleware());
           server.middlewares.use(createWebSearchMiddleware({
@@ -68,6 +70,7 @@ export default defineConfig(({ mode }) => {
             defaultImageModel: env.LEMONADE_DEFAULT_IMAGE_MODEL,
           }));
           server.middlewares.use(createLMStudioServerMiddleware());
+          server.middlewares.use(createLocalLlmProxyMiddleware());
           server.middlewares.use(createBackupMiddleware());
           server.middlewares.use(createShareMiddleware());
           server.middlewares.use(createWebSearchMiddleware({

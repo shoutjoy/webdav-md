@@ -375,6 +375,7 @@ Do not output only a reference list. Extract claims from titles and abstracts, g
   function isUnsupportedReasoningSettingError(error) {
     const message = trim(error && error.message || error).toLowerCase();
     return /reasoning(?:\s+setting)?[\s\S]{0,100}(?:not\s+supported|unsupported)/i.test(message)
+      || /does\s+not\s+expose\s+reasoning\s+configuration/i.test(message)
       || /supported\s+settings?\s*:[\s\S]{0,80}(?:'on'|'off'|on|off)/i.test(message);
   }
 

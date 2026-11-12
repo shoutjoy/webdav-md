@@ -130,11 +130,11 @@ test('Lemonade model can be loaded directly from AI Jena detail settings', () =>
   assert.match(chatScript, /id="ai-chat-lemonade-load-model"[^>]*>선택 모델 Load<\/button>/);
   assert.match(chatScript, /addEventListener\('click', loadSelectedLemonadeModel\)/);
   assert.match(chatScript, /lemonadeLifecycle\.hidden = state\.provider !== 'lemonade'/);
-  assert.match(appScript, /loadLemonadeModel: async function \(modelId\)/);
-  assert.match(appScript, /model_name: selectedModel, ctx_size: connection\.contextTokens, save_options: true/);
+  assert.match(appScript, /loadLemonadeModel: async function \(modelId, options\)/);
+  assert.match(appScript, /loadLemonadeRuntimeModel\(connection, selectedModel, options\)/);
   assert.match(chatScript, /id="ai-chat-lemonade-load-progress"[^>]*role="progressbar"/);
-  assert.match(chatScript, /Math\.min\(92, percent \+ increment\)/);
-  assert.match(chatScript, /showProgress\(100, '모델 Load 완료'/);
+  assert.match(chatScript, /progress\.removeAttribute\('aria-valuenow'\)/);
+  assert.match(appScript, /save_options: false/);
   assert.match(chatStyles, /\.ai-chat-model-load-progress-track > span[\s\S]*transition: width \.35s ease/);
 });
 
@@ -276,7 +276,7 @@ test('realtime writing streams one response directly into the document and retai
 });
 
 test('Lemonade enables thinking in reasoning mode and displays streamed reasoning', () => {
-  assert.match(chatScript, /disableThinking: state\.provider === 'lemonade' && \(state\.responseMode !== 'reasoning' \|\| state\.fastMode \|\| academicSearchActive\)/);
+  assert.match(chatScript, /disableThinking: state\.provider === 'lemonade' && \(state\.responseMode !== 'reasoning' \|\| state\.fastMode \|\| academicSearchActive \|\| state\.realtimeDocWrite\)/);
   assert.match(chatScript, /showLiveReasoning = state\.responseMode === 'reasoning' && state\.showReasoning;/);
   assert.match(chatScript, /state\.responseMode === 'quick' \|\| state\.fastMode[\s\S]*첫 응답 토큰 대기/);
   assert.match(appScript, /const enableThinking = request\.mode === 'reasoning' && request\.disableThinking !== true && !request\.fastMode/);
