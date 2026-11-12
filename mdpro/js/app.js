@@ -158,7 +158,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260914-serpapi-vault-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?imageQuality=20261027-2&v=20261026-image-actions-1&llamacpp=20261026-1&reasoning=20261022-3',
+    aiChat: './AI_App/aiChat/ai-chat.js?imageQuality=20261027-2&v=20261026-image-actions-1&meAI=20261110-1&llamacpp=20261026-1&reasoning=20261022-3',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20261022-document-theme-1'
@@ -10523,6 +10523,7 @@ function openMermaidEditorModal() {
     if (!modal) return;
     ensureLazyFrameLoaded('mermaid-editor-frame');
     modal.classList.remove('hidden');
+    syncMermaidEditorDockLayout();
     bindMermaidEditorModalDrag();
     bindMermaidEditorModalResize();
 }
@@ -10531,11 +10532,37 @@ function closeMermaidEditorModal() {
     const modal = document.getElementById('mermaid-editor-modal');
     if (!modal) return;
     modal.classList.add('hidden');
+    syncMermaidEditorDockLayout();
 }
 
 let mermaidEditorModalDragBound = false;
 let mermaidEditorModalFullscreen = false;
 let mermaidEditorModalDockRight = false;
+
+const MERMAID_EDITOR_DEFAULT_MIN_WIDTH = 760;
+const MERMAID_EDITOR_DOCK_MIN_WIDTH = 280;
+let mermaidEditorDockWidth = 0;
+let mermaidEditorDockObserver = null;
+function syncMermaidEditorDockLayout() {
+    const workspace = document.getElementById('main-workspace');
+    const modal = document.getElementById('mermaid-editor-modal');
+    const panel = document.getElementById('mermaid-editor-modal-panel');
+    const active = mermaidEditorModalDockRight && modal && !modal.classList.contains('hidden');
+    document.body.classList.toggle('mermaid-workspace-split', !!active);
+    if (!workspace || !panel) return;
+    if (!active) { workspace.style.removeProperty('--mermaid-dock-width'); return; }
+    const rect = workspace.getBoundingClientRect();
+    const maxWidth = Math.max(MERMAID_EDITOR_DOCK_MIN_WIDTH, rect.width - 360);
+    mermaidEditorDockWidth = Math.max(MERMAID_EDITOR_DOCK_MIN_WIDTH, Math.min(maxWidth, mermaidEditorDockWidth || rect.width * .5));
+    workspace.style.setProperty('--mermaid-dock-width', Math.round(mermaidEditorDockWidth) + 'px');
+    panel.style.width = Math.round(mermaidEditorDockWidth) + 'px';
+    panel.style.top = rect.top + 'px';
+    panel.style.height = rect.height + 'px';
+    panel.style.maxHeight = rect.height + 'px';
+    panel.style.minHeight = '0';
+    panel.style.maxWidth = maxWidth + 'px';
+}
+window.addEventListener('resize', syncMermaidEditorDockLayout);
 
 function applyMermaidEditorDockRight(docked) {
     const panel = document.getElementById('mermaid-editor-modal-panel');
@@ -10543,22 +10570,35 @@ function applyMermaidEditorDockRight(docked) {
     if (!panel) return;
     mermaidEditorModalDockRight = !!docked;
     panel.dataset.fullscreen = 'false';
-    if (dockBtn) dockBtn.textContent = mermaidEditorModalDockRight ? '<<' : '>>';
+    if (dockBtn) {
+        dockBtn.textContent = mermaidEditorModalDockRight ? 'Dock 해제' : 'Dock';
+        dockBtn.title = mermaidEditorModalDockRight ? '우측 도킹 해제' : '창을 화면 오른쪽에 도킹';
+        dockBtn.setAttribute('aria-pressed', String(mermaidEditorModalDockRight));
+    }
+    panel.classList.toggle('is-docked-right', mermaidEditorModalDockRight);
+    if (!mermaidEditorDockObserver && window.ResizeObserver) {
+        mermaidEditorDockObserver = new ResizeObserver(syncMermaidEditorDockLayout);
+        mermaidEditorDockObserver.observe(document.getElementById('main-workspace'));
+    }
     if (mermaidEditorModalDockRight) {
         mermaidEditorModalFullscreen = false;
+        panel.style.minWidth = MERMAID_EDITOR_DOCK_MIN_WIDTH + 'px';
         panel.style.transform = 'none';
         panel.style.left = 'auto';
-        panel.style.top = '8px';
-        panel.style.right = '8px';
-        panel.style.bottom = '8px';
-        panel.style.width = 'min(480px, 24vw)';
-        panel.style.height = 'calc(100vh - 16px)';
-        panel.style.minWidth = 'min(380px, calc(100vw - 16px))';
+        panel.style.top = '0';
+        panel.style.right = '0';
+        panel.style.bottom = '0';
+        panel.style.width = 'min(960px, 48vw)';
+        panel.style.height = '100%';
         panel.style.maxWidth = '98vw';
-        panel.style.maxHeight = 'calc(100vh - 16px)';
+        panel.style.maxHeight = '100vh';
         panel.style.resize = 'none';
+        syncMermaidEditorDockLayout();
         return;
     }
+    syncMermaidEditorDockLayout();
+    panel.style.minHeight = '520px';
+    panel.style.minWidth = MERMAID_EDITOR_DEFAULT_MIN_WIDTH + 'px';
     panel.style.left = '50%';
     panel.style.top = '64px';
     panel.style.right = 'auto';
@@ -10568,7 +10608,6 @@ function applyMermaidEditorDockRight(docked) {
     panel.style.transform = 'translateX(-50%)';
     panel.style.maxWidth = '98vw';
     panel.style.maxHeight = '95vh';
-    panel.style.minWidth = 'min(760px, calc(100vw - 16px))';
     panel.style.resize = 'none';
 }
 
@@ -10582,12 +10621,24 @@ function bindMermaidEditorModalResize() {
     panel.dataset.resizeBound = 'true';
 
     panel.querySelectorAll('[data-mermaid-resize]').forEach(function (handle) {
+        if (handle.dataset.mermaidResize === 'w') {
+            handle.tabIndex = 0; handle.setAttribute('role', 'separator');
+            handle.setAttribute('aria-label', 'Mermaid Dock 너비 조절');
+            handle.setAttribute('aria-orientation', 'vertical');
+            handle.addEventListener('keydown', function (event) {
+                if (!mermaidEditorModalDockRight || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+                event.preventDefault();
+                mermaidEditorDockWidth += event.key === 'ArrowLeft' ? 24 : -24;
+                syncMermaidEditorDockLayout();
+            });
+        }
         handle.addEventListener('pointerdown', function (event) {
             if (event.button !== 0 || mermaidEditorModalFullscreen) return;
             event.preventDefault();
             event.stopPropagation();
 
             const direction = handle.dataset.mermaidResize || '';
+            if (mermaidEditorModalDockRight && direction !== 'w') return;
             const rect = panel.getBoundingClientRect();
             const startX = event.clientX;
             const startY = event.clientY;
@@ -10608,6 +10659,11 @@ function bindMermaidEditorModalResize() {
 
             const move = function (next) {
                 const dx = next.clientX - startX;
+                if (mermaidEditorModalDockRight) {
+                    panel.style.right = '0'; panel.style.left = 'auto';
+                    mermaidEditorDockWidth = rect.width - dx;
+                    syncMermaidEditorDockLayout(); return;
+                }
                 const dy = next.clientY - startY;
                 let left = rect.left;
                 let right = rect.right;
@@ -10750,6 +10806,39 @@ window.addEventListener('message', function (event) {
     if (!data) return;
     const mermaidFrame = document.getElementById('mermaid-editor-frame');
     const fromMermaidEditor = !!(mermaidFrame && mermaidFrame.contentWindow === event.source);
+    if (data.type === 'mdv-task-models-request' && fromMermaidEditor) {
+        (async function () {
+            try {
+                await ensureAiChatLoaded();
+                const info = await window.AIChat.getTaskModels(data.provider || undefined, true);
+                event.source.postMessage({ type: 'mdv-task-models-result', requestId: data.requestId, ok: true, info: info }, '*');
+            } catch (error) {
+                event.source.postMessage({ type: 'mdv-task-models-result', requestId: data.requestId, ok: false, error: error.message || String(error) }, '*');
+            }
+        })();
+        return;
+    }
+    if (data.type === 'mdv-paste-mermaid-image' && fromMermaidEditor) {
+        (async function () {
+            try {
+                if (!navigator.clipboard || !navigator.clipboard.read) throw new Error('클립보드 읽기를 지원하지 않습니다. Ctrl+V 또는 파일 업로드를 사용하세요.');
+                const items = await navigator.clipboard.read();
+                for (const item of items) {
+                    const type = item.types.find(type => /^image\//i.test(type));
+                    if (!type) continue;
+                    const blob = await item.getType(type);
+                    if (blob.size > 20 * 1024 * 1024) throw new Error('이미지는 20MB 이하여야 합니다.');
+                    const dataUrl = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(blob); });
+                    event.source.postMessage({ type: 'mdv-mermaid-clipboard-image', requestId: data.requestId, ok: true, image: { dataUrl, type, size: blob.size, name: 'clipboard-image.png' } }, '*');
+                    return;
+                }
+                throw new Error('클립보드에 이미지가 없습니다. 이미지를 복사한 뒤 다시 눌러 주세요.');
+            } catch (error) {
+                event.source.postMessage({ type: 'mdv-mermaid-clipboard-image', requestId: data.requestId, ok: false, error: error.name === 'NotAllowedError' ? '클립보드 권한을 허용하거나 업로드 영역에서 Ctrl+V를 사용하세요.' : error.message }, '*');
+            }
+        })();
+        return;
+    }
     if (data.type === 'mdv-request-document-selection') {
         if (!fromMermaidEditor) return;
         const selectedText = getSelectedDocumentTextForMermaidEditor();
@@ -10802,6 +10891,11 @@ window.addEventListener('message', function (event) {
         deleteMermaidHistoryFromInDb(data.id, event.source);
         return;
     }
+    if (data.type === 'mdv-cancel-image-to-mermaid' && fromMermaidEditor) {
+        const controller = mermaidVisionRequests.get(data.requestId);
+        if (controller) controller.abort();
+        return;
+    }
     if (data.type === 'mdv-analyze-image-to-mermaid' && fromMermaidEditor) analyzeImageToMermaidForEditor(data, event.source);
 });
 
@@ -10851,10 +10945,24 @@ async function deleteMermaidHistoryFromInDb(id, targetWindow) {
 }
 
 function getMermaidVisionProviderSelection() {
-    return window.AIToolProviders.read('mermaid');
+    let provider = String(localStorage.getItem('ss_ai_chat_provider') || 'aistudio');
+    const modelKeys = {
+        aistudio: 'ss_ai_chat_gemini_model', openai: 'ss_ai_chat_openai_model', deepseek: 'ss_ai_chat_deepseek_model',
+        'openai-compatible': 'ss_ai_chat_openai_compatible_model', ollama: 'ss_ai_chat_ollama_model',
+        'ollama-npu': 'ss_ai_chat_npu_model', litertlm: 'ss_ai_chat_litertlm_model', lmstudio: 'ss_ai_chat_lmstudio_model'
+    };
+    if (provider === 'lemonade') provider = 'openai-compatible';
+    let model = String(localStorage.getItem(modelKeys[provider] || '') || '');
+    if (provider === 'aistudio' && (!model || /(?:image|tts|audio|veo|lyria)/i.test(model))) model = 'gemini-3.5-flash-lite';
+    return { provider: provider, model: model, openAICompatibleProvider: provider === 'openai-compatible' ? String(localStorage.getItem('ss_ai_chat_openai_compatible_active_provider') || '') : undefined };
 }
 
+const mermaidVisionRequests = new Map();
 async function analyzeImageToMermaidForEditor(data, targetWindow) {
+    const controller = new AbortController();
+    const startedAt = Date.now();
+    let answerText = '', reasoningText = '';
+    mermaidVisionRequests.set(data.requestId, controller);
     const reply = function (payload) {
         if (targetWindow && !targetWindow.closed) targetWindow.postMessage(Object.assign({ type: 'mdv-image-to-mermaid-result', requestId: data.requestId }, payload), '*');
     };
@@ -10862,29 +10970,51 @@ async function analyzeImageToMermaidForEditor(data, targetWindow) {
         if (!window.AIChatBridge || typeof window.AIChatBridge.complete !== 'function') throw new Error('AI Jena 연결 모듈이 준비되지 않았습니다.');
         const image = data.image || {};
         if (!/^data:image\//i.test(String(image.dataUrl || ''))) throw new Error('분석할 이미지 데이터가 없습니다.');
-        const selected = data.aiSelection || getMermaidVisionProviderSelection();
-        if (!selected.model) throw new Error('이미지 분석에 사용할 모델을 선택하세요.');
+        const selected = data.selection && data.selection.provider ? data.selection : (await ensureAiChatLoaded(), await window.AIChat.getTaskModels(undefined, false));
         const streamReply = function (streamEvent) {
+            if (streamEvent && streamEvent.type === 'message.delta') answerText += String(streamEvent.content || '');
+            if (streamEvent && streamEvent.type === 'reasoning.delta') reasoningText += String(streamEvent.content || '');
+            if (streamEvent && /^(message|reasoning)\.delta$/.test(streamEvent.type) && targetWindow && !targetWindow.closed) {
+                targetWindow.postMessage({ type: 'mdv-image-to-mermaid-metrics', requestId: data.requestId, outputTokens: (answerText ? estimateAIChatTokens(answerText) : 0) + (reasoningText ? estimateAIChatTokens(reasoningText) : 0), reasoningTokens: reasoningText ? estimateAIChatTokens(reasoningText) : 0, estimated: true }, '*');
+            }
+            if (streamEvent && targetWindow && !targetWindow.closed) {
+                const stages = { 'request.start': 10, 'transport.start': 25, 'prompt_processing.start': 40, 'reasoning.delta': 55, 'message.delta': 65, 'message.end': 90 };
+                if (stages[streamEvent.type]) targetWindow.postMessage({ type: 'mdv-image-to-mermaid-progress', requestId: data.requestId, percent: stages[streamEvent.type] }, '*');
+            }
             if (!streamEvent || streamEvent.type !== 'message.delta' || !streamEvent.content || !targetWindow || targetWindow.closed) return;
             targetWindow.postMessage({ type: 'mdv-image-to-mermaid-stream', requestId: data.requestId, delta: String(streamEvent.content) }, '*');
         };
         const result = await window.AIChatBridge.complete({
             provider: selected.provider,
             model: selected.model,
+            openAICompatibleProvider: selected.openAICompatibleProvider,
+            independent: true,
+            timeoutMs: 180000,
+            signal: controller.signal,
             mode: 'quick',
+            disableThinking: true,
+            maxOutputTokens: 4096,
             onStreamEvent: streamReply,
             messages: [{ role: 'user', content: String(data.prompt || '').trim() || '이 이미지를 Mermaid 다이어그램으로 변환해 주세요.', attachments: [{ kind: 'image', name: image.name || 'diagram.png', type: image.type || 'image/png', size: image.size || 0, dataUrl: image.dataUrl }] }],
-            systemInstruction: [
-                'You convert reference diagram images into valid Mermaid source code.',
-                'Read every visible label and preserve structure, direction, grouping, relationships, and meaning as closely as Mermaid supports.',
-                'Choose the best Mermaid diagram type. Use quoted labels when punctuation could break syntax.',
-                'Return only one fenced mermaid code block. Do not explain, apologize, or add prose.'
-            ].join(' ')
+            systemInstruction: window.MermaidAIQuality.systemInstruction
         });
-        reply({ ok: true, code: String(result && result.text || '') });
+        const generatedCode = String(result && result.text || '');
+        if (/IMAGE_UNREADABLE/.test(generatedCode)) throw new Error('모델이 이미지의 글자를 읽지 못했습니다. 더 선명한 원본 이미지나 다른 비전 모델로 다시 실행해 주세요.');
+        const usage = result && result.usage || {};
+        const outputTokens = usage.outputTokens ?? usage.completion_tokens ?? usage.completionTokens;
+        const reportedReasoning = usage.reasoningTokens ?? (usage.completion_tokens_details && usage.completion_tokens_details.reasoning_tokens);
+        const metrics = {
+            elapsedMs: Date.now() - startedAt,
+            inputTokens: usage.prompt_tokens ?? usage.promptTokens,
+            outputTokens: Number.isFinite(Number(outputTokens)) && Number(outputTokens) > 0 ? Number(outputTokens) : estimateAIChatTokens(generatedCode) + (reasoningText ? estimateAIChatTokens(reasoningText) : 0),
+            reasoningTokens: reportedReasoning ?? (reasoningText ? estimateAIChatTokens(reasoningText) : 0),
+            reasoningEstimated: reportedReasoning == null && !!reasoningText,
+            estimated: usage.estimated === true || !(Number(outputTokens) > 0)
+        };
+        reply({ ok: true, code: generatedCode, provider: result && result.provider || selected.provider, model: result && result.model || selected.model, metrics });
     } catch (error) {
         reply({ ok: false, error: error && error.message ? error.message : String(error) });
-    }
+    } finally { mermaidVisionRequests.delete(data.requestId); }
 }
 
 function applyTextStyleToSelection() {
@@ -20408,6 +20538,120 @@ async function completeSharedAIProvider(request, signal) {
 
 }
 
+function getMermaidCompatibleConnection(profile) {
+    if (profile === 'lemonade') return getStoredLemonadeConnection();
+    if (profile === 'lemonade-flm') return {
+        provider: 'lemonade-flm', baseUrl: getNPUBaseUrl(), apiKey: 'lemonade',
+        modelId: localStorage.getItem('ss_ai_chat_npu_model') || '',
+        maxOutputTokens: Number(localStorage.getItem('ss_openai_compatible_max_output_tokens_lemonade-flm')) || 4096,
+        temperature: 0.1, topP: 0.9, contextTokens: 8192
+    };
+    return getStoredOpenAICompatibleConnection(profile);
+}
+
+async function completeTaskVision(request, signal) {
+    const provider = request.provider === 'lemonade' ? 'openai-compatible' : request.provider;
+    if (provider === 'deepseek') throw new Error('DeepSeek의 현재 텍스트 API는 이미지 분석을 지원하지 않습니다. 비전 모델 공급자를 선택하세요.');
+    const config = getScholarAIProviderRuntime().getLMStudioConfig();
+    let baseUrl, apiKey = '', path = '/chat/completions', connection = null;
+    if (provider === 'ollama') { baseUrl = getOllamaSettings().baseUrl; path = '/api/chat'; }
+    else if (provider === 'ollama-npu') baseUrl = getNPUBaseUrl();
+    else if (provider === 'litertlm') baseUrl = getLiteRTLMSettings().baseUrl;
+    else if (provider === 'openai-compatible') { connection = getMermaidCompatibleConnection(request.provider === 'lemonade' ? 'lemonade' : request.openAICompatibleProvider); baseUrl = connection.baseUrl; apiKey = connection.apiKey; }
+    else if (provider === 'lmstudio') { baseUrl = config.baseUrl; apiKey = config.apiKey || ''; }
+    else throw new Error('이미지 분석 공급자를 선택하세요.');
+    const messages = (request.messages || []).map(function (message) {
+        if ((message.attachments || []).some(item => item.kind === 'image' && !/^data:image\//.test(item.dataUrl || ''))) {
+            throw new Error('첨부 이미지 데이터를 읽을 수 없습니다. 편집에서 이미지를 제거한 뒤 다시 추가하세요.');
+        }
+        const images = (message.attachments || []).filter(item => item.kind === 'image' && /^data:image\//.test(item.dataUrl || ''));
+        if (provider === 'ollama') return { role: message.role, content: String(message.content || ''), images: images.map(item => item.dataUrl.split(',')[1]) };
+        return { role: message.role, content: images.length ? [{ type: 'text', text: String(message.content || '') }].concat(images.map(item => ({ type: 'image_url', image_url: { url: item.dataUrl } }))) : String(message.content || '') };
+    });
+    if (request.systemInstruction) messages.unshift({ role: 'system', content: request.systemInstruction });
+    const model = String(request.model || (connection && connection.modelId) || '').trim();
+    if (!model) throw new Error('이미지 분석에 사용할 비전 모델을 선택하세요.');
+    const body = { model: model, messages: messages, stream: false };
+    if (provider === 'ollama') {
+        body.think = request.mode === 'reasoning' && request.disableThinking !== true;
+        body.options = { num_predict: Number(request.maxOutputTokens) > 0 ? Number(request.maxOutputTokens) : (config.quickMaxTokens || 4096), num_ctx: Math.max(8192, Math.min(32768, Number(request.contextLength) || 8192)), temperature: 0.1 };
+    }
+    else if (connection) {
+        if (connection.maxOutputTokens > 0) body.max_tokens = connection.maxOutputTokens;
+        body.temperature = connection.temperature;
+        body.top_p = connection.topP;
+        if ((connection.provider === 'lemonade' || connection.provider === 'lemonade-flm') && (request.disableThinking === true || request.mode !== 'reasoning')) {
+            body.chat_template_kwargs = { enable_thinking: false };
+            body.enable_thinking = false;
+            body.thinking = false;
+        }
+    }
+    else body.max_tokens = config.quickMaxTokens || 4096;
+    if (provider === 'lmstudio' && (request.disableThinking === true || request.mode !== 'reasoning')) {
+        body.chat_template_kwargs = { enable_thinking: false };
+        body.reasoning_effort = 'none';
+        body.temperature = 0.1;
+        if (Number(request.maxOutputTokens) > 0) body.max_tokens = Math.min(body.max_tokens, Number(request.maxOutputTokens));
+    }
+    if (request.task === 'table-ocr' || request.task === 'math-ocr') {
+        // OCR must transcribe, rather than apply the user's creative chat sampling.
+        if (provider === 'ollama') body.options.temperature = 0;
+        else body.temperature = 0;
+    }
+    if (provider === 'ollama' && typeof request.onStreamEvent === 'function') {
+        const emit = request.onStreamEvent;
+        body.stream = true;
+        emit({ type: 'request.start', provider, model });
+        emit({ type: 'transport.start', provider });
+        emit({ type: 'prompt_processing.start', provider });
+        let buffer = '', text = '', reasoning = '', lastData = {};
+        function consume(line) {
+            if (!line.trim()) return;
+            const chunk = JSON.parse(line);
+            if (chunk.error) throw new Error(String(chunk.error));
+            lastData = chunk;
+            const message = chunk.message || {};
+            if (message.thinking) { reasoning += message.thinking; emit({ type: 'reasoning.delta', provider, content: message.thinking }); }
+            if (message.content) { text += message.content; emit({ type: 'message.delta', provider, content: message.content }); }
+        }
+        await requestLocalAITextStream(String(baseUrl).replace(/\/+$/, '') + path, {
+            method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson' }, body: JSON.stringify(body), signal
+        }, function (chunk) {
+            buffer += chunk;
+            const lines = buffer.split(/\r?\n/); buffer = lines.pop() || '';
+            lines.forEach(consume);
+        });
+        if (buffer.trim()) consume(buffer);
+        if (!text.trim()) throw new Error('Ollama 이미지 응답이 비어 있습니다. 비전 모델과 이미지 입력을 확인하세요.');
+        emit({ type: 'message.end', provider });
+        return { provider, model, text, reasoning, finishReason: lastData.done_reason || '', usage: { prompt_tokens: Number(lastData.prompt_eval_count) || 0, completion_tokens: Number(lastData.eval_count) || 0 } };
+    }
+    if (provider === 'lmstudio' && typeof request.onStreamEvent === 'function') {
+        const result = await streamOpenAICompatibleChat({ provider, baseUrl, apiKey, contextTokens: config.contextLength || 8192 }, body, signal, request.onStreamEvent);
+        if (!result.text.trim()) throw new Error('LM Studio 이미지 응답이 비어 있습니다. 비전 모델과 projector 로딩을 확인하세요.');
+        return Object.assign({}, result, { provider, model });
+    }
+    if (connection && typeof request.onStreamEvent === 'function') {
+        const result = await streamOpenAICompatibleChat(connection, body, signal, request.onStreamEvent);
+        if (!result.text.trim()) throw new Error('이미지 응답이 비어 있습니다. 선택한 모델의 비전 지원을 확인하세요.');
+        return result;
+    }
+    const headers = { 'Content-Type': 'application/json' };
+    if (apiKey) headers.Authorization = 'Bearer ' + apiKey;
+    const url = String(baseUrl || '').replace(/\/+$/, '') + path;
+    const options = { method: 'POST', headers: headers, body: JSON.stringify(body), signal: signal };
+    let data;
+    if (provider === 'openai-compatible' && connection.provider !== 'lemonade') {
+        const response = await fetch(url, options);
+        data = await response.json();
+        if (!response.ok || data.error) throw new Error(data.error && data.error.message || '이미지 분석 HTTP ' + response.status);
+    } else data = await requestLocalAIJson(url, options);
+    const choice = data.choices && data.choices[0] || {};
+    const text = String(provider === 'ollama' ? data.message && data.message.content || '' : choice.message && choice.message.content || '');
+    if (!text.trim()) throw new Error('이미지 응답이 비어 있습니다. 선택한 모델의 비전 지원을 확인하세요.');
+    return { provider: provider, model: connection && connection.provider === 'lemonade' ? model : (data.model || model), text: text };
+}
+
 async function completeLocalImageToolRequest(request, signal) {
     if (request.provider === 'deepseek') throw new Error('DeepSeek의 현재 연결은 이미지 입력을 지원하지 않습니다. 이미지 지원 모델을 선택하세요.');
     const rows = normalizeAIChatMessages(request.messages);
@@ -20589,9 +20833,13 @@ window.AIChatBridge = Object.freeze({
     refreshNPUModels: function () {
         return listNPUModels();
     },
+    getCachedLMStudioModels: function () {
+        return { model: getScholarAIProviderRuntime().getLMStudioConfig().model || '', models: readStoredModelList(SCHOLAR_AI_LM_MODELS_KEY) };
+    },
     refreshLMStudioModels: async function () {
         const result = await getScholarAIProviderRuntime().syncLMStudioLoadedModel(undefined, true);
-        const models = result.models.map(function (item) { return item.id; }).filter(Boolean);
+        const installed = await getScholarAIProviderRuntime().listLMStudioModels();
+        const models = Array.from(new Set(installed.map(function (item) { return typeof item === 'string' ? item : item.key || item.id; }).concat(result.models.map(function (item) { return item.id; })).filter(Boolean)));
         saveStoredModelList(SCHOLAR_AI_LM_MODELS_KEY, models);
         return { model: result.model, models: models, contextLength: getAIChatLMContextLength(result) };
     },
@@ -20665,9 +20913,16 @@ window.AIChatBridge = Object.freeze({
     },
     complete: async function (request) {
         request = applyLocalAIChatResponseStyle(request || {});
-        if (aiChatAbortController) aiChatAbortController.abort();
+        if (!request.independent && aiChatAbortController) aiChatAbortController.abort();
         const controller = new AbortController();
-        aiChatAbortController = controller;
+        if (!request.independent) aiChatAbortController = controller;
+        const relayAbort = function () { controller.abort(request.signal.reason); };
+        if (request.signal) {
+            if (request.signal.aborted) relayAbort();
+            else request.signal.addEventListener('abort', relayAbort, { once: true });
+        }
+        const timeoutMs = Number(request.timeoutMs) > 0 ? Number(request.timeoutMs) : 0;
+        const timeoutId = timeoutMs ? setTimeout(function () { controller.abort(new DOMException('AI 응답 시간 초과', 'TimeoutError')); }, timeoutMs) : null;
         try {
             const hasImages = (request.messages || []).some(function (message) {
                 return (message.attachments || []).some(function (item) { return item && item.kind === 'image'; });
@@ -20675,8 +20930,9 @@ window.AIChatBridge = Object.freeze({
             if (hasImages) {
                 // Validate before any provider can silently fall back to text-only input.
                 aiChatMessagesWithImageContent(normalizeAIChatMessages(request.messages));
+                if (request.independent && (request.provider === 'openai-compatible' || request.provider === 'lemonade')) return await completeTaskVision(request, controller.signal);
                 if (['lmstudio', 'ollama', 'ollama-npu', 'litertlm', 'deepseek'].includes(request.provider)) {
-                    return await completeLocalImageToolRequest(request, controller.signal);
+                    return await completeTaskVision(request, controller.signal);
                 }
             }
             if (request.provider === 'ollama-npu') {
@@ -20962,6 +21218,8 @@ window.AIChatBridge = Object.freeze({
                 responseId: result.responseId || null
             };
         } finally {
+            if (timeoutId) clearTimeout(timeoutId);
+            if (request.signal) request.signal.removeEventListener('abort', relayAbort);
             if (aiChatAbortController === controller) aiChatAbortController = null;
         }
     },

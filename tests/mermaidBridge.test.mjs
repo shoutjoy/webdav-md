@@ -8,7 +8,9 @@ const bridge = app.slice(start, app.indexOf('function applyTextStyleToSelection(
 function setup() {
   const frame = {}; const calls = []; let listener;
   const context = {
-    window: { addEventListener: (_, fn) => { listener = fn; } },
+    AbortController,
+    estimateAIChatTokens: text => Math.ceil(text.length / 4),
+    window: { MermaidAIQuality: { systemInstruction: 'preserve image labels' }, addEventListener: (_, fn) => { listener = fn; } },
     document: { getElementById: () => ({ contentWindow: frame }) },
     insertMermaidBlockFromExternal: code => calls.push(['insert', code]),
     closeMermaidEditorModal: () => calls.push(['close']),
@@ -41,6 +43,8 @@ test('AI failures are returned with the request id for UI recovery', async () =>
 test('vision request forwards image and streams code through the configured bridge', async () => {
   const s = setup(); const replies = []; let request;
   s.context.localStorage = { getItem: key => key === 'ss_ai_chat_provider' ? 'openai' : 'configured-model' };
+  s.context.ensureAiChatLoaded = async () => {};
+  s.context.window.AIChat = { getTaskModels: async () => ({provider:'openai',model:'configured-model'}) };
   s.context.window.AIChatBridge = { complete: async input => {
     request = input;
     input.onStreamEvent({ type: 'message.delta', content: 'flowchart LR' });
@@ -49,6 +53,8 @@ test('vision request forwards image and streams code through the configured brid
   await s.context.analyzeImageToMermaidForEditor({ requestId: 'r2', image: { dataUrl: 'data:image/png;base64,AA==', name: 'test.png' } }, { postMessage: data => replies.push(data) });
   assert.equal(request.messages[0].attachments[0].name, 'test.png');
   assert.equal(request.model, 'configured-model');
-  assert.equal(replies[0].type, 'mdv-image-to-mermaid-stream');
-  assert.equal(replies[1].ok, true);
+  assert.equal(replies.find(reply => reply.type === 'mdv-image-to-mermaid-stream').delta, 'flowchart LR');
+  assert.equal(replies.find(reply => reply.type === 'mdv-image-to-mermaid-result').ok, true);
+  assert.equal(request.independent, true);
+  assert.equal(request.disableThinking, true);
 });

@@ -76,6 +76,7 @@ const previewThemeToggleBtn = document.getElementById('preview-theme-toggle-btn'
 const topBar = document.getElementById('top-bar');
 const toolbarCollapseBtn = document.getElementById('toolbar-collapse-btn');
 const toolbarFloatBtn = document.getElementById('toolbar-float-btn');
+const uiThemeToggleBtn = document.getElementById('ui-theme-toggle-btn');
 const toolbarDragHandle = document.getElementById('toolbar-drag-handle');
 const exampleSelect = document.getElementById('example-select');
 const collapsedExampleSelect = document.getElementById('collapsed-example-select');
@@ -86,13 +87,75 @@ const mermaidImageEmpty = document.getElementById('mermaid-image-empty');
 const mermaidImageRemove = document.getElementById('mermaid-image-remove');
 const mermaidImagePrompt = document.getElementById('mermaid-image-prompt');
 const mermaidImageGenerate = document.getElementById('mermaid-image-generate');
+const mermaidImagePaste = document.getElementById('mermaid-image-paste');
+const mermaidImageLarge = document.getElementById('mermaid-image-large');
+const referenceDialog = document.getElementById('mermaid-reference-dialog');
+const referenceFull = document.getElementById('mermaid-reference-full');
+let referenceZoom = 0;
+function updateReferenceZoom(value) {
+  referenceZoom = value;
+  referenceFull.style.width = value ? Math.max(1, referenceFull.naturalWidth * value / 100) + 'px' : '';
+  referenceFull.classList.toggle('is-zoomed', value > 0);
+  document.getElementById('mermaid-reference-zoom').textContent = value ? value + '%' : '맞춤';
+}
+mermaidImageLarge.addEventListener('click', function () {
+  if (!mermaidReferenceImage) return;
+  referenceFull.src = mermaidReferenceImage.dataUrl;
+  updateReferenceZoom(0);
+  referenceDialog.showModal();
+});
+document.getElementById('mermaid-reference-close').addEventListener('click', function () { referenceDialog.close(); });
+referenceDialog.addEventListener('close', function () { (mermaidImageLarge.disabled ? mermaidImageDropzone : mermaidImageLarge).focus(); });
+referenceFull.addEventListener('load', function () { if (referenceZoom) updateReferenceZoom(referenceZoom); });
+referenceDialog.querySelectorAll('[data-ref-zoom]').forEach(button => button.addEventListener('click', function () {
+  const action = button.dataset.refZoom;
+  updateReferenceZoom(action === 'fit' ? 0 : action === '100' ? 100 : Math.max(10, Math.min(400, (referenceZoom || 100) + (action === '+' ? 25 : -25))));
+}));
+document.getElementById('mermaid-image-select').addEventListener('click', function () { mermaidImageFile.click(); });
+let mermaidImageRequestTimer = null;
+let mermaidImagePreviousCode = '';
+let mermaidMetricsTimer = null;
+let mermaidMetricsStarted = 0;
+let mermaidMetrics = { outputTokens: 0, reasoningTokens: 0, estimated: true };
+function updateMermaidMetrics(metrics) {
+  if (metrics) mermaidMetrics = Object.assign({}, mermaidMetrics, metrics);
+  const output = document.getElementById('mermaid-image-metrics');
+  output.hidden = false;
+  const elapsed = (mermaidMetrics.elapsedMs != null ? mermaidMetrics.elapsedMs : Date.now() - mermaidMetricsStarted) / 1000;
+  const approx = mermaidMetrics.estimated ? '약 ' : '';
+  const reasoningApprox = mermaidMetrics.reasoningEstimated || mermaidMetrics.estimated ? '약 ' : '';
+  output.textContent = '경과 ' + Math.max(0, elapsed).toFixed(1) + '초 · 생성 ' + approx + mermaidMetrics.outputTokens + ' tok' + (mermaidMetrics.reasoningTokens ? ' · 추론 ' + reasoningApprox + mermaidMetrics.reasoningTokens + ' tok' : '') + (mermaidMetrics.inputTokens != null ? ' · 입력 ' + mermaidMetrics.inputTokens + ' tok' : '');
+}
+function finishMermaidMetrics(metrics) {
+  clearInterval(mermaidMetricsTimer);
+  updateMermaidMetrics(Object.assign({ elapsedMs: Date.now() - mermaidMetricsStarted }, metrics || {}));
+}
+let mermaidImageProgress = 0;
+function setMermaidProgress(percent) {
+  mermaidImageProgress = Math.max(mermaidImageProgress, percent);
+  document.getElementById('mermaid-image-progress-panel').hidden = false;
+  document.getElementById('mermaid-image-progress').value = mermaidImageProgress;
+  document.getElementById('mermaid-image-progress-label').textContent = '단계 진행률 ' + mermaidImageProgress + '%';
+  if (percent === 100) document.getElementById('mermaid-image-stop').hidden = true;
+}
+function stopMermaidImageRequest() {
+  const id = mermaidImageRequestId;
+  mermaidImageRequestId = '';
+  clearTimeout(mermaidImageRequestTimer);
+  finishMermaidMetrics();
+  if (mermaidImageTypingTimer) clearInterval(mermaidImageTypingTimer);
+  window.parent.postMessage({ type: 'mdv-cancel-image-to-mermaid', requestId: id }, '*');
+  mermaidImageGenerate.disabled = !mermaidReferenceImage;
+  if (!mermaidImageReceivedStream) editor.value = mermaidImagePreviousCode;
+  document.getElementById('mermaid-image-progress-panel').hidden = true;
+  setMermaidImageStatus('생성을 중지했습니다. 다시 실행할 수 있습니다.');
+}
 const mermaidImageStatus = document.getElementById('mermaid-image-status');
 const mermaidHistoryPanel = document.getElementById('mermaid-history-panel');
 const mermaidHistorySearch = document.getElementById('mermaid-history-search');
 const mermaidHistoryList = document.getElementById('mermaid-history-list');
 const mermaidAiPanel = document.getElementById('image-to-mermaid');
 const mermaidAiCollapseBtn = document.getElementById('mermaid-ai-collapse-btn');
-const mermaidAiProviderToggleBtn = document.getElementById('mermaid-ai-provider-toggle-btn');
 const documentSelectionImportBtn = document.getElementById('document-selection-import-btn');
 
 let renderTimer = null;
@@ -114,7 +177,33 @@ let mermaidImageTypingTimer = null;
 let mermaidHistoryRecords = [];
 const TOOLBAR_LAYOUT_KEY = 'mdv_mermaid_toolbar_layout_v1';
 const MERMAID_AI_COLLAPSED_KEY = 'mdv_mermaid_ai_panel_collapsed_v1';
-const MERMAID_AI_PROVIDER_COLLAPSED_KEY = 'mdv_mermaid_ai_provider_collapsed_v1';
+
+
+const MERMAID_UI_THEME_KEY = 'mdv_mermaid_ui_theme_v1';
+function applyUiTheme(dark) {
+  document.body.classList.toggle('ui-dark', !!dark);
+  if (uiThemeToggleBtn) {
+    uiThemeToggleBtn.textContent = dark ? 'UI Light' : 'UI Dark';
+    uiThemeToggleBtn.setAttribute('aria-pressed', String(!!dark));
+  }
+}
+
+function toggleUiTheme() {
+  const dark = !document.body.classList.contains('ui-dark');
+  applyUiTheme(dark);
+  try { localStorage.setItem(MERMAID_UI_THEME_KEY, dark ? 'dark' : 'light'); } catch (_) {}
+}
+
+function initUiTheme() {
+  let saved = '';
+  try { saved = localStorage.getItem(MERMAID_UI_THEME_KEY) || ''; } catch (_) {}
+  let dark = saved === 'dark';
+  if (!saved) {
+    try { dark = !!(window.parent && window.parent.document && window.parent.document.documentElement.classList.contains('dark')); }
+    catch (_) { dark = false; }
+  }
+  applyUiTheme(dark);
+}
 
 function setDocumentSelectionImportButton(message, isError) {
   if (!documentSelectionImportBtn) return;
@@ -156,31 +245,6 @@ function initMermaidAiPanelState() {
     collapsed = saved === null ? true : saved === 'true';
   } catch (error) {}
   applyMermaidAiPanelState(collapsed);
-}
-
-function applyMermaidAiProviderControlsState(collapsed) {
-  if (!mermaidAiPanel) return;
-  mermaidAiPanel.classList.toggle('ai-provider-collapsed', !!collapsed);
-  if (mermaidAiProviderToggleBtn) {
-    mermaidAiProviderToggleBtn.textContent = collapsed ? 'AI 모델 ▸' : 'AI 모델 ▾';
-    mermaidAiProviderToggleBtn.title = collapsed ? 'AI 공급자·모델 펼치기' : 'AI 공급자·모델 접기';
-    mermaidAiProviderToggleBtn.setAttribute('aria-expanded', String(!collapsed));
-  }
-}
-
-function toggleMermaidAiProviderControls() {
-  const collapsed = !(mermaidAiPanel && mermaidAiPanel.classList.contains('ai-provider-collapsed'));
-  applyMermaidAiProviderControlsState(collapsed);
-  try { localStorage.setItem(MERMAID_AI_PROVIDER_COLLAPSED_KEY, collapsed ? 'true' : 'false'); } catch (error) {}
-}
-
-function initMermaidAiProviderControlsState() {
-  let collapsed = true;
-  try {
-    const saved = localStorage.getItem(MERMAID_AI_PROVIDER_COLLAPSED_KEY);
-    collapsed = saved === null ? true : saved === 'true';
-  } catch (error) {}
-  applyMermaidAiProviderControlsState(collapsed);
 }
 
 function readToolbarLayout() {
@@ -932,7 +996,7 @@ function setAutoFixButtonStatus(message) {
 
 async function autoFixMermaidCode() {
   const original = String(editor.value || '');
-  let fixed = normalizeMermaidDiagramType(original);
+  let fixed = MermaidAIQuality.normalize(normalizeMermaidDiagramType(original));
 
   if (window.MermaidLabelSanitizer &&
       typeof window.MermaidLabelSanitizer.preprocess === 'function') {
@@ -984,25 +1048,31 @@ function polishRenderedMermaidSvg() {
   if (!renderDiv) return;
   const svg = renderDiv.querySelector('svg');
   if (!svg || svg.querySelector('style[data-mdv-mermaid-polish="1"]')) return;
-  const lineColor = previewDarkMode ? '#cbd5e1' : '#64748b';
-  const textColor = previewDarkMode ? '#e5edf7' : '#334155';
   svg.style.display = 'block';
   svg.style.marginLeft = 'auto';
   svg.style.marginRight = 'auto';
   const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
   style.setAttribute('data-mdv-mermaid-polish', '1');
   style.textContent = [
-    '.node rect,.node polygon,.node circle,.node ellipse{filter:drop-shadow(0 8px 18px rgba(15,23,42,.10));stroke-width:1.4px;}',
-    '.node .label,.nodeLabel,.edgeLabel,.label{font-weight:600;letter-spacing:0;}',
-    '.edgeLabel{border-radius:8px;color:' + textColor + ';}',
-    '.flowchart-link{stroke:' + lineColor + ' !important;stroke-width:1.9px;}',
-    'marker path,path.arrowMarkerPath{fill:' + lineColor + ' !important;stroke:' + lineColor + ' !important;}',
-    '.cluster rect{stroke-dasharray:0;}'
+    // Do not override classDef/linkStyle or add effects absent from the source.
+    '.nodeLabel,.edgeLabel{letter-spacing:normal;}'
   ].join('\n');
   svg.insertBefore(style, svg.firstChild);
 }
 
 async function render() {
+  const snapshot = editor.value;
+  const repair = await MermaidAIQuality.repairSyntax(snapshot, source => mermaid.parse(source, { suppressErrors: true }));
+  // A user may keep typing while Mermaid's asynchronous parser is running.
+  if (editor.value !== snapshot) return;
+  if (repair.changed) {
+    pushEditorUndoState();
+    const start = editor.selectionStart, end = editor.selectionEnd, scroll = editor.scrollTop;
+    editor.value = repair.code;
+    editor.setSelectionRange(Math.min(start, repair.code.length), Math.min(end, repair.code.length));
+    editor.scrollTop = scroll;
+    setMermaidImageStatus('라벨 인용부호 오류를 자동으로 수정했습니다.');
+  }
   const code = editor.value.trim();
   const prepared = preprocessMermaidSourceForRender(code);
   const renderCode = String(prepared && prepared.source ? prepared.source : code);
@@ -1348,20 +1418,27 @@ function insertIntoDocumentAndClose() {
 function setMermaidImageStatus(message, isError) {
   if (!mermaidImageStatus) return;
   mermaidImageStatus.textContent = String(message || '');
+  mermaidImageStatus.title = String(message || '');
   mermaidImageStatus.classList.toggle('error', !!isError);
 }
 
 function clearMermaidReferenceImage() {
+  if (mermaidImageRequestId && mermaidImageGenerate.disabled) stopMermaidImageRequest();
   mermaidReferenceImage = null;
   if (mermaidImagePreview) { mermaidImagePreview.hidden = true; mermaidImagePreview.removeAttribute('src'); }
   if (mermaidImageEmpty) mermaidImageEmpty.hidden = false;
   if (mermaidImageRemove) mermaidImageRemove.hidden = true;
   if (mermaidImageGenerate) mermaidImageGenerate.disabled = true;
+  mermaidImageLarge.disabled = true;
+  document.getElementById('mermaid-image-progress-panel').hidden = true;
+  document.getElementById('mermaid-image-metrics').hidden = true;
+  if (referenceDialog.open) referenceDialog.close();
   if (mermaidImageFile) mermaidImageFile.value = '';
   setMermaidImageStatus('');
 }
 
 function loadMermaidReferenceFile(file) {
+  if (mermaidImageRequestId && mermaidImageGenerate.disabled) stopMermaidImageRequest();
   if (!file || !/^image\//i.test(String(file.type || ''))) return setMermaidImageStatus('이미지 파일만 사용할 수 있습니다.', true);
   if (file.size > 20 * 1024 * 1024) return setMermaidImageStatus('이미지는 20MB 이하여야 합니다.', true);
   const reader = new FileReader();
@@ -1371,10 +1448,36 @@ function loadMermaidReferenceFile(file) {
     if (mermaidImageEmpty) mermaidImageEmpty.hidden = true;
     if (mermaidImageRemove) mermaidImageRemove.hidden = false;
     if (mermaidImageGenerate) mermaidImageGenerate.disabled = false;
+    mermaidImageLarge.disabled = false;
     setMermaidImageStatus('이미지가 준비되었습니다. 프롬프트를 확인한 뒤 코드를 생성하세요.');
   };
   reader.onerror = function () { setMermaidImageStatus('이미지를 읽지 못했습니다.', true); };
   reader.readAsDataURL(file);
+}
+
+function pasteMermaidImageFromParent() {
+  const requestId = 'paste-' + Date.now();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { window.removeEventListener('message', receive); reject(new Error('클립보드 읽기 시간이 초과됐습니다. 권한을 확인하거나 Ctrl+V를 사용하세요.')); }, 15000);
+    function receive(event) {
+      const data = event.data || {};
+      if (event.source !== window.parent || data.type !== 'mdv-mermaid-clipboard-image' || data.requestId !== requestId) return;
+      clearTimeout(timer); window.removeEventListener('message', receive);
+      if (!data.ok) return reject(new Error(data.error || '이미지를 읽지 못했습니다.'));
+      const image = data.image || {};
+      if (!/^data:image\//i.test(image.dataUrl || '')) return reject(new Error('이미지 데이터가 없습니다.'));
+      if (mermaidImageRequestId && mermaidImageGenerate.disabled) stopMermaidImageRequest();
+      mermaidReferenceImage = image;
+      mermaidImagePreview.src = image.dataUrl; mermaidImagePreview.hidden = false;
+      mermaidImageEmpty.hidden = true; mermaidImageRemove.hidden = false;
+      mermaidImageGenerate.disabled = false;
+      mermaidImageLarge.disabled = false;
+      setMermaidImageStatus('클립보드 이미지가 준비되었습니다. ME실행을 눌러 주세요.');
+      resolve();
+    }
+    window.addEventListener('message', receive);
+    window.parent.postMessage({ type: 'mdv-paste-mermaid-image', requestId }, '*');
+  });
 }
 
 function extractMermaidCodeFromAI(value) {
@@ -1391,8 +1494,23 @@ function showStreamingMermaidCode(rawText) {
   const code = extractPartialMermaidCode(rawText);
   editor.value = code;
   editor.scrollTop = editor.scrollHeight;
-  debounceRender();
+  // Incomplete source stays in the editor; render the finished diagram once.
   setMermaidImageStatus('Mermaid 코드를 생성하는 중… ' + code.length + '자');
+}
+
+async function finishGeneratedMermaid(code) {
+  clearTimeout(renderTimer);
+  code = MermaidAIQuality.normalize(code);
+  editor.value = code;
+  await render();
+  if (errorDiv.style.display === 'block' || !renderDiv.querySelector('svg')) {
+    document.getElementById('mermaid-image-stop').hidden = true;
+    setMermaidImageStatus('응답은 받았지만 Mermaid 구문을 확인해야 합니다. 코드 편집기의 오류를 수정해 주세요.', true);
+    return;
+  }
+  setMermaidProgress(100);
+  setMermaidImageStatus('코드 생성을 완료했습니다. 왼쪽 코드를 수정하면 미리보기에 반영됩니다.');
+  saveMermaidHistoryRecord(code);
 }
 
 function typeMermaidCode(code) {
@@ -1404,14 +1522,11 @@ function typeMermaidCode(code) {
     position = Math.min(code.length, position + step);
     editor.value = code.slice(0, position);
     editor.scrollTop = editor.scrollHeight;
-    debounceRender();
     setMermaidImageStatus('Mermaid 코드를 표시하는 중… ' + position + ' / ' + code.length + '자');
     if (position >= code.length) {
       clearInterval(mermaidImageTypingTimer);
       mermaidImageTypingTimer = null;
-      render();
-      setMermaidImageStatus('코드 생성을 완료했습니다. 왼쪽 코드를 수정하면 오른쪽 미리보기에 바로 반영됩니다.');
-      saveMermaidHistoryRecord(code);
+      finishGeneratedMermaid(code);
     }
   }, 18);
 }
@@ -1467,16 +1582,64 @@ if (mermaidHistorySearch) mermaidHistorySearch.addEventListener('input', renderM
 
 function requestMermaidFromImage() {
   if (!mermaidReferenceImage || !window.parent || window.parent === window) return;
+  if (mermaidImageGenerate.disabled) return;
+  const selection = mermaidTaskPicker.selection();
+  if (selection.provider && !selection.model && selection.provider !== 'lmstudio') return setMermaidImageStatus('AI 모델을 선택하거나 모델 ID를 입력해 주세요.', true);
   mermaidImageRequestId = 'mermaid-image-' + Date.now();
+  mermaidMetricsStarted = Date.now();
+  mermaidMetrics = { outputTokens: 0, reasoningTokens: 0, estimated: true };
+  clearInterval(mermaidMetricsTimer);
+  updateMermaidMetrics();
+  mermaidMetricsTimer = setInterval(function () { updateMermaidMetrics(); }, 250);
+  mermaidImageProgress = 0;
+  document.getElementById('mermaid-image-stop').disabled = false;
+  document.getElementById('mermaid-image-stop').hidden = false;
+  setMermaidProgress(10);
   mermaidImageStreamText = '';
   mermaidImageReceivedStream = false;
   if (mermaidImageTypingTimer) { clearInterval(mermaidImageTypingTimer); mermaidImageTypingTimer = null; }
   pushEditorUndoState();
+  mermaidImagePreviousCode = editor.value;
   editor.value = '';
   mermaidImageGenerate.disabled = true;
+  errorDiv.style.display = 'none';
+  errorDiv.textContent = '';
   setMermaidImageStatus('AI가 이미지 구조를 분석하고 있습니다…');
-  window.parent.postMessage({ type: 'mdv-analyze-image-to-mermaid', requestId: mermaidImageRequestId, image: mermaidReferenceImage, aiSelection: window.parent.AIToolProviders.read('mermaid'), prompt: String(mermaidImagePrompt && mermaidImagePrompt.value || '').trim() }, '*');
+  clearTimeout(mermaidImageRequestTimer);
+  mermaidImageRequestTimer = setTimeout(function () {
+    window.parent.postMessage({ type: 'mdv-cancel-image-to-mermaid', requestId: mermaidImageRequestId }, '*');
+    mermaidImageRequestId = '';
+    finishMermaidMetrics();
+    mermaidImageGenerate.disabled = !mermaidReferenceImage;
+    document.getElementById('mermaid-image-stop').disabled = true;
+    if (!mermaidImageReceivedStream) editor.value = mermaidImagePreviousCode;
+    setMermaidImageStatus('AI 응답 제한 시간을 초과했습니다. 연결과 모델을 확인한 뒤 다시 실행해 주세요.', true);
+    mermaidTaskPicker.setConnection('응답 시간 초과 · 재연결 필요', 'failed');
+  }, 185000);
+  window.parent.postMessage({ type: 'mdv-analyze-image-to-mermaid', requestId: mermaidImageRequestId, image: mermaidReferenceImage, selection: selection, prompt: String(mermaidImagePrompt && mermaidImagePrompt.value || '').trim() }, '*');
 }
+
+if (mermaidImagePaste) mermaidImagePaste.addEventListener('click', async function (event) {
+  event.preventDefault();
+  event.stopPropagation();
+  mermaidImagePaste.disabled = true;
+  try {
+    if (window.parent !== window) { await pasteMermaidImageFromParent(); return; }
+    if (!navigator.clipboard || !navigator.clipboard.read) throw new Error('이 브라우저에서는 버튼 붙여넣기를 지원하지 않습니다. 업로드 영역에서 Ctrl+V를 사용하세요.');
+    const items = await navigator.clipboard.read();
+    for (const item of items) {
+      const type = item.types.find(type => /^image\//i.test(type));
+      if (!type) continue;
+      const blob = await item.getType(type);
+      loadMermaidReferenceFile(new File([blob], 'clipboard-image.' + (type.split('/')[1] || 'png'), { type: type }));
+      return;
+    }
+    throw new Error('클립보드에 이미지가 없습니다. 이미지를 복사한 뒤 다시 눌러 주세요.');
+  } catch (error) {
+    setMermaidImageStatus(error.name === 'NotAllowedError' ? '클립보드 권한을 허용하거나 업로드 영역에서 Ctrl+V를 사용하세요.' : error.message, true);
+  } finally { mermaidImagePaste.disabled = false; }
+});
+document.getElementById('mermaid-image-stop').addEventListener('click', stopMermaidImageRequest);
 
 async function sendRenderedSvgToImageInsert() {
   await render();
@@ -1560,7 +1723,7 @@ function openSvgToPngConverterWindow() {
 
 if (mermaidImageDropzone) {
   mermaidImageDropzone.addEventListener('click', function (event) { if (event.target !== mermaidImageRemove) mermaidImageFile.click(); });
-  mermaidImageDropzone.addEventListener('keydown', function (event) { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); mermaidImageFile.click(); } });
+  mermaidImageDropzone.addEventListener('keydown', function (event) { if (event.target === mermaidImageDropzone && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); mermaidImageFile.click(); } });
   mermaidImageDropzone.addEventListener('dragover', function (event) { event.preventDefault(); mermaidImageDropzone.classList.add('dragover'); });
   mermaidImageDropzone.addEventListener('dragleave', function () { mermaidImageDropzone.classList.remove('dragover'); });
   mermaidImageDropzone.addEventListener('drop', function (event) { event.preventDefault(); mermaidImageDropzone.classList.remove('dragover'); loadMermaidReferenceFile(event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0]); });
@@ -1570,11 +1733,11 @@ if (mermaidImageRemove) mermaidImageRemove.addEventListener('click', function (e
 if (mermaidImageGenerate) mermaidImageGenerate.addEventListener('click', requestMermaidFromImage);
 document.addEventListener('paste', function (event) {
   const imageItem = Array.from(event.clipboardData && event.clipboardData.items || []).find(function (item) { return /^image\//i.test(String(item.type || '')); });
-  if (imageItem) loadMermaidReferenceFile(imageItem.getAsFile());
+  if (imageItem) { event.preventDefault(); loadMermaidReferenceFile(imageItem.getAsFile()); }
 });
-window.addEventListener('message', function (event) {
-  if (event.source !== window.parent) return;
+window.addEventListener('message', async function (event) {
   const data = event && event.data || {};
+  if (event.source !== window.parent) return;
   if (data.type === 'mdv-load-document-selection' && event.source === window.parent) {
     const selectedCode = extractMermaidCodeFromAI(data.code) || String(data.code || '').trim();
     if (!selectedCode) return;
@@ -1608,16 +1771,33 @@ window.addEventListener('message', function (event) {
     showStreamingMermaidCode(mermaidImageStreamText);
     return;
   }
+  if (data.type === 'mdv-image-to-mermaid-progress' && data.requestId === mermaidImageRequestId) {
+    setMermaidProgress(Number(data.percent) || 0);
+    return;
+  }
+  if (data.type === 'mdv-image-to-mermaid-metrics' && data.requestId === mermaidImageRequestId) {
+    updateMermaidMetrics(data);
+    if (data.reasoningTokens) setMermaidImageStatus('모델이 이미지 구조를 추론하고 있습니다…');
+    return;
+  }
   if (data.type !== 'mdv-image-to-mermaid-result' || data.requestId !== mermaidImageRequestId) return;
+  clearTimeout(mermaidImageRequestTimer);
+  finishMermaidMetrics(data.metrics);
   mermaidImageGenerate.disabled = !mermaidReferenceImage;
-  if (!data.ok) return setMermaidImageStatus(data.error || 'Mermaid 코드 생성에 실패했습니다.', true);
+  document.getElementById('mermaid-image-stop').disabled = true;
+  if (!data.ok) {
+    document.getElementById('mermaid-image-stop').hidden = true;
+    if (!mermaidImageReceivedStream) editor.value = mermaidImagePreviousCode;
+    mermaidTaskPicker.setConnection('요청 실패 · ' + (data.error || '연결 확인 필요'), 'failed');
+    return setMermaidImageStatus(data.error || 'Mermaid 코드 생성에 실패했습니다.', true);
+  }
+  setMermaidProgress(95);
+  mermaidTaskPicker.setConnection((data.provider === 'aistudio' ? 'AI Studio' : (data.provider || 'AI Jena')) + ' · 연결됨 · ' + (data.model || ''), 'connected');
   const code = extractMermaidCodeFromAI(data.code);
   if (!code) return setMermaidImageStatus('AI가 유효한 Mermaid 코드를 반환하지 않았습니다.', true);
   if (mermaidImageReceivedStream) {
     editor.value = code;
-    render();
-    setMermaidImageStatus('코드 생성을 완료했습니다. 왼쪽 코드를 수정하면 오른쪽 미리보기에 바로 반영됩니다.');
-    saveMermaidHistoryRecord(code);
+    await finishGeneratedMermaid(code);
   } else {
     typeMermaidCode(code);
   }
@@ -1867,7 +2047,28 @@ function initPaneDivider() {
   window.addEventListener('mouseup', function () { dragging = false; });
 }
 
-editor.addEventListener('input', debounceRender);
+function removeEditorMarkdownFences() {
+  const original = editor.value;
+  const clean = MermaidAIQuality.stripFences(original);
+  if (clean === original) return;
+  const prefix = original.indexOf(clean);
+  const start = editor.selectionStart, end = editor.selectionEnd;
+  const direction = editor.selectionDirection;
+  editor.value = clean;
+  editor.setSelectionRange(Math.max(0, Math.min(clean.length, start - Math.max(0, prefix))), Math.max(0, Math.min(clean.length, end - Math.max(0, prefix))), direction);
+}
+editor.addEventListener('paste', function (event) {
+  if (Array.from(event.clipboardData && event.clipboardData.items || []).some(item => /^image\//i.test(item.type))) return;
+  const text = event.clipboardData && event.clipboardData.getData('text/plain');
+  if (!text) return;
+  const clean = MermaidAIQuality.stripFences(text);
+  if (clean === text) return;
+  event.preventDefault();
+  pushEditorUndoState();
+  editor.setRangeText(clean, editor.selectionStart, editor.selectionEnd, 'end');
+  editor.dispatchEvent(new Event('input', { bubbles: true }));
+});
+editor.addEventListener('input', function () { removeEditorMarkdownFences(); debounceRender(); });
 editor.addEventListener('beforeinput', function () {
   pushEditorUndoState();
 });
@@ -1905,10 +2106,10 @@ editor.addEventListener('keydown', function (e) {
 });
 
 initPaneDivider();
+initUiTheme();
 initToolbarLayout();
 initCollapsedExampleSelect();
 initMermaidAiPanelState();
-initMermaidAiProviderControlsState();
 initPreviewWheelZoom();
 applyEditorThemeUI();
 applyEditorScale();
@@ -1916,18 +2117,11 @@ applyPreviewThemeUI();
 applyPreviewScale();
 renderWithStartupRecovery();
 
-// Keep image analysis on the provider/model selected in this editor.
-if (window.parent !== window && window.parent.AIToolProviders) {
-  window.parent.AIToolProviders.mount(document.getElementById('image-to-mermaid'), 'mermaid');
-  const controls = mermaidAiPanel.querySelector('.ai-tool-provider-controls');
-  if (controls) {
-    mermaidAiPanel.insertBefore(mermaidAiProviderToggleBtn, document.getElementById('mermaid-history-open'));
-    mermaidAiPanel.insertBefore(controls, document.getElementById('mermaid-history-open'));
-    const refresh = controls.querySelector('button');
-    if (refresh) {
-      refresh.textContent = '↻';
-      refresh.title = '모델 새로고침';
-      refresh.setAttribute('aria-label', '모델 새로고침');
-    }
-  }
-}
+const mermaidTaskPicker = window.mountAITaskPicker(document.getElementById('mermaid-ai-provider-picker'), 'mdv_mermaid_ai_selection_v1');
+
+const mermaidModelSettings = document.getElementById('mermaid-ai-model-settings');
+mermaidModelSettings.addEventListener('toggle', function () {
+  document.getElementById('mermaid-ai-provider-toggle-btn').setAttribute('aria-expanded', String(mermaidModelSettings.open));
+  try { localStorage.setItem('mdv_mermaid_ai_provider_collapsed_v1', String(!mermaidModelSettings.open)); } catch (_) {}
+});
+try { mermaidModelSettings.open = localStorage.getItem('mdv_mermaid_ai_provider_collapsed_v1') === 'false'; } catch (_) {}

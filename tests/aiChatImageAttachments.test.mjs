@@ -44,7 +44,7 @@ test('missing image data fails before a text-only request is sent', async () => 
 test('local image chat routes to vision transport and text chat retains its existing route', async () => {
   const context = vm.createContext({ AbortController, aiChatAbortController: null,
     applyLocalAIChatResponseStyle: value => value,
-    completeLocalImageToolRequest: async request => ({ text: request.messages[0].attachments[0].dataUrl }),
+    completeTaskVision: async request => ({ text: request.messages[0].attachments[0].dataUrl }),
     callNPUChat: async () => ({ text: 'text route' }) });
   vm.runInContext(app.slice(app.indexOf('function openAICompatibleHeaders('), app.indexOf('async function fetchOpenAICompatibleModels(')) + helpers + '\nvar bridge = {' + complete + '};', context);
   for (const provider of ['lmstudio', 'ollama', 'ollama-npu', 'litertlm', 'deepseek']) {

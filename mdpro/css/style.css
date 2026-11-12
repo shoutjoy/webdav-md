@@ -4681,3 +4681,9 @@ body.img2math-window-moving * { user-select: none !important; }
 #img-insert-download-format [data-error] { font-size: 12px; }
 .dark #img-insert-download-format { background: #0f172a; color: #e2e8f0; }
 .dark #img-insert-download-format select { background: #1e293b; color: #e2e8f0; }
+
+/* ME split Dock reserves document space without reloading the iframe. */
+body.mermaid-workspace-split #main-workspace { box-sizing:border-box; padding-right:var(--mermaid-dock-width,50vw); }
+body.mermaid-workspace-split #mermaid-editor-modal-panel { border-radius:0; box-shadow:-3px 0 14px #0f172a15; }
+#mermaid-editor-modal-header { flex-wrap:wrap; gap:6px; }
+#mermaid-editor-modal-header > div { flex-wrap:wrap; }

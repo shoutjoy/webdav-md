@@ -30,5 +30,5 @@ test('parent and editor load helper before callers and refresh iframe cache', ()
   assert.ok(html.indexOf('image-export.js') < html.indexOf('src="./imageDB/image_insert.js'));
   const frame = load('js/mermaid/mermaid-editor/index.html');
   assert.ok(frame.indexOf('image-export.js') < frame.indexOf('src="app.js'));
-  assert.match(html, /mermaid-editor\/index.html\?v=20261108-me-export-1/);
+  assert.match(html, /mermaid-editor\/index.html\?v=20261110-me-ai-1/);
 });

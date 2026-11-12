@@ -1,0 +1,26 @@
+{
+  "closedInputHeight": 85,
+  "closedGeneratedHeight": 85,
+  "compactLayout": {
+    "height": 117.5,
+    "feedbackBesidePrompt": true
+  },
+  "manualSyntaxRepair": true,
+  "unrecoverableSourcePreserved": true,
+  "editorInputFenceRemoval": true,
+  "editorPasteFenceRemoval": true,
+  "nestedParentheticalLabelsRender": true,
+  "opaqueIframeRpc": true,
+  "defaultStudio35Lite": true,
+  "clipboardPng": true,
+  "largeViewZoomEscape": true,
+  "removeReference": true,
+  "visionPayload": true,
+  "streamRender": true,
+  "progress100": true,
+  "stopAndRetry": true,
+  "connectionFailureAndRecovery": true,
+  "jenaTextRequest": true,
+  "workspaceSplitDock": true,
+  "pageErrors": []
+}

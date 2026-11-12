@@ -1,0 +1,27 @@
+[
+  {
+    "base": "/",
+    "rawScript": true,
+    "settingsClick": true,
+    "viewEditClick": true,
+    "mermaidClickRender": true,
+    "mermaidThemeClick": true,
+    "hwpDynamicImport": true,
+    "pageErrors": []
+  },
+  {
+    "reactHostIframe": true,
+    "settingsClick": true,
+    "pageErrors": []
+  },
+  {
+    "base": "/nested/",
+    "rawScript": true,
+    "settingsClick": true,
+    "viewEditClick": true,
+    "mermaidClickRender": true,
+    "mermaidThemeClick": true,
+    "hwpDynamicImport": true,
+    "pageErrors": []
+  }
+]

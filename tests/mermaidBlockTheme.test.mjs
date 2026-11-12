@@ -20,18 +20,18 @@ test('fixed Mermaid controls keep the existing controls and add a block theme to
   );
 });
 
-test('Mermaid block theme rerenders only the selected wrapper and uses theme-specific cache entries', () => {
-  assert.match(source, /async function setMermaidBlockTheme\(wrapper, theme\)/);
-  assert.match(source, /wrapper\.setAttribute\('data-mermaid-theme', nextTheme\)/);
-  assert.match(source, /global\.mermaid\.run\(\{ nodes: \[canvas\] \}\)/);
-  assert.match(source, /resolvedTheme \+ ':' \+ value\.length/);
-  assert.match(source, /code\.setAttribute\('data-mermaid-theme', themeOverride\)/);
+test('individual themes use a serialized queue, separate cache and retained presentation',()=>{
+ assert.match(source,/function setWrapperMermaidTheme/);
+ assert.match(source,/enqueueMermaidWork/);
+ assert.match(source,/data-mermaid-theme-override/);
+ assert.match(source,/readMermaidSvgCache\(source, next\)/);
+ assert.match(source,/pre\.__mdvMermaidPresentation/);
+ assert.match(source,/isolateCachedMermaidIds/);
+ assert.match(source,/setBlockTheme: setWrapperMermaidTheme/);
 });
-
-test('Mermaid theme toggle exposes an icon and an accessible light or dark action label', () => {
-  assert.match(source, /button\.textContent = nextTheme === 'light' \? '☀' : '☾'/);
-  assert.match(source, /button\.setAttribute\('aria-label', button\.title\)/);
-  assert.match(source, /Mermaid를 .*'라이트' : '다크'.*테마로 보기/);
+test('theme control describes its per-diagram action accessibly',()=>{
+ assert.match(source,/이 도표만 라이트 모드로 전환/);
+ assert.match(source,/button\.setAttribute\('aria-label', button\.title\)/);
 });
 
 test('document Mermaid rendering matches the ME preview layout contract', () => {

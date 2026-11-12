@@ -9,6 +9,7 @@ import { createBackupMiddleware } from './src/backupServer.js';
 import { createLMStudioServerMiddleware } from './src/lmStudioServer.js';
 import { createLemonadeProxyMiddleware } from './src/lemonadeProxy.js';
 import { createSystemUsageMiddleware } from './src/systemUsageServer.js';
+import { createMdproScriptMiddleware } from './src/mdproScriptServer.js';
 
 const WEB_DAV_PROXY_PATH = '/__webdav_proxy';
 const WEB_DAV_TARGET = 'https://webdav.freemath.synology.me';
@@ -35,6 +36,9 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       {
         name: 'copy-mdpro-runtime',
+        configureServer(server) {
+          server.middlewares.use(createMdproScriptMiddleware({ base: server.config.base }));
+        },
         closeBundle() {
           cpSync(resolve('mdpro'), resolve('dist/mdpro'), { recursive: true, force: true });
         },

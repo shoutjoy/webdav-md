@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 const root = path.resolve(__dirname, '../mdpro');
-const output = path.resolve(__dirname, '../artifacts/image-insert-download-20261108');
+const output = path.resolve(__dirname, process.env.IMAGE_DOWNLOAD_ARTIFACT_DIR || '../artifacts/image-insert-download-20261108');
 (async () => {
   fs.mkdirSync(output, { recursive: true });
   const server = http.createServer((req, res) => {

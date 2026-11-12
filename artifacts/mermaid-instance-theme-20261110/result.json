@@ -1,0 +1,17 @@
+{
+  "independentThemes": true,
+  "untouchedSiblings": true,
+  "scalePreserved": true,
+  "repeatedToggle": true,
+  "queuedRapidToggle": true,
+  "explicitStylesPreserved": true,
+  "readableWhiteNodes": true,
+  "cacheIdsUnique": true,
+  "globalRefreshPreservesOverrides": true,
+  "sourcePreserved": true,
+  "darkInstancePng": {
+    "width": 5208,
+    "height": 2192
+  },
+  "pageErrors": []
+}

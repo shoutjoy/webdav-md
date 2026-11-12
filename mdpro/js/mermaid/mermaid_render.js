@@ -9,6 +9,7 @@
     ];
     const CODE_SELECTOR = 'pre > code';
     const MERMAID_DISPLAY_MODE_KEY = 'md_viewer_mermaid_display_mode';
+    const MERMAID_THEME_KEY = 'md_viewer_mermaid_theme';
     const MERMAID_LIGHT_THEME_VARIABLES = {
         fontFamily: '"Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo","Segoe UI",sans-serif',
         fontSize: '15px',
@@ -69,6 +70,94 @@
     const mermaidSvgCache = new Map();
     const MERMAID_SVG_CACHE_LIMIT = 40;
     const mermaidCacheStats = { hits: 0, misses: 0, writes: 0, evictions: 0 };
+    let mermaidWorkQueue = Promise.resolve();
+    let cachedMermaidSequence = 0;
+    function enqueueMermaidWork(work) {
+        const task = mermaidWorkQueue.catch(function () {}).then(work);
+        mermaidWorkQueue = task;
+        return task;
+    }
+
+    function isolateCachedMermaidIds(node) {
+        const svg = node.querySelector('svg');
+        if (!svg) return;
+        const prefix = 'mdv-cache-' + (++cachedMermaidSequence) + '-';
+        const ids = new Map();
+        [svg].concat(Array.from(svg.querySelectorAll('[id]'))).forEach(element => {
+            if (element.id) ids.set(element.id, prefix + element.id);
+        });
+        const cssIds = Array.from(ids.keys()).sort((a, b) => b.length - a.length);
+        function references(value) {
+            return value.replace(/url\(\s*['"]?#([^)'"\s]+)['"]?\s*\)/g, (match, id) => ids.has(id) ? 'url(#' + ids.get(id) + ')' : match);
+        }
+        [svg].concat(Array.from(svg.querySelectorAll('*'))).forEach(element => {
+            Array.from(element.attributes).forEach(attribute => {
+                let value = attribute.value;
+                if (attribute.name === 'id') value = ids.get(value) || value;
+                else if (/^(?:href|xlink:href)$/.test(attribute.name) && value.startsWith('#')) value = '#' + (ids.get(value.slice(1)) || value.slice(1));
+                else if (/^aria-(?:labelledby|describedby)$/.test(attribute.name)) value = value.split(/\s+/).map(id => ids.get(id) || id).join(' ');
+                else value = references(value);
+                if (value !== attribute.value) element.setAttribute(attribute.name, value);
+            });
+        });
+        svg.querySelectorAll('style').forEach(style => {
+            let text = references(style.textContent);
+            cssIds.forEach(id => {
+                const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                text = text.replace(new RegExp('#' + escaped + '(?![\\w-])', 'g'), '#' + ids.get(id));
+            });
+            style.textContent = text;
+        });
+    }
+
+    function setWrapperMermaidTheme(wrapper, theme) {
+        if (!wrapper || !wrapper.querySelector('.trt-mermaid-canvas') || !wrapper.getAttribute('data-mermaid-source')) {
+            return Promise.reject(new Error('테마를 바꿀 Mermaid 원본 코드를 찾을 수 없습니다.'));
+        }
+        const next = theme === 'dark' ? 'dark' : 'light';
+        const request = { theme: next };
+        wrapper.__mdvMermaidThemeRequest = request;
+        const button = wrapper.querySelector('.trt-mermaid-theme-toggle');
+        if (button) { button.disabled = true; button.setAttribute('aria-busy', 'true'); }
+        return enqueueMermaidWork(async function () {
+            const node = wrapper.querySelector('.trt-mermaid-canvas');
+            const source = wrapper.getAttribute('data-mermaid-source');
+            const previousTheme = wrapper.getAttribute('data-mermaid-theme-override');
+            const previousHtml = node.innerHTML;
+            try {
+                await loadMermaid();
+                await waitForMermaidFonts();
+                wrapper.setAttribute('data-mermaid-theme-override', next);
+                updateMermaidThemeButtons(wrapper);
+                const cached = readMermaidSvgCache(source, next);
+                if (cached) {
+                    node.innerHTML = cached;
+                    isolateCachedMermaidIds(node);
+                } else {
+                    node.removeAttribute('data-processed');
+                    node.textContent = source;
+                    configureMermaid(next);
+                    await global.mermaid.run({ nodes: [node] });
+                    restoreSankeyKoreanLabels(node);
+                    polishMermaidSvg(node);
+                    writeMermaidSvgCache(source, node.innerHTML, next);
+                }
+                if (wrapper.getAttribute('data-mermaid-mode') === 'fixed') applyFixedMermaidSize(wrapper);
+                else applyMermaidTransform(wrapper);
+            } catch (error) {
+                node.innerHTML = previousHtml;
+                if (previousTheme) wrapper.setAttribute('data-mermaid-theme-override', previousTheme);
+                else wrapper.removeAttribute('data-mermaid-theme-override');
+                updateMermaidThemeButtons(wrapper);
+                throw error;
+            } finally {
+                if (wrapper.__mdvMermaidThemeRequest === request) {
+                    delete wrapper.__mdvMermaidThemeRequest;
+                    if (button) { button.disabled = false; button.removeAttribute('aria-busy'); }
+                }
+            }
+        });
+    }
 
     function hashMermaidSource(source) {
         const value = String(source || '');
@@ -80,17 +169,9 @@
         return (hash >>> 0).toString(36);
     }
 
-    function getMermaidTheme(target) {
-        const wrapper = target && target.closest ? target.closest('.trt-mermaid-wrapper') : target;
-        const override = wrapper && wrapper.getAttribute ? wrapper.getAttribute('data-mermaid-theme') : '';
-        if (override === 'dark' || override === 'light') return override;
-        return isDarkTheme() ? 'dark' : 'light';
-    }
-
     function getMermaidCacheKey(source, theme) {
         const value = String(source || '');
-        const resolvedTheme = theme === 'dark' || theme === 'light' ? theme : getMermaidTheme(null);
-        return resolvedTheme + ':' + value.length + ':' + hashMermaidSource(value);
+        return (theme || getMermaidTheme()) + ':' + value.length + ':' + hashMermaidSource(value);
     }
 
     function readMermaidSvgCache(source, theme) {
@@ -186,6 +267,48 @@
         return document.documentElement.classList.contains('dark');
     }
 
+    function getMermaidTheme(wrapper) {
+        const override = wrapper && wrapper.getAttribute && wrapper.getAttribute('data-mermaid-theme-override');
+        if (override === 'dark' || override === 'light') return override;
+        try {
+            const saved = localStorage.getItem(MERMAID_THEME_KEY);
+            if (saved === 'dark' || saved === 'light') return saved;
+        } catch (e) {}
+        return isDarkTheme() ? 'dark' : 'light';
+    }
+
+    function mermaidWrappers(root) {
+        const target = root || document;
+        return (target.matches && target.matches('.trt-mermaid-wrapper') ? [target] : [])
+            .concat(target.querySelectorAll ? Array.from(target.querySelectorAll('.trt-mermaid-wrapper')) : []);
+    }
+
+    function updateMermaidThemeButtons(root) {
+        mermaidWrappers(root).forEach(function (wrapper) {
+            const dark = getMermaidTheme(wrapper) === 'dark';
+            wrapper.setAttribute('data-mermaid-theme', dark ? 'dark' : 'light');
+            wrapper.querySelectorAll('.trt-mermaid-theme-toggle').forEach(function (button) {
+                button.textContent = dark ? '☀' : '☾';
+                button.title = dark ? '이 도표만 라이트 모드로 전환' : '이 도표만 다크 모드로 전환';
+                button.setAttribute('aria-label', button.title);
+                button.setAttribute('aria-pressed', dark ? 'true' : 'false');
+            });
+        });
+    }
+
+    function setMermaidTheme(theme, wrapper) {
+        if (wrapper) return setWrapperMermaidTheme(wrapper, theme);
+        const nextTheme = theme === 'dark' ? 'dark' : 'light';
+        try { localStorage.setItem(MERMAID_THEME_KEY, nextTheme); } catch (e) {}
+        updateMermaidThemeButtons(document);
+        return refresh(document);
+    }
+
+    function toggleMermaidTheme(wrapper) {
+        const pending = wrapper && wrapper.__mdvMermaidThemeRequest;
+        return setMermaidTheme((pending ? pending.theme : getMermaidTheme(wrapper)) === 'dark' ? 'light' : 'dark', wrapper);
+    }
+
     function configureMermaid(theme) {
         if (!global.mermaid || typeof global.mermaid.initialize !== 'function') return;
         const dark = theme === 'dark' || (theme !== 'light' && isDarkTheme());
@@ -256,7 +379,7 @@
         return mermaidLoadPromise;
     }
 
-    function buildMermaidNodeFromCode(codeEl) {
+    function buildMermaidNodeFromCode(codeEl, options) {
         if (!codeEl) return null;
         const pre = codeEl.parentElement;
         if (!pre || pre.tagName !== 'PRE') return null;
@@ -275,10 +398,14 @@
         wrapper.setAttribute('data-mermaid-source', source);
         wrapper.setAttribute('data-mermaid-original-source', rawText);
         wrapper.setAttribute('data-mermaid-mode', getMermaidDisplayMode());
-        const themeOverride = String(codeEl.getAttribute('data-mermaid-theme') || '');
-        if (themeOverride === 'dark' || themeOverride === 'light') {
-            wrapper.setAttribute('data-mermaid-theme', themeOverride);
+        const retained = pre.__mdvMermaidPresentation;
+        if (retained) {
+            if (retained.theme) wrapper.setAttribute('data-mermaid-theme-override', retained.theme);
+            wrapper.style.cssText = retained.style;
+            if (retained.fixed) wrapper.__mdvFixedMermaidSizeState = retained.fixed;
+            if (retained.pan) wrapper.__mdvMermaidPanState = retained.pan;
         }
+        wrapper.setAttribute('data-mermaid-theme', getMermaidTheme(wrapper));
         if (prepared && prepared.labelMap && Object.keys(prepared.labelMap).length) {
             wrapper.setAttribute('data-sankey-label-map', JSON.stringify(prepared.labelMap));
         }
@@ -287,9 +414,10 @@
         viewport.className = 'trt-mermaid-viewport';
         const block = document.createElement('div');
         block.className = 'mermaid trt-mermaid-canvas';
-        const cachedHtml = readMermaidSvgCache(source, getMermaidTheme(wrapper));
+        const cachedHtml = options && options.ignoreCache ? null : readMermaidSvgCache(source, getMermaidTheme(wrapper));
         if (cachedHtml) {
             block.innerHTML = cachedHtml;
+            isolateCachedMermaidIds(block);
             block.setAttribute('data-mermaid-cache-hit', '1');
         } else {
             block.textContent = source;
@@ -429,27 +557,63 @@
         }
     }
 
-    function polishMermaidSvg(node, theme) {
-        var svg = node && node.querySelector ? node.querySelector('svg') : null;
+
+
+    function polishMermaidSvg(node) {
+        const svg = node && node.querySelector ? node.querySelector('svg') : null;
         if (!svg) return;
-        if (svg.querySelector('style[data-mdv-mermaid-polish="1"]')) return;
-        var dark = theme === 'dark' || (theme !== 'light' && getMermaidTheme(node) === 'dark');
-        var lineColor = dark ? '#94a3b8' : '#64748b';
-        var textColor = dark ? '#e2e8f0' : '#334155';
         svg.style.display = 'block';
         svg.style.marginLeft = 'auto';
         svg.style.marginRight = 'auto';
-        var style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+        // An SVG <style> is document-wide CSS. Scope every selector to this SVG.
+        svg.querySelectorAll('style[data-mdv-mermaid-polish="1"]').forEach(style => style.remove());
+        const scope = '#' + CSS.escape(svg.id);
+        const style = document.createElementNS('http://www.w3.org/2000/svg', 'style');
         style.setAttribute('data-mdv-mermaid-polish', '1');
         style.textContent = [
-            '.node rect,.node polygon,.node circle,.node ellipse{filter:drop-shadow(0 8px 18px rgba(15,23,42,.10));stroke-width:1.4px;}',
-            '.node .label,.nodeLabel,.edgeLabel,.label{font-weight:600;letter-spacing:0;}',
-            '.edgeLabel{border-radius:8px;color:' + textColor + ';}',
-            '.flowchart-link{stroke:' + lineColor + ' !important;stroke-width:1.9px;}',
-            'marker path,path.arrowMarkerPath{fill:' + lineColor + ' !important;stroke:' + lineColor + ' !important;}',
-            '.cluster rect{stroke-dasharray:0;}'
+            scope + ' .nodeLabel,' + scope + ' .edgeLabel{letter-spacing:normal;}',
+            scope + ' foreignObject,' + scope + ' foreignObject>div{overflow:visible;}',
+            scope + ' .nodeLabel p,' + scope + ' .edgeLabel p{margin:0;}'
         ].join('\n');
         svg.insertBefore(style, svg.firstChild);
+        ensureMermaidLabelContrast(node);
+    }
+
+    function ensureMermaidLabelContrast(node) {
+        const wrapper = node.closest('.trt-mermaid-wrapper');
+        const source = wrapper && wrapper.getAttribute('data-mermaid-source') || '';
+        const explicitClasses = new Set();
+        const explicitNodes = new Set();
+        for (const match of source.matchAll(/classDef\s+([\w,-]+)\s+([^;\n]+)/g)) {
+            if (/(?:^|,)\s*color\s*:/.test(match[2])) match[1].split(',').forEach(id => explicitClasses.add(id));
+        }
+        for (const match of source.matchAll(/(?:^|[;\n])\s*style\s+([\w,-]+)\s+([^;\n]+)/g)) {
+            if (/(?:^|,)\s*color\s*:/.test(match[2])) match[1].split(',').forEach(id => explicitNodes.add(id));
+        }
+        function rgb(value) {
+            const parts = String(value).match(/[\d.]+/g);
+            return parts && parts.length >= 3 && (parts.length < 4 || Number(parts[3]) > 0) ? parts.slice(0, 3).map(Number) : null;
+        }
+        function luminance(color) {
+            return color.map(c => { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }).reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
+        }
+        node.querySelectorAll('g.node').forEach(function (group) {
+            const id = (group.id.match(/flowchart-(.+)-\d+$/) || [])[1];
+            if (explicitNodes.has(id) || Array.from(group.classList).some(name => explicitClasses.has(name))) return;
+            const shape = group.querySelector('.label-container,rect,circle,ellipse,polygon,path');
+            const label = group.querySelector('.nodeLabel');
+            if (!shape || !label) return;
+            const fill = rgb(global.getComputedStyle(shape).fill);
+            const color = rgb(global.getComputedStyle(label).color);
+            if (!fill || !color) return;
+            const bg = luminance(fill), fg = luminance(color);
+            if ((Math.max(bg, fg) + 0.05) / (Math.min(bg, fg) + 0.05) >= 4.5) return;
+            const readable = bg > 0.179 ? '#172033' : '#e2e8f0';
+            group.querySelectorAll('.nodeLabel,.label text,.label tspan').forEach(function (text) {
+                text.style.setProperty('color', readable);
+                text.style.setProperty('fill', readable);
+            });
+        });
     }
 
     function getMermaidPanState(wrapper) {
@@ -577,58 +741,6 @@
         });
         observer.observe(viewport);
         wrapper.__mdvFixedResizeObserver = observer;
-    }
-
-    function updateMermaidThemeButton(wrapper) {
-        if (!wrapper || !wrapper.querySelector) return;
-        const button = wrapper.querySelector('.trt-mermaid-theme-toggle');
-        if (!button) return;
-        const currentTheme = getMermaidTheme(wrapper);
-        const nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
-        button.textContent = nextTheme === 'light' ? '☀' : '☾';
-        button.title = 'Mermaid를 ' + (nextTheme === 'light' ? '라이트' : '다크') + ' 테마로 보기';
-        button.setAttribute('aria-label', button.title);
-        button.setAttribute('aria-pressed', currentTheme === 'dark' ? 'true' : 'false');
-    }
-
-    async function setMermaidBlockTheme(wrapper, theme) {
-        if (!wrapper || !wrapper.querySelector) return false;
-        const nextTheme = theme === 'dark' ? 'dark' : 'light';
-        const source = String(wrapper.getAttribute('data-mermaid-source') || '');
-        const canvas = wrapper.querySelector('.trt-mermaid-canvas');
-        if (!source || !canvas) return false;
-        const button = wrapper.querySelector('.trt-mermaid-theme-toggle');
-        if (button) button.disabled = true;
-        wrapper.setAttribute('aria-busy', 'true');
-        try {
-            await loadMermaid();
-            await waitForMermaidFonts();
-            wrapper.setAttribute('data-mermaid-theme', nextTheme);
-            canvas.removeAttribute('data-processed');
-            canvas.removeAttribute('data-mermaid-cache-hit');
-            canvas.textContent = source;
-            configureMermaid(nextTheme);
-            await global.mermaid.run({ nodes: [canvas] });
-            restoreSankeyKoreanLabels(canvas);
-            polishMermaidSvg(canvas, nextTheme);
-            if (canvas.innerHTML) writeMermaidSvgCache(source, canvas.innerHTML, nextTheme);
-            updateMermaidThemeButton(wrapper);
-            if (wrapper.getAttribute('data-mermaid-mode') === 'fixed') applyFixedMermaidSize(wrapper);
-            else applyMermaidTransform(wrapper);
-            return true;
-        } finally {
-            configureMermaid();
-            wrapper.removeAttribute('aria-busy');
-            if (button) button.disabled = false;
-        }
-    }
-
-    function toggleMermaidBlockTheme(wrapper) {
-        const nextTheme = getMermaidTheme(wrapper) === 'dark' ? 'light' : 'dark';
-        return setMermaidBlockTheme(wrapper, nextTheme).catch(function (error) {
-            console.warn('Mermaid block theme change skipped:', error && error.message ? error.message : error);
-            return false;
-        });
     }
 
     function getMermaidExportSize(svg) {
@@ -930,11 +1042,11 @@
                 downloadMermaidWrapperPng(wrapper, downloadButton);
             }, 'trt-mermaid-fixed-download'));
             controls.appendChild(button('', '', function () {
-                toggleMermaidBlockTheme(wrapper);
+                toggleMermaidTheme(wrapper).catch(function (error) { console.warn(error); });
             }, 'trt-mermaid-theme-toggle'));
             wrapper.appendChild(controls);
         }
-        updateMermaidThemeButton(wrapper);
+        updateMermaidThemeButtons(wrapper);
         bindFixedMermaidResize(wrapper);
         setTimeout(function () { applyFixedMermaidSize(wrapper); }, 0);
     }
@@ -1091,7 +1203,7 @@
 
         top.appendChild(btn('<>', '가로 맞춤', function () { fitMermaidView(wrapper); }));
         top.appendChild(btn('', '', function () {
-            toggleMermaidBlockTheme(wrapper);
+            toggleMermaidTheme(wrapper).catch(function (error) { console.warn(error); });
         }, 'trt-mermaid-theme-toggle'));
         top.appendChild(btn('[]', 'Mermaid 코드 복사', function () { copyMermaidSource(wrapper); }));
         pad.appendChild(document.createElement('span')).className = 'trt-mermaid-pad-spacer';
@@ -1114,7 +1226,7 @@
         wrapper.appendChild(top);
         wrapper.appendChild(pad);
         wrapper.appendChild(toggle);
-        updateMermaidThemeButton(wrapper);
+        updateMermaidThemeButtons(wrapper);
 
         const resizeW = document.createElement('div');
         resizeW.className = 'trt-mermaid-resize-handle trt-mermaid-resize-w';
@@ -1150,6 +1262,7 @@
         if (!wrapper || !wrapper.querySelector || !wrapper.querySelector('svg')) return null;
         injectMermaidControlsStyle(document);
         wrapper.setAttribute('data-mermaid-mode', getMermaidDisplayMode());
+        wrapper.setAttribute('data-mermaid-theme', getMermaidTheme(wrapper));
         let viewport = wrapper.querySelector('.trt-mermaid-viewport');
         let canvas = wrapper.querySelector('.trt-mermaid-canvas');
         if (!viewport) {
@@ -1176,7 +1289,6 @@
             }
         }
         const node = canvas || wrapper.querySelector('.mermaid') || wrapper;
-        polishMermaidSvg(node, getMermaidTheme(wrapper));
         if (wrapper.getAttribute('data-mermaid-mode') === 'fixed') addFixedMermaidControls(node);
         else addMermaidControls(node);
         return node;
@@ -1190,14 +1302,29 @@
         }
     }
 
-    async function renderIn(root) {
+    // Coalesce calls for the same DOM root so observers and explicit export
+    // preparation await an in-flight render before inspecting its wrappers.
+    const pendingMermaidRenders = new WeakMap();
+    function renderIn(root, options) {
+        const target = root || document;
+        const previous = pendingMermaidRenders.get(target) || Promise.resolve();
+        const task = previous.catch(function () {}).then(function () {
+            return enqueueMermaidWork(function () { return renderMermaidIn(target, options); });
+        });
+        pendingMermaidRenders.set(target, task);
+        return task.finally(function () {
+            if (pendingMermaidRenders.get(target) === task) pendingMermaidRenders.delete(target);
+        });
+    }
+
+    async function renderMermaidIn(root, options) {
         const target = root || document;
         const codeNodes = target.querySelectorAll ? target.querySelectorAll(CODE_SELECTOR) : [];
         const mermaidNodes = [];
         const cachedNodes = [];
 
         for (let i = 0; i < codeNodes.length; i++) {
-            const node = buildMermaidNodeFromCode(codeNodes[i]);
+            const node = buildMermaidNodeFromCode(codeNodes[i], options);
             if (!node) continue;
             if (node.getAttribute('data-mermaid-cache-hit') === '1') cachedNodes.push(node);
             else mermaidNodes.push(node);
@@ -1209,7 +1336,6 @@
         }
         await loadMermaid();
         await waitForMermaidFonts();
-        configureMermaid();
         let changedCount = 0;
         let errorCount = 0;
         let firstError = null;
@@ -1217,16 +1343,16 @@
         for (let i = 0; i < mermaidNodes.length; i++) {
             const n = mermaidNodes[i];
             try {
-                const renderTheme = getMermaidTheme(n);
-                configureMermaid(renderTheme);
+                const renderWrapper = n.closest('.trt-mermaid-wrapper');
+                configureMermaid(getMermaidTheme(renderWrapper));
                 await global.mermaid.run({ nodes: [n] });
                 restoreSankeyKoreanLabels(n);
-                polishMermaidSvg(n, renderTheme);
+                polishMermaidSvg(n);
                 const wrapper = n && n.closest ? n.closest('.trt-mermaid-wrapper') : null;
                 const renderedSource = wrapper
                     ? String(wrapper.getAttribute('data-mermaid-source') || '')
                     : '';
-                if (renderedSource && n.innerHTML) writeMermaidSvgCache(renderedSource, n.innerHTML, renderTheme);
+                if (renderedSource && n.innerHTML) writeMermaidSvgCache(renderedSource, n.innerHTML, getMermaidTheme(wrapper));
                 if (wrapper && wrapper.getAttribute('data-mermaid-mode') === 'fixed') addFixedMermaidControls(n);
                 else addMermaidControls(n);
                 changedCount += 1;
@@ -1243,8 +1369,6 @@
                 parent.appendChild(pre);
             }
         }
-
-        configureMermaid();
 
         enhanceExistingMermaidWrappers(target);
 
@@ -1272,11 +1396,12 @@
             const code = document.createElement('code');
             code.className = 'language-mermaid';
             code.textContent = source;
-            const themeOverride = String(wrapper.getAttribute('data-mermaid-theme') || '');
-            if (themeOverride === 'dark' || themeOverride === 'light') {
-                code.setAttribute('data-mermaid-theme', themeOverride);
-            }
             pre.appendChild(code);
+            pre.__mdvMermaidPresentation = {
+                theme: wrapper.getAttribute('data-mermaid-theme-override'), style: wrapper.style.cssText,
+                fixed: wrapper.__mdvFixedMermaidSizeState && Object.assign({}, wrapper.__mdvFixedMermaidSizeState),
+                pan: wrapper.__mdvMermaidPanState && Object.assign({}, wrapper.__mdvMermaidPanState)
+            };
             wrapper.replaceWith(pre);
         }
         return wrappers.length;
@@ -1284,8 +1409,10 @@
 
     async function refresh(root) {
         const target = root || document;
-        restoreMermaidCodeBlocks(target);
-        return renderIn(target);
+        return enqueueMermaidWork(function () {
+            restoreMermaidCodeBlocks(target);
+            return renderMermaidIn(target);
+        });
     }
 
     function setDisplayMode(mode) {
@@ -1309,7 +1436,7 @@
         viewer.__trtMermaidObserved = true;
 
         const run = debounce(function () {
-            renderIn(viewer).catch(function () {});
+            if (!viewer.hasAttribute('data-mermaid-export-preparing')) renderIn(viewer).catch(function () {});
         }, 80);
 
         const observer = new MutationObserver(function () {
@@ -1340,7 +1467,10 @@
         refresh: refresh,
         setDisplayMode: setDisplayMode,
         getDisplayMode: getMermaidDisplayMode,
-        setBlockTheme: setMermaidBlockTheme,
+        setBlockTheme: setWrapperMermaidTheme,
+        getTheme: getMermaidTheme,
+        setTheme: setMermaidTheme,
+        toggleTheme: toggleMermaidTheme,
         exportWrapperImage: exportMermaidWrapperImage,
         openWrapperInImageInsert: openMermaidWrapperInImageInsert,
         getCacheStats: function () {

@@ -1,0 +1,16 @@
+// js/inDB/inDB.js opens MarkdownProDB; app.js keeps the shared connection for editor integrations.
+let db;
+const AI_SETTINGS_KEY = 'ai_settings';
+const AI_SETTINGS_FALLBACK_KEY = 'md_viewer_ai_settings_fallback';
+const AI_PASSWORD_HASH = 'dc98e82fcfb4b165f5fa390d5ca61a9245a5be6ea70a4f00020ddff029afefba';
+// 인증 기능은 보존하되 현재 배포에서는 우회한다. 다시 사용할 때 true로 변경한다.
+const AI_AUTHENTICATION_REQUIRED = false;
+const ENTER_BUTTON_BR_KEY = 'md_viewer_enter_button_br';
+const SELECTION_WRAP_KEY = 'md_viewer_selection_wrap_enabled';
+const VIEW_MODE_EDIT_KEY = 'md_viewer_view_mode_edit_enabled';
+const VIEW_PADDING_KEY = 'md_viewer_view_padding_v1';
+const DEFAULT_VIEW_PADDING = 24;
+const EDITOR_SHIFT_CONTROL_SIZE_KEY = 'md_editor_shift_control_size_v1';
+const DEFAULT_EDITOR_SHIFT_CONTROL_SIZE = 'normal';
+const SETTINGS_SHORTCUTS_FOLD_KEY = 'md_viewer_settings_shortcuts_folded';
+const SETTINGS_CONTAINER_FOLD_

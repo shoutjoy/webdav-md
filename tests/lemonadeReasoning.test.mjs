@@ -82,6 +82,7 @@ test('one request writes body chunks before completion while reasoning stays out
     state: { running: true, realtimeDocWrite: true, provider: 'lemonade' },
     liveStream: { reasoning: '', answer: '', progress: 2 },
     realtimeDocActive: false, realtimeDocWritten: '', realtimeDocAccumulated: '',
+    preserveImageIdentity: false, uploadedReferenceImages: [],
     providerDisplayName: () => 'Lemonade', scheduleLiveStreamRender() {},
     parseAssistantSections: text => ({ answer: text }),
     beginRealtimeDocForCurrentGeneration() { context.realtimeDocActive = true; },

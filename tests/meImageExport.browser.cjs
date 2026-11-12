@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 const root = path.resolve(__dirname, '../mdpro');
-const output = path.resolve(__dirname, '../artifacts/me-export-20261108');
+const output = path.resolve(__dirname, process.env.ME_EXPORT_ARTIFACT_DIR || '../artifacts/me-export-20261108');
 const source = fs.readFileSync(path.join(__dirname, 'fixtures/me-factor-analysis.mmd'), 'utf8');
 (async () => {
   fs.mkdirSync(output, { recursive: true });
