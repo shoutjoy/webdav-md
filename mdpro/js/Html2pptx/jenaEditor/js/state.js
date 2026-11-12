@@ -188,7 +188,7 @@ function esc(s) { return String(s || "").replace(/[<>]/g, ""); }
 
 function snapshotState() {
   return {
-    slides: slides.map((s) => ({ html: String(s.html || "") })),
+    slides: slides.map((s) => ({ html: String(s.html || ""), jenaImage: s.jenaImage || null, jenaVisual: s.jenaVisual || null, jenaText: String(s.jenaText || "") })),
     cur,
     backup: String(backup || "")
   };
@@ -202,7 +202,7 @@ function pushHistory() {
 function undoHistory() {
   const prev = historyStack.pop();
   if (!prev) return false;
-  slides = prev.slides.map((s) => ({ html: String(s.html || START_HTML) }));
+  slides = prev.slides.map((s) => ({ html: String(s.html || START_HTML), jenaImage: s.jenaImage || null, jenaVisual: s.jenaVisual || null, jenaText: String(s.jenaText || "") }));
   cur = clamp(Number(prev.cur) || 0, 0, slides.length - 1);
   backup = String(prev.backup || slides[cur].html || START_HTML);
   loadCurrent();
@@ -982,4 +982,3 @@ function changeSelectedLayerOrder(step) {
   const html = getWysHtml();
   applyWysObjectChange(html, true);
 }
-

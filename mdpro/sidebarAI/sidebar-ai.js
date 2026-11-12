@@ -1947,6 +1947,14 @@
   }
 
   function scholarAIInitModelSelect() {
+    var mount = getCallback('mountScholarAIModelPicker');
+    if (mount) {
+      var panel=document.getElementById('scholar-ai-model-panel');
+      if (!panel || document.getElementById('scholar-ai-jena-picker')) return;
+      var picker=document.createElement('div');picker.id='scholar-ai-jena-picker';panel.prepend(picker);mount(picker);
+      var legacy=document.getElementById('scholar-ai-model-select');if(legacy)legacy.hidden=true;
+      return;
+    }
     scholarAIRefreshConnection();
     var sel = document.getElementById('scholar-ai-model-select');
     var getter = getCallback('getScholarAIModelId');
@@ -2336,7 +2344,7 @@
     scholarAIRunEpoch++;
     if (window.ScholarAIReplacement) window.ScholarAIReplacement.cancel();
     if (!__scholarAIRunning) return;
-    var abortFn = getCallback('abortCurrentTask');
+    var abortFn = getCallback('abortScholarAITask') || getCallback('abortCurrentTask');
     if (typeof abortFn === 'function') {
       try { abortFn(); } catch (e) {}
     }
@@ -3384,7 +3392,7 @@ function viewerSSPFsUploadImgbb() {
   }
   function viewerSSPAbort() {
     __viewerSSPAbortRequested = true;
-    var fn = getCallback('abortCurrentTask');
+    var fn = getCallback('abortSspImageTask') || getCallback('abortCurrentTask');
     if (typeof fn === 'function') try { fn(); } catch (e) {}
     var statusEl = document.getElementById('ssp-status');
     if (statusEl) statusEl.textContent = '생성 중지 요청을 보냈습니다.';
@@ -4462,5 +4470,54 @@ function viewerSSPFsUploadImgbb() {
       if (wrap && !wrap.contains(e.target)) m.classList.remove('open');
     }
   });
-})();
 
+  function setupJenaSspControls() {
+    var model=document.getElementById('ssp-model'), provider=document.getElementById('ssp-provider');
+    if (!model || !provider || model.dataset.jenaRuntimeBound) return;
+    model.dataset.jenaRuntimeBound='1';
+    var parent=model.parentNode, providerLabel=provider.previousElementSibling, modelLabel=model.previousElementSibling;
+    var settings=document.createElement('details');settings.id='ssp-model-settings';
+    var summary=document.createElement('summary');summary.style.cssText='cursor:pointer;font-weight:700;padding:8px 0';
+    settings.appendChild(summary);parent.insertBefore(settings,providerLabel);
+    [providerLabel,provider,modelLabel,model].forEach(function(node){if(node)settings.appendChild(node);});
+    var performanceLabel=document.createElement('label');performanceLabel.textContent='Lemonade 이미지 품질';
+    var performance=document.createElement('select');performance.id='ssp-lemonade-performance';
+    performance.innerHTML='<option value="fast">빠르게 · Klein 4B 최대 768px</option><option value="quality">기존 품질 설정</option>';
+    performance.value=localStorage.getItem('ss_sspimg_lemonade_performance')==='quality'?'quality':'fast';
+    settings.append(performanceLabel,performance);
+    settings.open=localStorage.getItem('ss_sspimg_model_settings_open')==='true';
+    settings.addEventListener('toggle',function(){localStorage.setItem('ss_sspimg_model_settings_open',String(settings.open));});
+    var badge=document.createElement('div');badge.id='ssp-lemonade-runtime';badge.setAttribute('role','status');badge.style.cssText='padding:7px 0;font-size:11px;line-height:1.5;overflow-wrap:anywhere';
+    settings.after(badge);
+    var revision=0;
+    function syncSummary() {
+      summary.textContent='모델 · '+(model.value||'선택 필요');
+      var local=provider.value==='lemonade';performance.hidden=performanceLabel.hidden=!local;
+      var getSettings=getCallback('getSspImageGenerationSettings');
+      if(local && getSettings && model.value){var q=getSettings(model.value,__viewerSSPRatio);badge.title=q.width+'×'+q.height+' · '+q.steps+'단계 · CFG '+q.cfgScale;}
+    }
+    async function refresh() {
+      syncSummary();var ticket=++revision, selected=model.value;
+      if(provider.value!=='lemonade'){badge.hidden=true;return;}
+      badge.hidden=false;badge.style.color='#94a3b8';badge.textContent='Lemonade · 선택 모델 상태 확인 중…';
+      var getRuntime=getCallback('getSspImageRuntime');if(!selected||!getRuntime){badge.textContent='이미지 모델을 선택하세요.';return;}
+      try{
+        var info=await getRuntime(selected);
+        if(ticket!==revision||selected!==model.value||provider.value!=='lemonade')return;
+        badge.dataset.state=info.loaded?'ready':'unloaded';badge.style.color=info.loaded?'#4ade80':'#94a3b8';
+        badge.textContent=info.loaded?'연결됨 · '+selected+' 적재됨'+(info.device?' · '+info.device.toUpperCase():'')+(info.busy?' · 처리 중':''):'연결됨 · '+selected+' 미적재 · 모델 로드를 사용하세요.';
+      }catch(error){if(ticket!==revision)return;badge.dataset.state='error';badge.style.color='#f87171';badge.textContent='상태 확인 실패 · '+error.message;}
+    }
+    performance.onchange=function(){localStorage.setItem('ss_sspimg_lemonade_performance',performance.value);syncSummary();};
+    model.addEventListener('change',refresh);provider.addEventListener('change',refresh);
+    new MutationObserver(function(){refresh();}).observe(model,{childList:true});
+    window.addEventListener('focus',function(){var panel=document.getElementById('ssp-ai-sidebar');if(panel&&panel.classList.contains('open'))refresh();});
+    setInterval(function(){var panel=document.getElementById('ssp-ai-sidebar');if(document.visibilityState==='visible'&&panel&&panel.classList.contains('open')&&provider.value==='lemonade')refresh();},15000);
+    refresh();
+  }
+  setTimeout(setupJenaSspControls,0);
+  var jenaSidebarObserver=new MutationObserver(function(){setupJenaSspControls();});
+  var jenaSidebarHost=document.getElementById('ai-right-sidebar-inner');
+  if(jenaSidebarHost)jenaSidebarObserver.observe(jenaSidebarHost,{childList:true,subtree:true});
+
+})();

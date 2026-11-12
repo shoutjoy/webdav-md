@@ -1,3 +1,5 @@
+// WebDAV keeps its existing ME availability; ENV messages may explicitly change it.
+let mermaidAiFeatureEnabled = true;
 const LIGHT_MERMAID_THEME_VARIABLES = {
   fontFamily: '"Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo","Segoe UI",sans-serif',
   fontSize: '15px',
@@ -86,6 +88,102 @@ const mermaidImagePreview = document.getElementById('mermaid-image-preview');
 const mermaidImageEmpty = document.getElementById('mermaid-image-empty');
 const mermaidImageRemove = document.getElementById('mermaid-image-remove');
 const mermaidImagePrompt = document.getElementById('mermaid-image-prompt');
+const mermaidReferenceText = document.getElementById('mermaid-reference-text');
+const revisionSource = document.getElementById('mermaid-code-revision-source');
+const revisionPrompt = document.getElementById('mermaid-code-revision-prompt');
+const revisionResult = document.getElementById('mermaid-code-revision-result');
+const revisionRun = document.getElementById('mermaid-code-revision-run');
+const revisionStop = document.getElementById('mermaid-code-revision-stop');
+const revisionApply = document.getElementById('mermaid-code-revision-apply');
+const revisionImport = document.getElementById('mermaid-code-import-current');
+const revisionStatus = document.getElementById('mermaid-code-revision-status');
+let mermaidCodeRevisionActive = false;
+let mermaidCodeRevisionContext = null;
+let revisionReadyCode = '';
+function syncMermaidRevisionControls() {
+  const busy = !!mermaidImageRequestId;
+  revisionRun.disabled = !mermaidAiFeatureEnabled || busy || !revisionSource.value.trim() || !revisionPrompt.value.trim();
+  revisionStop.disabled = !mermaidCodeRevisionActive || !busy;
+  revisionImport.disabled = revisionSource.disabled = revisionPrompt.disabled = busy;
+  revisionApply.disabled = busy || !revisionReadyCode;
+}
+revisionSource.addEventListener('input', syncMermaidRevisionControls);
+revisionPrompt.addEventListener('input', syncMermaidRevisionControls);
+revisionImport.addEventListener('click', function () {
+  revisionSource.value = editor.value;
+  revisionStatus.textContent = '현재 편집기의 코드를 가져왔습니다. 수정 지시를 입력하세요.';
+  syncMermaidRevisionControls(); revisionPrompt.focus();
+});
+revisionRun.addEventListener('click', function () { requestMermaidFromImage('edit'); });
+revisionStop.addEventListener('click', stopMermaidImageRequest);
+revisionApply.addEventListener('click', async function () {
+  if (!revisionReadyCode || mermaidImageRequestId || !mermaidAiFeatureEnabled) return;
+  // The existing editor undo stack is the single source of undo for this application.
+  pushEditorUndoState(); editor.value = revisionReadyCode; await render();
+  if (errorDiv.style.display === 'block') return;
+  saveMermaidHistoryRecord(revisionReadyCode, mermaidCodeRevisionContext);
+  revisionStatus.textContent = '수정 결과를 코드 편집기에 적용했습니다. 되돌리기로 이전 코드로 복원할 수 있습니다.';
+});
+
+function hasMermaidReference() {
+  return !!mermaidReferenceImage || !!mermaidReferenceText.value.trim();
+}
+function refreshMermaidGenerateButton() {
+  mermaidImageGenerate.disabled = !!mermaidImageRequestId || !hasMermaidReference();
+  syncMermaidRevisionControls();
+}
+mermaidReferenceText.addEventListener('input', refreshMermaidGenerateButton);
+document.getElementById('mermaid-text-clear').addEventListener('click', function () {
+  mermaidReferenceText.value = '';
+  refreshMermaidGenerateButton();
+  mermaidReferenceText.focus();
+});
+document.getElementById('mermaid-text-paste').addEventListener('click', async function () {
+  try {
+    const text = window.parent !== window ? await pasteMermaidTextFromParent() : await navigator.clipboard.readText();
+    if (!text) return setMermaidImageStatus('클립보드에 텍스트가 없습니다.', true);
+    mermaidReferenceText.setRangeText(text, mermaidReferenceText.selectionStart, mermaidReferenceText.selectionEnd, 'end');
+    refreshMermaidGenerateButton();
+    mermaidReferenceText.focus();
+  } catch (_) {
+    mermaidReferenceText.focus();
+    setMermaidImageStatus('참고 텍스트 입력란에서 Ctrl+V로 붙여넣어 주세요.', true);
+  }
+});
+const mermaidTextFile = document.getElementById('mermaid-text-file');
+function pasteMermaidTextFromParent() {
+  const requestId = 'text-paste-' + Date.now();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { window.removeEventListener('message', receive); reject(new Error('클립보드 시간 초과')); }, 15000);
+    function receive(event) {
+      const data = event.data || {};
+      if (event.source !== window.parent || data.type !== 'mdv-mermaid-clipboard-text' || data.requestId !== requestId) return;
+      clearTimeout(timer);
+      window.removeEventListener('message', receive);
+      if (!data.ok) reject(new Error(data.error));
+      else resolve(String(data.text || ''));
+    }
+    window.addEventListener('message', receive);
+    window.parent.postMessage({ type: 'mdv-paste-mermaid-text', requestId }, '*');
+  });
+}
+document.getElementById('mermaid-text-import').addEventListener('click', function () { mermaidTextFile.click(); });
+mermaidTextFile.addEventListener('change', async function () {
+  const file = mermaidTextFile.files[0];
+  if (!file) return;
+  try {
+    if (file.size > 2 * 1024 * 1024) throw new Error('텍스트 파일은 2MB 이하여야 합니다.');
+    const text = await file.text();
+    mermaidReferenceText.value = text;
+    refreshMermaidGenerateButton();
+    setMermaidImageStatus('참고 텍스트를 가져왔습니다: ' + file.name);
+  } catch (error) { setMermaidImageStatus(error.message, true); }
+  finally { mermaidTextFile.value = ''; }
+});
+document.getElementById('mermaid-text-selection').addEventListener('click', function () {
+  if (window.parent === window) return setMermaidImageStatus('문서 창에서 선택한 뒤 가져와 주세요.', true);
+  window.parent.postMessage({ type: 'mdv-request-document-selection', target: 'reference-text' }, '*');
+});
 const mermaidImageGenerate = document.getElementById('mermaid-image-generate');
 const mermaidImagePaste = document.getElementById('mermaid-image-paste');
 const mermaidImageLarge = document.getElementById('mermaid-image-large');
@@ -145,8 +243,10 @@ function stopMermaidImageRequest() {
   finishMermaidMetrics();
   if (mermaidImageTypingTimer) clearInterval(mermaidImageTypingTimer);
   window.parent.postMessage({ type: 'mdv-cancel-image-to-mermaid', requestId: id }, '*');
-  mermaidImageGenerate.disabled = !mermaidReferenceImage;
-  if (!mermaidImageReceivedStream) editor.value = mermaidImagePreviousCode;
+  mermaidImageGenerate.disabled = !hasMermaidReference();
+  if (!mermaidCodeRevisionActive && !mermaidImageReceivedStream) editor.value = mermaidImagePreviousCode;
+  if (mermaidCodeRevisionActive) revisionStatus.textContent = '코드 수정을 중지했습니다. 가져온 코드와 편집기는 유지됩니다.';
+  mermaidCodeRevisionActive = false; syncMermaidRevisionControls();
   document.getElementById('mermaid-image-progress-panel').hidden = true;
   setMermaidImageStatus('생성을 중지했습니다. 다시 실행할 수 있습니다.');
 }
@@ -227,7 +327,8 @@ function applyMermaidAiPanelState(collapsed) {
   if (!mermaidAiPanel) return;
   mermaidAiPanel.classList.toggle('ai-collapsed', !!collapsed);
   if (mermaidAiCollapseBtn) {
-    mermaidAiCollapseBtn.textContent = collapsed ? 'AI 영역 펼치기' : 'AI 영역 접기';
+    mermaidAiCollapseBtn.textContent = collapsed ? '▸ Jena ME 펼치기' : '▾ Jena ME 접기';
+    mermaidAiCollapseBtn.title = collapsed ? 'Jena ME 입력 영역 펼치기' : 'Jena ME 입력 영역 접기';
     mermaidAiCollapseBtn.setAttribute('aria-expanded', String(!collapsed));
   }
 }
@@ -414,7 +515,7 @@ kanban
 
   id12[Can't reproduce]
     id13[Weird flickering in Firefox]
-  `,  
+  `,
   er: `erDiagram
     CUSTOMER ||--o{ ORDER : places
     ORDER ||--|{ LINE_ITEM : contains
@@ -1308,7 +1409,7 @@ function insertNodeByShape(mode) {
   editor.setSelectionRange(caret, caret);
   render();
 }
-// mermaid edge valuew 
+// mermaid edge valuew
 function buildEdgeSyntax(type) {
   const edgeType = String(type || 'solid');
   if (edgeType === 'thick') return 'A ==> B';
@@ -1428,7 +1529,7 @@ function clearMermaidReferenceImage() {
   if (mermaidImagePreview) { mermaidImagePreview.hidden = true; mermaidImagePreview.removeAttribute('src'); }
   if (mermaidImageEmpty) mermaidImageEmpty.hidden = false;
   if (mermaidImageRemove) mermaidImageRemove.hidden = true;
-  if (mermaidImageGenerate) mermaidImageGenerate.disabled = true;
+  if (mermaidImageGenerate) refreshMermaidGenerateButton();
   mermaidImageLarge.disabled = true;
   document.getElementById('mermaid-image-progress-panel').hidden = true;
   document.getElementById('mermaid-image-metrics').hidden = true;
@@ -1472,7 +1573,7 @@ function pasteMermaidImageFromParent() {
       mermaidImageEmpty.hidden = true; mermaidImageRemove.hidden = false;
       mermaidImageGenerate.disabled = false;
       mermaidImageLarge.disabled = false;
-      setMermaidImageStatus('클립보드 이미지가 준비되었습니다. ME실행을 눌러 주세요.');
+      setMermaidImageStatus('클립보드 이미지가 준비되었습니다. Jena ME 실행을 눌러 주세요.');
       resolve();
     }
     window.addEventListener('message', receive);
@@ -1492,6 +1593,7 @@ function extractPartialMermaidCode(value) {
 
 function showStreamingMermaidCode(rawText) {
   const code = extractPartialMermaidCode(rawText);
+  if (mermaidCodeRevisionActive) { revisionResult.value = code; revisionResult.scrollTop = revisionResult.scrollHeight; revisionStatus.textContent = '코드 수정 응답 수신 중… ' + code.length + '자'; return; }
   editor.value = code;
   editor.scrollTop = editor.scrollHeight;
   // Incomplete source stays in the editor; render the finished diagram once.
@@ -1531,15 +1633,15 @@ function typeMermaidCode(code) {
   }, 18);
 }
 
-function saveMermaidHistoryRecord(code) {
+function saveMermaidHistoryRecord(code, revision) {
   if (!code || !window.parent || window.parent === window) return;
   window.parent.postMessage({
     type: 'mdv-mermaid-history-save',
     record: {
       id: 'mermaid-ref-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
-      code: String(code), prompt: String(mermaidImagePrompt && mermaidImagePrompt.value || ''),
-      imageName: String(mermaidReferenceImage && mermaidReferenceImage.name || ''),
-      imageDataUrl: String(mermaidReferenceImage && mermaidReferenceImage.dataUrl || ''), createdAt: Date.now()
+      code: String(code), prompt: String(revision ? revision.prompt : mermaidImagePrompt && mermaidImagePrompt.value || ''),
+      imageName: revision ? '코드 수정' : String(mermaidReferenceImage && mermaidReferenceImage.name || ''),
+      imageDataUrl: revision ? '' : String(mermaidReferenceImage && mermaidReferenceImage.dataUrl || ''), createdAt: Date.now()
     }
   }, '*');
 }
@@ -1580,12 +1682,17 @@ function renderMermaidHistory() {
 
 if (mermaidHistorySearch) mermaidHistorySearch.addEventListener('input', renderMermaidHistory);
 
-function requestMermaidFromImage() {
-  if (!mermaidReferenceImage || !window.parent || window.parent === window) return;
-  if (mermaidImageGenerate.disabled) return;
+function requestMermaidFromImage(mode) {
+  const editing = mode === 'edit';
+  if (!mermaidAiFeatureEnabled || mermaidImageRequestId) return;
+  if (!window.parent || window.parent === window) return setMermaidImageStatus('메인 앱의 Mermaid Ref에서 실행해 주세요.', true);
+  if (editing ? !revisionSource.value.trim() || !revisionPrompt.value.trim() : !hasMermaidReference() || mermaidImageGenerate.disabled) return;
   const selection = mermaidTaskPicker.selection();
   if (selection.provider && !selection.model && selection.provider !== 'lmstudio') return setMermaidImageStatus('AI 모델을 선택하거나 모델 ID를 입력해 주세요.', true);
+  mermaidCodeRevisionActive = editing;
+  if (editing) { mermaidCodeRevisionContext = { source: revisionSource.value, prompt: revisionPrompt.value.trim() }; revisionReadyCode = ''; revisionResult.value = ''; revisionStatus.textContent = '코드 수정 요청 중…'; }
   mermaidImageRequestId = 'mermaid-image-' + Date.now();
+  syncMermaidRevisionControls();
   mermaidMetricsStarted = Date.now();
   mermaidMetrics = { outputTokens: 0, reasoningTokens: 0, estimated: true };
   clearInterval(mermaidMetricsTimer);
@@ -1598,25 +1705,26 @@ function requestMermaidFromImage() {
   mermaidImageStreamText = '';
   mermaidImageReceivedStream = false;
   if (mermaidImageTypingTimer) { clearInterval(mermaidImageTypingTimer); mermaidImageTypingTimer = null; }
-  pushEditorUndoState();
   mermaidImagePreviousCode = editor.value;
-  editor.value = '';
+  if (!editing) { pushEditorUndoState(); editor.value = ''; }
   mermaidImageGenerate.disabled = true;
   errorDiv.style.display = 'none';
   errorDiv.textContent = '';
-  setMermaidImageStatus('AI가 이미지 구조를 분석하고 있습니다…');
+  setMermaidImageStatus(editing ? 'AI가 가져온 코드를 수정하고 있습니다…' : 'AI가 참고 자료의 구조를 분석하고 있습니다…');
   clearTimeout(mermaidImageRequestTimer);
   mermaidImageRequestTimer = setTimeout(function () {
     window.parent.postMessage({ type: 'mdv-cancel-image-to-mermaid', requestId: mermaidImageRequestId }, '*');
     mermaidImageRequestId = '';
     finishMermaidMetrics();
-    mermaidImageGenerate.disabled = !mermaidReferenceImage;
+    mermaidImageGenerate.disabled = !hasMermaidReference();
     document.getElementById('mermaid-image-stop').disabled = true;
-    if (!mermaidImageReceivedStream) editor.value = mermaidImagePreviousCode;
+    if (!mermaidCodeRevisionActive && !mermaidImageReceivedStream) editor.value = mermaidImagePreviousCode;
+    if (mermaidCodeRevisionActive) revisionStatus.textContent = '코드 수정 응답 제한 시간을 초과했습니다.';
+    mermaidCodeRevisionActive = false; syncMermaidRevisionControls();
     setMermaidImageStatus('AI 응답 제한 시간을 초과했습니다. 연결과 모델을 확인한 뒤 다시 실행해 주세요.', true);
     mermaidTaskPicker.setConnection('응답 시간 초과 · 재연결 필요', 'failed');
   }, 185000);
-  window.parent.postMessage({ type: 'mdv-analyze-image-to-mermaid', requestId: mermaidImageRequestId, image: mermaidReferenceImage, selection: selection, prompt: String(mermaidImagePrompt && mermaidImagePrompt.value || '').trim() }, '*');
+  window.parent.postMessage({ type: 'mdv-analyze-image-to-mermaid', requestId: mermaidImageRequestId, mode: editing ? 'edit' : 'reference', sourceCode: editing ? mermaidCodeRevisionContext.source : '', image: editing ? null : mermaidReferenceImage, referenceText: editing ? '' : mermaidReferenceText.value, selection: selection, prompt: editing ? mermaidCodeRevisionContext.prompt : String(mermaidImagePrompt && mermaidImagePrompt.value || '').trim() }, '*');
 }
 
 if (mermaidImagePaste) mermaidImagePaste.addEventListener('click', async function (event) {
@@ -1739,6 +1847,13 @@ window.addEventListener('message', async function (event) {
   const data = event && event.data || {};
   if (event.source !== window.parent) return;
   if (data.type === 'mdv-load-document-selection' && event.source === window.parent) {
+    if (data.target === 'reference-text') {
+      mermaidReferenceText.value = String(data.code || '');
+      refreshMermaidGenerateButton();
+      mermaidReferenceText.focus();
+      setMermaidImageStatus('문서 선택 영역을 참고 텍스트로 가져왔습니다. Jena ME 실행으로 변환하세요.');
+      return;
+    }
     const selectedCode = extractMermaidCodeFromAI(data.code) || String(data.code || '').trim();
     if (!selectedCode) return;
     pushEditorUndoState();
@@ -1752,6 +1867,7 @@ window.addEventListener('message', async function (event) {
   }
   if (data.type === 'mdv-document-selection-unavailable' && event.source === window.parent) {
     setDocumentSelectionImportButton('텍스트를 먼저 선택하세요', true);
+    setMermaidImageStatus('문서에서 가져올 텍스트를 먼저 선택하세요.', true);
     return;
   }
   if (data.type === 'mdv-mermaid-history-records') {
@@ -1777,24 +1893,41 @@ window.addEventListener('message', async function (event) {
   }
   if (data.type === 'mdv-image-to-mermaid-metrics' && data.requestId === mermaidImageRequestId) {
     updateMermaidMetrics(data);
-    if (data.reasoningTokens) setMermaidImageStatus('모델이 이미지 구조를 추론하고 있습니다…');
+    if (data.reasoningTokens) setMermaidImageStatus(mermaidCodeRevisionActive ? '모델이 코드 수정을 검토하고 있습니다…' : '모델이 이미지 구조를 추론하고 있습니다…');
     return;
   }
   if (data.type !== 'mdv-image-to-mermaid-result' || data.requestId !== mermaidImageRequestId) return;
+  const wasRevision = mermaidCodeRevisionActive;
+  mermaidCodeRevisionActive = false;
   clearTimeout(mermaidImageRequestTimer);
+  mermaidImageRequestId = '';
   finishMermaidMetrics(data.metrics);
-  mermaidImageGenerate.disabled = !mermaidReferenceImage;
+  syncMermaidRevisionControls();
+  mermaidImageGenerate.disabled = !hasMermaidReference();
   document.getElementById('mermaid-image-stop').disabled = true;
   if (!data.ok) {
     document.getElementById('mermaid-image-stop').hidden = true;
-    if (!mermaidImageReceivedStream) editor.value = mermaidImagePreviousCode;
+    if (!wasRevision && !mermaidImageReceivedStream) editor.value = mermaidImagePreviousCode;
+    if (wasRevision) revisionStatus.textContent = data.error || '코드 수정에 실패했습니다.';
     mermaidTaskPicker.setConnection('요청 실패 · ' + (data.error || '연결 확인 필요'), 'failed');
     return setMermaidImageStatus(data.error || 'Mermaid 코드 생성에 실패했습니다.', true);
   }
   setMermaidProgress(95);
-  mermaidTaskPicker.setConnection((data.provider === 'aistudio' ? 'AI Studio' : (data.provider || 'AI Jena')) + ' · 연결됨 · ' + (data.model || ''), 'connected');
+  mermaidTaskPicker.setConnection((data.provider === 'aistudio' ? 'AI Studio' : (data.provider || 'Jena ME')) + ' · 연결됨 · ' + (data.model || ''), 'connected');
   const code = extractMermaidCodeFromAI(data.code);
-  if (!code) return setMermaidImageStatus('AI가 유효한 Mermaid 코드를 반환하지 않았습니다.', true);
+  if (!code) { if (wasRevision) revisionStatus.textContent = 'AI가 유효한 Mermaid 코드를 반환하지 않았습니다.'; return setMermaidImageStatus('AI가 유효한 Mermaid 코드를 반환하지 않았습니다.', true); }
+  if (wasRevision) {
+    revisionResult.value = code;
+    const context = mermaidCodeRevisionContext;
+    try {
+      if (!code.trim()) throw new Error('빈 코드가 반환되었습니다.');
+      await mermaid.parse(code);
+      if (mermaidImageRequestId || context !== mermaidCodeRevisionContext) return;
+      revisionReadyCode = code; revisionStatus.textContent = '수정 완료 · 결과를 확인한 뒤 수정 결과 적용을 누르세요.';
+      setMermaidProgress(100); setMermaidImageStatus('코드 수정 완료 · 결과를 검토한 뒤 적용하세요.'); syncMermaidRevisionControls();
+    } catch (error) { revisionReadyCode = ''; revisionStatus.textContent = '수정 결과 구문 확인 실패: ' + error.message; document.getElementById('mermaid-image-stop').hidden = true; setMermaidImageStatus('수정 결과의 구문을 확인할 수 없어 적용하지 않았습니다.', true); syncMermaidRevisionControls(); }
+    return;
+  }
   if (mermaidImageReceivedStream) {
     editor.value = code;
     await finishGeneratedMermaid(code);
@@ -2069,8 +2202,24 @@ editor.addEventListener('paste', function (event) {
   editor.dispatchEvent(new Event('input', { bubbles: true }));
 });
 editor.addEventListener('input', function () { removeEditorMarkdownFences(); debounceRender(); });
-editor.addEventListener('beforeinput', function () {
+editor.addEventListener('beforeinput', function (event) {
   pushEditorUndoState();
+  // Handle text insertion rather than physical keys so keyboard layouts agree.
+  if (event.defaultPrevented || !event.cancelable || event.isComposing ||
+      event.inputType !== 'insertText' || editor.readOnly || editor.disabled) return;
+  const pairs = { '(': ')', '[': ']', '{': '}', '"': '"', "'": "'", '`': '`' };
+  if (!Object.prototype.hasOwnProperty.call(pairs, event.data)) return;
+  const start = editor.selectionStart;
+  const end = editor.selectionEnd;
+  if (start === end) return;
+  const direction = editor.selectionDirection;
+  const scrollTop = editor.scrollTop, scrollLeft = editor.scrollLeft;
+  event.preventDefault();
+  editor.setRangeText(event.data + editor.value.slice(start, end) + pairs[event.data], start, end, 'select');
+  editor.setSelectionRange(start + 1, end + 1, direction);
+  editor.scrollTop = scrollTop;
+  editor.scrollLeft = scrollLeft;
+  editor.dispatchEvent(new Event('input', { bubbles: true }));
 });
 
 // Shortcut bindings

@@ -861,6 +861,7 @@ function openImageInsertModal() {
 function closeImageInsertModal() {
     const modal = document.getElementById('image-insert-modal');
     if (!modal) return;
+    if (window.ImageInsertDock) window.ImageInsertDock.detach();
     modal.classList.add('hidden');
     modal.classList.remove('flex');
     const panel = document.getElementById('image-insert-panel');
@@ -889,22 +890,7 @@ function closeImageInsertModal() {
 }
 
 function applyImageInsertPanelLayout() {
-    const modal = document.getElementById('image-insert-modal');
-    const panel = document.getElementById('image-insert-panel');
-    if (!modal || !panel) return;
-    if (imageInsertDockRight) {
-        modal.classList.remove('justify-center');
-        modal.classList.add('justify-end');
-        panel.classList.remove('max-w-2xl');
-        panel.classList.add('max-w-xl');
-        panel.style.marginRight = '12px';
-    } else {
-        modal.classList.remove('justify-end');
-        modal.classList.add('justify-center');
-        panel.classList.remove('max-w-xl');
-        panel.classList.add('max-w-2xl');
-        panel.style.marginRight = '';
-    }
+    if (window.ImageInsertDock) window.ImageInsertDock.apply(imageInsertDockRight);
 }
 
 function toggleImageInsertDockRight() {
@@ -936,6 +922,7 @@ function bindImageInsertModalDrag() {
     if (!header || !panel) return;
 
     header.addEventListener('mousedown', function (e) {
+        if (window.ImageInsertDock?.isDocked()) return;
         const target = e.target;
         if (target && (target.closest('button') || target.tagName === 'BUTTON')) return;
         imageInsertDragging = true;
@@ -1457,7 +1444,7 @@ function bindImageInsertResize() {
         handle.className = 'image-insert-resize-handle resize-' + direction;
         handle.title = labels[direction] + ' 크기 조절';
         handle.addEventListener('pointerdown', function (event) {
-            if (event.button !== 0) return;
+            if (event.button !== 0 || window.ImageInsertDock?.isDocked()) return;
             event.preventDefault();
             event.stopPropagation();
             const rect = panel.getBoundingClientRect();
