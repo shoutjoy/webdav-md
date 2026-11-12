@@ -2905,6 +2905,9 @@ function positionOpenEditorToolbarPanels() {
     EDITOR_TOOLBAR_FLOATING_PANEL_IDS.forEach(function (id) {
         const panel = document.getElementById(id);
         if (!panel) return;
+        // The table adapter owns popup anchoring, dragging and Dock placement.
+        // The deferred toolbar click handler must not erase its coordinates.
+        if (id === 'table-insert-picker' && window.TableMenuLayout) return;
         if (!vertical) {
             panel.style.removeProperty('position');
             panel.style.removeProperty('top');
@@ -3892,6 +3895,23 @@ function isMarkdownRenderSnapshotCurrent(snapshot, source) {
     return current;
 }
 
+function prepareHostedImageReferrers(html) {
+    // Work on an inert template BEFORE insertion: an imgBB error placeholder
+    // can be a successful image response, so an onerror retry cannot fix it.
+    if (!/\bi\.ibb\.co\b/i.test(html)) return html;
+    const template = document.createElement('template');
+    template.innerHTML = html;
+    template.content.querySelectorAll('img[src]').forEach(function (image) {
+        try {
+            const url = new URL(image.getAttribute('src'), document.baseURI);
+            if (url.protocol === 'https:' && url.hostname === 'i.ibb.co') {
+                image.setAttribute('referrerpolicy', 'no-referrer');
+            }
+        } catch (_) { /* Preserve invalid/relative sources as authored. */ }
+    });
+    return template.innerHTML;
+}
+
 async function renderMarkdownSnapshotToHtml(snapshot, options) {
     const opts = options || {};
     if (!snapshot) return '';
@@ -3908,14 +3928,14 @@ async function renderMarkdownSnapshotToHtml(snapshot, options) {
     const createHtml = async function () {
         renderPreparationStats.markdownParseRuns += 1;
         if (typeof MathRender !== 'undefined' && MathRender && typeof MathRender.renderMarkdownSafe === 'function') {
-            return String(await MathRender.renderMarkdownSafe(
+            return prepareHostedImageReferrers(String(await MathRender.renderMarkdownSafe(
                 (typeof marked !== 'undefined' && marked.parse) ? marked : null,
                 preprocessed,
                 { fallbackText: preprocessed }
-            ) || '');
+            ) || ''));
         }
         if (typeof marked !== 'undefined' && marked.parse) {
-            return String(marked.parse(preprocessed) || '');
+            return prepareHostedImageReferrers(String(marked.parse(preprocessed) || ''));
         }
         return escapeMarkdownRenderFallback(preprocessed);
     };
