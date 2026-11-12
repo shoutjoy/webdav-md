@@ -33,6 +33,8 @@ WebDAV MDpro와 MDproViewer의 기능 개발, 버그 수정, 리팩터링, 이�
 
 ## 변경 목록
 
+- MDPRO-20261113-RESUME-ANSWER: [중단 답변 이어쓰기](changes/2026-11-13-resume-answer.md) — WebDAV 수동 버튼·중단 본문 보존·Chrome 모의 공급자·32개 검사/빌드 통과, 실제 공급자/Viewer 미검증.
+
 - MDPRO-20261113-STUDIO-NOTICE: [AI Studio 안내 문구 제거](changes/2026-11-13-studio-model-notice.md) — 원본 구현·빈 안내 영역 접기/캐시2차 갱신·29개 계약·빌드 통과, 실제 화면/Viewer 미검증.
 
 - MDPRO-20261113-JENA-DOCK-POPOVER: [Jena Dock popover 분리](changes/2026-11-13-jena-dock-popover.md) — WebDAV 방어 수정·Chrome iframe 7배치·29개 계약 통과, 사용자 공백 재현/해결 미확인·Viewer 미이식.

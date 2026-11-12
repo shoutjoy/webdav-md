@@ -82,3 +82,5 @@ publish 스크립트 결과와 최종 제공 경로:
 - MDPRO-20261113-JENA-DOCK-POPOVER: [Jena Dock popover 분리](changes/2026-11-13-jena-dock-popover.md). WebDAV 방어 수정·Chrome iframe 전환/29개 계약 통과. 사용자 공백 재현/해결 미확인. Viewer 웹 이식·웹 검증·프런트엔드 준비·네이티브 빌드·설치 앱 검증 대기, 이번 요청에 빌드 미포함.
 
 - MDPRO-20261113-STUDIO-NOTICE: [AI Studio 안내 제거](changes/2026-11-13-studio-model-notice.md). 원본 구현·빈 안내 영역 CSS/캐시2차 보완·계약/빌드 통과. Viewer 대상 확인·웹 이식·웹 검증·프런트엔드 준비·네이티브 빌드·설치 검증 대기. 빌드 미요청.
+
+- MDPRO-20261113-RESUME-ANSWER: [중단 답변 이어쓰기](changes/2026-11-13-resume-answer.md). WebDAV Chrome 모의 중단→이어쓰기/32개 검사·빌드 통과. Viewer 대상 비교·웹 이식·웹 검증·프런트엔드 준비·네이티브 빌드·설치 앱 검증 대기. 빌드 미요청.

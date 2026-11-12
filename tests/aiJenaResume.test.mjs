@@ -1,0 +1,9 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import {readFileSync} from 'node:fs';
+const source=readFileSync(new URL('../mdpro/AI_App/aiChat/ai-chat.js',import.meta.url),'utf8');
+function runtime(){const c=vm.createContext({state:{provider:'lemonade',messages:[]},liveStream:{answer:'중간까지 생성된 본문'},realtimeDocExclusive:false,activeProviderModel:()=> 'model',parseAssistantSections:s=>({answer:s}),extractVisibleAnswerBody:s=>({body:s}),combinedAssistantContent:()=> '이전 본문',removeRepeatedContinuation:(_p,s)=>s,responseNearOutputLimit:()=>false,answerEndsCleanly:s=>/[.!]$/.test(s)});vm.runInContext(source.slice(source.indexOf('  function shouldOfferContinuation('),source.indexOf('  function academicPartTask(')),c);return c;}
+test('Lemonade incomplete response offers continuation below token budget',()=>{const c=runtime();assert.equal(c.shouldOfferContinuation({content:'본문 '.repeat(100)+'기법을',provider:'lemonade'},null,false),true);assert.equal(c.shouldOfferContinuation({content:'본문 '.repeat(100)+'완료.',provider:'lemonade'},null,false),false);});
+test('interrupted stream is retained as resumable answer; empty streams create nothing',()=>{const c=runtime();const m=c.preserveInterruptedAnswer();assert.equal(m.content,'중간까지 생성된 본문');assert.equal(m.continuationAvailable,true);assert.equal(m.interrupted,true);assert.equal(c.state.messages.length,1);c.liveStream.answer='';assert.equal(c.preserveInterruptedAnswer(),null);assert.equal(c.state.messages.length,1);});
+test('interrupted continuation keeps previous answer and stores only new stream',()=>{const c=runtime();const previous={content:'이전 본문',continuationAvailable:true};c.state.messages.push(previous);const m=c.preserveInterruptedAnswer(previous);assert.equal(previous.content,'이전 본문');assert.equal(previous.continuationAvailable,false);assert.equal(m.continuationInline,true);assert.equal(m.continuationAvailable,true);});

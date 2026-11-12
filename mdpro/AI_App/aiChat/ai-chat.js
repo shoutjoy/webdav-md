@@ -4810,7 +4810,7 @@
       return responseNearOutputLimit(message, result) && answer.length >= 240 && !answerEndsCleanly(answer);
     }
     if (provider === 'lmstudio' || provider === 'ollama' || provider === 'lemonade' || provider === 'openai-compatible') {
-      return responseNearOutputLimit(message, result) && answer.length >= 240;
+      return answer.length >= 240 && (responseNearOutputLimit(message, result) || !answerEndsCleanly(answer));
     }
     if (academicSearch && /포함 여부:\s*아니오/.test(String(message.checklist || ''))) return true;
     return answer.length >= 240 && !answerEndsCleanly(answer);
@@ -4819,6 +4819,24 @@
   function didHitOutputLimit(result) {
     var finishReason = String(result && result.finishReason || '').toLowerCase();
     return /length|max[_ -]?tokens?|token[_ -]?limit|context[_ -]?(?:length|limit)/.test(finishReason);
+  }
+
+  function preserveInterruptedAnswer(previous) {
+    var partial = String(liveStream && liveStream.answer || '');
+    partial = extractVisibleAnswerBody(parseAssistantSections(partial).answer, false).body;
+    if (!String(partial || '').trim()) return null;
+    if (previous) partial = removeRepeatedContinuation(combinedAssistantContent(state.messages.indexOf(previous)), partial, false);
+    if (!String(partial || '').trim()) return null;
+    var message = {
+      role: 'assistant', content: partial, createdAt: Date.now(),
+      provider: state.provider, model: activeProviderModel(),
+      continuationAvailable: true, interrupted: true,
+      isContinuation: !!previous, continuationInline: !!previous,
+      realtimeDocRecord: realtimeDocExclusive
+    };
+    if (previous) previous.continuationAvailable = false;
+    state.messages.push(message);
+    return message;
   }
 
   function academicPartTask(partNumber) {
@@ -5152,6 +5170,7 @@
         realtimeDocActive = false;
       }
       target.continuationAvailable = true;
+      preserveInterruptedAnswer(target);
       var message = error && error.message ? error.message : String(error);
       if ((error && error.name === 'AbortError') || /abort|중지/i.test(message)) setStatus('이어서 작성을 중지했습니다.', '');
       else setStatus(message, 'error');
@@ -5917,6 +5936,14 @@
           copyQa.addEventListener('click', function () { copyQuestionAnswer(messageIndex, message); });
           copyHost.appendChild(copyQa);
           if (!message.error && String(message.content || '').trim() && !(Array.isArray(message.images) && message.images.length)) {
+            var resumeButton = document.createElement('button');
+            resumeButton.type = 'button';
+            resumeButton.className = 'ai-chat-resume-answer';
+            resumeButton.textContent = '이어서 작성';
+            resumeButton.title = '기존 답변을 유지하고 끊긴 지점부터 이어서 작성';
+            resumeButton.disabled = state.running;
+            resumeButton.addEventListener('click', function () { continueAssistantAnswer(messageIndex, '', false); });
+            mainHost.appendChild(resumeButton);
             appendAssistantDocumentInsertActions(actions, messageIndex, message, expandedLayout ? mainHost : null);
             var previewBtn = document.createElement('button');
             previewBtn.type = 'button';
@@ -7596,11 +7623,13 @@
       );
     } catch (error) {
       var message = error && error.message ? error.message : String(error);
+      var interruptedMessage = preserveInterruptedAnswer();
+      if (interruptedMessage) pendingUser.failed = false;
       if ((error && error.name === 'AbortError') || /abort|중지/i.test(message)) {
-        pendingUser.failed = true;
+        pendingUser.failed = !interruptedMessage;
         setStatus('응답 생성을 중지했습니다.', '');
       } else {
-        pendingUser.failed = true;
+        pendingUser.failed = !interruptedMessage;
         var switchedImageModel = false;
         if (state.provider === 'aistudio' && state.geminiModel === IMG_GEN_PRIMARY_MODEL && isImageQuotaError(error)) {
           var shouldSwitch = root.confirm('Nano Banana Pro Preview의 이미지 생성 할당량이 소진되었습니다. Nano Banana 모델로 전환할까요?');
