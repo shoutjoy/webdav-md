@@ -50,7 +50,7 @@ Viewer 고유 브리지의 구현 방식과 WebDAV 결과를 동일하다고 주
 ## 검증 결과와 한계
 
 - tests/macroMenuDock.browser.cjs: Chrome 1440/800/390px, 11개 버튼 유지, 실제 등록한 매크로 Run 실행, 문서와 경계 분리, 데스크톱 키보드·포인터 splitter, Popup/닫기/재열기/Escape, 양 테마 스크린샷. pageerror 없음. 최초 검사는 popup이 툴바 숨김 영향을 받아 실패했고 body 배치로 수정 후 재통과했다.
-- tests/tidyWorkspace.browser.cjs: Chrome 1440/1000/390px. code-highlight 키워드/문자열 확인, 기능 등록 inDB, Worker ABC 변환, 히스토리 전환, 열 분리/키보드 너비, 전체화면/복귀, 모의 streaming delta/완성본 반영, 닫기. pageerror 없음. 초기 DOM 이동 오류 수정 후 통과. AIChat의 frozen 메서드에 덮어쓰기하던 테스트 fixture는 객체 대체로 수정해 모의 공급자를 검증했다.
+- tests/tidyWorkspace.browser.cjs: Chrome 1440/1000/390px. code-highlight 키워드/문자열 확인, 기능 등록 inDB, Worker ABC 변환, 히스토리 전환, 열 분리/키보드 너비, 전체화면/복귀, 모의 streaming delta/완성본 반영, 공급자 실패 시 원본 코드 복원, 코드 스냅샷 저장, 닫기. pageerror 없음. 초기 DOM 이동 오류 수정 후 통과. AIChat의 frozen 메서드에 덮어쓰기하던 테스트 fixture는 객체 대체로 수정해 모의 공급자를 검증했다.
 - 같은 Tidy 검사에서 1440px 표 메뉴 최초/재열기 top=button.bottom+6을 검증했다.
 - artifacts/macro-dock-20261112/, artifacts/tidy-workspace-20261112/의 JSON·PNG. Tidy 1440 및390 스크린샷을 직접 검토하고 라이트 테마 대비·대화 후 화면 점프를 추가 수정했다.
 - node --check: macro.js, macro-menu-dock.js, tidy-script-manager.js, tidy-jena.js, tidy-workspace.js, table-menu-layout.js 통과. git diff --check 통과. npm run build 통과, 기존 500kB chunk 경고 있음.
