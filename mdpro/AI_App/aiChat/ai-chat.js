@@ -7783,8 +7783,14 @@
     }
   }
 
+  var initializationPromise;
+  function ensureInitialized() {
+    if (!initializationPromise) initializationPromise = init();
+    return initializationPromise;
+  }
+
   root.AIChat = Object.freeze({
-    init: init,
+    init: ensureInitialized,
     setEnabled: setEnabled,
     setHeaderUtilitiesVisible: setHeaderUtilitiesVisible,
     openFromMenu: openFromMenu,
@@ -7849,9 +7855,28 @@
       openAtStartLayout();
       return true;
     },
+    getTaskModels: async function (provider, refresh) {
+      await ensureInitialized();
+      provider = provider || state.provider;
+      var selected = provider;
+      var profile = provider === 'openai-compatible-env' ? (storageGet('ss_openai_compatible_provider', 'orcarouter')) : provider;
+      if (profile === 'lemonade' && provider === 'openai-compatible-env') profile = 'orcarouter';
+      var names = { lmstudio: ['LMStudio', state.lmModel], litertlm: ['LiteRTLM', state.litertlmModel], aistudio: ['Gemini', state.geminiModel], ollama: ['Ollama', state.ollamaModel], deepseek: ['Deepseek', state.deepseekModel], openai: ['OpenAI', state.openaiModel], 'openai-compatible-env': ['OpenAICompatible', state.openaiCompatibleModel], 'openai-compatible': ['OpenAICompatible', state.openaiCompatibleModel], lemonade: ['Lemonade', state.lemonadeModel], 'lemonade-flm': ['NPU', state.npuModel], 'ollama-npu': ['NPU', state.npuModel] };
+      var config = names[provider];
+      if (!config) throw new Error('지원하지 않는 AI 공급자입니다.');
+      var bridge = getBridge();
+      var method = (refresh ? 'refresh' : 'getCached') + config[0] + 'Models';
+      if (typeof bridge[method] !== 'function') throw new Error('모델 조회 모듈이 준비되지 않았습니다.');
+      var result = await bridge[method]();
+      var models = (Array.isArray(result) ? result : result && result.models || []).map(function (item) { return typeof item === 'string' ? item : item.id || item.key || item.name; }).filter(Boolean);
+      if (provider === 'lmstudio') models = Array.from(new Set(models.concat(config[1] || [], result && result.model || [])));
+      var compatible = /^(lemonade|lemonade-flm|ollama-npu|openai-compatible-env|openai-compatible)$/.test(provider);
+      var options = Array.from(document.getElementById('ai-chat-provider').options).map(function (option) { return { value: option.value === 'ollama-npu' ? 'lemonade-flm' : option.value === 'openai-compatible' ? 'openai-compatible-env' : option.value, label: option.value === 'ollama-npu' ? 'Lemonade FLM NPU' : option.textContent }; });
+      return { provider: compatible ? 'openai-compatible' : selected, model: config[1] || result && result.model || models[0] || '', models: Array.from(new Set(models)), openAICompatibleProvider: compatible ? (profile === 'ollama-npu' ? 'lemonade-flm' : profile === 'openai-compatible' ? storageGet('ss_openai_compatible_provider', 'orcarouter') : profile) : undefined, providers: options, providerLabel: (options.find(function (item) { return item.value === selected; }) || {}).label };
+    },
     close: function () { setOpen(false); }
   });
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
-  else init();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ensureInitialized, { once: true });
+  else ensureInitialized();
 })(window);
