@@ -1,0 +1,21 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const os = require('node:os');
+const assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
+const source = fs.readFileSync('mdpro/js/app.js', 'utf8');
+const helper = source.slice(source.indexOf('function prepareHostedImageReferrers('), source.indexOf('async function renderMarkdownSnapshotToHtml('));
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'mdpro-imgbb-'));
+const fixture = path.join(dir, 'fixture.html');
+fs.writeFileSync(fixture, `<body><script>${helper}
+const raw = '<img src="https://i.ibb.co/bg7d86C4/img-insert-1788399936901.jpg" width="431" height="772"><span class="tbl-caption">[그림 1] 바이브 코딩의 문제점</span><img src="https://example.com/a.jpg"><code>&lt;img src="https://i.ibb.co/code.jpg"&gt;</code>';
+const result = prepareHostedImageReferrers(raw);
+const t = document.createElement('template'); t.innerHTML = result;
+const images = t.content.querySelectorAll('img');
+const checks = [images.length === 2, images[0].referrerPolicy === 'no-referrer', images[0].getAttribute('width') === '431', images[0].getAttribute('height') === '772', !images[1].hasAttribute('referrerpolicy'), t.content.querySelector('.tbl-caption').textContent.includes('바이브'), !raw.includes('referrerpolicy'), t.content.querySelector('code').textContent.includes('<img'), prepareHostedImageReferrers('<img src="internal://a">') === '<img src="internal://a">'];
+document.body.textContent = checks.every(Boolean) ? 'PASS: 9 hosted image checks' : 'FAIL: ' + JSON.stringify(checks);
+</script>`);
+const chrome = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
+const run = spawnSync(chrome, ['--headless', '--disable-gpu', '--no-first-run', '--no-default-browser-check', '--user-data-dir=' + path.join(dir, 'profile'), '--dump-dom', 'file:///' + fixture.replaceAll('\\', '/')], { encoding: 'utf8', timeout: 30000 });
+assert.match(run.stdout || '', /PASS: 9 hosted image checks/, run.stderr || run.error?.message);
+console.log('PASS: 9 hosted image checks in Chrome; live host response remains unverified');

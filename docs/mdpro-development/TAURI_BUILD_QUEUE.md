@@ -14,6 +14,7 @@
 | MDPRO-20261110-JENA-ALT4-DOC | [Alt+4 구현·모바일 기술서](changes/2026-11-10-ai-jena-alt4-bottom-floating.md) | Viewer floating 미구현 확인·이번 문서만 작성·대상 미수정 | WebDAV 소스/CSS 계약 29개 통과·브라우저/모바일 미검증 | 미실행·향후 이식 시 대상 절차 확인 | 문서 전용·이번 재빌드 불필요 | 미검증 |
 | MDPRO-20261110-VITE-CLASSIC-SCRIPTS | [Vite 버튼 오류 수정](changes/2026-11-10-vite-classic-script-buttons.md) | WebDAV 개발 서버 전용·Viewer 런타임 변경 없음 | Node13개·실제Vite Chrome root/nested/React iframe 통과 | 자산 변경 없음 | 이 항목 재빌드 불필요·미실행 | 미실행 |
 | MDPRO-20261110-ME-AI-SETTINGS | [ME AI 설정·고밀도 UI·테마 격리](changes/2026-11-10-me-ai-settings-port.md) | Viewer 원본 존재·WebDAV profile/저장 이전 적응은 비교 후 선택 적용 | WebDAV102개·Chrome4회귀·웹 빌드 통과, 실비전 미검증 | 이번 미실행 | 이번 미실행 | 미실행 |
+| MDPRO-20261113-TABLE-ANCHOR-OWNER | [표 메뉴 위치 소유권](changes/2026-11-13-table-anchor-owner.md) | 공통 배치 가드 적응 필요·미이식 | WebDAV43개·desktop/mobile 실제 클릭 확인 | 미실행 | 미실행 | 미실행 |
 | MDPRO-20261112-GEMINI-FAST | [Gemini 즉시 응답](changes/2026-11-12-gemini-fast-thinking.md) | js/app.js·캐시 적응 필요·미이식 | WebDAV 42개 통과·실제 속도 미측정 | 미실행 | 미실행 | 미실행 |
 | MDPRO-20261104-WEBDAV-HWP | [HWP/HWPX 이식](changes/2026-11-04-hwp-hwpx-port.md) | 실제 Viewer 원본 rHwp 존재·미수정 | WebDAV69개·Chrome 열기/수식/중지 통과, PV 미완료 | 이번 작업 미실행 | 이번 작업 미실행 | 미검증 |
 | MDPRO-20261104-LM-FAST | [LM Studio FAST 추론 정책](changes/2026-11-04-lmstudio-fast-reasoning.md) | app.js 요청 정책 적응·미이식 | WebDAV 31개 통과·실속도 미측정 | 미실행 | 미실행 | 미실행 |
@@ -75,3 +76,5 @@ publish 스크립트 결과와 최종 제공 경로:
 ```
 
 현재 문서 등록 작업에서는 프런트엔드 준비, 네이티브 빌드, 설치 실행을 수행하지 않았다.
+
+- MDPRO-20261113-HOSTED-IMAGE-REFERRER: [imgBB 보기 로딩 정책](changes/2026-11-13-hosted-image-referrer.md). WebDAV Chrome 9항목/빌드 통과, 사용자 문서 보기/PV 미검증. Viewer 경로 없음·웹 이식/프런트엔드 준비/네이티브 빌드/설치 검증 대기. 요청에 빌드 미포함.

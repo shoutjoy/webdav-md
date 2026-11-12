@@ -8,7 +8,14 @@ const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
   for(const width of [1440,390]){
    const page=await browser.newPage({viewport:{width,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
    await page.goto('http://127.0.0.1:5201/mdpro/index.html?webdav=1',{waitUntil:'networkidle'});
-   await page.evaluate(()=>{if(!isEditMode)toggleMode();toggleTableInsertPicker();});
+   await page.evaluate(()=>{if(!isEditMode)toggleMode();});
+   // Use a real click: the deferred shared toolbar handler also runs here.
+   if(width>760) await page.locator('#btn-table-insert-picker').click();
+   else await page.evaluate(()=>toggleTableInsertPicker());
+   await page.waitForTimeout(100);
+   const anchored = await page.evaluate(()=>({button:document.getElementById('btn-table-insert-picker').getBoundingClientRect().toJSON(),panel:document.getElementById('table-insert-picker').getBoundingClientRect().toJSON()}));
+   assert(Math.abs(anchored.panel.top - (anchored.button.bottom + 6)) < 2);
+   assert(anchored.panel.left >= 0 && anchored.panel.right <= width + 1);
    assert.equal(await page.locator('#table-menu-heading > button').first().getAttribute('id'),'btn-jena-table');
    assert.equal(await page.locator('#table-menu-body [onclick^="editMarkdownTableStructure"]').count(),8);
    await page.locator('#table-menu-dock-btn').click();await page.locator('#table-menu-dock').waitFor();
