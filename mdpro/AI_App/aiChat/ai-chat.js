@@ -2001,10 +2001,14 @@
     panel.classList.add('layout-' + layout);
     panel.classList.remove('floating-compact');
     if (layout === 'dock' && slot) {
+      // The slot owns the Dock top layer; its child panel must follow the
+      // normal layout instead of retaining an independent popover lifecycle.
+      panel.removeAttribute('popover');
       slot.style.width = Math.min(DEFAULT_CHAT_WIDTH, root.innerWidth) + 'px';
       slot.appendChild(panel);
       panel.removeAttribute('style');
     } else {
+      panel.setAttribute('popover', 'manual');
       (layout === 'popup' ? popupHost() : frameDocument.body).appendChild(panel);
       panel.removeAttribute('style');
       if (layout === 'popup') applyPopupRect();
@@ -4012,7 +4016,7 @@
         storageSet(GEMINI_MODEL_KEY, state.geminiModel);
         setStatus(isGeminiImageModel(state.geminiModel)
           ? 'Nano Banana 이미지 모델입니다. 생성할 장면을 입력하세요.'
-          : 'AI Studio 전체 모델 목록입니다. 계정별 할당량과 전용 API 지원 여부는 별도 확인이 필요합니다.', 'ok');
+          : '', 'ok');
       }
       providerConnections[requestedProvider] = 'connected';
       if (requestedProvider === 'openai-compatible') compatibleConnectionSettings = compatibleSettings;
