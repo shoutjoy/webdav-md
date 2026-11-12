@@ -20078,7 +20078,10 @@ async function callAIStudioChat(messages, systemInstruction, modelOverride, sign
         ? { responseModalities: ['TEXT', 'IMAGE'] }
         : { maxOutputTokens: maxOutputTokens };
     if (!imageModel && !ttsModel && /^gemini-3/i.test(model)) {
-        generationConfig.thinkingConfig = { thinkingLevel: reasoningMode ? 'high' : fastTask && /flash|lite/i.test(model) ? 'minimal' : 'low' };
+        // Flash 3 and Flash-Lite 3.1 support minimal; Pro does not.
+        // Do not raise Flash-Lite's default thinking effort in instant mode.
+        const supportsMinimalThinking = /^gemini-(?:3-flash|3\.1-flash-lite)(?:-|$)/i.test(model);
+        generationConfig.thinkingConfig = { thinkingLevel: reasoningMode ? 'high' : (supportsMinimalThinking || (fastTask && /flash|lite/i.test(model)) ? 'minimal' : 'low') };
     } else if (!imageModel && !ttsModel && /^gemini-2\.5/i.test(model)) {
         generationConfig.thinkingConfig = { thinkingBudget: reasoningMode ? 4096 : fastTask && /pro/i.test(model) ? 128 : 0 };
     }

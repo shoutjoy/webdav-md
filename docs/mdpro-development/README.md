@@ -41,6 +41,7 @@ WebDAV MDpro와 MDproViewer의 기능 개발, 버그 수정, 리팩터링, 이�
 | MDPRO-20261110-JENA-ALT4-DOC | [AI Jena 하단 플로팅 Alt+4 구현·모바일](changes/2026-11-10-ai-jena-alt4-bottom-floating.md) | 기존 코드 기술서 작성·UI 계약 29개 통과, 모바일 실기기 미검증·코드 미수정 | Viewer 세 배치·모바일 viewport 차이 읽기 비교·미이식 | 문서 전용·이번 재빌드 불필요 |
 | MDPRO-20261110-VITE-CLASSIC-SCRIPTS | [Vite 버튼 실행 오류](changes/2026-11-10-vite-classic-script-buttons.md) | 개발 서버 script 원문 제공·13개 검사·Chrome root/nested/React iframe·빌드 통과 | Viewer 동적 import 확인·루트 Vite 설정 없음·미수정 | 서버 전용 수정·이 항목 재빌드 불필요 |
 | MDPRO-20261110-ME-AI-SETTINGS | [ME AI 설정·압축 UI·도표별 테마](changes/2026-11-10-me-ai-settings-port.md) | WebDAV 이식·102개 검사·Chrome 4개 회귀·웹 빌드 통과, 실제 공급자 품질 미검증 | Viewer 원본 함수 읽기 비교·미수정 | frontend/네이티브/설치 앱 미실행 |
+| MDPRO-20261112-GEMINI-FAST | [Gemini 즉시 응답 추론 복원](changes/2026-11-12-gemini-fast-thinking.md) | 구현·42개 검사·빌드 통과, 실제 속도 미측정 | 대상 경로 없음·미이식 | 웹 이식 후 대기 |
 | MDPRO-20261104-WEBDAV-HWP | [HWP/HWPX 열기·내보내기 이식](changes/2026-11-04-hwp-hwpx-port.md) | 구현·69개 검사·Chrome 열기/수식/중지·빌드 통과, PV 별도 검사 실패 | Viewer 원본 읽기 비교·미수정 | Viewer 원본 존재·WebDAV 적응 역이식 불필요 |
 | MDPRO-20261104-LM-FAST | [LM Studio FAST 추론 정책](changes/2026-11-04-lmstudio-fast-reasoning.md) | 요청 정책 보완·31개 검사·빌드 통과, 실속도 미측정 | 대상 경로 없음·미이식 | 이식 후 반영 대기 |
 | MDPRO-20261029-SITES-INFOGRAPHIC | [Sites 인포그래픽 링크](changes/2026-10-29-sites-infographic-link.md) | URL·캐시 갱신·2개 검사·빌드 통과, UI 미검증 | 대상 확인 필요·미이식 | 웹 이식 후 반영 대기 |
