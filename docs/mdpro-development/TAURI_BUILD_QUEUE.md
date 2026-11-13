@@ -4,6 +4,16 @@
 
 ## 대기 기능
 
+- MDPRO-20261113-TIDY-DOCK-RESPONSIVE: [TIDY Dock 반응형 1열](changes/2026-11-13-tidy-dock-responsive.md) — WebDAV 구현/빌드 통과. 브라우저 검사는 playwright-core 부재로 실행 실패, 실제 UI 미검증. Viewer 웹 이식/frontend/native/설치 대기, 빌드 요청 없음.
+
+- MDPRO-20261113-TABLE-SIZE-COMPACT: [표 크기·편집 기본 접기·한 줄 격자](changes/2026-11-13-table-size-compact.md) — WebDAV 구현·6검사/빌드 통과, 실제 UI 미검증. Viewer 웹 이식·frontend/native/설치 대기, 빌드 요청 없음.
+
+- MDPRO-20261113-MATH-PICKER: [Jena Math 연결·선택 상자 대비](changes/2026-11-13-jena-math-picker.md) — iframe 자체 AI 경로·Lemonade16개·UI 대비·55검사/빌드 통과. 실제 OCR 생성·Viewer 이식/Tauri/설치 미검증.
+
+- MDPRO-20261113-TIDY-CONNECTION: [Jena Tidy·JS 연결 표시](changes/2026-11-13-tidy-connection.md). WebDAV 구현·34검사/웹 빌드 통과, 실제 UI 미검증. Viewer 독립 HTML 선택기 적응·웹 검증·frontend/native/설치 모두 대기. 이번 Tauri 빌드 요청 없음.
+
+- MDPRO-20261113-FIGURE-CAPTION-FOLD: [그림 캡션 기본 접기·모바일 이미지 압축](changes/2026-11-13-figure-caption-fold.md). WebDAV 웹 검증/빌드 완료, Viewer 웹 이식/frontend/native/설치 대기. 이번 빌드 요청 없음.
+
 - MDPRO-20261113-MOBILE-EDITOR-MENUS: [모바일 편집 메뉴·우측 Dock](changes/2026-11-13-mobile-editor-menus.md). WebDAV 표 크기 10열·숫자 입력·모바일 기본 Dock·크기/편집 접기·Mermaid Ref 압축/160px/기본 Dock·샘플/전체화면 후속 수정, Chrome 390/767/1280 검증/빌드 완료. Viewer mobile 변수 적응·웹 이식·frontend/native/설치 모두 대기, 이번 빌드 요청 없음.
 
 | ID | 적용 항목 | 대상 웹 소스 | 웹 검증 | 프런트엔드 준비 | 네이티브 빌드 | 설치 앱 검증 |

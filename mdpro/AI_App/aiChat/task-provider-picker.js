@@ -53,7 +53,10 @@
         }
         if (saved.provider === 'ollama-npu') saved.provider = 'lemonade-flm';
         if (saved.provider === 'openai-compatible') saved.provider = /^(lemonade|lemonade-flm)$/.test(saved.openAICompatibleProvider || '') ? saved.openAICompatibleProvider : 'openai-compatible-env';
-        const host = root.parent !== root ? root.parent : root;
+        // The WebDAV app owns AIChat even when embedded in the React host.
+        // Only child tools (ME/Tidy) without a local runtime use parent messages.
+        const host = root.AIChat || typeof root.openAiJenaChat === 'function'
+            ? root : root.parent !== root ? root.parent : root;
         function parentModels(selectedProvider, force) {
             const requestId = 'task-models-' + Date.now() + '-' + Math.random().toString(36).slice(2);
             return new Promise((resolve, reject) => {

@@ -33,6 +33,16 @@ WebDAV MDpro와 MDproViewer의 기능 개발, 버그 수정, 리팩터링, 이�
 
 ## 변경 목록
 
+- MDPRO-20261113-TIDY-DOCK-RESPONSIVE: [TIDY Dock 반응형 1열](changes/2026-11-13-tidy-dock-responsive.md) — WebDAV 구현/빌드 통과. 브라우저 검사는 playwright-core 부재로 실행 실패, 실제 UI 미검증. Viewer 웹 이식/frontend/native/설치 대기, 빌드 요청 없음.
+
+- MDPRO-20261113-TABLE-SIZE-COMPACT: [표 크기·편집 기본 접기·한 줄 격자](changes/2026-11-13-table-size-compact.md) — WebDAV 구현·6검사/빌드 통과, 실제 UI 미검증. Viewer 웹 이식·frontend/native/설치 대기, 빌드 요청 없음.
+
+- MDPRO-20261113-MATH-PICKER: [Jena Math 연결·선택 상자 대비](changes/2026-11-13-jena-math-picker.md) — iframe 자체 AI 경로·Lemonade16개·UI 대비·55검사/빌드 통과. 실제 OCR 생성·Viewer 이식/Tauri/설치 미검증.
+
+- MDPRO-20261113-TIDY-CONNECTION: [Jena Tidy·JS 연결 상태 보존](changes/2026-11-13-tidy-connection.md) — 상태 badge 보존·초기/모델 변경 확인·34검사/빌드 통과, 실제 UI/공급자 미검증·Viewer 미이식.
+
+- MDPRO-20261113-FIGURE-CAPTION-FOLD: [그림 캡션 기본 접기·모바일 이미지 압축](changes/2026-11-13-figure-caption-fold.md) — Chrome390 접기/펼치기·6검사/빌드 통과, Viewer 미이식.
+
 - MDPRO-20261113-MOBILE-EDITOR-MENUS: [모바일 편집 메뉴·우측 세로 Dock](changes/2026-11-13-mobile-editor-menus.md) — WebDAV 구현·표 10열/숫자입력/모바일 기본 Dock·크기/편집 접기·Mermaid Ref 압축/160px/기본 Dock·샘플/전체화면 후속 수정·Chrome 390/767/1280·35개 검사/빌드 통과, 실기기/Viewer 미검증.
 
 - MDPRO-20261113-ME-SCOPED-CHAT: [Mermaid Ref 상단 내부 코드·대화 분할](changes/2026-11-13-me-scoped-chat.md) — 62검사·빌드·Chrome 모의 오류/중지·실제 FLM 수정/SVG·코드/미리보기 탭·390px·테마/줌/DN PNG 검증 통과, Viewer 미이식.

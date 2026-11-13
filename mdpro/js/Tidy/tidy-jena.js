@@ -10,7 +10,7 @@
     panel.className = 'jena-panel';
     panel.innerHTML = `
         <h2>JS JENA · 기능 개발</h2>
-        <details id="jena-model-settings"><summary id="jena-model-summary">모델 선택</summary>
+        <details id="jena-model-settings"><summary id="jena-model-summary"><span id="jena-model-label">모델 선택</span></summary>
         <div class="toolbar">
             <label>AI <select id="jena-provider"><option value="lmstudio">LM Studio</option><option value="aistudio">AI Studio</option><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option><option value="openai-compatible">OpenAI 호환</option><option value="ollama">Ollama</option><option value="litertlm">LiteRT LM</option></select></label>
             <select id="jena-model" aria-label="AI 모델" style="max-width:100%"></select>
@@ -162,7 +162,9 @@
     if (!host || !host.mountAITaskPicker) model();
     $('jena-provider').onchange = () => model();
     $('jena-model-refresh').onclick = () => model(true);
-    function updateModelSummary() { $('jena-model-summary').textContent = '모델 · ' + $('jena-provider').value + ' / ' + ($('jena-model').value || '기존 설정'); }
+    // The shared picker owns a live connection badge inside the summary.
+    // Update only our label so selection callbacks never remove that badge.
+    function updateModelSummary() { $('jena-model-label').textContent = '모델 · ' + $('jena-provider').value + ' / ' + ($('jena-model').value || '기존 설정'); }
     $('jena-model').onchange = () => { saveModelSelection(); updateModelSummary(); $('jena-model-settings').open = false; };
     if (host && host.mountAITaskPicker) {
         const mount = document.createElement('div');
@@ -178,6 +180,13 @@
             $('jena-model').value = value.model || '';
             updateModelSummary();
         }, {initialSelection:toolProviders ? toolProviders.read('tidy') : {provider:$('jena-provider').value,model:$('jena-model').value}});
+        // Cached IDs alone are not connection evidence. Verify on opening and
+        // after model edits; provider changes already verify in the picker.
+        sharedPicker.refresh();
+        mount.addEventListener('change', event => {
+            if (event.target.getAttribute('aria-label') === 'AI 모델 전체 목록'
+                || event.target.getAttribute('aria-label') === 'AI 모델') sharedPicker.refresh();
+        });
     }
 
     function say(text, record = true) {

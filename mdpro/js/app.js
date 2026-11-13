@@ -9989,6 +9989,22 @@ function prepareCaptionPanel(mode) {
 function toggleCaptionInsertPanel(mode, forceOpen) {
     const ui = getCaptionUi(mode);
     if (!ui.panel) return;
+    if (ui.mode === 'figure') {
+        const body = document.getElementById('figure-caption-body');
+        const toggle = document.getElementById('figure-caption-toggle');
+        if (!body) return;
+        const expanded = forceOpen === true || (forceOpen !== false && body.classList.contains('hidden'));
+        if (expanded && !prepareCaptionPanel(ui.mode)) return;
+        ui.panel.classList.remove('hidden');
+        body.classList.toggle('hidden', !expanded);
+        if (toggle) {
+            toggle.textContent = expanded ? '접기 ▲' : '펼치기 ▼';
+            toggle.setAttribute('aria-expanded', String(expanded));
+        }
+        if (expanded && ui.textInput) setTimeout(() => ui.textInput.focus(), 0);
+        else if (toggle) toggle.focus({preventScroll:true});
+        return;
+    }
     const shouldOpen = forceOpen === true ? true : forceOpen === false ? false : ui.panel.classList.contains('hidden');
     if (shouldOpen && !prepareCaptionPanel(ui.mode)) return;
     ui.panel.classList.toggle('hidden', !shouldOpen);
@@ -14350,14 +14366,14 @@ function ensureTableInsertPickerBuilt() {
             cell.className = 'w-4 h-4 rounded-[2px] border border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-800 hover:border-indigo-500';
             cell.dataset.rows = String(r);
             cell.dataset.cols = String(c);
-            cell.style.display = r <= 3 ? '' : 'none';
+            cell.style.display = r <= 1 ? '' : 'none';
             cell.onmouseenter = function () { previewTableInsertSize(r, c); };
             cell.onfocus = function () { previewTableInsertSize(r, c); };
             cell.onclick = function () { selectTableInsertSize(r, c); };
             grid.appendChild(cell);
         }
     }
-    grid.dataset.visibleRows = '3';
+    grid.dataset.visibleRows = '1';
     grid.addEventListener('mouseleave', function () {
         previewTableInsertSize(0, 0);
     });
@@ -14366,9 +14382,9 @@ function ensureTableInsertPickerBuilt() {
 function resetTableInsertGridRows() {
     const grid = document.getElementById('table-insert-grid');
     if (!grid) return;
-    grid.dataset.visibleRows = '3';
+    grid.dataset.visibleRows = '1';
     grid.querySelectorAll('button[data-rows][data-cols]').forEach(function (cell) {
-        cell.style.display = Number(cell.dataset.rows) <= 3 ? '' : 'none';
+        cell.style.display = Number(cell.dataset.rows) <= 1 ? '' : 'none';
     });
 }
 
@@ -14381,10 +14397,10 @@ function previewTableInsertSize(rows, cols) {
     }
     const grid = document.getElementById('table-insert-grid');
     if (!grid) return;
-    // Follow the current selection in both directions, with at least three rows.
+    // Follow the current selection in both directions, starting from one row.
     const visibleRows = rows > 0
-        ? Math.min(10, Math.max(3, rows + 1))
-        : (Number(grid.dataset.visibleRows) || 3);
+        ? Math.min(10, Math.max(1, rows + 1))
+        : (Number(grid.dataset.visibleRows) || 1);
     grid.dataset.visibleRows = String(visibleRows);
     const cells = grid.querySelectorAll('button[data-rows][data-cols]');
     for (let i = 0; i < cells.length; i += 1) {

@@ -40,6 +40,10 @@
         @media(max-width:760px) {header {padding-left:12px} .btn {min-height:44px} main,main.sidebar-collapsed,main.no-ai,main.no-ai.sidebar-collapsed {display:flex;flex-direction:column;overflow:auto} aside {flex:none;border-right:0;border-bottom:1px solid var(--line);max-height:42vh} #sidebar-content {max-height:30vh} .sidebar-collapsed .sidebar-tabs {display:flex} .sidebar-collapsed .sidebar-heading {padding:6px} .editor {min-height:400px;flex:none;overflow:visible} #code {min-height:260px} .jena-panel {flex:none;border-left:0;border-top:1px solid var(--line);overflow:visible} .chat-log {max-height:240px} }
         #jena-picker {display:flex;max-width:100%;min-width:0} #jena-picker select {flex:1 1 130px;max-width:100%} #jena-picker [hidden] {display:none!important} #jena-picker .ai-task-connection {font-size:12px;overflow-wrap:anywhere;min-width:0;max-width:100%}
 
+        #jena-model-summary .ai-task-connection {display:block;margin-top:4px;font-size:12px;overflow-wrap:anywhere;color:var(--muted)}
+        #jena-model-summary .ai-task-connection[data-state=connected] {color:var(--accent)}
+        #jena-model-summary .ai-task-connection[data-state=failed] {color:#ef4444}
+
         @media(min-width:761px) {
             #sidebar{grid-column:1} #tidy-left-splitter{grid-column:2} .editor{grid-column:3} #tidy-right-splitter{grid-column:4} #jena-panel{grid-column:5}
             #workspace {grid-template-columns:var(--tidy-left-width,230px) 8px minmax(220px,1fr) 8px var(--tidy-right-width,350px)}
