@@ -4713,3 +4713,12 @@ body.mermaid-workspace-split #mermaid-editor-modal-panel { border-radius:0; box-
 .img2math-model-settings summary .ai-task-connection { margin-left: 12px; font-weight: 600; }
 .img2math-model-settings .ai-task-connection[data-state="connected"] { color: #5eead4; }
 .img2math-model-settings .ai-task-connection[data-state="failed"] { color: #fda4af; }
+
+/* Table prompt disclosure: controls keep their IDs and input values. */
+#jena-table-prompt-settings > summary { cursor:pointer; list-style:none; display:flex; align-items:center; gap:8px; }
+#jena-table-prompt-settings > summary::-webkit-details-marker { display:none; }
+#jena-table-prompt-settings > summary::after { content:'▸ 펼치기'; margin-left:auto; font-size:12px; color:#8ab3bf; }
+#jena-table-prompt-settings[open] > summary::after { content:'▾ 접기'; }
+#jena-table-prompt-settings > summary h3 { margin:0; }
+#jena-table-prompt-settings > summary:focus-visible { outline:2px solid #2dd4bf; outline-offset:4px; border-radius:6px; }
+#jena-table-prompt-settings { margin-bottom:10px; }
