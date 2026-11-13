@@ -86,6 +86,36 @@
         panel = document.getElementById('table-insert-picker');
         document.body.appendChild(panel);
         panel.classList.add('table-menu-floating');
+        const sizeForm = document.createElement('form');
+        sizeForm.className = 'table-size-inputs';
+        sizeForm.innerHTML = '<label>행<input name="rows" aria-label="표 행 수" type="number" inputmode="numeric" min="1" max="10" step="1" value="3" required></label><label>열<input name="cols" aria-label="표 열 수" type="number" inputmode="numeric" min="1" max="10" step="1" value="3" required></label><button type="submit">표 넣기</button>';
+        sizeForm.addEventListener('submit', event => {
+            event.preventDefault();
+            if (!sizeForm.reportValidity()) return;
+            global.selectTableInsertSize(Number(sizeForm.elements.rows.value), Number(sizeForm.elements.cols.value));
+        });
+        const sizeLabel = document.getElementById('table-insert-size-label');
+        sizeLabel.after(sizeForm);
+        const mobile = global.matchMedia('(max-width:767px)');
+        function foldSection(id, title, nodes) {
+            const section = document.createElement('details');
+            section.id = id;
+            section.className = 'table-menu-section';
+            section.open = !mobile.matches;
+            const heading = document.createElement('summary');
+            heading.textContent = title;
+            section.appendChild(heading);
+            nodes[0].before(section);
+            nodes.forEach(node => section.appendChild(node));
+            return section;
+        }
+        const sizeSection = foldSection('table-size-section', '크기 선택', [sizeLabel, sizeForm, document.getElementById('table-insert-grid')]);
+        const structure = panel.querySelector('.table-structure-actions');
+        const editSection = foldSection('table-edit-section', '표 편집 (표 안에 커서)', [structure]);
+        // Keep the original heading and every command in the expandable body.
+        mobile.addEventListener('change', () => {
+            sizeSection.open = editSection.open = !mobile.matches;
+        });
         bindPointer(document.getElementById('table-menu-heading'), '');
         ['n','s','e','w','ne','nw','se','sw'].forEach(direction => {
             const handle = document.createElement('span');
@@ -114,6 +144,12 @@
     function open() {
         init();
         panel.classList.remove('hidden');
+        if (innerWidth <= 767) {
+            if (!slot) toggleDock();
+            sync();
+            document.getElementById('table-menu-dock-btn').focus();
+            return;
+        }
         panel.dataset.anchored = 'true';
         const anchor = document.getElementById('btn-table-insert-picker').getBoundingClientRect();
         const top = Math.min(anchor.bottom + 6, innerHeight - 100);

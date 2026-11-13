@@ -89,7 +89,7 @@ test('late failure from previous provider does not clear current provider model'
 });
 
 for (const [preferred, alternative] of [['lemonade', 'ollama'], ['ollama', 'lemonade']]) {
-  test(`${preferred} offline automatically selects working ${alternative}`, async () => {
+  test(`${preferred} offline never switches to ${alternative}`, async () => {
     const calls = [];
     const bridge = Object.fromEntries(['lemonade', 'ollama'].map(provider => [provider === 'lemonade' ? 'refreshLemonadeModels' : 'refreshOllamaModels', async () => {
       calls.push(provider);
@@ -98,18 +98,18 @@ for (const [preferred, alternative] of [['lemonade', 'ollama'], ['ollama', 'lemo
     }]));
     const { context, badge } = harness(preferred, bridge);
     await context.refreshModels(true);
-    assert.deepEqual(calls, [preferred, alternative]);
-    assert.equal(context.state.provider, alternative);
-    assert.equal(badge.dataset.status, 'connected');
+    assert.deepEqual(calls, [preferred]);
+    assert.equal(context.state.provider, preferred);
+    assert.equal(badge.dataset.status, 'error');
   });
 }
 
-test('both local servers offline stop after one fallback and display failure', async () => {
+test('selected local server failure never probes another provider', async () => {
   let calls = 0;
   const offline = async () => { calls++; throw new Error('offline'); };
   const { context, badge } = harness('lemonade', { refreshLemonadeModels: offline, refreshOllamaModels: offline });
   await context.refreshModels(true);
-  assert.equal(calls, 2);
+  assert.equal(calls, 1);
   assert.equal(badge.dataset.status, 'error');
 });
 
@@ -146,11 +146,11 @@ for (const selected of ['image', 'audio', 'music', 'transcription']) {
   });
 }
 
-test('startup defaults to Lemonade and migrates the old LM Studio default once', () => {
+test('startup defaults to Lemonade but preserves explicitly saved LM Studio', () => {
   const start = source.indexOf("    var savedProvider = storageGet(PROVIDER_KEY, 'lemonade');");
   const end = source.indexOf('    state.providerControlsOpen =', start);
   for (const [saved, revision, expected] of [
-    [undefined, '', 'lemonade'], ['lmstudio', '', 'lemonade'],
+    [undefined, '', 'lemonade'], ['lmstudio', '', 'lmstudio'],
     ['ollama', '', 'ollama'], ['openai', '', 'openai'],
     ['lmstudio', 'lemonade-ollama-v2', 'lmstudio']
   ]) {

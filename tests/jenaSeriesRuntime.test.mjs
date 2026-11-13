@@ -16,7 +16,7 @@ function method(text,name) {
  walk(parse(text,{ecmaVersion:'latest'}));assert(node,name);return text.slice(node.start,node.end);
 }
 function taskHarness(complete,initialize=async()=>{}) {
- const context=vm.createContext({AbortController,setTimeout,clearTimeout,state:{provider:'ollama'},storageGet:()=> 'orcarouter',activeProviderModel:()=> 'inherited-model',ensureInitialized:initialize,getBridge:()=>({complete})});
+ const context=vm.createContext({AbortController,setTimeout,clearTimeout,localModelLoading:false,state:{provider:'ollama'},storageGet:()=> 'orcarouter',activeProviderModel:()=> 'inherited-model',ensureInitialized:initialize,getBridge:()=>({complete})});
  vm.runInContext('api=({'+method(chat,'completeTask')+'})',context);return context.api;
 }
 for(const [provider,profile,expected] of [['ollama',undefined,'ollama'],['litertlm',undefined,'litertlm'],['lmstudio',undefined,'lmstudio'],['lemonade','lemonade','openai-compatible'],['lemonade-flm','lemonade-flm','openai-compatible'],['openai-compatible','orcarouter','openai-compatible'],['aistudio',undefined,'aistudio']]) {
@@ -114,4 +114,24 @@ test('estimated generation includes reasoning without copying reasoning into the
  const context=vm.createContext({window,document:{getElementById:id=>id==='fixture-task-status'?panel:null,querySelectorAll:()=>[]},performance:{now:()=>1000},AbortController,DOMException});
  vm.runInContext(fs.readFileSync('mdpro/js/jena-tool-runtime.js','utf8'),context);
  const job=window.JenaToolRuntime.start('fixture',{output});await job.complete({});assert.equal(output.value,'efgh');assert.match(metrics.textContent,/생성 2 tok/);job.finish(true);
+});
+
+test('FLM independent text tasks bypass cloud credentials and use NPU transport', async()=>{
+ for (const selection of [{provider:'lemonade-flm'}, {provider:'openai-compatible',openAICompatibleProvider:'lemonade-flm'}]) {
+  let sent;
+  const context=vm.createContext({AbortController,setTimeout,clearTimeout,aiChatAbortController:null,
+   applyLocalAIChatResponseStyle:r=>r,
+   callNPUChat:async request=>{sent=request;return {text:'local NPU'};},
+   getStoredOpenAICompatibleConnection:()=>{throw new Error('Cloud credentials must not be read');}
+  });
+  vm.runInContext('api=({'+method(app,'complete')+'})',context);
+  assert.equal((await context.api.complete({...selection,independent:true,model:'gemma4-it-e4b-FLM',messages:[{role:'user',content:'graph TD; A-->B'}]})).text,'local NPU');
+  assert.equal(sent.provider,'ollama-npu');assert.equal(sent.model,'gemma4-it-e4b-FLM');
+ }
+});
+test('Mermaid Jena inheritance keeps Lemonade separate from cloud profile',()=>{
+ const values={ss_ai_chat_provider:'lemonade',ss_ai_chat_lemonade_model:'local-model',ss_ai_chat_openai_compatible_active_provider:'orcarouter'};
+ const context=vm.createContext({localStorage:{getItem:key=>values[key]||null}});
+ vm.runInContext(declaration(app,'getMermaidVisionProviderSelection'),context);
+ const result=context.getMermaidVisionProviderSelection();assert.equal(result.provider,'lemonade');assert.equal(result.model,'local-model');
 });

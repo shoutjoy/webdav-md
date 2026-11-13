@@ -740,7 +740,7 @@
     if (record && record.provider) {
       var nextProvider = String(record.provider || '').toLowerCase();
       var preferredLocalProvider = storageGet(PROVIDER_KEY, state.provider);
-      if (nextProvider === 'lmstudio' && (preferredLocalProvider === 'lemonade' || preferredLocalProvider === 'ollama')) nextProvider = preferredLocalProvider;
+      if (/^(lmstudio|lemonade|ollama)$/.test(nextProvider) && /^(lmstudio|lemonade|ollama)$/.test(preferredLocalProvider)) nextProvider = preferredLocalProvider;
       state.provider = nextProvider === 'aistudio' || nextProvider === 'ollama' || nextProvider === 'ollama-npu' || nextProvider === 'litertlm' || nextProvider === 'lemonade' || nextProvider === 'deepseek' || nextProvider === 'openai-compatible' || nextProvider === 'openai' ? nextProvider : 'lmstudio';
     }
     if (record && record.responseMode) state.responseMode = record.responseMode === 'reasoning' ? 'reasoning' : 'quick';
@@ -4047,14 +4047,6 @@
     } catch (error) {
       if (state.provider !== requestedProvider || refreshRevision !== modelRefreshRevision) return;
       providerConnections[requestedProvider] = 'error';
-      if (!fallbackAttempted && (requestedProvider === 'lmstudio' || requestedProvider === 'lemonade' || requestedProvider === 'ollama') && !isActiveImageModel()) {
-        state.provider = requestedProvider === 'lemonade' ? 'ollama' : 'lemonade';
-        storageSet(PROVIDER_KEY, state.provider);
-        updateProviderUI();
-        setStatus(providerDisplayName(requestedProvider) + ' 연결 실패 · ' + providerDisplayName(state.provider) + ' 서버를 확인하는 중...', 'loading');
-        await refreshModels(silent, requestedProvider !== 'lmstudio');
-        return;
-      }
       if (state.provider === 'lmstudio') {
         state.lmModel = '';
         state.lmContextLength = 0;
@@ -6095,7 +6087,7 @@
             item.appendChild(content);
           }
         }
-        if (message.role === 'assistant' && (message.provider === 'lmstudio' || message.provider === 'ollama' || message.provider === 'aistudio') && message.usage) {
+        if (message.role === 'assistant' && (message.provider === 'lmstudio' || message.provider === 'ollama' || message.provider === 'lemonade' || message.provider === 'aistudio') && message.usage) {
           var usage = message.usage || {};
           var responseStatsParts = [];
           var inputTokenCount = Number(usage.input_tokens || usage.promptTokens || usage.prompt_tokens || 0);
@@ -7347,10 +7339,10 @@
     realtimeDocActive = false;
     realtimeDocExclusive = false;
     try {
-      if ((state.provider === 'lemonade' || state.provider === 'ollama') && !isActiveImageModel()) {
+      if ((state.provider === 'lemonade' || state.provider === 'ollama') && !isActiveImageModel() && providerConnections[state.provider] !== 'connected') {
         await refreshModels(false);
         assertGenerationActive(requestRevision);
-        if (providerConnections[state.provider] !== 'connected') throw new Error('Lemonade와 Ollama에 연결하지 못했습니다. 서버 실행 및 채팅 모델 설치 상태를 확인하세요.');
+        if (providerConnections[state.provider] !== 'connected') throw new Error(providerDisplayName(state.provider) + ' 서버에 연결하지 못했습니다. 선택한 서버와 모델을 확인하세요.');
       }
       var academicSearchActive = !state.fastMode && state.academicSearchEnabled && !isActiveImageModel();
       var internetSearchActive = !state.fastMode && state.internetSearchEnabled && !isActiveImageModel();
@@ -7744,7 +7736,7 @@
     bindPreserveEditorSelectionOnPanel();
     var savedProvider = storageGet(PROVIDER_KEY, 'lemonade');
     if (storageGet(LOCAL_PROVIDER_DEFAULT_KEY, '') !== 'lemonade-ollama-v2') {
-      if (savedProvider === 'lmstudio') savedProvider = 'lemonade';
+      // Preserve an explicitly saved provider; default only when unset.
       storageSet(PROVIDER_KEY, savedProvider);
       storageSet(LOCAL_PROVIDER_DEFAULT_KEY, 'lemonade-ollama-v2');
     }
@@ -7856,6 +7848,7 @@
       return promotePanelToTopLayer();
     },
     syncSettings: function () {
+      if (state.running || localModelLoading) return;
       var provider = storageGet(PROVIDER_KEY, state.provider);
       state.provider = provider === 'aistudio' || provider === 'ollama' || provider === 'ollama-npu' || provider === 'litertlm' || provider === 'lemonade' || provider === 'deepseek' || provider === 'openai-compatible' || provider === 'openai'
         ? provider : 'lmstudio';

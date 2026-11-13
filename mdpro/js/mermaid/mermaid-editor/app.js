@@ -100,6 +100,101 @@ const revisionStatus = document.getElementById('mermaid-code-revision-status');
 let mermaidCodeRevisionActive = false;
 let mermaidCodeRevisionContext = null;
 let revisionReadyCode = '';
+let revisionChatReply = null;
+const revisionCodeTab = document.getElementById('mermaid-revision-code-tab');
+const revisionPreviewTab = document.getElementById('mermaid-revision-preview-tab');
+const revisionCodePanel = document.getElementById('mermaid-revision-code-panel');
+const revisionPreviewPanel = document.getElementById('mermaid-revision-preview-panel');
+const revisionPreview = document.getElementById('mermaid-revision-preview');
+const revisionPreviewError = document.getElementById('mermaid-revision-preview-error');
+let revisionPreviewVersion = 0;
+let revisionPreviewTimer;
+let revisionPreviewDark = false;
+let revisionPreviewZoom = 1;
+const revisionDownload = document.getElementById('mermaid-revision-download');
+function updateRevisionPreviewZoom(delta = null) {
+  revisionPreviewZoom = delta === 0 ? 1 : Math.max(0.25, Math.min(4, Math.round((revisionPreviewZoom + (delta || 0)) * 100) / 100));
+  document.getElementById('mermaid-revision-zoom').textContent = Math.round(revisionPreviewZoom * 100) + '%';
+  const svg = revisionPreview.querySelector('svg');
+  if (svg) { svg.style.width = (revisionPreviewZoom * 100) + '%'; svg.style.maxWidth = 'none'; }
+}
+document.getElementById('mermaid-revision-zoom-out').addEventListener('click', () => updateRevisionPreviewZoom(-0.25));
+document.getElementById('mermaid-revision-zoom-in').addEventListener('click', () => updateRevisionPreviewZoom(0.25));
+document.getElementById('mermaid-revision-zoom-reset').addEventListener('click', () => updateRevisionPreviewZoom(0));
+document.getElementById('mermaid-revision-theme').addEventListener('click', () => {
+  revisionPreviewDark = !revisionPreviewDark;
+  document.getElementById('mermaid-revision-theme').textContent = revisionPreviewDark ? 'Light' : 'Dark';
+  revisionPreviewPanel.classList.toggle('revision-preview-dark', revisionPreviewDark);
+  renderRevisionPreview();
+});
+revisionDownload.addEventListener('click', async () => {
+  const svg = revisionPreview.querySelector('svg');
+  if (!svg || revisionDownload.disabled) return;
+  revisionDownload.disabled = true;
+  try {
+    const blob = await createRenderedPngBlob(svg, revisionPreviewDark);
+    triggerDownload(URL.createObjectURL(blob), 'mermaid-preview.png', true);
+  } catch (error) { revisionPreviewError.textContent = '다운로드 실패: ' + error.message; }
+  finally { revisionDownload.disabled = !revisionPreview.querySelector('svg'); }
+});
+async function renderRevisionPreview() {
+  if (revisionPreviewPanel.hidden) return;
+  const version = ++revisionPreviewVersion;
+  const snapshot = revisionSource.value;
+  revisionDownload.disabled = true;
+  revisionPreview.replaceChildren(); revisionPreviewError.textContent = '렌더링 중…';
+  try {
+    if (!snapshot.trim()) throw new Error('현재 코드 가져오기 또는 코드 입력 후 미리보기를 선택하세요.');
+    applyMermaidPreviewTheme(revisionPreviewDark);
+    const prepared = preprocessMermaidSourceForRender(snapshot);
+    if (await mermaid.parse(prepared.source, { suppressErrors: true }) === false) throw new Error('Mermaid 구문을 확인해 주세요.');
+    const result = await mermaid.render('revision-preview-' + Date.now() + '-' + version, prepared.source);
+    if (version !== revisionPreviewVersion || revisionPreviewPanel.hidden || snapshot !== revisionSource.value) return;
+    if (isErrorSvg(result.svg)) throw new Error(extractSvgErrorText(result.svg) || 'Mermaid 렌더링 오류');
+    revisionPreview.innerHTML = result.svg;
+    restoreSankeyAliasLabels(prepared.labelMap, revisionPreview);
+    polishRenderedMermaidSvg(revisionPreview);
+    if (result.bindFunctions) result.bindFunctions(revisionPreview);
+    updateRevisionPreviewZoom();
+    revisionDownload.disabled = false;
+    revisionPreviewError.textContent = '';
+  } catch (error) {
+    if (version !== revisionPreviewVersion || revisionPreviewPanel.hidden || snapshot !== revisionSource.value) return;
+    revisionPreview.replaceChildren(); revisionPreviewError.textContent = error.message || String(error);
+  }
+}
+function selectRevisionView(preview) {
+  ++revisionPreviewVersion;
+  revisionCodePanel.hidden = preview; revisionPreviewPanel.hidden = !preview;
+  revisionCodeTab.setAttribute('aria-selected', String(!preview)); revisionPreviewTab.setAttribute('aria-selected', String(preview));
+  revisionCodeTab.tabIndex = preview ? -1 : 0; revisionPreviewTab.tabIndex = preview ? 0 : -1;
+  if (preview) renderRevisionPreview();
+}
+revisionCodeTab.addEventListener('click', () => selectRevisionView(false));
+revisionPreviewTab.addEventListener('click', () => selectRevisionView(true));
+[revisionCodeTab, revisionPreviewTab].forEach(tab => tab.addEventListener('keydown', event => {
+  if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+  event.preventDefault();
+  const preview = event.key === 'End' || (event.key !== 'Home' && tab === revisionCodeTab);
+  selectRevisionView(preview); (preview ? revisionPreviewTab : revisionCodeTab).focus();
+}));
+revisionSource.addEventListener('input', () => {
+  ++revisionPreviewVersion; clearTimeout(revisionPreviewTimer);
+  revisionPreviewTimer = setTimeout(renderRevisionPreview, 200);
+});
+function addRevisionChatMessage(role, text) {
+  const item = document.createElement('article'); item.className = 'revision-message revision-' + role;
+  const label = document.createElement('strong'); label.textContent = role === 'user' ? '나' : 'Jena ME';
+  const body = document.createElement('pre'); body.textContent = text;
+  item.append(label, body); revisionResult.appendChild(item); revisionResult.scrollTop = revisionResult.scrollHeight;
+  return body;
+}
+function updateRevisionChat(text, failed) {
+  if (!revisionChatReply) return;
+  revisionChatReply.textContent = text;
+  revisionChatReply.parentElement.classList.toggle('revision-failed', !!failed);
+  revisionResult.scrollTop = revisionResult.scrollHeight;
+}
 function syncMermaidRevisionControls() {
   const busy = !!mermaidImageRequestId;
   revisionRun.disabled = !mermaidAiFeatureEnabled || busy || !revisionSource.value.trim() || !revisionPrompt.value.trim();
@@ -107,10 +202,11 @@ function syncMermaidRevisionControls() {
   revisionImport.disabled = revisionSource.disabled = revisionPrompt.disabled = busy;
   revisionApply.disabled = busy || !revisionReadyCode;
 }
-revisionSource.addEventListener('input', syncMermaidRevisionControls);
+revisionSource.addEventListener('input', function () { revisionReadyCode = ''; syncMermaidRevisionControls(); });
 revisionPrompt.addEventListener('input', syncMermaidRevisionControls);
 revisionImport.addEventListener('click', function () {
-  revisionSource.value = editor.value;
+  revisionSource.value = editor.value; revisionReadyCode = ''; renderRevisionPreview();
+  addRevisionChatMessage('assistant', '현재 편집기의 코드를 왼쪽 코드창으로 가져왔습니다.');
   revisionStatus.textContent = '현재 편집기의 코드를 가져왔습니다. 수정 지시를 입력하세요.';
   syncMermaidRevisionControls(); revisionPrompt.focus();
 });
@@ -119,7 +215,7 @@ revisionStop.addEventListener('click', stopMermaidImageRequest);
 revisionApply.addEventListener('click', async function () {
   if (!revisionReadyCode || mermaidImageRequestId || !mermaidAiFeatureEnabled) return;
   // The existing editor undo stack is the single source of undo for this application.
-  pushEditorUndoState(); editor.value = revisionReadyCode; await render();
+  pushEditorUndoState(); editor.value = revisionReadyCode; revisionSource.value = revisionReadyCode; renderRevisionPreview(); await render();
   if (errorDiv.style.display === 'block') return;
   saveMermaidHistoryRecord(revisionReadyCode, mermaidCodeRevisionContext);
   revisionStatus.textContent = '수정 결과를 코드 편집기에 적용했습니다. 되돌리기로 이전 코드로 복원할 수 있습니다.';
@@ -245,7 +341,7 @@ function stopMermaidImageRequest() {
   window.parent.postMessage({ type: 'mdv-cancel-image-to-mermaid', requestId: id }, '*');
   mermaidImageGenerate.disabled = !hasMermaidReference();
   if (!mermaidCodeRevisionActive && !mermaidImageReceivedStream) editor.value = mermaidImagePreviousCode;
-  if (mermaidCodeRevisionActive) revisionStatus.textContent = '코드 수정을 중지했습니다. 가져온 코드와 편집기는 유지됩니다.';
+  if (mermaidCodeRevisionActive) { revisionStatus.textContent = '코드 수정을 중지했습니다. 가져온 코드와 편집기는 유지됩니다.'; updateRevisionChat((mermaidImageStreamText || '') + '\n코드 수정을 중지했습니다.'); }
   mermaidCodeRevisionActive = false; syncMermaidRevisionControls();
   document.getElementById('mermaid-image-progress-panel').hidden = true;
   setMermaidImageStatus('생성을 중지했습니다. 다시 실행할 수 있습니다.');
@@ -973,14 +1069,14 @@ function applyPreviewThemeUI() {
   if (previewThemeToggleBtn) previewThemeToggleBtn.textContent = previewDarkMode ? 'Light' : 'Dark';
 }
 
-function applyMermaidPreviewTheme() {
+function applyMermaidPreviewTheme(dark = previewDarkMode) {
   mermaid.initialize({
     startOnLoad: false,
     suppressErrorRendering: true,
     securityLevel: 'loose',
-    theme: previewDarkMode ? 'dark' : 'default',
+    theme: dark ? 'dark' : 'default',
     flowchart: { useMaxWidth: true, htmlLabels: true },
-    themeVariables: previewDarkMode ? DARK_MERMAID_THEME_VARIABLES : LIGHT_MERMAID_THEME_VARIABLES
+    themeVariables: dark ? DARK_MERMAID_THEME_VARIABLES : LIGHT_MERMAID_THEME_VARIABLES
   });
 }
 
@@ -1126,9 +1222,9 @@ async function autoFixMermaidCode() {
   editor.focus();
 }
 
-function restoreSankeyAliasLabels(labelMap) {
-  if (!labelMap || !renderDiv) return;
-  const svg = renderDiv.querySelector('svg');
+function restoreSankeyAliasLabels(labelMap, container = renderDiv) {
+  if (!labelMap || !container) return;
+  const svg = container.querySelector('svg');
   if (!svg) return;
   const textNodes = svg.querySelectorAll('text, tspan');
   function escapeRegExp(text) {
@@ -1145,9 +1241,9 @@ function restoreSankeyAliasLabels(labelMap) {
   }
 }
 
-function polishRenderedMermaidSvg() {
-  if (!renderDiv) return;
-  const svg = renderDiv.querySelector('svg');
+function polishRenderedMermaidSvg(container = renderDiv) {
+  if (!container) return;
+  const svg = container.querySelector('svg');
   if (!svg || svg.querySelector('style[data-mdv-mermaid-polish="1"]')) return;
   svg.style.display = 'block';
   svg.style.marginLeft = 'auto';
@@ -1593,7 +1689,7 @@ function extractPartialMermaidCode(value) {
 
 function showStreamingMermaidCode(rawText) {
   const code = extractPartialMermaidCode(rawText);
-  if (mermaidCodeRevisionActive) { revisionResult.value = code; revisionResult.scrollTop = revisionResult.scrollHeight; revisionStatus.textContent = '코드 수정 응답 수신 중… ' + code.length + '자'; return; }
+  if (mermaidCodeRevisionActive) { updateRevisionChat(rawText); revisionStatus.textContent = '코드 수정 응답 수신 중… ' + code.length + '자'; return; }
   editor.value = code;
   editor.scrollTop = editor.scrollHeight;
   // Incomplete source stays in the editor; render the finished diagram once.
@@ -1690,7 +1786,7 @@ function requestMermaidFromImage(mode) {
   const selection = mermaidTaskPicker.selection();
   if (selection.provider && !selection.model && selection.provider !== 'lmstudio') return setMermaidImageStatus('AI 모델을 선택하거나 모델 ID를 입력해 주세요.', true);
   mermaidCodeRevisionActive = editing;
-  if (editing) { mermaidCodeRevisionContext = { source: revisionSource.value, prompt: revisionPrompt.value.trim() }; revisionReadyCode = ''; revisionResult.value = ''; revisionStatus.textContent = '코드 수정 요청 중…'; }
+  if (editing) { mermaidCodeRevisionContext = { source: revisionSource.value, editorSource: editor.value, prompt: revisionPrompt.value.trim() }; revisionReadyCode = ''; addRevisionChatMessage('user', revisionPrompt.value.trim()); revisionChatReply = addRevisionChatMessage('assistant', '응답 대기 중…'); revisionStatus.textContent = '코드 수정 요청 중…'; }
   mermaidImageRequestId = 'mermaid-image-' + Date.now();
   syncMermaidRevisionControls();
   mermaidMetricsStarted = Date.now();
@@ -1719,7 +1815,7 @@ function requestMermaidFromImage(mode) {
     mermaidImageGenerate.disabled = !hasMermaidReference();
     document.getElementById('mermaid-image-stop').disabled = true;
     if (!mermaidCodeRevisionActive && !mermaidImageReceivedStream) editor.value = mermaidImagePreviousCode;
-    if (mermaidCodeRevisionActive) revisionStatus.textContent = '코드 수정 응답 제한 시간을 초과했습니다.';
+    if (mermaidCodeRevisionActive) { revisionStatus.textContent = '코드 수정 응답 제한 시간을 초과했습니다.'; updateRevisionChat(revisionStatus.textContent, true); }
     mermaidCodeRevisionActive = false; syncMermaidRevisionControls();
     setMermaidImageStatus('AI 응답 제한 시간을 초과했습니다. 연결과 모델을 확인한 뒤 다시 실행해 주세요.', true);
     mermaidTaskPicker.setConnection('응답 시간 초과 · 재연결 필요', 'failed');
@@ -1908,24 +2004,35 @@ window.addEventListener('message', async function (event) {
   if (!data.ok) {
     document.getElementById('mermaid-image-stop').hidden = true;
     if (!wasRevision && !mermaidImageReceivedStream) editor.value = mermaidImagePreviousCode;
-    if (wasRevision) revisionStatus.textContent = data.error || '코드 수정에 실패했습니다.';
+    if (wasRevision) { revisionStatus.textContent = data.error || '코드 수정에 실패했습니다.'; updateRevisionChat(revisionStatus.textContent, true); }
+    document.getElementById('mermaid-image-progress-panel').hidden = true;
     mermaidTaskPicker.setConnection('요청 실패 · ' + (data.error || '연결 확인 필요'), 'failed');
     return setMermaidImageStatus(data.error || 'Mermaid 코드 생성에 실패했습니다.', true);
   }
   setMermaidProgress(95);
   mermaidTaskPicker.setConnection((data.provider === 'aistudio' ? 'AI Studio' : (data.provider || 'Jena ME')) + ' · 연결됨 · ' + (data.model || ''), 'connected');
   const code = extractMermaidCodeFromAI(data.code);
-  if (!code) { if (wasRevision) revisionStatus.textContent = 'AI가 유효한 Mermaid 코드를 반환하지 않았습니다.'; return setMermaidImageStatus('AI가 유효한 Mermaid 코드를 반환하지 않았습니다.', true); }
+  if (!code) { if (wasRevision) { revisionStatus.textContent = 'AI가 유효한 Mermaid 코드를 반환하지 않았습니다.'; updateRevisionChat(revisionStatus.textContent, true); } document.getElementById('mermaid-image-stop').hidden = true; return setMermaidImageStatus('AI가 유효한 Mermaid 코드를 반환하지 않았습니다.', true); }
   if (wasRevision) {
-    revisionResult.value = code;
+    updateRevisionChat(String(data.code || code));
     const context = mermaidCodeRevisionContext;
     try {
       if (!code.trim()) throw new Error('빈 코드가 반환되었습니다.');
-      await mermaid.parse(code);
+      const repaired = await MermaidAIQuality.repairSyntax(code, value => mermaid.parse(value, { suppressErrors: true }));
+      if (await mermaid.parse(repaired.code, { suppressErrors: true }) === false) throw new Error('Mermaid 구문 검사를 통과하지 못했습니다.');
       if (mermaidImageRequestId || context !== mermaidCodeRevisionContext) return;
-      revisionReadyCode = code; revisionStatus.textContent = '수정 완료 · 결과를 확인한 뒤 수정 결과 적용을 누르세요.';
-      setMermaidProgress(100); setMermaidImageStatus('코드 수정 완료 · 결과를 검토한 뒤 적용하세요.'); syncMermaidRevisionControls();
-    } catch (error) { revisionReadyCode = ''; revisionStatus.textContent = '수정 결과 구문 확인 실패: ' + error.message; document.getElementById('mermaid-image-stop').hidden = true; setMermaidImageStatus('수정 결과의 구문을 확인할 수 없어 적용하지 않았습니다.', true); syncMermaidRevisionControls(); }
+      revisionReadyCode = repaired.code;
+      revisionSource.value = repaired.code; renderRevisionPreview();
+      if (editor.value === context.editorSource) {
+        pushEditorUndoState(); editor.value = repaired.code; await render();
+        saveMermaidHistoryRecord(repaired.code, context);
+        revisionStatus.textContent = '수정 코드를 왼쪽 코드창과 아래 편집기에 적용했습니다. 되돌리기로 복원할 수 있습니다.';
+      } else {
+        revisionStatus.textContent = '왼쪽 코드창에 반영했습니다. 아래 편집기의 새 편집은 보존했습니다. 수정 결과 적용으로 반영할 수 있습니다.';
+      }
+      updateRevisionChat('수정 완료 · 왼쪽 코드창에 반영했습니다.');
+      setMermaidProgress(100); setMermaidImageStatus(revisionStatus.textContent); syncMermaidRevisionControls();
+    } catch (error) { updateRevisionChat(String(data.code || '') + '\n\n구문 검사 실패 · 원본 코드를 유지했습니다.\n' + error.message, true); revisionReadyCode = ''; revisionStatus.textContent = '수정 결과 구문 확인 실패: ' + error.message; document.getElementById('mermaid-image-stop').hidden = true; setMermaidImageStatus('수정 결과의 구문을 확인할 수 없어 적용하지 않았습니다.', true); syncMermaidRevisionControls(); }
     return;
   }
   if (mermaidImageReceivedStream) {
@@ -1983,16 +2090,16 @@ function getSvgExportSize(svgEl) {
 }
 
 // Shared by SVG download, PNG rasterization and both image-insert actions.
-function serializeRenderedSvg(svgEl) {
-  return window.MermaidEditorExport.serialize(svgEl, previewDarkMode ? '#0b1220' : '#ffffff');
+function serializeRenderedSvg(svgEl, dark = previewDarkMode) {
+  return window.MermaidEditorExport.serialize(svgEl, dark ? '#0b1220' : '#ffffff');
 }
 
-async function createRenderedPngBlob(svgEl) {
+async function createRenderedPngBlob(svgEl, dark = previewDarkMode) {
   let svgUrl = '';
   try {
     const size = getSvgExportSize(svgEl);
     await document.fonts.ready;
-    const svgText = serializeRenderedSvg(svgEl);
+    const svgText = serializeRenderedSvg(svgEl, dark);
     const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
     svgUrl = URL.createObjectURL(svgBlob);
     const img = new Image();
@@ -2010,7 +2117,7 @@ async function createRenderedPngBlob(svgEl) {
     if (!ctx) throw new Error('Canvas 2D context is unavailable.');
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.fillStyle = previewDarkMode ? '#0b1220' : '#ffffff';
+    ctx.fillStyle = dark ? '#0b1220' : '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 

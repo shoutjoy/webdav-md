@@ -33,6 +33,16 @@ WebDAV MDpro와 MDproViewer의 기능 개발, 버그 수정, 리팩터링, 이�
 
 ## 변경 목록
 
+- MDPRO-20261113-MOBILE-EDITOR-MENUS: [모바일 편집 메뉴·우측 세로 Dock](changes/2026-11-13-mobile-editor-menus.md) — WebDAV 구현·표 10열/숫자입력/모바일 기본 Dock·크기/편집 접기·Mermaid Ref 압축/160px/기본 Dock·샘플/전체화면 후속 수정·Chrome 390/767/1280·35개 검사/빌드 통과, 실기기/Viewer 미검증.
+
+- MDPRO-20261113-ME-SCOPED-CHAT: [Mermaid Ref 상단 내부 코드·대화 분할](changes/2026-11-13-me-scoped-chat.md) — 62검사·빌드·Chrome 모의 오류/중지·실제 FLM 수정/SVG·코드/미리보기 탭·390px·테마/줌/DN PNG 검증 통과, Viewer 미이식.
+
+- MDPRO-20261113-NPU-TASK-ROUTE: [FLM NPU 실행 경로 분리](changes/2026-11-13-npu-task-route.md) — 62검사·빌드·직접 FLM 추론 OK, 실제 Mermaid UI 미검증·Viewer 미이식.
+
+- MDPRO-20261113-MERMAID-REF-FOLD: [Mermaid Ref 코드 수정 기본 접기](changes/2026-11-13-mermaid-ref-revision-fold.md) — WebDAV 구현·빌드 통과, 실제 UI 미검증·Viewer 미이식.
+
+- MDPRO-20261113-PROVIDER-ISOLATION: [공급자 분리·Lemonade 성능 표시](changes/2026-11-13-provider-isolation.md) — 자동 전환 제거·중복 조회 제거·실측 통계·검사/빌드 통과, 새 live 측정 네트워크 실패·Viewer 미이식.
+
 - MDPRO-20261113-CONTINUATION-START: [이어쓰기·Auto 복구/응답 시작 최적화](changes/2026-11-13-continuation-start.md) — 단일 문서 세션·single-turn 적응·native 클릭·47검사/빌드·첫 본문714ms 실측. Viewer 미이식.
 
 - MDPRO-20261113-LOCAL-MODEL-LOAD: [Viewer 로컬 모델 로딩 이식](changes/2026-11-13-local-model-loading-port.md) — WebDAV jobs/health·공통 버튼·제한 중계·실제 LM/Ollama 로드/생성·Lemonade 적재·검사/빌드 통과. 참고 Viewer 실제 경로 C:\CusorApps\MDPRO\MDproViewer·원본 미수정.

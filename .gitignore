@@ -30,3 +30,6 @@ Webdavmd_tauri/
 
 # Local HWP browser verification outputs
 artifacts/hwp-20261104-webdav/
+
+# Local Mermaid Ref scoped UI verification
+artifacts/mermaid-scoped-*

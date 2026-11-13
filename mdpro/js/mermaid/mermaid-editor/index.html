@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Mermaid Ref</title>
-  <link rel="stylesheet" href="style.css?v=20261112-webdav-jena-1&amp;codeRevision=20261111-1&amp;envJena=20261111-1&amp;v=20261111-me-insert-toolbar-1" />
+  <link rel="stylesheet" href="style.css?v=20261112-webdav-jena-1&amp;mobileCompact=20261113-2&amp;revisionChat=20261113-3&amp;codeRevision=20261111-1&amp;envJena=20261111-1&amp;v=20261111-me-insert-toolbar-1" />
   <script src="https://cdn.jsdelivr.net/npm/mermaid@11.14.0/dist/mermaid.min.js"></script>
 </head>
 
@@ -239,23 +239,44 @@
       <textarea id="mermaid-reference-text" aria-label="참고 텍스트" rows="3" placeholder="설명, 관계, 절차 등의 텍스트를 입력하거나 붙여넣으세요. 예: 부모코칭역량은 양육효능감에 영향을 주고, 양육효능감은 자녀사회성에 영향을 준다."></textarea>
       </div>
     </details>
-    <details id="mermaid-code-revision" class="mermaid-text-reference" open>
+    <details id="mermaid-code-revision" class="mermaid-text-reference">
       <summary>가져온 코드 수정 <small>참고 텍스트와 별도로 코드 + 수정 지시만 사용</small></summary>
-      <div class="mermaid-text-reference-body">
+      <div class="mermaid-text-reference-body revision-workspace">
+        <div class="revision-code-pane">
         <div class="mermaid-text-actions">
           <button id="mermaid-code-import-current" type="button">현재 코드 가져오기</button>
         </div>
+        <div class="revision-view-tabs" role="tablist" aria-label="수정 코드 보기">
+          <button id="mermaid-revision-code-tab" type="button" role="tab" aria-selected="true" aria-controls="mermaid-revision-code-panel">코드</button>
+          <button id="mermaid-revision-preview-tab" type="button" role="tab" aria-selected="false" aria-controls="mermaid-revision-preview-panel" tabindex="-1">미리보기</button>
+        </div>
+        <div id="mermaid-revision-code-panel" role="tabpanel" aria-labelledby="mermaid-revision-code-tab">
         <label for="mermaid-code-revision-source">수정할 Mermaid 코드</label>
         <textarea id="mermaid-code-revision-source" rows="3" spellcheck="false" placeholder="현재 코드 가져오기를 누르거나 수정할 Mermaid 코드를 붙여넣으세요."></textarea>
+        </div>
+        <div id="mermaid-revision-preview-panel" role="tabpanel" aria-labelledby="mermaid-revision-preview-tab" tabindex="0" hidden>
+          <div class="revision-preview-toolbar" aria-label="미리보기 도구">
+            <button id="mermaid-revision-theme" type="button">Dark</button>
+            <button id="mermaid-revision-zoom-out" type="button" aria-label="미리보기 축소">−</button>
+            <output id="mermaid-revision-zoom">100%</output>
+            <button id="mermaid-revision-zoom-in" type="button" aria-label="미리보기 확대">+</button>
+            <button id="mermaid-revision-zoom-reset" type="button">Reset</button>
+            <button id="mermaid-revision-download" type="button" title="현재 미리보기를 PNG로 다운로드" disabled>DN</button>
+          </div>
+          <div id="mermaid-revision-preview" aria-live="polite"></div>
+          <div id="mermaid-revision-preview-error" role="status"></div>
+        </div>
+        </div>
+        <div class="revision-chat-pane">
+        <div id="mermaid-code-revision-result" role="log" aria-label="코드 수정 대화" aria-live="polite"><p class="revision-chat-hint">수정 요청과 답변이 여기에 표시됩니다. 검증된 코드는 왼쪽 코드창과 아래 편집기에 반영됩니다.</p></div>
         <label for="mermaid-code-revision-prompt">코드 수정 프롬프트</label>
         <textarea id="mermaid-code-revision-prompt" rows="2" placeholder="예: 노드와 문구는 유지하고 좌우 배치로 변경해 주세요."></textarea>
         <div class="mermaid-text-actions">
-          <button id="mermaid-code-revision-run" type="button" disabled>코드 수정 실행</button>
+          <button id="mermaid-code-revision-run" type="button" disabled>JENA ME 실행</button>
           <button id="mermaid-code-revision-stop" type="button" disabled>수정 중지</button>
           <button id="mermaid-code-revision-apply" type="button" disabled>수정 결과 적용</button>
         </div>
-        <label for="mermaid-code-revision-result">수정 결과 · 검토 후 코드 편집기에 적용</label>
-        <textarea id="mermaid-code-revision-result" rows="3" readonly spellcheck="false" aria-live="polite"></textarea>
+        </div>
         <div id="mermaid-code-revision-status" role="status"></div>
       </div>
     </details>
@@ -329,7 +350,7 @@
   <script src="../../../AI_App/aiChat/task-provider-picker.js?v=20261112-webdav-jena-1"></script>
   <script src="image-export.js?v=20261111-label-layout-1"></script>
   <script src="ai-quality.js?v=20261110-me-types-1"></script>
-  <script src="app.js?jenaSeries=20261112-1&amp;codeRevision=20261111-1&amp;jenaSlide=20261111-3&amp;envJena=20261111-1&amp;v=20261111-me-fold-1"></script>
+  <script src="app.js?revisionChat=20261113-3&amp;jenaSeries=20261112-1&amp;codeRevision=20261111-1&amp;jenaSlide=20261111-3&amp;envJena=20261111-1&amp;v=20261111-me-fold-1"></script>
   <script src="mobile-layout.js?v=20261110-1"></script>
 </body>
 </html>

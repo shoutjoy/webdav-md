@@ -158,7 +158,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260914-serpapi-vault-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?imageQuality=20261027-2&v=20261026-image-actions-1&meAI=20261110-1&llamacpp=20261026-1&reasoning=20261022-3&jenaSeries=20261112-1&dockPopover=20261113-1&studioNotice=20261113-2&resumeAnswer=20261113-1&localModelLoad=20261113-1&continuationStart=20261113-1',
+    aiChat: './AI_App/aiChat/ai-chat.js?imageQuality=20261027-2&v=20261026-image-actions-1&meAI=20261110-1&llamacpp=20261026-1&reasoning=20261022-3&jenaSeries=20261112-1&dockPopover=20261113-1&studioNotice=20261113-2&resumeAnswer=20261113-1&localModelLoad=20261113-1&continuationStart=20261113-1&providerIsolation=20261113-1',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20261022-document-theme-1'
@@ -2294,6 +2294,8 @@ function prepareLemonadeSingleTurnMessages(messages, model) {
 }
 
 async function streamOpenAICompatibleChat(connection, body, signal, onStreamEvent) {
+    const requestStartedAt = Date.now();
+    let firstTextAt = 0;
     const emit = typeof onStreamEvent === 'function' ? onStreamEvent : function () {};
     const provider = connection.provider === 'lemonade' ? 'lemonade' : 'openai-compatible';
     emit({
@@ -2353,6 +2355,7 @@ async function streamOpenAICompatibleChat(connection, body, signal, onStreamEven
             emit({ type: 'reasoning.delta', provider: provider, content: reasoningDelta });
         }
         if (answerDelta) {
+            if (!firstTextAt) firstTextAt = Date.now();
             if (reasoningStarted && !reasoningEnded) {
                 reasoningEnded = true;
                 emit({ type: 'reasoning.end', provider: provider });
@@ -2405,6 +2408,10 @@ async function streamOpenAICompatibleChat(connection, body, signal, onStreamEven
     }
     if (reasoningStarted && !reasoningEnded) emit({ type: 'reasoning.end', provider: provider });
     if (answerStarted) emit({ type: 'message.end', provider: provider });
+    if (provider === 'lemonade' && firstTextAt) {
+        usage = Object.assign({}, usage, { time_to_first_token_seconds: (firstTextAt - requestStartedAt) / 1000 });
+        if (Number(usage.decoding_speed_tps) > 0) usage.tokens_per_second = Number(usage.decoding_speed_tps);
+    }
     const completionTokens = Number(usage && (usage.completion_tokens || usage.output_tokens)) || 0;
     emit({
         type: 'chat.end',
@@ -10646,6 +10653,7 @@ function openMermaidEditorModal(forGenSlide) {
     ensureLazyFrameLoaded('mermaid-editor-frame');
     modal.classList.remove('hidden');
     syncMermaidEditorDockLayout();
+    if (window.innerWidth <= 767) applyMermaidEditorDockRight(true);
     bindMermaidEditorModalDrag();
     bindMermaidEditorModalResize();
 }
@@ -10674,9 +10682,14 @@ function syncMermaidEditorDockLayout() {
     if (!workspace || !panel) return;
     if (!active) { workspace.style.removeProperty('--mermaid-dock-width'); return; }
     const rect = workspace.getBoundingClientRect();
-    const maxWidth = Math.max(MERMAID_EDITOR_DOCK_MIN_WIDTH, rect.width - 360);
-    mermaidEditorDockWidth = Math.max(MERMAID_EDITOR_DOCK_MIN_WIDTH, Math.min(maxWidth, mermaidEditorDockWidth || rect.width * .5));
+    const mobile = window.innerWidth <= 767;
+    const minWidth = mobile ? Math.min(160, rect.width * .5) : MERMAID_EDITOR_DOCK_MIN_WIDTH;
+    const maxWidth = mobile ? Math.max(minWidth, rect.width - 120) : Math.max(minWidth, rect.width - 360);
+    mermaidEditorDockWidth = Math.max(minWidth, Math.min(maxWidth, mermaidEditorDockWidth || rect.width * .5));
     workspace.style.setProperty('--mermaid-dock-width', Math.round(mermaidEditorDockWidth) + 'px');
+    panel.style.minWidth = minWidth + 'px';
+    panel.style.left = 'auto';
+    panel.style.right = '0';
     panel.style.width = Math.round(mermaidEditorDockWidth) + 'px';
     panel.style.top = rect.top + 'px';
     panel.style.height = rect.height + 'px';
@@ -10692,6 +10705,8 @@ function applyMermaidEditorDockRight(docked) {
     if (!panel) return;
     mermaidEditorModalDockRight = !!docked;
     panel.dataset.fullscreen = 'false';
+    const fullscreenButton = document.getElementById('mermaid-editor-fullscreen-btn');
+    if (fullscreenButton) { fullscreenButton.textContent = '전체화면'; fullscreenButton.setAttribute('aria-pressed', 'false'); }
     if (dockBtn) {
         dockBtn.textContent = mermaidEditorModalDockRight ? 'Dock 해제' : 'Dock';
         dockBtn.title = mermaidEditorModalDockRight ? '우측 도킹 해제' : '창을 화면 오른쪽에 도킹';
@@ -10870,6 +10885,15 @@ function toggleMermaidEditorFullscreen() {
     if (mermaidEditorModalDockRight) applyMermaidEditorDockRight(false);
     mermaidEditorModalFullscreen = !mermaidEditorModalFullscreen;
     panel.dataset.fullscreen = String(mermaidEditorModalFullscreen);
+    const fullscreenButton = document.getElementById('mermaid-editor-fullscreen-btn');
+    if (fullscreenButton) {
+        fullscreenButton.textContent = mermaidEditorModalFullscreen ? '원래 크기' : '전체화면';
+        fullscreenButton.setAttribute('aria-pressed', String(mermaidEditorModalFullscreen));
+    }
+    if (!mermaidEditorModalFullscreen && window.innerWidth <= 767) {
+        applyMermaidEditorDockRight(true);
+        return;
+    }
     if (mermaidEditorModalFullscreen) {
         panel.style.resize = 'none';
         panel.style.left = '8px';
@@ -11095,7 +11119,7 @@ function getMermaidVisionProviderSelection() {
         'openai-compatible': 'ss_ai_chat_openai_compatible_model', ollama: 'ss_ai_chat_ollama_model',
         'ollama-npu': 'ss_ai_chat_npu_model', litertlm: 'ss_ai_chat_litertlm_model', lmstudio: 'ss_ai_chat_lmstudio_model'
     };
-    if (provider === 'lemonade') provider = 'openai-compatible';
+    if (provider === 'lemonade') return { provider: 'lemonade', model: String(localStorage.getItem('ss_ai_chat_lemonade_model') || getStoredLemonadeConnection().modelId || '') };
     let model = String(localStorage.getItem(modelKeys[provider] || '') || '');
     if (provider === 'aistudio' && (!model || /(?:image|tts|audio|veo|lyria)/i.test(model))) model = 'gemini-3.5-flash-lite';
     return { provider: provider, model: model, openAICompatibleProvider: provider === 'openai-compatible' ? String(localStorage.getItem('ss_ai_chat_openai_compatible_active_provider') || '') : undefined };
@@ -21223,7 +21247,11 @@ window.AIChatBridge = Object.freeze({
     },
     complete: async function (request) {
         request = applyLocalAIChatResponseStyle(request || {});
-        if (request.provider === 'lemonade-flm') request = Object.assign({}, request, {provider:'openai-compatible',openAICompatibleProvider:'lemonade-flm'});
+        // FLM tasks must use the same local transport as Jena NPU chat.
+        // Never resolve their connection through the active cloud profile.
+        if (request.provider === 'lemonade-flm' || (request.provider === 'openai-compatible' && request.openAICompatibleProvider === 'lemonade-flm')) {
+            request = Object.assign({}, request, {provider:'ollama-npu',openAICompatibleProvider:undefined});
+        }
         if (request.provider === 'openai-compatible-env') request = Object.assign({}, request, {provider:'openai-compatible'});
         if (!request.independent && aiChatAbortController) aiChatAbortController.abort();
         const controller = new AbortController();

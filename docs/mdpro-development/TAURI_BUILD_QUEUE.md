@@ -4,8 +4,11 @@
 
 ## 대기 기능
 
+- MDPRO-20261113-MOBILE-EDITOR-MENUS: [모바일 편집 메뉴·우측 Dock](changes/2026-11-13-mobile-editor-menus.md). WebDAV 표 크기 10열·숫자 입력·모바일 기본 Dock·크기/편집 접기·Mermaid Ref 압축/160px/기본 Dock·샘플/전체화면 후속 수정, Chrome 390/767/1280 검증/빌드 완료. Viewer mobile 변수 적응·웹 이식·frontend/native/설치 모두 대기, 이번 빌드 요청 없음.
+
 | ID | 적용 항목 | 대상 웹 소스 | 웹 검증 | 프런트엔드 준비 | 네이티브 빌드 | 설치 앱 검증 |
 | --- | --- | --- | --- | --- | --- | --- |
+| MDPRO-20261113-MERMAID-REF-FOLD | [Mermaid Ref 기본 접기](changes/2026-11-13-mermaid-ref-revision-fold.md) | Viewer open 속성 확인·제거 미이식 | WebDAV 빌드 통과·실제 UI 미검증 | 미실행 | 요청 범위 밖·미실행 | 미실행 |
 | MDPRO-20261112-WORKSPACE-UI | [Macro/Tidy/표 메뉴](changes/2026-11-12-macro-dock-tidy-workspace-table-anchor.md) | Viewer 고유 구현 비교·선택 역이식 대기 | WebDAV Chrome 3화면·모의 AI·로컬 저장/Worker·웹 빌드 통과 | Viewer 미실행 | 요청 범위 밖·미실행 | 미실행 |
 | MDPRO-20261112-IMAGE-INSERT-DOCK | [이미지 넣기 Dock](changes/2026-11-12-image-insert-dock.md) | Viewer 기존 우측 정렬 확인·분할 Dock 미적용 | WebDAV Chrome 3화면·양 테마·삽입/복귀·빌드 통과 | Viewer 미실행 | 요청 범위 밖·미실행 | 미실행 |
 | MDPRO-20261112-TABLE-DOCK-MERGE | [표 메뉴 Dock·병합](changes/2026-11-12-table-menu-dock-merge.md) | Viewer 대응 기능 이미 존재·이번 미수정 | WebDAV 43개·Chrome 1440/390·빌드 통과 | Viewer 미실행 | 자산 미수정·불필요 | 미실행 |
@@ -90,3 +93,9 @@ publish 스크립트 결과와 최종 제공 경로:
 - MDPRO-20261113-LOCAL-MODEL-LOAD: [Viewer 로딩 이식](changes/2026-11-13-local-model-loading-port.md). WebDAV 세 공급자 실서버 목록·LM/Ollama 로드/생성·Lemonade health 확인. Viewer(C:\CusorApps\MDPRO\MDproViewer)는 참고 원본 미수정, frontend/native/설치 검증 미실행·이번 빌드 불필요. Vite 중계는 Viewer native에 직접 복사 금지.
 
 - MDPRO-20261113-CONTINUATION-START: [이어쓰기/Auto/시작 지연](changes/2026-11-13-continuation-start.md). WebDAV 실제 클릭·실모델 첫 본문714ms 확인. Viewer 함수 대응·웹 이식·웹 검증·프런트엔드 준비·native/설치 검증 미실행, 빌드 미요청.
+
+- MDPRO-20261113-PROVIDER-ISOLATION: [공급자 분리](changes/2026-11-13-provider-isolation.md). WebDAV 구현/자동검사·빌드, 새 live 측정 실패. Viewer 비교·웹 이식·웹 검증·frontend/native/설치 검증 대기. 빌드 미요청.
+
+- MDPRO-20261113-NPU-TASK-ROUTE: [FLM 실행 경로](changes/2026-11-13-npu-task-route.md). Viewer 고유 프로필 읽기 비교, 웹 이식/frontend/native/설치 검증 미실행.
+
+- MDPRO-20261113-ME-SCOPED-CHAT: [Mermaid Ref 상단 내부 분할](changes/2026-11-13-me-scoped-chat.md). Viewer 기존 source/result 구현 비교, 코드/미리보기 탭·JENA ME 실행·독립 테마/줌/DN PNG 포함. 웹 이식/frontend/native/설치 검증 대기.
