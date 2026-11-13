@@ -391,3 +391,6 @@ npm run build
 - 캐시 갱신 후 실제 브라우저에서 확인됨
 - 전용 테스트와 프로덕션 빌드가 통과함
 
+
+## 2026-11-13 인식 프롬프트 기본 접힘
+모델/인식 프롬프트는 #jena-table-prompt-settings의 summary로 펼친다. 기존 값/이벤트 보존, 생성 버튼/상태는 밖에서 유지한다. [구현·검증·이식·Tauri 기록](mdpro-development/changes/2026-11-13-table-prompt-fold.md). Chrome 실제 HTML/CSS 기본접힘·클릭/Enter·입력 보존 통과, 웹 빌드 통과. 실제 공급자/배포 미검증.

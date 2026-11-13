@@ -35,7 +35,7 @@
     <script src="./js/md_notebooklm_equals_hr.js" charset="utf-8"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="stylesheet" href="./css/style.css?jenaSeries=20261113-math-fold&amp;meAI=20261110-1&amp;coverFold=20260908-input-fields-2&amp;v=20260908-purple-menu-hover-1&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;docxTableContrast=20260817-1&amp;tidyUi=20260811-1&amp;inline2refCss=20260822-2&amp;indbUi=20260812-3&amp;mermaidDisplay=20260810-1&amp;mermaidResize=20260810-1&amp;comment=20260810-3&amp;textStyle=20261023-modeless-selection-1&amp;sidebarControls=20260812-4&amp;miniToc=20260815-responsive-1&amp;crossrefResults=20260812-1&amp;mainHeaderBackground=20260815-1&amp;lightChrome=20260823-6&amp;verticalEditToolbar=20260823-5&amp;aiHeaderButtons=20260823-1&amp;featureKeyStyle=20260823-1&amp;documentTheme=20261022-document-only-2&amp;formatGutter=20260828-1&amp;miniPvResize=20260911-free-vertical-2&amp;img2MathCss=20261021-jena-table-preview-2&amp;editorShiftSize=20260909-7&amp;editorWheelContain=20260909-1&amp;mermaidEditorResize=20260911-1&amp;codeCopy=20260920-2&amp;printPdf=20261020-math-fit-1&amp;nonprinting=20260925-3&amp;featureToolNames=20261006-1&amp;lemonadeColor=20261019-1&amp;captionContrast=20261023-1&amp;imageDownload=20261108-1" charset="utf-8">
+    <link rel="stylesheet" href="./css/style.css?tablePromptFold=20261113-2&amp;jenaSeries=20261113-math-fold&amp;meAI=20261110-1&amp;coverFold=20260908-input-fields-2&amp;v=20260908-purple-menu-hover-1&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;docxTableContrast=20260817-1&amp;tidyUi=20260811-1&amp;inline2refCss=20260822-2&amp;indbUi=20260812-3&amp;mermaidDisplay=20260810-1&amp;mermaidResize=20260810-1&amp;comment=20260810-3&amp;textStyle=20261023-modeless-selection-1&amp;sidebarControls=20260812-4&amp;miniToc=20260815-responsive-1&amp;crossrefResults=20260812-1&amp;mainHeaderBackground=20260815-1&amp;lightChrome=20260823-6&amp;verticalEditToolbar=20260823-5&amp;aiHeaderButtons=20260823-1&amp;featureKeyStyle=20260823-1&amp;documentTheme=20261022-document-only-2&amp;formatGutter=20260828-1&amp;miniPvResize=20260911-free-vertical-2&amp;img2MathCss=20261021-jena-table-preview-2&amp;editorShiftSize=20260909-7&amp;editorWheelContain=20260909-1&amp;mermaidEditorResize=20260911-1&amp;codeCopy=20260920-2&amp;printPdf=20261020-math-fit-1&amp;nonprinting=20260925-3&amp;featureToolNames=20261006-1&amp;lemonadeColor=20261019-1&amp;captionContrast=20261023-1&amp;imageDownload=20261108-1" charset="utf-8">
     <link rel="stylesheet" href="./MobileUI/mobile-ui.css?v=20260913-editor-fit-1" charset="utf-8">
     <link rel="stylesheet" href="./js/inDB/inDB.css?v=20260823-ai-audit-3" charset="utf-8">
     <link rel="stylesheet" href="./sidebar_left/sidebar-resize.css?v=20260812-1" charset="utf-8">
@@ -1683,9 +1683,11 @@
 
                 <div class="img2math-workflow">
                     <section class="img2math-card">
-                        <div class="img2math-card-heading">
+                        <details id="jena-table-prompt-settings">
+                        <summary class="img2math-card-heading">
                             <h3><span class="img2math-step">2</span>인식 프롬프트</h3>
-                            <div id="jena-table-ai-model" class="img2math-model-picker">
+                        </summary>
+                        <div id="jena-table-ai-model" class="img2math-model-picker">
                                 <span id="jena-table-ai-provider" class="img2math-model">AI Jena 설정 확인 중</span>
                                 <label class="img2math-model-select-wrap">
                                     <span>인공지능 모델</span>
@@ -1694,8 +1696,8 @@
                                     </select>
                                 </label>
                             </div>
-                        </div>
                         <textarea id="jena-table-prompt" rows="3" aria-label="표 인식 프롬프트">입력한 이미지 또는 텍스트의 행과 열 구조를 정확히 인식해 줘. 제목 행, 셀 내용, 숫자, 기호와 수식을 원본대로 보존하고 빈 셀도 유지해 줘.</textarea>
+                        </details>
                         <button id="jena-table-generate" type="button" class="img2math-run">✦ AI Jena로 표 인식 실행</button>
                         <p id="jena-table-status" class="img2math-status" aria-live="polite"></p>
                     </section>

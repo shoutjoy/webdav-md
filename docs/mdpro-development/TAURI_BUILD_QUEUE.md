@@ -117,3 +117,5 @@ publish 스크립트 결과와 최종 제공 경로:
 - MDPRO-20261113-ME-PROVIDER-LAYOUT: [Jena ME 접기·모델 행 겹침·글자 크기](changes/2026-11-13-me-provider-layout.md) — WebDAV 구현·33검사/빌드 통과, 브라우저 소켓 권한으로 실제 UI 미검증. Viewer 웹/frontend/native/설치 대기, 빌드 요청 없음.
 
 - MDPRO-20261113-ME-COMPACT-ACTIONS: [참고 텍스트 버튼·코드 수정 배치](changes/2026-11-13-me-compact-actions.md) — 원본 구현·33검사/빌드 통과, 실제 UI 미검증. Viewer 웹/frontend/native/설치 대기, 빌드 요청 없음.
+
+- [Jena Table 인식 프롬프트 기본 접힘](changes/2026-11-13-table-prompt-fold.md): WebDAV 실제 소스 적용, Chrome 접힘/키보드/값 보존/실행 노출·웹 빌드 통과. Viewer 기존 구현 확인, Tauri/배포 미실행.
