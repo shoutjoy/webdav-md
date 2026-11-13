@@ -31,6 +31,10 @@ WebDAV MDpro와 MDproViewer의 기능 개발, 버그 수정, 리팩터링, 이�
 
 문서의 존재는 이식 완료가 아니다. 자동 검사 통과는 실제 UI·Word·설치 앱·OS 인쇄 검증과 구분한다. 실패한 검사, 미실행 검사, 미검증 항목을 누락하지 않는다. `Docs/`가 Git에서 무시되면 새 문서의 추적 여부도 확인하고, 필요한 경우 해당 문서 경로만 ignore 예외에 추가한다. 커밋·푸시는 별도 요청을 따른다.
 
+## 기능 기술문서
+
+- [Mermaid Ref UI 디자인·기능 기술문서](MERMAID_REF_UI_FUNCTIONS.md) — 2026-11-13 현재 소스 기준. 화면·기능·상태·저장·브리지·검증·이식 기준. 문서 전용, 상대 앱 미이식/Tauri 빌드 없음.
+
 ## 변경 목록
 
 - MDPRO-20261113-MERMAID-COMPACT-PREVIEW: [Mermaid Ref 저장기록 탭·프롬프트 실행 한 행·Dock·Crop](changes/2026-11-13-mermaid-ref-compact-preview.md) — WebDAV 구현·45관련검사/빌드 통과, 브라우저 소켓 권한 오류로 UI 미검증. Viewer 이식/Tauri/설치 대기, 빌드 요청 없음.

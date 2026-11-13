@@ -1,0 +1,249 @@
+✔ remove standalone outer fences while preserving Mermaid labels and whitespace (1.5711ms)
+✔ quote nested parenthetical labels without changing shape or path semantics (1.5589ms)
+✔ preserve quoted labels, styles, directives, other diagram languages and invalid drafts (0.3796ms)
+✔ automatic repair commits only when the original fails and the candidate parses (1.4355ms)
+✔ collapsed AI area keeps its controls reachable through expansion (1.1607ms)
+✔ editor loads versioned picker and quality helper before the application (0.3565ms)
+✔ model settings retain the toggle ID and open within the expanded Jena panel (0.3929ms)
+✔ open model details cannot override the collapsed parent and disclosure has its own row (0.2571ms)
+✔ only the Mermaid frame can insert document content (3.4881ms)
+✔ PNG export hands the image to the existing insertion dialog (2.2736ms)
+✔ AI failures are returned with the request id for UI recovery (1.5781ms)
+✔ vision request forwards image and streams code through the configured bridge (1.4823ms)
+✔ all editor image actions render current code and use the shared serializer (1.4901ms)
+✔ shared exporter measures HTML label runs and emits standalone XML (0.2893ms)
+✔ editor export waits for fonts, caps PNG dimensions and separates preview zoom (0.5607ms)
+✖ parent and editor load helper before callers and refresh iframe cache (4.4028ms)
+✔ reference crop maps scaled reverse drags to source pixels and exports without selection marks (3.5706ms)
+✔ ME model-load progress follows real stages, completes at 100 and cleans its clock on failure (8.1657ms)
+ℹ tests 18
+ℹ suites 0
+ℹ pass 17
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 222.2426
+
+✖ failing tests:
+
+test at tests\mermaidImageExport.test.mjs:29:1
+✖ parent and editor load helper before callers and refresh iframe cache (4.4028ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /mermaid-editor\/index.html\?v=20261110-me-ai-1/. Input:
+  
+  '<!DOCTYPE html>\n' +
+    '<html lang="ko">\n' +
+    '\n' +
+    '<head>\n' +
+    '    <meta charset="UTF-8">\n' +
+    '    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">\n' +
+    '    <meta name="theme-color" content="#4f46e5">\n' +
+    '    <meta name="apple-mobile-web-app-capable" content="yes">\n' +
+    '    <meta name="apple-mobile-web-app-status-bar-style" content="default">\n' +
+    '    <meta name="apple-mobile-web-app-title" content="MD Viewer">\n' +
+    '    <link rel="manifest" href="./Apps/PWA/manifest.webmanifest">\n' +
+    '    <link rel="icon" href="./Apps/PWA/icons/icon.svg" type="image/svg+xml">\n' +
+    '    <link rel="stylesheet" href="./Apps/PWA/pwa-settings.css?v=20260816-1">\n' +
+    '    <title>MDproViewer</title>\n' +
+    '    <!-- Tailwind 정적 빌드. 문제 진단 시 ?tailwindCdn=1 로 CDN fallback을 명시적으로 켤 수 있다. -->\n' +
+    '    <link rel="stylesheet" href="./css/tailwind-static.css?v=20260810-1">\n' +
+    '    <script>\n' +
+    "        if (new URLSearchParams(location.search).get('tailwindCdn') === '1') {\n" +
+    '            window.tailwind = window.tailwind || {};\n' +
+    "            window.tailwind.config = { darkMode: 'class' };\n" +
+    "            var tailwindFallback = document.createElement('script');\n" +
+    "            tailwindFallback.src = 'https://cdn.tailwindcss.com';\n" +
+    "            tailwindFallback.dataset.performanceFallback = 'tailwind-cdn';\n" +
+    '            document.head.appendChild(tailwindFallback);\n' +
+    '        }\n' +
+    '    </script>\n' +
+    '    <!-- Marked.js for MD Rendering -->\n' +
+    '    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>\n' +
+    '    <!-- JSZip for backup zip (오프라인/Electron 번들) -->\n' +
+    '    <script src="./vendor/jszip/jszip.min.js"></script>\n' +
+    '    <!-- Markdown Bold: **텍스트** 특수문자 포함 시 <b> 선변환 (marked 파싱 실패 방지) -->\n' +
+    '    <script src="./js/Markdown_bold.js?v=20261024-statistical-stars-1" charset="utf-8"></script>\n' +
+    '    <script src="./js/md_numeric_range.js" charset="utf-8"></script>\n' +
+    '    <script src="./js/md_long_equals.js" charset="utf-8"></script>\n' +
+    '    <script src="./js/md_notebooklm_equals_hr.js" charset="utf-8"></script>\n' +
+    '    <!-- Lucide Icons -->\n' +
+    '    <script src="https://unpkg.com/lucide@latest"></script>\n' +
+    '    <link rel="stylesheet" href="./css/style.css?jenaSeries=20261113-math-fold&amp;meAI=20261110-1&amp;coverFold=20260908-input-fields-2&amp;v=20260908-purple-menu-hover-1&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;docxTableContrast=20260817-1&amp;tidyUi=20260811-1&amp;inline2refCss=20260822-2&amp;indbUi=20260812-3&amp;mermaidDisplay=20260810-1&amp;mermaidResize=20260810-1&amp;comment=20260810-3&amp;textStyle=20261023-modeless-selection-1&amp;sidebarControls=20260812-4&amp;miniToc=20260815-responsive-1&amp;crossrefResults=20260812-1&amp;mainHeaderBackground=20260815-1&amp;lightChrome=20260823-6&amp;verticalEditToolbar=20260823-5&amp;aiHeaderButtons=20260823-1&amp;featureKeyStyle=20260823-1&amp;documentTheme=20261022-document-only-2&amp;formatGutter=20260828-1&amp;miniPvResize=20260911-free-vertical-2&amp;img2MathCss=20261021-jena-table-preview-2&amp;editorShiftSize=20260909-7&amp;editorWheelContain=20260909-1&amp;mermaidEditorResize=20260911-1&amp;codeCopy=20260920-2&amp;printPdf=20261020-math-fit-1&amp;nonprinting=20260925-3&amp;featureToolNames=20261006-1&amp;lemonadeColor=20261019-1&amp;captionContrast=20261023-1&amp;imageDownload=20261108-1" charset="utf-8">\n' +
+    '    <link rel="stylesheet" href="./MobileUI/mobile-ui.css?v=20260913-editor-fit-1" charset="utf-8">\n' +
+    '    <link rel="stylesheet" href="./js/inDB/inDB.css?v=20260823-ai-audit-3" charset="utf-8">\n' +
+    '    <link rel="stylesheet" href="./sidebar_left/sidebar-resize.css?v=20260812-1" charset="utf-8">\n' +
+    '    <link rel="stylesheet" href="./sidebar_left/storage-tree.css?v=20260812-1" charset="utf-8">\n' +
+    '    <link rel="stylesheet" href="./sidebarAI/sidebar-ai.css?v=20260817-scholar-upgrades-1" charset="utf-8">\n' +
+    '    <link rel="stylesheet" href="./AI_App/aiChat/ai-chat.css?v=20261027-image-quality-2&ui=compact-1&studioNotice=20261113-2&localModelLoad=20261113-1" charset="utf-8">\n' +
+    '    <link rel="stylesheet" href="./AI_App/dataCenter/ai-data-center.css?v=20260908-hidden-jena-data-2" charset="utf-8">\n' +
+    '    <link rel="stylesheet" href="./js/Scholarref/styles/scholarref.css?v=20260812-scholar-modules-1" charset="utf-8">\n' +
+    '    <link rel="stylesheet" href="./ShareSites/Share/share.css?v=20260408-2" charset="utf-8">\n' +
+    '    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">\n' +
+    '    <style>\n' +
+    '        #infographic-auto-panel {\n' +
+    '            position: fixed;\n' +
+    '            top: max(12px, env(safe-area-inset-top));\n' +
+    '            right: max(12px, env(safe-area-inset-right));\n' +
+    '            bottom: max(12px, env(safe-area-inset-bottom));\n' +
+    '            left: max(12px, env(safe-area-inset-left));\n' +
+    '            z-index: 75;\n' +
+    '            width: auto;\n' +
+    '            height: auto;\n' +
+    '            min-width: 0;\n' +
+    '            min-height: 0;\n' +
+    '            overflow: hidden;\n' +
+    '        }\n' +
+    '        #infographic-auto-frame {\n' +
+    '            display: block;\n' +
+    '            width: 100%;\n' +
+    '            height: 100%;\n' +
+    '            min-width: 0;\n' +
+    '            min-height: 0;\n' +
+    '        }\n' +
+    '        #infographic-single-panel {\n' +
+    '            position: fixed;\n' +
+    '            top: max(12px, env(safe-area-inset-top));\n' +
+    '            right: max(12px, env(safe-area-inset-right));\n' +
+    '            bottom: max(12px, env(safe-area-inset-bottom));\n' +
+    '            left: max(12px, env(safe-area-inset-left));\n' +
+    '            z-index: 76;\n' +
+    '            width: auto;\n' +
+    '            height: auto;\n' +
+    '            min-width: 0;\n' +
+    '            min-height: 0;\n' +
+    '            overflow: hidden;\n' +
+    '        }\n' +
+    '        #infographic-single-frame {\n' +
+    '            display: block;\n' +
+    '            width: 100%;\n' +
+    '            height: 100%;\n' +
+    '            min-width: 0;\n' +
+    '            min-height: 0;\n' +
+    '        }\n' +
+    '        #tts2audio-panel {\n' +
+    '            position: fixed;\n' +
+    '            top: max(48px, env(safe-area-inset-top));\n' +
+    '            right: max(24px, env(safe-area-inset-right));\n' +
+    '            width: min(980px, calc(100vw - 32px));\n' +
+    '            height: min(820px, calc(100vh - 72px));\n' +
+    '            min-width: min(420px, calc(100vw - 16px));\n' +
+    '            min-height: 320px;\n' +
+    '            z-index: 77;\n' +
+    '            overflow: visible;\n' +
+    '        }\n' +
+    '        #tts2audio-frame {\n' +
+    '            display: block;\n' +
+    '            width: 100%;\n' +
+    '            height: 100%;\n' +
+    '            min-width: 0;\n' +
+    '            min-height: 0;\n' +
+    '        }\n' +
+    '        .tts2audio-resize-handle { position: absolute; z-index: 3; touch-action: none; }\n' +
+    '        .tts2audio-resize-n { top: -5px; left: 12px; right: 12px; height: 10px; cursor: ns-resize; }\n' +
+    '        .tts2audio-resize-s { bottom: -5px; left: 12px; right: 12px; height: 10px; cursor: ns-resize; }\n' +
+    '        .tts2audio-resize-e { top: 12px; right: -5px; bottom: 12px; width: 10px; cursor: ew-resize; }\n' +
+    '        .tts2audio-resize-w { top: 12px; left: -5px; bottom: 12px; width: 10px; cursor: ew-resize; }\n' +
+    '        .tts2audio-resize-ne { top: -6px; right: -6px; width: 16px; height: 16px; cursor: nesw-resize; }\n' +
+    '        .tts2audio-resize-se { right: -6px; bottom: -6px; width: 18px; height: 18px; cursor: nwse-resize; }\n' +
+    '        .tts2audio-resize-sw { left: -6px; bottom: -6px; width: 16px; height: 16px; cursor: nesw-resize; }\n' +
+    '        .tts2audio-resize-nw { top: -6px; left: -6px; width: 16px; height: 16px; cursor: nwse-resize; }\n' +
+    '        @media (min-width: 640px) {\n' +
+    '            #infographic-auto-panel {\n' +
+    '                top: max(24px, env(safe-area-inset-top));\n' +
+    '                right: max(24px, env(safe-area-inset-right));\n' +
+    '                bottom: max(24px, env(safe-area-inset-bottom));\n' +
+    '                left: max(24px, env(safe-area-inset-left));\n' +
+    '            }\n' +
+    '            #infographic-single-panel {\n' +
+    '                top: max(24px, env(safe-area-inset-top));\n' +
+    '                right: max(24px, env(safe-area-inset-right));\n' +
+    '                bottom: max(24px, env(safe-area-inset-bottom));\n' +
+    '                left: max(24px, env(safe-area-inset-left));\n' +
+    '            }\n' +
+    '        }\n' +
+    '        #settings-modal-panel {\n' +
+    '            position: relative;\n' +
+    '            resize: both;\n' +
+    '            overflow: hidden;\n' +
+    '            min-width: 360px;\n' +
+    '            min-height: 420px;\n' +
+    '            max-width: 96vw;\n' +
+    '            max-height: 92vh;\n' +
+    '        }\n' +
+    '        #settings-modal-move-handle {\n' +
+    '            position: absolute;\n' +
+    '            z-index: 3;\n' +
+    '            top: 0;\n' +
+    '            right: 0;\n' +
+    '            left: 0;\n' +
+    '            height: 20px;\n' +
+    '            border-radius: 0.75rem 0.75rem 0 0;\n' +
+    '            cursor: move;\n' +
+    '            touch-action: none;\n' +
+    '        }\n' +
+    '        #settings-modal-move-handle::after {\n' +
+    '            content: "";\n' +
+    '            position: absolute;\n' +
+    '            top: 6px;\n' +
+    '            left: 50%;\n' +
+    '            width: 52px;\n' +
+    '            height: 3px;\n' +
+    '            border-radius: 999px;\n' +
+    '            background: #cbd5e1;\n' +
+    '            transform: translateX(-50%);\n' +
+    '            transition: width 120ms ease, background-color 120ms ease;\n' +
+    '        }\n' +
+    '        #settings-modal-move-handle:hover::after {\n' +
+    '            width: 68px;\n' +
+    '            background: #64748b;\n' +
+    '        }\n' +
+    '        .dark #settings-modal-move-handle::after {\n' +
+    '            background: #475569;\n' +
+    '        }\n' +
+    '        .dark #settings-modal-move-handle:hover::after {\n' +
+    '            background: #94a3b8;\n' +
+    '        }\n' +
+    '        #settings-modal-header {\n' +
+    '            cursor: move;\n' +
+    '        }\n' +
+    '        #settings-modal-header button {\n' +
+    '            cursor: pointer;\n' +
+    '        }\n' +
+    '        #settings-modal-panel.settings-modal-fullscreen #settings-modal-move-handle {\n' +
+    '            display: none;\n' +
+    '        }\n' +
+    '        #settings-modal-panel.settings-modal-fullscreen #settings-modal-header {\n' +
+    '            cursor: default;\n' +
+    '        }\n' +
+    '        body.settings-modal-is-dragging,\n' +
+    '        body.settings-modal-is-dragging * {\n' +
+    '            cursor: move !important;\n' +
+    '            user-select: none !important;\n' +
+    '        }\n' +
+    '        #settings-modal-resize-handle {\n' +
+    '            position: absolute;\n' +
+    '            right: 0;\n' +
+    '            bottom: 0;\n' +
+    '            width: 14px;\n' +
+    '            height: 14px;\n' +
+    '            cursor: nwse-resize;\n' +
+    '            opacity: 0.8;\n' +
+    '            user-select: none;\n' +
+    '            background: linear-gradient(135deg, transparent 45%, #94a3b8 46%, #94a3b8 54%, transparent 55%);\n' +
+    '        }\n' +
+    '        #settings-modal-panel.setti'... 350424 more characters
+  
+      at TestContext.<anonymous> (file:///C:/CusorApps/WebDav-MD/webdav-md/tests/mermaidImageExport.test.mjs:33:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1306:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:897:18)
+      at Test.postRun (node:internal/test_runner/test:1447:19)
+      at Test.run (node:internal/test_runner/test:1372:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:897:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: `<!DOCTYPE html>\n<html lang="ko">\n\n<head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">\n    <meta name="theme-color" content="#4f46e5">\n    <meta name="apple-mobile-web-app-capable" content="yes">\n    <meta name="apple-mobile-web-app-status-bar-style" content="default">\n    <meta name="apple-mobile-web-app-title" content="MD Viewer">\n    <link rel="manifest" href="./Apps/PWA/manifest.webmanifest">\n    <link rel="icon" href="./Apps/PWA/icons/icon.svg" type="image/svg+xml">\n    <link rel="stylesheet" href="./Apps/PWA/pwa-settings.css?v=20260816-1">\n    <title>MDproViewer</title>\n    <!-- Tailwind 정적 빌드. 문제 진단 시 ?tailwindCdn=1 로 CDN fallback을 명시적으로 켤 수 있다. -->\n    <link rel="stylesheet" href="./css/tailwind-static.css?v=20260810-1">\n    <script>\n        if (new URLSearchParams(location.search).get('tailwindCdn') === '1') {\n            window.tailwind = window.tailwind || {};\n            window.tailwind.config = { darkMode: 'class' };\n            var tailwindFallback = document.createElement('script');\n            tailwindFallback.src = 'https://cdn.tailwindcss.com';\n            tailwindFallback.dataset.performanceFallback = 'tailwind-cdn';\n            document.head.appendChild(tailwindFallback);\n        }\n    </script>\n    <!-- Marked.js for MD Rendering -->\n    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>\n    <!-- JSZip for backup zip (오프라인/Electron 번들) -->\n    <script src="./vendor/jszip/jszip.min.js"></script>\n    <!-- Markdown Bold: **텍스트** 특수문자 포함 시 <b> 선변환 (marked 파싱 실패 방지) -->\n    <script src="./js/Markdown_bold.js?v=20261024-statistical-stars-1" charset="utf-8"></script>\n    <script src="./js/md_numeric_range.js" charset="utf-8"></script>\n    <script src="./js/md_long_equals.js" charset="utf-8"></script>\n    <script src="./js/md_notebooklm_equals_hr.js" charset="utf-8"></script>\n    <!-- Lucide Icons -->\n    <script src="https://unpkg.com/lucide@latest"></script>\n    <link rel="stylesheet" href="./css/style.css?jenaSeries=20261113-math-fold&amp;meAI=20261110-1&amp;coverFold=20260908-input-fields-2&amp;v=20260908-purple-menu-hover-1&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;docxTableContrast=20260817-1&amp;tidyUi=20260811-1&amp;inline2refCss=20260822-2&amp;indbUi=20260812-3&amp;mermaidDisplay=20260810-1&amp;mermaidResize=20260810-1&amp;comment=20260810-3&amp;textStyle=20261023-modeless-selection-1&amp;sidebarControls=20260812-4&amp;miniToc=20260815-responsive-1&amp;crossrefResults=20260812-1&amp;mainHeaderBackground=20260815-1&amp;lightChrome=20260823-6&amp;verticalEditToolbar=20260823-5&amp;aiHeaderButtons=20260823-1&amp;featureKeyStyle=20260823-1&amp;documentTheme=20261022-document-only-2&amp;formatGutter=20260828-1&amp;miniPvResize=20260911-free-vertical-2&amp;img2MathCss=20261021-jena-table-preview-2&amp;editorShiftSize=20260909-7&amp;editorWheelContain=20260909-1&amp;mermaidEditorResize=20260911-1&amp;codeCopy=20260920-2&amp;printPdf=20261020-math-fit-1&amp;nonprinting=20260925-3&amp;featureToolNames=20261006-1&amp;lemonadeColor=20261019-1&amp;captionContrast=20261023-1&amp;imageDownload=20261108-1" charset="utf-8">\n    <link rel="stylesheet" href="./MobileUI/mobile-ui.css?v=20260913-editor-fit-1" charset="utf-8">\n    <link rel="stylesheet" href="./js/inDB/inDB.css?v=20260823-ai-audit-3" charset="utf-8">\n    <link rel="stylesheet" href="./sidebar_left/sidebar-resize.css?v=20260812-1" charset="utf-8">\n    <link rel="stylesheet" href="./sidebar_left/storage-tree.css?v=20260812-1" charset="utf-8">\n    <link rel="stylesheet" href="./sidebarAI/sidebar-ai.css?v=20260817-scholar-upgrades-1" charset="utf-8">\n    <link rel="stylesheet" href="./AI_App/aiChat/ai-chat.css?v=20261027-image-quality-2&ui=compact-1&studioNotice=20261113-2&localModelLoad=20261113-1" charset="utf-8">\n    <link rel="stylesheet" href="./AI_App/dataCenter/ai-data-center.css?v=20260908-hidden-jena-data-2" charset="utf-8">\n    <link rel="stylesheet" href="./js/Scholarref/styles/scholarref.css?v=20260812-scholar-modules-1" charset="utf-8">\n    <link rel="stylesheet" href="./ShareSites/Share/share.css?v=20260408-2" charset="utf-8">\n    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">\n    <style>\n        #infographic-auto-panel {\n            position: fixed;\n            top: max(12px, env(safe-area-inset-top));\n            right: max(12px, env(safe-area-inset-right));\n            bottom: max(12px, env(safe-area-inset-bottom));\n            left: max(12px, env(safe-area-inset-left));\n            z-index: 75;\n            width: auto;\n            height: auto;\n            min-width: 0;\n            min-height: 0;\n            overflow: hidden;\n        }\n        #infographic-auto-frame {\n            display: block;\n            width: 100%;\n            height: 100%;\n            min-width: 0;\n            min-height: 0;\n        }\n        #infographic-single-panel {\n            position: fixed;\n            top: max(12px, env(safe-area-inset-top));\n            right: max(12px, env(safe-area-inset-right));\n            bottom: max(12px, env(safe-area-inset-bottom));\n            left: max(12px, env(safe-area-inset-left));\n            z-index: 76;\n            width: auto;\n            height: auto;\n            min-width: 0;\n            min-height: 0;\n            overflow: hidden;\n        }\n        #infographic-single-frame {\n            display: block;\n            width: 100%;\n            height: 100%;\n            min-width: 0;\n            min-height: 0;\n        }\n        #tts2audio-panel {\n            position: fixed;\n            top: max(48px, env(safe-area-inset-top));\n            right: max(24px, env(safe-area-inset-right));\n            width: min(980px, calc(100vw - 32px));\n            height: min(820px, calc(100vh - 72px));\n            min-width: min(420px, calc(100vw - 16px));\n            min-height: 320px;\n            z-index: 77;\n            overflow: visible;\n        }\n        #tts2audio-frame {\n            display: block;\n            width: 100%;\n            height: 100%;\n            min-width: 0;\n            min-height: 0;\n        }\n        .tts2audio-resize-handle { position: absolute; z-index: 3; touch-action: none; }\n        .tts2audio-resize-n { top: -5px; left: 12px; right: 12px; height: 10px; cursor: ns-resize; }\n        .tts2audio-resize-s { bottom: -5px; left: 12px; right: 12px; height: 10px; cursor: ns-resize; }\n        .tts2audio-resize-e { top: 12px; right: -5px; bottom: 12px; width: 10px; cursor: ew-resize; }\n        .tts2audio-resize-w { top: 12px; left: -5px; bottom: 12px; width: 10px; cursor: ew-resize; }\n        .tts2audio-resize-ne { top: -6px; right: -6px; width: 16px; height: 16px; cursor: nesw-resize; }\n        .tts2audio-resize-se { right: -6px; bottom: -6px; width: 18px; height: 18px; cursor: nwse-resize; }\n        .tts2audio-resize-sw { left: -6px; bottom: -6px; width: 16px; height: 16px; cursor: nesw-resize; }\n        .tts2audio-resize-nw { top: -6px; left: -6px; width: 16px; height: 16px; cursor: nwse-resize; }\n        @media (min-width: 640px) {\n            #infographic-auto-panel {\n                top: max(24px, env(safe-area-inset-top));\n                right: max(24px, env(safe-area-inset-right));\n                bottom: max(24px, env(safe-area-inset-bottom));\n                left: max(24px, env(safe-area-inset-left));\n            }\n            #infographic-single-panel {\n                top: max(24px, env(safe-area-inset-top));\n                right: max(24px, env(safe-area-inset-right));\n                bottom: max(24px, env(safe-area-inset-bottom));\n                left: max(24px, env(safe-area-inset-left));\n            }\n        }\n        #settings-modal-panel {\n            position: relative;\n            resize: both;\n            overflow: hidden;\n            min-width: 360px;\n            min-height: 420px;\n            max-width: 96vw;\n            max-height: 92vh;\n        }\n        #settings-modal-move-handle {\n            position: absolute;\n            z-index: 3;\n            top: 0;\n            right: 0;\n            left: 0;\n            height: 20px;\n            border-radius: 0.75rem 0.75rem 0 0;\n            cursor: move;\n            touch-action: none;\n        }\n        #settings-modal-move-handle::after {\n            content: "";\n            position: absolute;\n            top: 6px;\n            left: 50%;\n            width: 52px;\n            height: 3px;\n            border-radius: 999px;\n            background: #cbd5e1;\n            transform: translateX(-50%);\n            transition: width 120ms ease, background-color 120ms ease;\n        }\n        #settings-modal-move-handle:hover::after {\n            width: 68px;\n            background: #64748b;\n        }\n        .dark #settings-modal-move-handle::after {\n            background: #475569;\n        }\n        .dark #settings-modal-move-handle:hover::after {\n            background: #94a3b8;\n        }\n        #settings-modal-header {\n            cursor: move;\n        }\n        #settings-modal-header button {\n            cursor: pointer;\n        }\n        #settings-modal-panel.settings-modal-fullscreen #settings-modal-move-handle {\n            display: none;\n        }\n        #settings-modal-panel.settings-modal-fullscreen #settings-modal-header {\n            cursor: default;\n        }\n        body.settings-modal-is-dragging,\n        body.settings-modal-is-dragging * {\n            cursor: move !important;\n            user-select: none !important;\n        }\n        #settings-modal-resize-handle {\n            position: absolute;\n            right: 0;\n            bottom: 0;\n            width: 14px;\n            height: 14px;\n            cursor: nwse-resize;\n            opacity: 0.8;\n            user-select: none;\n            background: linear-gradient(135deg, transparent 45%, #94a3b8 46%, #94a3b8 54%, transparent 55%);\n        }\n        #settings-modal-panel.setti`... 350424 more characters,
+    expected: /mermaid-editor\/index.html\?v=20261110-me-ai-1/,
+    operator: 'match',
+    diff: 'simple'
+  }

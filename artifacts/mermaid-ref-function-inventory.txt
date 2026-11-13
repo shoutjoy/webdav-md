@@ -1,0 +1,196 @@
+115:function updateRevisionPreviewZoom(delta = null) {
+121:document.getElementById('mermaid-revision-zoom-out').addEventListener('click', () => updateRevisionPreviewZoom(-0.25));
+122:document.getElementById('mermaid-revision-zoom-in').addEventListener('click', () => updateRevisionPreviewZoom(0.25));
+123:document.getElementById('mermaid-revision-zoom-reset').addEventListener('click', () => updateRevisionPreviewZoom(0));
+124:document.getElementById('mermaid-revision-theme').addEventListener('click', () => {
+130:revisionDownload.addEventListener('click', async () => {
+140:async function renderRevisionPreview() {
+166:function selectRevisionView(preview) {
+173:revisionCodeTab.addEventListener('click', () => selectRevisionView(false));
+174:revisionPreviewTab.addEventListener('click', () => selectRevisionView(true));
+175:[revisionCodeTab, revisionPreviewTab].forEach(tab => tab.addEventListener('keydown', event => {
+181:revisionSource.addEventListener('input', () => {
+185:function addRevisionChatMessage(role, text) {
+192:function updateRevisionChat(text, failed) {
+198:function syncMermaidRevisionControls() {
+205:revisionSource.addEventListener('input', function () { revisionReadyCode = ''; syncMermaidRevisionControls(); });
+206:revisionPrompt.addEventListener('input', syncMermaidRevisionControls);
+207:revisionImport.addEventListener('click', function () {
+213:revisionRun.addEventListener('click', function () { requestMermaidFromImage('edit'); });
+214:revisionStop.addEventListener('click', stopMermaidImageRequest);
+215:revisionApply.addEventListener('click', async function () {
+224:function hasMermaidReference() {
+227:function refreshMermaidGenerateButton() {
+231:mermaidReferenceText.addEventListener('input', refreshMermaidGenerateButton);
+232:document.getElementById('mermaid-text-clear').addEventListener('click', function () {
+237:document.getElementById('mermaid-text-paste').addEventListener('click', async function () {
+250:function pasteMermaidTextFromParent() {
+262:    window.addEventListener('message', receive);
+263:    window.parent.postMessage({ type: 'mdv-paste-mermaid-text', requestId }, '*');
+266:document.getElementById('mermaid-text-import').addEventListener('click', function () { mermaidTextFile.click(); });
+267:mermaidTextFile.addEventListener('change', async function () {
+279:document.getElementById('mermaid-text-selection').addEventListener('click', function () {
+281:  window.parent.postMessage({ type: 'mdv-request-document-selection', target: 'reference-text' }, '*');
+289:function updateReferenceZoom(value) {
+295:mermaidImageLarge.addEventListener('click', function () {
+304:document.getElementById('mermaid-reference-close').addEventListener('click', function () { referenceDialog.close(); });
+305:referenceDialog.addEventListener('close', function () { (mermaidImageLarge.disabled ? mermaidImageDropzone : mermaidImageLarge).focus(); });
+306:referenceFull.addEventListener('load', function () { if (referenceZoom) updateReferenceZoom(referenceZoom); });
+307:referenceDialog.querySelectorAll('[data-ref-zoom]').forEach(button => button.addEventListener('click', function () {
+311:document.getElementById('mermaid-image-select').addEventListener('click', function () { mermaidImageFile.click(); });
+317:function updateMermaidMetrics(metrics) {
+326:function finishMermaidMetrics(metrics) {
+331:function setMermaidProgress(percent) {
+338:function stopMermaidImageRequest() {
+344:  window.parent.postMessage({ type: 'mdv-cancel-image-to-mermaid', requestId: id }, '*');
+382:function applyUiTheme(dark) {
+390:function toggleUiTheme() {
+393:  try { localStorage.setItem(MERMAID_UI_THEME_KEY, dark ? 'dark' : 'light'); } catch (_) {}
+396:function initUiTheme() {
+398:  try { saved = localStorage.getItem(MERMAID_UI_THEME_KEY) || ''; } catch (_) {}
+407:function setDocumentSelectionImportButton(message, isError) {
+418:function requestSelectedDocumentText() {
+422:  window.parent.postMessage({ type: 'mdv-request-document-selection' }, '*');
+425:function applyMermaidAiPanelState(collapsed) {
+435:function toggleMermaidAiPanel() {
+438:  try { localStorage.setItem(MERMAID_AI_COLLAPSED_KEY, collapsed ? 'true' : 'false'); } catch (error) {}
+441:function initMermaidAiPanelState() {
+444:    const saved = localStorage.getItem(MERMAID_AI_COLLAPSED_KEY);
+450:function readToolbarLayout() {
+452:    const saved = localStorage.getItem(TOOLBAR_LAYOUT_KEY);
+457:function saveToolbarLayout() {
+462:  try { localStorage.setItem(TOOLBAR_LAYOUT_KEY, JSON.stringify(value)); } catch (error) {}
+465:function updateToolbarLayoutUI() {
+473:function toggleToolbarCollapsed() {
+480:function toggleToolbarFloating() {
+493:function initToolbarLayout() {
+510:    toolbarDragHandle.addEventListener('mousedown', function (event) {
+522:      window.addEventListener('mousemove', move);
+523:      window.addEventListener('mouseup', stop);
+529:function initCollapsedExampleSelect() {
+535:function loadTemplateFromCollapsedMenu(type) {
+910:function openSyntaxTutorial() {
+914:function captureEditorState() {
+922:function pushEditorUndoState() {
+931:function restoreEditorState(state) {
+944:function undoEditorChange() {
+951:function splitFrontMatter(text) {
+961:function splitInitDirective(text) {
+970:function insertConfigTemplate(templateKey) {
+990:function insertConfigTemplateFromSelect() {
+1000:function setDirection(dir) {
+1014:function debounceRender() {
+1019:function applyEditorScale() {
+1024:function adjustEditorScale(delta) {
+1029:function resetEditorScale() {
+1034:function applyEditorThemeUI() {
+1040:function toggleEditorTheme() {
+1045:function applyPreviewScale() {
+1050:function adjustPreviewScale(delta) {
+1055:function resetPreviewScale() {
+1060:function initPreviewWheelZoom() {
+1062:  renderWrapper.addEventListener('wheel', function (e) {
+1070:function applyPreviewThemeUI() {
+1075:function applyMermaidPreviewTheme(dark = previewDarkMode) {
+1086:function togglePreviewTheme() {
+1092:function getMermaidErrorMessage(err, fallback) {
+1098:function extractSvgErrorText(svg) {
+1107:function normalizeMermaidDiagramType(source) {
+1113:function preprocessMermaidSourceForRender(source) {
+1186:function setAutoFixButtonStatus(message) {
+1197:async function autoFixMermaidCode() {
+1228:function restoreSankeyAliasLabels(labelMap, container = renderDiv) {
+1247:function polishRenderedMermaidSvg(container = renderDiv) {
+1263:async function render() {
+1352:function isErrorSvg(svg) {
+1373:function showError(message) {
+1378:async function renderWithStartupRecovery() {
+1389:function removeMermaidErrorArtifacts() {
+1400:function insertSnippet(type) {
+1429:function loadTemplate(type) {
+1438:function buildNodeSyntax(shape, id, label, includeId) {
+1455:function onNodeModeChange(mode) {
+1464:function onEdgeModeChange(mode) {
+1485:function insertNodeByShape(mode) {
+1512:function buildEdgeSyntax(type) {
+1537:function insertEdgeByType() {
+1584:async function copyCode() {
+1593:function insertIntoDocument() {
+1600:    window.parent.postMessage({
+1607:function insertIntoDocumentAndClose() {
+1614:    window.parent.postMessage({ type: 'mdv-insert-mermaid', code: code, closeEditor: true }, '*');
+1618:function setMermaidImageStatus(message, isError) {
+1626:function clearMermaidReferenceImage() {
+1641:function loadMermaidReferenceFile(file, onLoaded) {
+1660:function pasteMermaidImageFromParent() {
+1680:    window.addEventListener('message', receive);
+1681:    window.parent.postMessage({ type: 'mdv-paste-mermaid-image', requestId }, '*');
+1685:function extractMermaidCodeFromAI(value) {
+1691:function extractPartialMermaidCode(value) {
+1695:function showStreamingMermaidCode(rawText) {
+1704:async function finishGeneratedMermaid(code) {
+1719:function typeMermaidCode(code) {
+1737:function saveMermaidHistoryRecord(code, revision) {
+1739:  window.parent.postMessage({
+1750:function requestMermaidHistory() {
+1751:  if (window.parent && window.parent !== window) window.parent.postMessage({ type: 'mdv-mermaid-history-list' }, '*');
+1754:function toggleMermaidHistory(forceOpen) {
+1760:function renderMermaidHistory() {
+1777:    const load = document.createElement('button'); load.type = 'button'; load.textContent = '코드 불러오기'; load.addEventListener('click', function () { pushEditorUndoState(); editor.value = String(item.code || ''); render(); toggleMermaidHistory(false); setMermaidImageStatus('inDB 저장 기록을 불러왔습니다.'); });
+1778:    const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'danger'; remove.textContent = '삭제'; remove.addEventListener('click', function () { if (confirm('이 Mermaid 저장 기록을 삭제할까요?')) window.parent.postMessage({ type: 'mdv-mermaid-history-delete', id: item.id }, '*'); });
+1783:if (mermaidHistorySearch) mermaidHistorySearch.addEventListener('input', renderMermaidHistory);
+1785:function requestMermaidFromImage(mode) {
+1816:    window.parent.postMessage({ type: 'mdv-cancel-image-to-mermaid', requestId: mermaidImageRequestId }, '*');
+1827:  window.parent.postMessage({ type: 'mdv-analyze-image-to-mermaid', requestId: mermaidImageRequestId, mode: editing ? 'edit' : 'reference', sourceCode: editing ? mermaidCodeRevisionContext.source : '', image: editing ? null : mermaidReferenceImage, referenceText: editing ? '' : mermaidReferenceText.value, selection: selection, prompt: editing ? mermaidCodeRevisionContext.prompt : String(mermaidImagePrompt && mermaidImagePrompt.value || '').trim() }, '*');
+1830:if (mermaidImagePaste) mermaidImagePaste.addEventListener('click', async function (event) {
+1850:document.getElementById('mermaid-image-stop').addEventListener('click', stopMermaidImageRequest);
+1852:async function sendRenderedSvgToImageInsert() {
+1860:    window.parent.postMessage({ type: 'mdv-open-mermaid-svg-in-image-insert', dataUrl: dataUrl, fileName: 'mermaid-diagram-' + Date.now() + '.svg' }, '*');
+1867:async function sendRenderedPngToImageInsert() {
+1874:    window.parent.postMessage({
+1885:function getMermaidSvgForConverter() {
+1891:function openSvgToPngConverterWindow() {
+1933:  mermaidImageDropzone.addEventListener('click', function (event) { if (event.target !== mermaidImageRemove) mermaidImageFile.click(); });
+1934:  mermaidImageDropzone.addEventListener('keydown', function (event) { if (event.target === mermaidImageDropzone && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); mermaidImageFile.click(); } });
+1935:  mermaidImageDropzone.addEventListener('dragover', function (event) { event.preventDefault(); mermaidImageDropzone.classList.add('dragover'); });
+1936:  mermaidImageDropzone.addEventListener('dragleave', function () { mermaidImageDropzone.classList.remove('dragover'); });
+1937:  mermaidImageDropzone.addEventListener('drop', function (event) { event.preventDefault(); mermaidImageDropzone.classList.remove('dragover'); loadMermaidReferenceFile(event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0]); });
+1939:if (mermaidImageFile) mermaidImageFile.addEventListener('change', function () { loadMermaidReferenceFile(mermaidImageFile.files && mermaidImageFile.files[0]); });
+1940:if (mermaidImageRemove) mermaidImageRemove.addEventListener('click', function (event) { event.stopPropagation(); clearMermaidReferenceImage(); });
+1941:if (mermaidImageGenerate) mermaidImageGenerate.addEventListener('click', requestMermaidFromImage);
+1942:document.addEventListener('paste', function (event) {
+1946:window.addEventListener('message', async function (event) {
+2050:async function downloadSVG() {
+2068:function triggerDownload(url, fileName, revokeObjectUrl) {
+2082:function getSvgExportSize(svgEl) {
+2097:function serializeRenderedSvg(svgEl, dark = previewDarkMode) {
+2101:async function createRenderedPngBlob(svgEl, dark = previewDarkMode) {
+2139:function blobToDataUrl(blob) {
+2148:async function downloadPNG() {
+2164:function getCurrentLineContext(ed) {
+2173:function duplicateLine() {
+2192:function moveCurrentLine(dir) {
+2232:function toggleMermaidComment() {
+2262:function initPaneDivider() {
+2265:  paneDivider.addEventListener('mousedown', function (e) {
+2269:  window.addEventListener('mousemove', function (e) {
+2291:  window.addEventListener('mouseup', function () { dragging = false; });
+2294:function removeEditorMarkdownFences() {
+2304:editor.addEventListener('paste', function (event) {
+2315:editor.addEventListener('input', function () { removeEditorMarkdownFences(); debounceRender(); });
+2316:editor.addEventListener('beforeinput', function (event) {
+2337:editor.addEventListener('keydown', function (e) {
+2385:mermaidModelSettings.addEventListener('toggle', function () {
+2387:  try { localStorage.setItem('mdv_mermaid_ai_provider_collapsed_v1', String(!mermaidModelSettings.open)); } catch (_) {}
+2393:function openLargePreview() {
+2426:function initPreviewDragPan(viewport) {
+2430:  viewport.addEventListener('pointerdown', event => {
+2443:  viewport.addEventListener('pointermove', event => {
+2455:  viewport.addEventListener('pointerup', stop);
+2456:  viewport.addEventListener('pointercancel', stop);
+2457:  viewport.addEventListener('lostpointercapture', stop);
+2458:  viewport.addEventListener('dragstart', event => {
+2465:function selectMermaidInputPanel(panelId) {
+2475:function initMermaidInputTabs() {
+2479:    tab.addEventListener('click', () => select(tab));
+2480:    tab.addEventListener('keydown', event => {
