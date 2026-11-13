@@ -813,12 +813,17 @@ function openImageInsertModal() {
     if (!modal) return;
     modal.classList.remove('hidden');
     modal.classList.add('flex');
+    if (window.innerWidth <= 767) imageInsertDockRight = false;
     if (window.toggleCaptionInsertPanel) {
-        try { window.toggleCaptionInsertPanel('figure', true); } catch (e) {}
+        try { window.toggleCaptionInsertPanel('figure', false); } catch (e) {}
     } else if (window.prepareCaptionPanel) {
         try { window.prepareCaptionPanel('figure'); } catch (e) {}
     }
     applyImageInsertPanelLayout();
+    if (window.innerWidth <= 767) {
+        const content = modal.querySelector('.image-insert-scroll-content');
+        if (content) content.scrollTop = 0;
+    }
     bindImageInsertModalDrag();
     bindImageInsertResize();
     if (!imageInsertCropBound) {

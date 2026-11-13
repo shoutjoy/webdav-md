@@ -4693,3 +4693,16 @@ body.mermaid-workspace-split #mermaid-editor-modal-panel { border-radius:0; box-
 .jena-task-status button {padding:5px 12px;border:1px solid #64748b;border-radius:6px;background:transparent;color:inherit;cursor:pointer}
 .ai-tool-provider-controls {min-width:0;max-width:100%}
 @media(max-width:760px){.jena-task-status button{min-height:44px}.ai-tool-provider-controls select,.ai-tool-provider-controls button,.ai-tool-provider-controls input{max-width:100%;min-height:40px}}
+
+/* Shared dynamic picker controls inside the dark Math/Table dialogs. */
+.img2math-dialog .ai-tool-provider-controls { width: 100%; color-scheme: dark; }
+.img2math-dialog .ai-tool-provider-controls select,
+.img2math-dialog .ai-tool-provider-controls input,
+.img2math-dialog .ai-tool-provider-controls button {
+    min-width: 0; max-width: 100%; box-sizing: border-box;
+    padding: 6px 9px; border: 1px solid #3b6574; border-radius: 8px;
+    background: #102633; color: #e8f5f7; font: inherit; font-size: 12px;
+}
+.img2math-dialog .ai-tool-provider-controls option { background: #102633; color: #e8f5f7; }
+.img2math-dialog .ai-tool-provider-controls :disabled { color: #b2cbd2; cursor: wait; }
+.img2math-dialog .ai-task-connection { flex: 1 1 100%; white-space: normal; overflow-wrap: anywhere; font-size: 12px; }

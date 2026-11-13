@@ -14,3 +14,15 @@
 @media print {#tidy-menu-dock{display:none!important}}
 
 @media(min-width:761px){body:has(#tidy-menu-dock) .scroll-jump-rail{right:calc(var(--tidy-document-right,0px) + 14px)}body.edit-toolbar-vertical:has(#tidy-menu-dock) .scroll-jump-rail{right:calc(var(--tidy-document-right,0px) + 92px)}}
+
+/* Respond to the resized Dock, independently of the browser viewport. */
+#tidy-menu-dock {container:tidy-dock / inline-size;}
+#tidy-menu-dock .tidy-dock-heading {flex-wrap:wrap;}
+#tidy-menu-dock #tidy-quick-panel .tidy-action-button,
+#tidy-menu-dock #tidy-quick-panel .tidy-add-feature-button {
+ white-space:normal;overflow:visible;overflow-wrap:anywhere;height:auto;
+}
+@container tidy-dock (max-width:300px) {
+ #tidy-quick-panel .tidy-action-grid {grid-template-columns:minmax(0,1fr);}
+ #tidy-quick-panel .tidy-feature-manager-row {flex-direction:column;}
+}

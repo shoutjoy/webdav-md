@@ -73,3 +73,26 @@
  }
  #mermaid-editor-modal-panel[data-fullscreen="true"] #mermaid-editor-modal-header {flex:none;}
 }
+/* Mobile image insertion opens as a compact popup matching the editing workflow. */
+@media screen and (max-width:767px) {
+ #image-insert-modal:not(.image-insert-docked) #image-insert-panel {
+  position:fixed!important;left:50%!important;top:12px!important;right:auto!important;bottom:auto!important;
+  transform:translateX(-50%)!important;margin:0!important;width:min(540px,calc(100vw - 16px))!important;
+  height:auto!important;
+  min-width:0;min-height:0;max-width:calc(100vw - 16px)!important;max-height:calc(100dvh - var(--mobile-ui-dock-height,72px) - var(--mobile-ui-zoom-reserved-height,44px) - 24px)!important;
+ }
+ #image-insert-panel .image-insert-scroll-content {padding:12px;}
+ #image-insert-header {gap:6px;margin-bottom:10px;}
+ #image-insert-header h3 {font-size:14px;}
+ #image-insert-header button {font-size:11px;min-height:30px;padding:4px 8px;}
+ #image-insert-panel :is(#img-insert-upload-zone,#img-insert-paste-zone) {min-height:88px;padding:5px;gap:3px;}
+ #image-insert-panel .image-insert-scroll-content > .flex:has(#img-insert-crop-btn) {grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:10px;}
+ #image-insert-panel .image-insert-scroll-content > .flex:has(#img-insert-crop-btn) > button {font-size:10px;padding:5px 3px;min-height:30px;}
+ #image-insert-panel .image-insert-output {gap:8px;justify-content:space-between;}
+ #image-insert-panel .image-insert-output :is(button,label) {font-size:11px;min-height:32px;}
+ #image-insert-panel #img-insert-url {font-size:16px;padding:6px 8px;}
+ #image-insert-panel #figure-caption-panel {margin-top:12px;padding-top:12px;}
+ #image-insert-panel #figure-caption-panel > div:first-child {margin-bottom:0;gap:6px;}
+ #image-insert-panel #figure-caption-panel h3 {font-size:14px;}
+ #image-insert-panel #figure-caption-toggle {font-size:11px;min-height:32px;}
+}

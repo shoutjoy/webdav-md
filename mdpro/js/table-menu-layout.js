@@ -96,12 +96,11 @@
         });
         const sizeLabel = document.getElementById('table-insert-size-label');
         sizeLabel.after(sizeForm);
-        const mobile = global.matchMedia('(max-width:767px)');
         function foldSection(id, title, nodes) {
             const section = document.createElement('details');
             section.id = id;
             section.className = 'table-menu-section';
-            section.open = !mobile.matches;
+            section.open = false;
             const heading = document.createElement('summary');
             heading.textContent = title;
             section.appendChild(heading);
@@ -109,13 +108,12 @@
             nodes.forEach(node => section.appendChild(node));
             return section;
         }
-        const sizeSection = foldSection('table-size-section', '크기 선택', [sizeLabel, sizeForm, document.getElementById('table-insert-grid')]);
+        foldSection('table-size-section', '크기 선택', [sizeLabel, sizeForm, document.getElementById('table-insert-grid')]);
+        const numericSection = foldSection('table-size-numeric-section', '행·열 직접 입력', [sizeForm]);
+        numericSection.open = false;
         const structure = panel.querySelector('.table-structure-actions');
-        const editSection = foldSection('table-edit-section', '표 편집 (표 안에 커서)', [structure]);
+        foldSection('table-edit-section', '표 편집 (표 안에 커서)', [structure]);
         // Keep the original heading and every command in the expandable body.
-        mobile.addEventListener('change', () => {
-            sizeSection.open = editSection.open = !mobile.matches;
-        });
         bindPointer(document.getElementById('table-menu-heading'), '');
         ['n','s','e','w','ne','nw','se','sw'].forEach(direction => {
             const handle = document.createElement('span');
