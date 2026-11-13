@@ -25,7 +25,7 @@ test('MATH menu exposes the img2Math workflow', () => {
     }
     assert.match(html, /AI Jena로 수식 인식 실행/);
     assert.match(html, /id="img2math-ai-model"/);
-    assert.match(html, /id="img2math-model-select"[^>]+aria-label="Img2Math 인공지능 모델 선택"/);
+    assert.match(html, /id="img2math-model-select"[^>]+aria-label="Jena Math 인공지능 모델 선택"/);
     assert.match(html, /id="img2math-import-selection"[^>]+>선택 텍스트 가져오기<\/button>/);
     assert.match(html, /id="img2math-source-text"[^>]+placeholder="예: x의 제곱/);
     assert.match(html, /id="img2math-result"/);

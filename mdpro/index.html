@@ -35,7 +35,7 @@
     <script src="./js/md_notebooklm_equals_hr.js" charset="utf-8"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <link rel="stylesheet" href="./css/style.css?jenaSeries=20261113-math-connection&amp;meAI=20261110-1&amp;coverFold=20260908-input-fields-2&amp;v=20260908-purple-menu-hover-1&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;docxTableContrast=20260817-1&amp;tidyUi=20260811-1&amp;inline2refCss=20260822-2&amp;indbUi=20260812-3&amp;mermaidDisplay=20260810-1&amp;mermaidResize=20260810-1&amp;comment=20260810-3&amp;textStyle=20261023-modeless-selection-1&amp;sidebarControls=20260812-4&amp;miniToc=20260815-responsive-1&amp;crossrefResults=20260812-1&amp;mainHeaderBackground=20260815-1&amp;lightChrome=20260823-6&amp;verticalEditToolbar=20260823-5&amp;aiHeaderButtons=20260823-1&amp;featureKeyStyle=20260823-1&amp;documentTheme=20261022-document-only-2&amp;formatGutter=20260828-1&amp;miniPvResize=20260911-free-vertical-2&amp;img2MathCss=20261021-jena-table-preview-2&amp;editorShiftSize=20260909-7&amp;editorWheelContain=20260909-1&amp;mermaidEditorResize=20260911-1&amp;codeCopy=20260920-2&amp;printPdf=20261020-math-fit-1&amp;nonprinting=20260925-3&amp;featureToolNames=20261006-1&amp;lemonadeColor=20261019-1&amp;captionContrast=20261023-1&amp;imageDownload=20261108-1" charset="utf-8">
+    <link rel="stylesheet" href="./css/style.css?jenaSeries=20261113-math-fold&amp;meAI=20261110-1&amp;coverFold=20260908-input-fields-2&amp;v=20260908-purple-menu-hover-1&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;docxTableContrast=20260817-1&amp;tidyUi=20260811-1&amp;inline2refCss=20260822-2&amp;indbUi=20260812-3&amp;mermaidDisplay=20260810-1&amp;mermaidResize=20260810-1&amp;comment=20260810-3&amp;textStyle=20261023-modeless-selection-1&amp;sidebarControls=20260812-4&amp;miniToc=20260815-responsive-1&amp;crossrefResults=20260812-1&amp;mainHeaderBackground=20260815-1&amp;lightChrome=20260823-6&amp;verticalEditToolbar=20260823-5&amp;aiHeaderButtons=20260823-1&amp;featureKeyStyle=20260823-1&amp;documentTheme=20261022-document-only-2&amp;formatGutter=20260828-1&amp;miniPvResize=20260911-free-vertical-2&amp;img2MathCss=20261021-jena-table-preview-2&amp;editorShiftSize=20260909-7&amp;editorWheelContain=20260909-1&amp;mermaidEditorResize=20260911-1&amp;codeCopy=20260920-2&amp;printPdf=20261020-math-fit-1&amp;nonprinting=20260925-3&amp;featureToolNames=20261006-1&amp;lemonadeColor=20261019-1&amp;captionContrast=20261023-1&amp;imageDownload=20261108-1" charset="utf-8">
     <link rel="stylesheet" href="./MobileUI/mobile-ui.css?v=20260913-editor-fit-1" charset="utf-8">
     <link rel="stylesheet" href="./js/inDB/inDB.css?v=20260823-ai-audit-3" charset="utf-8">
     <link rel="stylesheet" href="./sidebar_left/sidebar-resize.css?v=20260812-1" charset="utf-8">
@@ -1286,7 +1286,7 @@
                                 <button type="button" onclick="openMath99Popup()"
                                     class="px-2 py-1 rounded border border-indigo-300 dark:border-indigo-600 text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20">Math99</button>
                                 <button type="button" onclick="openImg2MathPopup()"
-                                    class="px-2 py-1 rounded border border-teal-300 dark:border-teal-600 text-[11px] font-semibold text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-900/20">img2Math</button>
+                                    class="px-2 py-1 rounded border border-teal-300 dark:border-teal-600 text-[11px] font-semibold text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-900/20">Jena Math</button>
                             </div>
                         </div>
                     </div>
@@ -1551,13 +1551,13 @@
                     <span class="img2math-logo" aria-hidden="true">∑</span>
                     <div>
                         <div class="img2math-title-row">
-                            <h2 id="img2math-title">Img2Math</h2>
+                            <h2 id="img2math-title">Jena Math</h2>
                             <span class="img2math-ai-badge">AI Jena</span>
                         </div>
                         <p id="img2math-description">이미지나 텍스트로 작성된 수식을 AI Jena가 LaTeX로 변환합니다.</p>
                     </div>
                 </div>
-                <button type="button" onclick="closeImg2MathPopup()" class="img2math-close" aria-label="Img2Math 닫기">닫기</button>
+                <button type="button" onclick="closeImg2MathPopup()" class="img2math-close" aria-label="Jena Math 닫기">닫기</button>
             </header>
             <div class="img2math-body">
                 <section class="img2math-card img2math-image-card">
@@ -1591,15 +1591,18 @@
                     <section class="img2math-card">
                         <div class="img2math-card-heading">
                             <h3><span class="img2math-step">2</span>인식 프롬프트</h3>
+                            <details id="img2math-model-settings" class="img2math-model-settings">
+                                <summary>인공지능 모델</summary>
                             <div id="img2math-ai-model" class="img2math-model-picker">
                                 <span id="img2math-ai-provider" class="img2math-model">AI Jena 설정 확인 중</span>
                                 <label class="img2math-model-select-wrap">
                                     <span>인공지능 모델</span>
-                                    <select id="img2math-model-select" aria-label="Img2Math 인공지능 모델 선택" disabled>
+                                    <select id="img2math-model-select" aria-label="Jena Math 인공지능 모델 선택" disabled>
                                         <option>모델 불러오는 중…</option>
                                     </select>
                                 </label>
                             </div>
+                            </details>
                         </div>
                         <textarea id="img2math-prompt" rows="3" aria-label="수식 인식 프롬프트">입력한 이미지 또는 텍스트의 수학적 의미를 정확한 LaTeX 수식으로 변환해 줘. 기호, 위첨자, 아래첨자, 분수, 괄호와 수식 구조를 보존해 줘.</textarea>
                         <button id="img2math-generate" type="button" class="img2math-run">✦ AI Jena로 수식 인식 실행</button>
@@ -1850,14 +1853,14 @@
                 <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">Mermaid Ref</h3>
                 <div class="flex items-center gap-2">
                     <button type="button" id="mermaid-editor-dock-right-btn" onclick="toggleMermaidEditorDockRight()"
-                        class="px-2.5 py-1.5 border border-slate-300 dark:border-slate-600 rounded-md text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700" title="우측으로 보내기">>></button>
+                        class="px-2.5 py-1.5 border border-slate-300 dark:border-slate-600 rounded-md text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700" title="창을 화면 오른쪽에 도킹" aria-pressed="false">Dock</button>
                     <button type="button" id="mermaid-editor-fullscreen-btn" aria-pressed="false" onclick="toggleMermaidEditorFullscreen()"
                         class="px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-md text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">전체화면</button>
                     <button type="button" onclick="closeMermaidEditorModal()"
                         class="px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-md text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700">닫기</button>
                 </div>
             </div>
-            <iframe id="mermaid-editor-frame" data-src="./js/mermaid/mermaid-editor/index.html?mobileCompact=20261113-2&amp;revisionChat=20261113-3&amp;v=20261110-me-ai-1&amp;jenaSeries=20261113-math-connection"
+            <iframe id="mermaid-editor-frame" data-src="./js/mermaid/mermaid-editor/index.html?mobileCompact=20261113-2&amp;revisionChat=20261113-13&amp;v=20261110-me-ai-1&amp;jenaSeries=20261113-math-fold"
                 class="w-full h-full border-0 bg-white dark:bg-slate-900" title="Mermaid Editor"></iframe>
             <div class="mermaid-editor-resize-handle resize-n" data-mermaid-resize="n" title="위쪽에서 높이 조절"></div>
             <div class="mermaid-editor-resize-handle resize-e" data-mermaid-resize="e" title="오른쪽에서 너비 조절"></div>
@@ -3637,7 +3640,7 @@
             </div>
         </div>
         <div id="html2ppt-panel-body" class="flex-1 p-2 min-h-0">
-            <iframe id="html2ppt-frame" data-src="./js/Html2pptx/jenaEditor/index.html?v=20260815-pptx-import-1&amp;jenaSeries=20261113-math-connection"
+            <iframe id="html2ppt-frame" data-src="./js/Html2pptx/jenaEditor/index.html?v=20260815-pptx-import-1&amp;jenaSeries=20261113-math-fold"
                 class="w-full h-full border-0 rounded bg-white dark:bg-slate-900" title="GenSlide"></iframe>
         </div>
         <div id="html2ppt-panel-resizer" title="Resize"
@@ -4089,11 +4092,11 @@
     charset="utf-8"
     defer>
 </script>
-<script src="./AI_App/aiChat/task-provider-picker.js?v=20261113-math-connection"></script>
+<script src="./AI_App/aiChat/task-provider-picker.js?v=20261113-math-fold"></script>
 <script src="./js/jena-tool-runtime.js?v=20261112-webdav-jena-1"></script>
 <script src="./js/ai-tool-providers.js?v=20261112-webdav-jena-1"></script>
 <script
-    src="./js/app.js?figureCaptionFold=20261113-1&amp;mobileMermaid=20261113-2&amp;npuTaskRoute=20261113-1&amp;providerIsolation=20261113-1&amp;continuationStart=20261113-1&amp;localModelLoad=20261113-1&amp;lemonadeEmpty=20261113-1&amp;resumeAnswer=20261113-1&amp;studioNotice=20261113-2&amp;jenaDock=20261113-1&amp;hostedImage=20261113-1&amp;tableMenu=20261113-anchor-owner-1&amp;jenaSeries=20261113-math-connection&amp;meAI=20261110-1&amp;linkInsert=20261027-2&amp;imageQuality=20261027-2&amp;apiKeyFold=20261027-1&amp;llamacpp=20261026-1&amp;a4Pages=20260909-a4-lcr-1&amp;mermaid=20261026-docx-images-1&amp;v=20260908-note-cover-fold-menu-4&amp;msetWebdav=20260908-1&amp;wdNewFile=20260909-2&amp;aiJenaReasoning=20261112-gemini-minimal-1&amp;storageSafety=20260815-1&amp;localWriteback=20260815-1&amp;localFileRefresh=20260817-1&amp;docxImport=20260817-dark-table-contrast-1&amp;viewModeTextInput=20260815-2&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;indbImages=20260812-3&amp;indbToggle=20260816-1&amp;tidyCustomJs=20260811-1&amp;html2md=20260817-1&amp;inline2ref=20260822-4&amp;saveDropdown=20260822-1&amp;aiJenaAttachments=20260822-2&amp;aiDataCenter=20260823-1&amp;settingsDrag=20260811-1&amp;copyFab=20260810-ai-jena-bottom-1&amp;mobileAiJena=20260817-1&amp;feature=templates-new-file-menu-2&amp;storageVisibility=20260810-1&amp;settingsResetConfirm=1&amp;toolbarNames=20260807-1&amp;templateFullscreen=20260807-1&amp;settingsFold=20260807-1&amp;mermaidDisplay=20260810-3&amp;comment=20260812-html-comment-1&amp;perf=20260810-10&amp;pdfExport=20261021-numbered-dot-escape-1&amp;pvExport=20260813-modal-2&amp;pdfMergeTool=20260815-pdfm-project-15&amp;imageSizeHint=20261023-html-size-2&amp;textStyle=20261023-modeless-selection-1&amp;localDefault=20260812-1&amp;folderTree=20260812-1&amp;documentMeta=20260812-1&amp;documentDrop=20260812-1&amp;sliderMaker=20260812-1&amp;scholarUpgrades=20260817-2&amp;pvHeaderSettings=20260815-1&amp;mainHeaderBackground=20260815-1&amp;mainHeaderScale=20260815-1&amp;headerFileActions=20260823-1&amp;listQuickMenu=20260823-1&amp;footnoteAnchorMenu=20260823-1&amp;imageInsertMenu=20260825-link-1&amp;verticalEditToolbar=20260823-2&amp;headerHeadingDisplay=20260825-1&amp;documentTheme=20261022-editor-1&amp;hwpSupport=20261104-1&amp;lmStudioFastReasoning=20261104-1&amp;fastSafetyTimeout=20260825-1&amp;fastCompleteStreaming=20260825-1&amp;fastLimitsUi=20260825-2&amp;aiDetailsToggle=20260825-1&amp;splitTab=20260825-1&amp;img2Math=20261021-table-structure-3&amp;editorShiftSize=20260909-2&amp;editorShiftOrientation=20260911-vertical-1&amp;mermaidEditorResize=20260911-1&amp;aiJenaFloating=20260912-mobile-resize-1&amp;pvLiveEdit=20260911-1&amp;dataImageFold=20261021-unified-toggle-1&amp;editorListTab=20260912-3&amp;headingHotkeys=20260912-2&amp;toolbarRecovery=20260912-list-outdent-9&amp;aiJenaGeneralAnswer=20261023-original-native-1&amp;aiJenaImages=20261026-1&amp;aiJenaModels=20261026-all-installed-2&amp;aiJenaIdentity=20261026-reference-1&amp;aiJenaAnswerThemeNames=20260912-1&amp;aiJenaDefaultLayout=20260912-alt2-1&amp;aiJenaRealtimeRecord=20260912-2&amp;aiJenaFloatingCompactPosition=20260912-3&amp;aiJenaHeaderUtilities=20260912-2&amp;scrollSync=20260915-active-mode-1&amp;cmGutter=20260918-remove-1&amp;codeCopy=20260920-2&amp;editorPlaceholder=20260920-1&amp;printPdf=20261020-math-fit-1&amp;lineCopy=20260922-1&amp;localHtmlAssets=20260925-js-runtime-1&amp;nonprinting=20260925-3&amp;infographicAuto=20261005-5&amp;featureToolNames=20261006-1&amp;orcaRouterDefault=20261019-1&amp;aiJenaRealtimeBudget=20261019-4&amp;lemonadeLatency=20261019-1&amp;lemonadeLoad=20261019-1&amp;lemonadeLoadProgress=20261019-1&amp;lemonadeDirectAnswer=20261023-local-auto-tone-1&amp;lemonadeImage=20261019-5&amp;lemonadePagesDirect=20261019-1&amp;htmlExport=20261020-theme-layout-1&amp;figureCaptionAlign=20261023-center-1&amp;figureCaptionRenumber=20261024-1&amp;tableCaptionRenumber=20261023-1&amp;tablePickerRows=20261023-2&amp;captionContrast=20261023-1&amp;imageDownload=20261108-1"
+    src="./js/app.js?figureCaptionFold=20261113-1&amp;mobileMermaid=20261113-3&amp;npuTaskRoute=20261113-1&amp;providerIsolation=20261113-1&amp;continuationStart=20261113-1&amp;localModelLoad=20261113-1&amp;lemonadeEmpty=20261113-1&amp;resumeAnswer=20261113-1&amp;studioNotice=20261113-2&amp;jenaDock=20261113-1&amp;hostedImage=20261113-1&amp;tableMenu=20261113-anchor-owner-1&amp;jenaSeries=20261113-math-fold&amp;meAI=20261110-1&amp;linkInsert=20261027-2&amp;imageQuality=20261027-2&amp;apiKeyFold=20261027-1&amp;llamacpp=20261026-1&amp;a4Pages=20260909-a4-lcr-1&amp;mermaid=20261026-docx-images-1&amp;v=20260908-note-cover-fold-menu-4&amp;msetWebdav=20260908-1&amp;wdNewFile=20260909-2&amp;aiJenaReasoning=20261112-gemini-minimal-1&amp;storageSafety=20260815-1&amp;localWriteback=20260815-1&amp;localFileRefresh=20260817-1&amp;docxImport=20260817-dark-table-contrast-1&amp;viewModeTextInput=20260815-2&amp;viewImageResize=20260811-2&amp;viewTableResize=20260817-row-column-1&amp;indbImages=20260812-3&amp;indbToggle=20260816-1&amp;tidyCustomJs=20260811-1&amp;html2md=20260817-1&amp;inline2ref=20260822-4&amp;saveDropdown=20260822-1&amp;aiJenaAttachments=20260822-2&amp;aiDataCenter=20260823-1&amp;settingsDrag=20260811-1&amp;copyFab=20260810-ai-jena-bottom-1&amp;mobileAiJena=20260817-1&amp;feature=templates-new-file-menu-2&amp;storageVisibility=20260810-1&amp;settingsResetConfirm=1&amp;toolbarNames=20260807-1&amp;templateFullscreen=20260807-1&amp;settingsFold=20260807-1&amp;mermaidDisplay=20260810-3&amp;comment=20260812-html-comment-1&amp;perf=20260810-10&amp;pdfExport=20261021-numbered-dot-escape-1&amp;pvExport=20260813-modal-2&amp;pdfMergeTool=20260815-pdfm-project-15&amp;imageSizeHint=20261023-html-size-2&amp;textStyle=20261023-modeless-selection-1&amp;localDefault=20260812-1&amp;folderTree=20260812-1&amp;documentMeta=20260812-1&amp;documentDrop=20260812-1&amp;sliderMaker=20260812-1&amp;scholarUpgrades=20260817-2&amp;pvHeaderSettings=20260815-1&amp;mainHeaderBackground=20260815-1&amp;mainHeaderScale=20260815-1&amp;headerFileActions=20260823-1&amp;listQuickMenu=20260823-1&amp;footnoteAnchorMenu=20260823-1&amp;imageInsertMenu=20260825-link-1&amp;verticalEditToolbar=20260823-2&amp;headerHeadingDisplay=20260825-1&amp;documentTheme=20261022-editor-1&amp;hwpSupport=20261104-1&amp;lmStudioFastReasoning=20261104-1&amp;fastSafetyTimeout=20260825-1&amp;fastCompleteStreaming=20260825-1&amp;fastLimitsUi=20260825-2&amp;aiDetailsToggle=20260825-1&amp;splitTab=20260825-1&amp;img2Math=20261021-table-structure-3&amp;editorShiftSize=20260909-2&amp;editorShiftOrientation=20260911-vertical-1&amp;mermaidEditorResize=20260911-1&amp;aiJenaFloating=20260912-mobile-resize-1&amp;pvLiveEdit=20260911-1&amp;dataImageFold=20261021-unified-toggle-1&amp;editorListTab=20260912-3&amp;headingHotkeys=20260912-2&amp;toolbarRecovery=20260912-list-outdent-9&amp;aiJenaGeneralAnswer=20261023-original-native-1&amp;aiJenaImages=20261026-1&amp;aiJenaModels=20261026-all-installed-2&amp;aiJenaIdentity=20261026-reference-1&amp;aiJenaAnswerThemeNames=20260912-1&amp;aiJenaDefaultLayout=20260912-alt2-1&amp;aiJenaRealtimeRecord=20260912-2&amp;aiJenaFloatingCompactPosition=20260912-3&amp;aiJenaHeaderUtilities=20260912-2&amp;scrollSync=20260915-active-mode-1&amp;cmGutter=20260918-remove-1&amp;codeCopy=20260920-2&amp;editorPlaceholder=20260920-1&amp;printPdf=20261020-math-fit-1&amp;lineCopy=20260922-1&amp;localHtmlAssets=20260925-js-runtime-1&amp;nonprinting=20260925-3&amp;infographicAuto=20261005-5&amp;featureToolNames=20261006-1&amp;orcaRouterDefault=20261019-1&amp;aiJenaRealtimeBudget=20261019-4&amp;lemonadeLatency=20261019-1&amp;lemonadeLoad=20261019-1&amp;lemonadeLoadProgress=20261019-1&amp;lemonadeDirectAnswer=20261023-local-auto-tone-1&amp;lemonadeImage=20261019-5&amp;lemonadePagesDirect=20261019-1&amp;htmlExport=20261020-theme-layout-1&amp;figureCaptionAlign=20261023-center-1&amp;figureCaptionRenumber=20261024-1&amp;tableCaptionRenumber=20261023-1&amp;tablePickerRows=20261023-2&amp;captionContrast=20261023-1&amp;imageDownload=20261108-1"
     charset="utf-8"
     defer>
 </script>

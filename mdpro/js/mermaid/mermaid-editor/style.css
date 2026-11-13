@@ -796,3 +796,131 @@ body.ui-dark .mermaid-ai-actions #mermaid-ai-provider-picker { background:#17223
  #top-bar.toolbar-collapsed #collapsed-example-select {flex:0 1 145px;width:145px;max-width:100%;}
  #preview-pane .btn-light {min-height:30px;min-width:30px;padding:4px 6px;font-size:10px;border-radius:6px;}
 }
+
+/* Compact Ref inputs also apply to the narrow right-dock iframe. */
+#mermaid-prompt-input:not([open]) > textarea { display:none; }
+#mermaid-prompt-input summary { cursor:pointer; font-size:11px; line-height:1.6; }
+#image-to-mermaid #mermaid-prompt-input textarea { font-size:12px; line-height:1.4; height:64px; min-height:48px; padding:6px; }
+.history-head button { width:auto; height:auto; min-height:32px; padding:6px 12px; border:1px solid var(--border); border-radius:8px; background:var(--panel); color:var(--text); font:600 12px/1.4 sans-serif; }
+@media (max-width:900px) {
+  #image-to-mermaid { grid-template-columns:minmax(0,1fr); }
+  #image-to-mermaid > .mermaid-reference-card,
+  #image-to-mermaid > #mermaid-prompt-input,
+  #image-to-mermaid > .mermaid-text-reference,
+  #image-to-mermaid > .mermaid-ai-actions { grid-column:1; grid-row:auto; max-width:none; }
+  #image-to-mermaid .mermaid-reference-card { grid-template-columns:72px minmax(0,1fr); padding:5px; gap:5px; }
+  #image-to-mermaid #mermaid-image-dropzone { height:34px; min-height:34px; padding:0; }
+  #image-to-mermaid #mermaid-image-empty { gap:0; font-size:10px; }
+  #image-to-mermaid #mermaid-image-empty .ref-upload-icon,
+  #image-to-mermaid #mermaid-image-empty > span:last-child { display:none; }
+  #image-to-mermaid #mermaid-image-preview { max-height:34px; }
+  #image-to-mermaid .mermaid-reference-actions { display:flex; gap:4px; margin:0; }
+  #image-to-mermaid .mermaid-reference-actions button { flex:1; min-height:34px; padding:3px; font-size:10px; border-radius:6px; }
+  #image-to-mermaid .mermaid-text-reference { padding:6px 8px; }
+  #image-to-mermaid .mermaid-text-reference:not([open]) summary small { display:none; }
+  #preview-pane .pane-title-row { flex-wrap:wrap; gap:4px; }
+  #preview-pane .zoom-controls { flex-wrap:wrap; }
+}
+
+.preview-drag-pan { cursor:grab; }
+.preview-drag-pan.is-panning { cursor:grabbing; user-select:none; }
+
+/* Input tabs and optional settings preserve all existing IDs and mounted values. */
+#mermaid-input-tabs { grid-column:1 / -1; display:flex; gap:5px; min-width:0; }
+#mermaid-input-tabs button { flex:1; min-width:0; padding:8px 5px; border:1px solid var(--border); border-radius:8px; background:var(--panel); color:var(--text); font:600 12px/1.4 sans-serif; cursor:pointer; }
+#mermaid-input-tabs button[aria-selected="true"] { background:#0f766e; color:#fff; border-color:#14b8a6; }
+#mermaid-image-panel { grid-column:1 / -1; display:grid; gap:8px; min-width:0; }
+#image-to-mermaid #mermaid-image-panel > * { grid-column:1; grid-row:auto; max-width:none; }
+#image-to-mermaid > #mermaid-ai-actions { grid-column:1 / -1; display:grid; grid-template-columns:auto minmax(0,1fr); width:100%; }
+#image-to-mermaid #mermaid-settings-toggle { grid-column:1; grid-row:1; width:auto; min-height:36px; padding:6px 12px; border:1px solid var(--border); border-radius:8px; background:var(--panel); color:var(--text); cursor:pointer; }
+#image-to-mermaid #mermaid-image-generate { grid-column:2; grid-row:1; width:100%; }
+#mermaid-settings-panel { grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:8px; min-width:0; }
+#image-to-mermaid #mermaid-settings-panel > #mermaid-ai-model-settings { flex:1 1 100%; order:0; }
+#mermaid-settings-panel > button { flex:1; }
+#image-to-mermaid .mermaid-run-feedback { grid-column:1 / -1; }
+#image-to-mermaid #mermaid-image-panel[hidden],
+#image-to-mermaid #mermaid-text-input[hidden],
+#image-to-mermaid #mermaid-code-revision[hidden],
+#image-to-mermaid #mermaid-settings-panel[hidden] { display:none; }
+#image-to-mermaid.ai-collapsed #mermaid-input-tabs,
+#image-to-mermaid.ai-collapsed #mermaid-image-panel,
+#image-to-mermaid.ai-collapsed #mermaid-settings-panel,
+#image-to-mermaid.ai-collapsed #mermaid-settings-toggle { display:none; }
+
+/* Provider stays at the top; the three primary actions stay in one row. */
+#image-to-mermaid > #mermaid-ai-model-settings { grid-column:1 / -1; grid-row:auto; width:100%; box-sizing:border-box; }
+#image-to-mermaid > #mermaid-ai-model-settings > summary { width:100%; box-sizing:border-box; }
+
+#image-to-mermaid > #mermaid-ai-actions { grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.6fr); }
+#image-to-mermaid #mermaid-history-open { grid-column:1; grid-row:1; }
+#image-to-mermaid #mermaid-document-insert { grid-column:2; grid-row:1; }
+#image-to-mermaid #mermaid-image-generate { grid-column:3; grid-row:1; }
+#image-to-mermaid #mermaid-ai-actions > button { width:100%; min-width:0; padding:8px 5px; font-size:12px; }
+#image-to-mermaid #mermaid-document-insert:disabled { opacity:.45; cursor:not-allowed; }
+#image-to-mermaid #mermaid-image-status[hidden] { display:none; }
+
+/* Expanded Jena provider row and truthful stage-based model loading feedback. */
+#image-to-mermaid.ai-collapsed > #mermaid-ai-model-settings { display:none; }
+#image-to-mermaid:not(.ai-collapsed) > #mermaid-ai-model-settings[open] { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+#image-to-mermaid > #mermaid-ai-model-settings > summary { width:auto; flex:0 0 auto; padding:6px; min-height:0; }
+#image-to-mermaid > #mermaid-ai-model-settings > #mermaid-ai-provider-picker { display:flex; flex:1 1 0; flex-wrap:wrap !important; align-items:center; gap:5px; min-width:0; margin:0; padding:4px; }
+#mermaid-ai-provider-picker > select { flex:1 0 115px; min-width:100px; width:130px; max-width:180px; }
+#mermaid-ai-provider-picker > button { flex:0 0 auto; white-space:nowrap; }
+#mermaid-ai-provider-picker > .ai-task-status { flex:0 0 auto !important; max-width:240px !important; font-size:10px; }
+#mermaid-ai-provider-picker > .ai-task-status:empty { display:none; }
+#mermaid-ai-provider-picker > .ai-task-connection { flex:0 0 auto; white-space:nowrap; font-size:11px; }
+#mermaid-ai-provider-picker > .ai-task-connection::before { content:''; display:inline-block; width:8px; height:8px; margin-right:5px; border-radius:50%; background:#94a3b8; }
+#mermaid-ai-provider-picker > .ai-task-connection[data-state="connected"]::before { background:#22c55e; box-shadow:0 0 6px #22c55e; }
+#mermaid-ai-provider-picker > .ai-task-connection[data-state="checking"]::before { background:#f59e0b; }
+#mermaid-ai-provider-picker > .ai-task-connection[data-state="failed"]::before { background:#ef4444; }
+#mermaid-ai-model-settings > .ai-task-load-progress { flex:1 0 100%; display:flex; align-items:center; gap:8px; font-size:11px; }
+#mermaid-ai-model-settings > .ai-task-load-progress[hidden] { display:none; }
+.ai-task-load-progress progress { width:140px; max-width:35%; accent-color:#14b8a6; }
+
+/* Keep the expand/collapse control at the right in both layout states. */
+#image-to-mermaid > #mermaid-ai-collapse-btn { grid-column:1 / -1; grid-row:1; justify-self:end; margin-left:auto; width:auto; flex:0 0 auto; }
+#image-to-mermaid.ai-collapsed { justify-content:flex-end; }
+#image-to-mermaid.ai-collapsed > #mermaid-ai-actions { display:none; }
+
+/* History is the fourth input tab; prompt and run share the action row. */
+#image-to-mermaid > #mermaid-history-panel { position:static; grid-column:1 / -1; width:100%; height:auto; max-height:420px; box-sizing:border-box; box-shadow:none; }
+#image-to-mermaid.ai-collapsed > #mermaid-history-panel { display:none; }
+#image-to-mermaid > #mermaid-ai-actions { grid-template-columns:minmax(0,1fr) minmax(130px,1fr); align-items:start; }
+#image-to-mermaid #mermaid-ai-actions > #mermaid-prompt-input { grid-column:1; grid-row:1; width:100%; max-width:none; min-width:0; }
+#image-to-mermaid #mermaid-ai-actions > #mermaid-prompt-input > summary { padding:10px 6px; }
+#image-to-mermaid #mermaid-image-generate { grid-column:2; grid-row:1; min-height:36px; }
+#mermaid-input-tabs { flex-wrap:nowrap; }
+#mermaid-input-tabs button { font-size:11px; padding:8px 3px; }
+
+/* Keep the disclosure in normal flow, above the provider row. */
+#image-to-mermaid:not(.ai-collapsed) { padding-top:8px; }
+#image-to-mermaid > #mermaid-ai-collapse-btn { position:static; grid-row:1; }
+#image-to-mermaid > #mermaid-ai-model-settings { grid-row:2; min-width:0; }
+#image-to-mermaid #mermaid-ai-provider-picker > select,
+#image-to-mermaid #mermaid-ai-provider-picker > input,
+#image-to-mermaid #mermaid-ai-provider-picker > button { font-size:12px; line-height:1.4; min-height:30px; height:auto; }
+@media (max-width:720px) {
+  #image-to-mermaid #mermaid-ai-provider-picker > select,
+  #image-to-mermaid #mermaid-ai-provider-picker > input,
+  #image-to-mermaid #mermaid-ai-provider-picker > button { min-height:40px; }
+}
+
+/* Compact reference actions and one shared revision toolbar. */
+#image-to-mermaid .mermaid-text-actions > button,
+#mermaid-code-revision .revision-view-tabs > button {
+  flex:0 0 auto; width:auto; min-height:28px; height:auto; padding:4px 8px;
+  font:600 11px/1.4 sans-serif; border:1px solid var(--border); border-radius:6px;
+  background:var(--panel); color:var(--text); cursor:pointer;
+}
+#mermaid-code-revision .revision-toolbar {
+  grid-column:1 / -1; display:flex; flex-wrap:wrap; align-items:center;
+  justify-content:space-between; gap:6px; padding-bottom:6px; border-bottom:1px solid var(--border);
+}
+#mermaid-code-revision .revision-toolbar .mermaid-text-actions { margin:0; }
+#mermaid-code-revision .revision-view-tabs [aria-selected="true"] { background:#0f766e; color:#fff; border-color:#14b8a6; }
+#mermaid-code-revision .revision-code-pane > div > label,
+#mermaid-code-revision .revision-chat-pane > label { font-size:12px; }
+@media (max-width:720px) {
+  #image-to-mermaid .mermaid-text-actions > button,
+  #mermaid-code-revision .revision-view-tabs > button { min-height:32px; }
+}

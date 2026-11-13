@@ -120,13 +120,15 @@
             checkVision.hidden = !/^(ollama|litertlm)$/.test(loadProvider());
             checkVision.disabled = loadModel.disabled;
         }
-        async function parentLoadModel(selectedProvider, selectedModel, checkVision) {
+        async function parentLoadModel(selectedProvider, selectedModel, checkVision, onProgress) {
             const requestId = 'task-load-' + Date.now() + '-' + Math.random().toString(36).slice(2);
             return new Promise((resolve, reject) => {
                 const timer = setTimeout(() => { root.removeEventListener('message', receive); reject(new Error('모델 로드 확인 제한 시간을 초과했습니다.')); }, 330000);
                 function receive(event) {
                     const data = event.data || {};
-                    if (event.source !== host || data.type !== 'mdv-task-model-load-result' || data.requestId !== requestId) return;
+                    if (event.source !== host || data.requestId !== requestId) return;
+                    if (data.type === 'mdv-task-model-load-progress') { if (onProgress) onProgress(data.progress); return; }
+                    if (data.type !== 'mdv-task-model-load-result') return;
                     clearTimeout(timer); root.removeEventListener('message', receive);
                     if (data.ok) resolve(data.info); else reject(new Error(data.error || '모델 로드 실패'));
                 }
@@ -139,16 +141,33 @@
             const selectedProvider = loadProvider();
             const selectedModel = model.value.trim();
             const label = (providers.find(item => item[0] === selectedProvider) || ['', selectedProvider])[1];
+            const startedAt = Date.now();
+            let stagePercent = 0, stageText = '모델 로드 요청';
+            const paintLoadProgress = () => {
+                if (!loadProgress) return;
+                loadProgress.hidden = false;
+                loadProgressBar.value = stagePercent;
+                loadProgressLabel.textContent = stageText + ' · 단계 ' + stagePercent + '% · ' + ((Date.now() - startedAt) / 1000).toFixed(1) + '초';
+            };
+            const onProgress = text => {
+                stageText = String(text || '모델 로딩 중');
+                const percent = /완료 확인/.test(stageText) ? 90 : /로딩 작업/.test(stageText) ? 50 : /로드 요청/.test(stageText) ? 15 : 5;
+                stagePercent = Math.max(stagePercent, percent); paintLoadProgress();
+            };
+            paintLoadProgress();
+            const progressTimer = loadProgress ? root.setInterval(paintLoadProgress, 100) : null;
             loadingModel = true;
             provider.disabled = model.disabled = modelChoice.disabled = refresh.disabled = loadModel.disabled = checkVision.disabled = true;
             loadModel.textContent = '처리 중…'; status.hidden = false; status.textContent = label + (visionCheck ? ' 실제 이미지 인식 점검 중…' : ' 모델 로딩 중…');
             connection(label + ' · 모델 로딩 중…', 'checking');
             try {
-                const info = adapter.loadModel ? await adapter.loadModel(selectedProvider, selectedModel, visionCheck) : host !== root ? await parentLoadModel(selectedProvider, selectedModel, visionCheck) : visionCheck ? await host.AIChat.checkTaskVision(selectedProvider, selectedModel) : await host.AIChat.loadTaskModel(selectedProvider, selectedModel);
+                const info = adapter.loadModel ? await adapter.loadModel(selectedProvider, selectedModel, visionCheck, onProgress) : host !== root ? await parentLoadModel(selectedProvider, selectedModel, visionCheck, onProgress) : visionCheck ? await host.AIChat.checkTaskVision(selectedProvider, selectedModel) : await host.AIChat.loadTaskModel(selectedProvider, selectedModel, {onProgress:onProgress});
+                stagePercent = 100; stageText = '로드 완료'; paintLoadProgress();
                 status.textContent = (info.visionVerified ? '이미지 점검 통과 · 숫자 실제 인식: ' : info.responseReady ? '모델 응답 확인 완료: ' : '모델 로드 완료: ') + info.model + (selectedProvider === 'ollama' && !visionCheck ? ' · 10분 유지' : '');
                 connection(label + (info.visionVerified ? ' · 이미지 점검 통과 · ' : info.responseReady ? ' · 응답 준비 확인 · ' : ' · 로드 완료 · ') + info.model, 'connected');
-            } catch (error) { status.textContent = (visionCheck ? '이미지 점검 실패: ' : '모델 로드 실패: ') + error.message; connection(status.textContent, 'failed'); }
+            } catch (error) { stageText = '로드 실패'; paintLoadProgress(); status.textContent = (visionCheck ? '이미지 점검 실패: ' : '모델 로드 실패: ') + error.message; connection(status.textContent, 'failed'); }
             finally {
+                if (progressTimer !== null) root.clearInterval(progressTimer);
                 loadingModel = false; provider.disabled = model.disabled = modelChoice.disabled = refresh.disabled = false;
                 loadModel.textContent = '모델 로드'; syncLoadButton();
             }
@@ -169,15 +188,26 @@
         status.style.cssText = 'flex:1 1 100%;min-width:0;max-width:100%;max-height:7.5em;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5;box-sizing:border-box';
         status.tabIndex = 0;
         status.setAttribute('aria-label', 'AI 모델 처리 메시지');
+        const loadProgress = adapter.showLoadProgress ? document.createElement('div') : null;
+        let loadProgressBar, loadProgressLabel;
+        if (loadProgress) {
+            loadProgress.className = 'ai-task-load-progress'; loadProgress.hidden = true;
+            loadProgress.title = '모델 로드 단계 기준입니다. 서버의 실제 적재율이 아닙니다.';
+            loadProgressBar = document.createElement('progress'); loadProgressBar.max = 100; loadProgressBar.value = 0;
+            loadProgressBar.setAttribute('aria-label', '모델 로드 단계 진행률');
+            loadProgressLabel = document.createElement('span');
+            loadProgress.append(loadProgressBar, loadProgressLabel);
+            container.after(loadProgress);
+        }
         const badge = document.createElement('span');
         badge.className = 'ai-task-connection';
         badge.setAttribute('role', 'status');
         const details = container.closest('details');
         const summary = details && details.querySelector('summary');
-        if (summary) summary.appendChild(badge);
+        if (summary && !adapter.showLoadProgress) summary.appendChild(badge);
         else container.appendChild(badge);
         function connection(text, state) {
-            badge.textContent = text;
+            badge.textContent = (adapter.showLoadProgress || (details && details.id === 'img2math-model-settings')) ? (state === 'connected' ? '연결됨' : state === 'checking' ? '확인 중' : state === 'failed' ? '연결 실패' : '미확인') : text;
             badge.dataset.state = state;
             badge.title = text + ' · ' + (model.value || '모델 선택 필요');
         }
@@ -329,7 +359,7 @@
                 load(true);
             });
         }
-        load(false);
+        load(!!(details && details.id === 'img2math-model-settings'));
         return { selection: selection, setConnection: connection, refresh: () => load(true),
             setSelection: function (value) {
                 ++ticket;

@@ -4706,3 +4706,10 @@ body.mermaid-workspace-split #mermaid-editor-modal-panel { border-radius:0; box-
 .img2math-dialog .ai-tool-provider-controls option { background: #102633; color: #e8f5f7; }
 .img2math-dialog .ai-tool-provider-controls :disabled { color: #b2cbd2; cursor: wait; }
 .img2math-dialog .ai-task-connection { flex: 1 1 100%; white-space: normal; overflow-wrap: anywhere; font-size: 12px; }
+
+/* Jena Math keeps model controls reachable behind a native disclosure. */
+.img2math-model-settings { width: 100%; min-width: 0; }
+.img2math-model-settings summary { cursor: pointer; color: #bceee9; padding: 8px 0; font-size: 13px; }
+.img2math-model-settings summary .ai-task-connection { margin-left: 12px; font-weight: 600; }
+.img2math-model-settings .ai-task-connection[data-state="connected"] { color: #5eead4; }
+.img2math-model-settings .ai-task-connection[data-state="failed"] { color: #fda4af; }
