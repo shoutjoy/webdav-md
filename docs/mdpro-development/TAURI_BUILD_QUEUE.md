@@ -4,6 +4,8 @@
 
 ## 대기 기능
 
+- MDPRO-20261113-MERMAID-COMPACT-PREVIEW: [Mermaid Ref 저장기록 탭·프롬프트 실행 한 행·Dock·Crop](changes/2026-11-13-mermaid-ref-compact-preview.md) — WebDAV 구현·45관련검사/빌드 통과, 브라우저 소켓 권한 오류로 UI 미검증. Viewer 이식/Tauri/설치 대기, 빌드 요청 없음.
+
 - MDPRO-20261113-TIDY-DOCK-RESPONSIVE: [TIDY Dock 반응형 1열](changes/2026-11-13-tidy-dock-responsive.md) — WebDAV 구현/빌드 통과. 브라우저 검사는 playwright-core 부재로 실행 실패, 실제 UI 미검증. Viewer 웹 이식/frontend/native/설치 대기, 빌드 요청 없음.
 
 - MDPRO-20261113-TABLE-SIZE-COMPACT: [표 크기·편집 기본 접기·한 줄 격자](changes/2026-11-13-table-size-compact.md) — WebDAV 구현·6검사/빌드 통과, 실제 UI 미검증. Viewer 웹 이식·frontend/native/설치 대기, 빌드 요청 없음.
@@ -109,3 +111,9 @@ publish 스크립트 결과와 최종 제공 경로:
 - MDPRO-20261113-NPU-TASK-ROUTE: [FLM 실행 경로](changes/2026-11-13-npu-task-route.md). Viewer 고유 프로필 읽기 비교, 웹 이식/frontend/native/설치 검증 미실행.
 
 - MDPRO-20261113-ME-SCOPED-CHAT: [Mermaid Ref 상단 내부 분할](changes/2026-11-13-me-scoped-chat.md). Viewer 기존 source/result 구현 비교, 코드/미리보기 탭·JENA ME 실행·독립 테마/줌/DN PNG 포함. 웹 이식/frontend/native/설치 검증 대기.
+
+- MDPRO-20261113-MATH-FOLD: [Jena Math 이름·모델 기본 접기·연결 상태](changes/2026-11-13-jena-math-fold.md) — WebDAV 구현/검사/빌드 통과, 실제 UI 미검증. Viewer 웹 이식/frontend/native/설치 대기, 빌드 요청 없음.
+
+- MDPRO-20261113-ME-PROVIDER-LAYOUT: [Jena ME 접기·모델 행 겹침·글자 크기](changes/2026-11-13-me-provider-layout.md) — WebDAV 구현·33검사/빌드 통과, 브라우저 소켓 권한으로 실제 UI 미검증. Viewer 웹/frontend/native/설치 대기, 빌드 요청 없음.
+
+- MDPRO-20261113-ME-COMPACT-ACTIONS: [참고 텍스트 버튼·코드 수정 배치](changes/2026-11-13-me-compact-actions.md) — 원본 구현·33검사/빌드 통과, 실제 UI 미검증. Viewer 웹/frontend/native/설치 대기, 빌드 요청 없음.

@@ -7910,7 +7910,7 @@
       provider = provider || state.provider;
       return getBridge().checkTaskVision(provider, model || activeProviderModel());
     },
-    loadTaskModel: async function (provider, model) {
+    loadTaskModel: async function (provider, model, options) {
       await ensureInitialized();
       provider = provider || state.provider;
       if (state.running || localModelLoading) throw new Error('진행 중인 응답 생성 또는 모델 로드가 끝난 후 다시 시도하세요.');
@@ -7919,7 +7919,7 @@
       if (provider === 'litertlm') return bridge.loadLiteRTLMModel(String(model || state.litertlmModel || '').trim());
       if (provider === 'ollama') return bridge.loadOllamaModel(String(model || state.ollamaModel || '').trim());
       if (provider === 'lmstudio') return bridge.loadLMStudioModel(String(model || state.lmModel || '').trim());
-      if (/^(lemonade|lemonade-flm|ollama-npu)$/.test(provider)) return bridge.loadOpenAICompatibleTaskModel(provider, String(model || '').trim());
+      if (/^(lemonade|lemonade-flm|ollama-npu)$/.test(provider)) return bridge.loadOpenAICompatibleTaskModel(provider, String(model || '').trim(), options);
       throw new Error('모델 로드는 LM Studio, Ollama, LiteRT-LM, Lemonade에서 지원합니다.');
     },
     completeTask: async function (options) {

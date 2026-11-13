@@ -294,9 +294,12 @@ function updateReferenceZoom(value) {
 }
 mermaidImageLarge.addEventListener('click', function () {
   if (!mermaidReferenceImage) return;
-  referenceFull.src = mermaidReferenceImage.dataUrl;
-  updateReferenceZoom(0);
-  referenceDialog.showModal();
+  let expectedImage = mermaidReferenceImage;
+  openMermaidReferenceCrop(expectedImage, file => {
+    if (mermaidReferenceImage !== expectedImage) return false;
+    loadMermaidReferenceFile(file, loadedImage => { expectedImage = loadedImage; });
+    return true;
+  });
 });
 document.getElementById('mermaid-reference-close').addEventListener('click', function () { referenceDialog.close(); });
 referenceDialog.addEventListener('close', function () { (mermaidImageLarge.disabled ? mermaidImageDropzone : mermaidImageLarge).focus(); });
@@ -1614,6 +1617,7 @@ function insertIntoDocumentAndClose() {
 
 function setMermaidImageStatus(message, isError) {
   if (!mermaidImageStatus) return;
+  mermaidImageStatus.hidden = !isError && !mermaidImageRequestId;
   mermaidImageStatus.textContent = String(message || '');
   mermaidImageStatus.title = String(message || '');
   mermaidImageStatus.classList.toggle('error', !!isError);
@@ -1634,7 +1638,7 @@ function clearMermaidReferenceImage() {
   setMermaidImageStatus('');
 }
 
-function loadMermaidReferenceFile(file) {
+function loadMermaidReferenceFile(file, onLoaded) {
   if (mermaidImageRequestId && mermaidImageGenerate.disabled) stopMermaidImageRequest();
   if (!file || !/^image\//i.test(String(file.type || ''))) return setMermaidImageStatus('이미지 파일만 사용할 수 있습니다.', true);
   if (file.size > 20 * 1024 * 1024) return setMermaidImageStatus('이미지는 20MB 이하여야 합니다.', true);
@@ -1646,6 +1650,7 @@ function loadMermaidReferenceFile(file) {
     if (mermaidImageRemove) mermaidImageRemove.hidden = false;
     if (mermaidImageGenerate) mermaidImageGenerate.disabled = false;
     mermaidImageLarge.disabled = false;
+    if (onLoaded) onLoaded(mermaidReferenceImage);
     setMermaidImageStatus('이미지가 준비되었습니다. 프롬프트를 확인한 뒤 코드를 생성하세요.');
   };
   reader.onerror = function () { setMermaidImageStatus('이미지를 읽지 못했습니다.', true); };
@@ -1749,8 +1754,7 @@ function requestMermaidHistory() {
 function toggleMermaidHistory(forceOpen) {
   if (!mermaidHistoryPanel) return;
   const open = forceOpen === true || (forceOpen !== false && mermaidHistoryPanel.hidden);
-  mermaidHistoryPanel.hidden = !open;
-  if (open) requestMermaidHistory();
+  selectMermaidInputPanel(open ? 'mermaid-history-panel' : 'mermaid-image-panel');
 }
 
 function renderMermaidHistory() {
@@ -2367,17 +2371,120 @@ initToolbarLayout();
 initCollapsedExampleSelect();
 initMermaidAiPanelState();
 initPreviewWheelZoom();
+initPreviewDragPan(renderWrapper);
+initPreviewDragPan(revisionPreviewPanel);
 applyEditorThemeUI();
 applyEditorScale();
 applyPreviewThemeUI();
 applyPreviewScale();
 renderWithStartupRecovery();
 
-const mermaidTaskPicker = window.mountAITaskPicker(document.getElementById('mermaid-ai-provider-picker'), 'mdv_mermaid_ai_selection_v1');
+const mermaidTaskPicker = window.mountAITaskPicker(document.getElementById('mermaid-ai-provider-picker'), 'mdv_mermaid_ai_selection_v1', null, {showLoadProgress:true});
 
 const mermaidModelSettings = document.getElementById('mermaid-ai-model-settings');
 mermaidModelSettings.addEventListener('toggle', function () {
   document.getElementById('mermaid-ai-provider-toggle-btn').setAttribute('aria-expanded', String(mermaidModelSettings.open));
   try { localStorage.setItem('mdv_mermaid_ai_provider_collapsed_v1', String(!mermaidModelSettings.open)); } catch (_) {}
 });
-try { mermaidModelSettings.open = localStorage.getItem('mdv_mermaid_ai_provider_collapsed_v1') === 'false'; } catch (_) {}
+mermaidModelSettings.open = true;
+
+
+// Open the current rendered diagram without rerendering or changing editor state.
+function openLargePreview() {
+  const svg = renderDiv.querySelector('svg');
+  if (!svg) { alert('먼저 미리보기를 생성해 주세요.'); return; }
+  const popup = window.open('', '_blank', 'popup=yes,width=1200,height=850,resizable=yes,scrollbars=yes');
+  if (!popup) { alert('큰 미리보기를 열려면 팝업을 허용해 주세요.'); return; }
+  const doc = popup.document;
+  doc.title = 'Mermaid Ref · 크게 보기';
+  const style = doc.createElement('style');
+  style.textContent = 'body{margin:0;font:14px sans-serif;background:#f8fafc;color:#172033}header{position:sticky;top:0;z-index:1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px;background:#1e293b;color:#fff}button{padding:7px 12px;border:1px solid #64748b;border-radius:7px;background:#334155;color:#fff;cursor:pointer}main{padding:20px;overflow:auto;height:calc(100vh - 90px)}#diagram{transform-origin:top left;width:max-content;min-width:100%}svg{max-width:none!important}.preview-drag-pan{cursor:grab}.preview-drag-pan.is-panning{cursor:grabbing;user-select:none}';
+  doc.head.append(style);
+  const header = doc.createElement('header');
+  const title = doc.createElement('strong'); title.textContent = 'Mermaid 미리보기'; header.append(title);
+  const main = doc.createElement('main'); const diagram = doc.createElement('div'); diagram.id = 'diagram';
+  const copy = svg.cloneNode(true); diagram.append(copy); main.append(diagram);
+  let scale = 1; const snapshotDark = previewDarkMode; let dark = snapshotDark;
+  main.style.background = dark ? '#0f172a' : '#f8fafc';
+  const addButton = (label, action) => { const button = doc.createElement('button'); button.type = 'button'; button.textContent = label; button.onclick = action; header.append(button); return button; };
+  const updateScale = () => { diagram.style.transform = `scale(${scale})`; zoom.textContent = Math.round(scale * 100) + '%'; };
+  addButton('−', () => { scale = Math.max(.2, scale - .1); updateScale(); });
+  const zoom = doc.createElement('output'); zoom.textContent = '100%'; header.append(zoom);
+  addButton('+', () => { scale = Math.min(5, scale + .1); updateScale(); });
+  addButton('Reset', () => { scale = 1; updateScale(); });
+  addButton('DN', async () => {
+    try { const blob = await createRenderedPngBlob(copy, snapshotDark); triggerDownload(URL.createObjectURL(blob), 'mermaid-preview.png', true); }
+    catch (error) { popup.alert('다운로드 실패: ' + error.message); }
+  });
+  addButton('닫기', () => popup.close());
+  doc.body.replaceChildren(header, main);
+  initPreviewDragPan(main);
+}
+
+
+// Scroll the viewport rather than moving the SVG, preserving zoom/export state.
+function initPreviewDragPan(viewport) {
+  if (!viewport) return;
+  viewport.classList.add('preview-drag-pan');
+  let drag = null;
+  viewport.addEventListener('pointerdown', event => {
+    if (event.button !== 0 || event.pointerType === 'touch' || event.isPrimary === false) return;
+    if (event.target.closest('a,button,input,textarea,select,[contenteditable="true"]')) return;
+    const rect = viewport.getBoundingClientRect();
+    // Leave native scrollbars available for normal dragging.
+    if (event.clientX >= rect.left + viewport.clientLeft + viewport.clientWidth ||
+        event.clientY >= rect.top + viewport.clientTop + viewport.clientHeight) return;
+    drag = { id:event.pointerId, x:event.clientX, y:event.clientY,
+      left:viewport.scrollLeft, top:viewport.scrollTop };
+    viewport.setPointerCapture(event.pointerId);
+    viewport.classList.add('is-panning');
+    event.preventDefault();
+  });
+  viewport.addEventListener('pointermove', event => {
+    if (!drag || event.pointerId !== drag.id) return;
+    viewport.scrollLeft = drag.left - (event.clientX - drag.x);
+    viewport.scrollTop = drag.top - (event.clientY - drag.y);
+    event.preventDefault();
+  });
+  const stop = event => {
+    if (!drag || event.pointerId !== drag.id) return;
+    const id = drag.id; drag = null;
+    viewport.classList.remove('is-panning');
+    if (viewport.hasPointerCapture(id)) viewport.releasePointerCapture(id);
+  };
+  viewport.addEventListener('pointerup', stop);
+  viewport.addEventListener('pointercancel', stop);
+  viewport.addEventListener('lostpointercapture', stop);
+  viewport.addEventListener('dragstart', event => {
+    if (drag) event.preventDefault();
+  });
+}
+
+
+// Keep every input mounted so switching tabs preserves references and revision work.
+function selectMermaidInputPanel(panelId) {
+  document.querySelectorAll('#mermaid-input-tabs [role="tab"]').forEach(item => {
+    const active = item.dataset.refPanel === panelId;
+    item.setAttribute('aria-selected', String(active)); item.tabIndex = active ? 0 : -1;
+    const panel = document.getElementById(item.dataset.refPanel);
+    panel.hidden = !active;
+    if (active && panel.tagName === 'DETAILS') panel.open = true;
+  });
+  if (panelId === 'mermaid-history-panel') requestMermaidHistory();
+}
+function initMermaidInputTabs() {
+  const tabs = Array.from(document.querySelectorAll('#mermaid-input-tabs [role="tab"]'));
+  const select = tab => selectMermaidInputPanel(tab.dataset.refPanel);
+  tabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => select(tab));
+    tab.addEventListener('keydown', event => {
+      if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 :
+        (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+      select(tabs[next]); tabs[next].focus();
+    });
+  });
+
+}
+initMermaidInputTabs();

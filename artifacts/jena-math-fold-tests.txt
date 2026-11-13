@@ -1,0 +1,37 @@
+✔ AI Jena keeps every primary header control (1.2007ms)
+✔ AI Jena exposes both Lemonade providers and their runtime bridges (10.5589ms)
+✔ AI Jena keeps the Alt+4 movement and compact real-time behavior (4.1305ms)
+✔ Alt+4 exposes four edge resize handles and a southeast corner handle without expanding compact mode (1.5773ms)
+✔ Alt+4 uses one menu toggle in compact and expanded states while keeping the main close control (1.2177ms)
+✔ Alt+4 uses recognizable compact action icons (1.0371ms)
+✔ FAST detail controls remain readable in the narrow AI Jena dock (0.3754ms)
+✔ Lemonade model can be loaded directly from AI Jena detail settings (0.8192ms)
+✔ AI Jena uses one shared mode-limit panel without duplicate Ollama controls (1.026ms)
+✔ AI Jena upgrades and validates its IndexedDB conversation store (0.2496ms)
+✔ generated AI images open the large preview by mouse or keyboard (0.6252ms)
+✔ AI Jena CSV attachments open as an accessible table while XLSX extraction stays unchanged (3.2839ms)
+✔ Lemonade image models use the image generation endpoint and existing AI Jena image result flow (6.2137ms)
+✔ AI Jena edits generated images with the active Lemonade image model (1.9954ms)
+✔ ImgG switches from Lemonade to AI Studio image models (2.6695ms)
+✔ selection import reflows by the AI Jena composer width (0.5778ms)
+✔ AI Jena exposes and applies FAST, quick, reasoning, and hard output token limits (1.0481ms)
+✔ local native providers use a compact quality prompt without mandatory wrapper tags (0.7013ms)
+✔ AI Jena applies model-sized token profiles with a 180 second limit (2.0564ms)
+✔ realtime writing streams one response directly into the document and retains the chat record (5.7572ms)
+✔ Lemonade enables thinking in reasoning mode and displays streamed reasoning (1.1276ms)
+✔ AI Jena offers an editable continuation prompt with persisted Auto approval (1.8435ms)
+✔ Alt+4 settings stay inside the visible browser viewport (1.3298ms)
+✔ AI Jena uses only the main provider settings control (0.4129ms)
+✔ expanded AI Jena layouts keep the header actions available (0.273ms)
+✔ new chat stays visible while copy and save remain controlled by ENV settings (0.8305ms)
+✔ the AI Jena menu button toggles the panel closed in Alt+4 and every other layout (0.5798ms)
+✔ ENV keeps Gemini loading out of LM Studio and exposes local model and server controls (0.4757ms)
+✔ ENV writing style prompt accumulates weighted reference documents (2.3226ms)
+ℹ tests 29
+ℹ suites 0
+ℹ pass 29
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 209.9077

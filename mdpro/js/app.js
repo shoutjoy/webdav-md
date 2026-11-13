@@ -10667,9 +10667,10 @@ function openMermaidEditorModal(forGenSlide) {
     const modal = document.getElementById('mermaid-editor-modal');
     if (!modal) return;
     ensureLazyFrameLoaded('mermaid-editor-frame');
+    // Reset the previous floating/fullscreen layout before revealing the editor.
+    applyMermaidEditorDockRight(true);
     modal.classList.remove('hidden');
     syncMermaidEditorDockLayout();
-    if (window.innerWidth <= 767) applyMermaidEditorDockRight(true);
     bindMermaidEditorModalDrag();
     bindMermaidEditorModalResize();
 }
@@ -10984,7 +10985,7 @@ window.addEventListener('message', function (event) {
         (async function () {
             try {
                 await ensureAiChatLoaded();
-                const info = data.checkVision ? await window.AIChat.checkTaskVision(data.provider, data.model) : await window.AIChat.loadTaskModel(data.provider, data.model);
+                const info = data.checkVision ? await window.AIChat.checkTaskVision(data.provider, data.model) : await window.AIChat.loadTaskModel(data.provider, data.model, { onProgress: progress => event.source.postMessage({type:'mdv-task-model-load-progress',requestId:data.requestId,progress}, '*') });
                 event.source.postMessage({type:'mdv-task-model-load-result',requestId:data.requestId,ok:true,info}, '*');
             } catch (error) { event.source.postMessage({type:'mdv-task-model-load-result',requestId:data.requestId,ok:false,error:error.message}, '*'); }
         })();

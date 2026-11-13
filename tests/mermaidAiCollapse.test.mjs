@@ -15,8 +15,17 @@ test('editor loads versioned picker and quality helper before the application',(
  assert(html.indexOf('task-provider-picker.js') < html.indexOf('src="app.js'));
  assert(html.indexOf('ai-quality.js') < html.indexOf('src="app.js'));
 });
-test('model settings retain the existing toggle ID and remembered collapsed state',()=>{
+test('model settings retain the toggle ID and open within the expanded Jena panel',()=>{
  assert.match(html,/summary id="mermaid-ai-provider-toggle-btn" aria-expanded="false"/);
  assert.match(app,/mdv_mermaid_ai_provider_collapsed_v1/);
- assert.match(app,/mermaidModelSettings.open = localStorage/);
+ assert.match(app,/mermaidModelSettings.open = true/);
+ assert.match(css, /#image-to-mermaid\.ai-collapsed > #mermaid-ai-model-settings \{ display:none; \}/);
+});
+
+test('open model details cannot override the collapsed parent and disclosure has its own row',()=>{
+ assert.match(css, /#image-to-mermaid:not\(\.ai-collapsed\) > #mermaid-ai-model-settings\[open\] \{ display:flex;/);
+ assert.doesNotMatch(css, /#image-to-mermaid > #mermaid-ai-model-settings\[open\] \{ display:flex;/);
+ assert.match(css, /#image-to-mermaid > #mermaid-ai-collapse-btn \{ position:static; grid-row:1; \}/);
+ assert.match(css, /#image-to-mermaid > #mermaid-ai-model-settings \{ grid-row:2; min-width:0; \}/);
+ assert.match(css, /#image-to-mermaid #mermaid-ai-provider-picker > button \{ font-size:12px;/);
 });

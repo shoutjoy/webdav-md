@@ -33,6 +33,8 @@ WebDAV MDpro와 MDproViewer의 기능 개발, 버그 수정, 리팩터링, 이�
 
 ## 변경 목록
 
+- MDPRO-20261113-MERMAID-COMPACT-PREVIEW: [Mermaid Ref 저장기록 탭·프롬프트 실행 한 행·Dock·Crop](changes/2026-11-13-mermaid-ref-compact-preview.md) — WebDAV 구현·45관련검사/빌드 통과, 브라우저 소켓 권한 오류로 UI 미검증. Viewer 이식/Tauri/설치 대기, 빌드 요청 없음.
+
 - MDPRO-20261113-TIDY-DOCK-RESPONSIVE: [TIDY Dock 반응형 1열](changes/2026-11-13-tidy-dock-responsive.md) — WebDAV 구현/빌드 통과. 브라우저 검사는 playwright-core 부재로 실행 실패, 실제 UI 미검증. Viewer 웹 이식/frontend/native/설치 대기, 빌드 요청 없음.
 
 - MDPRO-20261113-TABLE-SIZE-COMPACT: [표 크기·편집 기본 접기·한 줄 격자](changes/2026-11-13-table-size-compact.md) — WebDAV 구현·6검사/빌드 통과, 실제 UI 미검증. Viewer 웹 이식·frontend/native/설치 대기, 빌드 요청 없음.
@@ -113,3 +115,9 @@ WebDAV MDpro와 MDproViewer의 기능 개발, 버그 수정, 리팩터링, 이�
 ## Tauri 명령 처리
 
 MDproViewer에서 “타우리앱으로 빌드”, “Tauri 빌드”, “exe/설치파일 만들어줘” 요청을 받으면 먼저 [TAURI_BUILD.md](TAURI_BUILD.md)와 [TAURI_BUILD_QUEUE.md](TAURI_BUILD_QUEUE.md)를 읽고 그 절차로 실행한다. 대기 기능을 몰래 누락하거나, 문서의 존재만으로 앱에 반영된 것으로 처리하지 않는다.
+
+- MDPRO-20261113-MATH-FOLD: [Jena Math 이름·모델 기본 접기·연결 상태](changes/2026-11-13-jena-math-fold.md) — WebDAV 구현/검사/빌드 통과, 실제 UI 미검증. Viewer 웹 이식/frontend/native/설치 대기, 빌드 요청 없음.
+
+- MDPRO-20261113-ME-PROVIDER-LAYOUT: [Jena ME 접기·모델 행 겹침·글자 크기](changes/2026-11-13-me-provider-layout.md) — WebDAV 구현·33검사/빌드 통과, 브라우저 소켓 권한으로 실제 UI 미검증. Viewer 웹/frontend/native/설치 대기, 빌드 요청 없음.
+
+- MDPRO-20261113-ME-COMPACT-ACTIONS: [참고 텍스트 버튼·코드 수정 배치](changes/2026-11-13-me-compact-actions.md) — 원본 구현·33검사/빌드 통과, 실제 UI 미검증. Viewer 웹/frontend/native/설치 대기, 빌드 요청 없음.
