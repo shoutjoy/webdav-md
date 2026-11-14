@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown, ChevronRight, Folder, FolderOpen, X } from 'lucide-react';
 
 function findDirectory(node, targetPath) {
@@ -67,7 +68,8 @@ export default function MoveDestinationModal({ items, directoryTree, loading, pr
     onConfirm(selectedPath, { conflictPolicy: 'reject' });
   };
 
-  return <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="move-destination-title">
+  // Escape the explorer's stacking context while retaining the shell's theme.
+  return createPortal(<div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="move-destination-title">
     <div className="flex max-h-[min(680px,90vh)] w-full max-w-md flex-col overflow-hidden rounded-xl border border-slate-300 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
       <div className="flex items-center border-b border-slate-200 px-4 py-3 dark:border-slate-700">
         <div className="min-w-0 flex-1"><h2 id="move-destination-title" className="font-semibold">이동할 폴더 선택</h2><p className="truncate text-xs text-slate-500">선택한 {items.length}개 항목의 새 위치</p></div>
@@ -100,5 +102,5 @@ export default function MoveDestinationModal({ items, directoryTree, loading, pr
         {!conflictingItems.length && <button type="button" onClick={confirmDestination} disabled={loading || !selectedPath} className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">{loading ? '이동 중…' : '이 위치로 이동'}</button>}
       </div>
     </div>
-  </div>;
+  </div>, document.querySelector('.webdav-shell') || document.body);
 }
