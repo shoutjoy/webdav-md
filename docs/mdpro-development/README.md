@@ -129,3 +129,5 @@ MDproViewer에서 “타우리앱으로 빌드”, “Tauri 빌드”, “exe/�
 - [Jena Table 인식 프롬프트 기본 접힘](changes/2026-11-13-table-prompt-fold.md): WebDAV 실제 소스 적용, Chrome 접힘/키보드/값 보존/실행 노출·웹 빌드 통과. Viewer 기존 구현 확인, Tauri/배포 미실행.
 
 - MDPRO-20261114-MOVE-MODAL-LAYER: [파일 이동창 전면 표시](changes/2026-11-14-move-modal-layer.md) — WebDAV portal·레이어 수정/빌드 통과, 실제 UI 미검증. Viewer 대응 확인·이식/frontend/native/설치 대기, 빌드 요청 없음.
+
+- MDPRO-20261114-MOVE-SOURCE-EXPAND: [이동 원본 폴더 초기 펼침](changes/2026-11-14-move-source-expand.md) — WebDAV 구현·초기값/빌드 통과, 실제 UI 미검증. Viewer 이식/frontend/native/설치 대기, 빌드 요청 없음.

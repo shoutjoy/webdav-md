@@ -37,7 +37,17 @@ function FolderChoice({ node, depth, expandedPaths, selectedPath, blockedPaths, 
 
 export default function MoveDestinationModal({ items, directoryTree, loading, progress, actionError, onConfirm, onCancel }) {
   const [selectedPath, setSelectedPath] = useState('');
-  const [expandedPaths, setExpandedPaths] = useState(() => new Set(['/']));
+  const [expandedPaths, setExpandedPaths] = useState(() => {
+    const paths = new Set(['/']);
+    for (const item of items || []) {
+      const parts = String(item.remotePath || '/').split('/').filter(Boolean);
+      parts.pop();
+      for (let depth = 1; depth <= parts.length; depth += 1) {
+        paths.add(`/${parts.slice(0, depth).join('/')}`);
+      }
+    }
+    return paths;
+  });
   const [conflictingItems, setConflictingItems] = useState([]);
   if (!items?.length) return null;
   const blockedPaths = new Set(items.filter((item) => item.isDirectory).map((item) => item.remotePath));
