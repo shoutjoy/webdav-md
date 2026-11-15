@@ -37,6 +37,8 @@ WebDAV MDpro와 MDproViewer의 기능 개발, 버그 수정, 리팩터링, 이�
 
 ## 변경 목록
 
+- MDPRO-20261115-PARENTHETICAL-EMPHASIS: [괄호 안 통계 기울임](changes/2026-11-15-parenthetical-emphasis.md) — WebDAV 32검사·Chrome 메인 4개 r·수식 회귀·웹 빌드 통과. 실제 PV 초기화 시간 초과로 미검증. Viewer 대응 가드 존재 확인·미수정, Tauri 미실행.
+
 - MDPRO-20261113-MERMAID-COMPACT-PREVIEW: [Mermaid Ref 저장기록 탭·프롬프트 실행 한 행·Dock·Crop](changes/2026-11-13-mermaid-ref-compact-preview.md) — WebDAV 구현·45관련검사/빌드 통과, 브라우저 소켓 권한 오류로 UI 미검증. Viewer 이식/Tauri/설치 대기, 빌드 요청 없음.
 
 - MDPRO-20261113-TIDY-DOCK-RESPONSIVE: [TIDY Dock 반응형 1열](changes/2026-11-13-tidy-dock-responsive.md) — WebDAV 구현/빌드 통과. 브라우저 검사는 playwright-core 부재로 실행 실패, 실제 UI 미검증. Viewer 웹 이식/frontend/native/설치 대기, 빌드 요청 없음.

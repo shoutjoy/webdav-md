@@ -13,7 +13,7 @@
         }
     };
 
-    var DEFAULT_SCRIPT_URL = 'js/math_render/math_render.js?v=20261104-hwp-structural-rows-1';
+    var DEFAULT_SCRIPT_URL = 'js/math_render/math_render.js?v=20261115-parenthetical-emphasis-1';
     var DEFAULT_MATHJAX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js';
     var TYPESET_QUEUES = typeof WeakMap === 'function' ? new WeakMap() : null;
     var fallbackTypesetQueue = Promise.resolve();
@@ -60,6 +60,9 @@
     function looksLikeMathText(text) {
         var s = String(text || '').trim();
         if (!s) return false;
+        // Parenthetical Markdown emphasis belongs to the Markdown parser.
+        // Otherwise (*r* = .938), is incorrectly wrapped as legacy TeX.
+        if (/(?:\\?\*){1,3}[^*\n]+?(?:\\?\*){1,3}/.test(s)) return false;
         if (/[가-힣]{2,}/.test(s)) return false;
         // A hyphen, slash, or comparison sign in prose is not evidence of math.
         // Ignore TeX command names when checking for ordinary English words.

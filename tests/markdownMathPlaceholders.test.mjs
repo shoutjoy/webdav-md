@@ -117,6 +117,23 @@ test('explicit math and legacy mathematical expressions still render', async () 
   }
 });
 
+test('correlation prose keeps all four italic r markers outside legacy math', async () => {
+  const root = await load();
+  const source = '구체적으로 수학가치유용과 학습노력조절( *r* = .938), 수학흥미기쁨과 학습노력조절(*r* = .917), 학습노력조절과 참여상호작용(*r* = .890), 수학흥미기쁨과 수학가치유용(*r* = .861) 간에 높은 상관관계가 나타났다. 이는 해당 잠재요인들이 서로 독립적인 구성개념으로 충분히 구별되지 않을 가능성을 의미한다.';
+  assert.equal(root.MathRender.prepareMarkdown(source), source);
+  for (const input of [source, root.MarkdownBold.preprocessBold(source)]) {
+    for (const html of [root.MathRender.renderMarkdownSync(root.marked, input), await root.MathRender.renderMarkdownSafe(root.marked, input), root.AIChatMarkdown.toHtml(input)]) {
+      assert.equal((html.match(/<em>r<\/em>/g) || []).length, 4, html);
+      assert.doesNotMatch(html, /MATHSEG|\\[()]|\$/);
+    }
+  }
+  for (const source of ['(*r* = .9).', '[*r* = .9]', String.raw`(\*r\* = .9),`]) {
+    assert.equal(root.MathRender.prepareMarkdown(source), source);
+  }
+  // Explicit TeX always retains precedence over the prose heuristic.
+  assert.ok(root.MathRender.renderMarkdownSync(root.marked, String.raw`\(*r* = .9\)`).includes('$*r* = .9$'));
+});
+
 test('math inside ordinary parentheses does not expose nested dollar delimiters', async () => {
   const root = await load();
   const source = String.raw`하위차원 적재치(\(\beta\)): 물리적 환경(\(\beta = .792\)), 적재치 제곱합 (\(\sum \beta^2\)):`;
