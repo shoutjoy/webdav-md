@@ -158,7 +158,7 @@ const OPTIONAL_SCRIPT_SOURCES = Object.freeze({
     aiAcademicSearch: './js/Scholarref/ai/academic-search.js?v=20260817-scholar-audit-1',
     aiWebSearch: './AI_App/aiChat/ai-jena-local-api.js?v=20260914-serpapi-vault-1',
     aiMarkdown: './AI_App/aiChat/ai-chat-markdown.js?v=20260825-table-pipes-1',
-    aiChat: './AI_App/aiChat/ai-chat.js?imageQuality=20261027-2&v=20261026-image-actions-1&meAI=20261110-1&llamacpp=20261026-1&reasoning=20261022-3&jenaSeries=20261112-1&dockPopover=20261113-1&studioNotice=20261113-2&resumeAnswer=20261113-1&localModelLoad=20261113-1&continuationStart=20261113-1&providerIsolation=20261113-1',
+    aiChat: './AI_App/aiChat/ai-chat.js?imageQuality=20261027-2&v=20261026-image-actions-1&meAI=20261110-1&llamacpp=20261026-1&reasoning=20261022-3&jenaSeries=20261112-1&dockPopover=20261113-1&studioNotice=20261113-2&resumeAnswer=20261113-1&localModelLoad=20261113-1&continuationStart=20261113-1&providerIsolation=20261113-1&exaone=20261115-1',
     mathJax: 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js',
     inputPaintBenchmark: './js/performance/input-paint-benchmark.js?v=20260810-4',
     codeMirrorPrototype: './js/editor/codemirror-prototype.mjs?v=20261022-document-theme-1'
@@ -1522,6 +1522,7 @@ function relocateAiIntegrationSettingsIntoAiUse() {
     const card = document.getElementById('ai-link-settings-block');
     const slot = document.getElementById('ai-integration-settings-slot');
     if (!card || !slot) return;
+    const exaone = document.getElementById('exaone-settings-card');
     const deepseek = document.getElementById('deepseek-settings-card');
     const openaiCompatible = document.getElementById('openai-compatible-settings-card');
     const lemonadeSettings = document.getElementById('lemonade-settings-card');
@@ -1581,6 +1582,7 @@ function relocateAiIntegrationSettingsIntoAiUse() {
         [openaiCompatible, 'ai-settings-rack--compatible'],
         [lemonadeSettings, 'ai-settings-rack--lemonade'],
         [aiStudio, 'ai-settings-rack--aistudio'],
+        [exaone, 'ai-settings-rack--exaone'],
         [deepseek, 'ai-settings-rack--deepseek'],
         [openai, 'ai-settings-rack--openai']
     ].forEach(function (entry) {
@@ -1597,6 +1599,7 @@ function relocateAiIntegrationSettingsIntoAiUse() {
         openaiCompatible,
         lemonadeSettings,
         aiStudio,
+        exaone,
         deepseek,
         openai,
         aiDataCenterSettings
@@ -1632,6 +1635,7 @@ const OPENAI_COMPATIBLE_DEFAULTS = Object.freeze({
 const LEMONADE_DEFAULT_BASE_URL = 'http://localhost:13305/api/v1';
 const OPENAI_COMPATIBLE_PROVIDER_URLS = Object.freeze({
     llamacpp: 'http://127.0.0.1:8080/v1',
+    exaone: 'https://api.exaone.ai/v1',
     orcarouter: 'https://api.orcarouter.ai/v1',
     'openai-compatible': 'https://api.orcarouter.ai/v1',
     openrouter: 'https://openrouter.ai/api/v1',
@@ -1686,6 +1690,7 @@ function isLemonadeConnection(connection) {
 }
 
 function openAICompatibleRequestUrl(connection, path) {
+    if (connection.provider === 'exaone' && connection.baseUrl === 'https://api.exaone.ai/v1' && path === 'chat/completions') return '/api/exaone/chat/completions';
     const directLemonade = isLemonadeConnection(connection) && shouldUseDirectLemonadeConnection();
     const baseUrl = directLemonade
         ? LEMONADE_DEFAULT_BASE_URL
@@ -1735,7 +1740,7 @@ function applyOpenAICompatibleProviderPreset() {
     const id = provider.value;
     baseUrl.value = localStorage.getItem('ss_openai_compatible_base_url_' + id) || baseUrl.value;
     if (apiKey) apiKey.value = localStorage.getItem('ss_openai_compatible_api_key_' + id) || '';
-    if (modelId) modelId.value = localStorage.getItem('ss_openai_compatible_model_id_' + id) || (id === 'orcarouter' ? OPENAI_COMPATIBLE_DEFAULTS.modelId : '');
+    if (modelId) modelId.value = localStorage.getItem('ss_openai_compatible_model_id_' + id) || (id === 'exaone' ? 'k-exaone_v2.5' : id === 'orcarouter' ? OPENAI_COMPATIBLE_DEFAULTS.modelId : '');
     openAICompatibleModels = readOpenAICompatibleModelsCache(baseUrl.value);
     renderOpenAICompatibleModelMenu(openAICompatibleModels);
     validateOpenAICompatibleBaseUrlUI();
@@ -1887,7 +1892,7 @@ function renderOpenAICompatibleModelMenu(models) {
     if (!menu) return [];
     const source = normalizeOpenAICompatibleModels(models);
     const llamaCpp = document.getElementById('openai-compatible-provider')?.value === 'llamacpp';
-    const visible = !llamaCpp && freeOnly && freeOnly.checked ? source.filter(isOpenAICompatibleFreeModel) : source;
+    const visible = document.getElementById('openai-compatible-provider')?.value !== 'exaone' && !llamaCpp && freeOnly && freeOnly.checked ? source.filter(isOpenAICompatibleFreeModel) : source;
     menu.innerHTML = '';
     if (!visible.length) {
         const empty = document.createElement('div');
@@ -1917,6 +1922,7 @@ function applyOpenAICompatibleModelFilter() {
 }
 
 function getAIChatOpenAICompatibleModelIds(providerHint) {
+    if (providerHint === 'exaone' || providerHint !== 'lemonade' && localStorage.getItem('ss_openai_compatible_provider') === 'exaone') return ['k-exaone_v2.5'];
     const lemonade = providerHint === 'lemonade';
     let models = [];
     try {
@@ -1952,10 +1958,135 @@ function getOpenAICompatibleFormConnection() {
     };
 }
 
+function getOpenAICompatibleProviderStorageKey(field, provider) { return 'ss_openai_compatible_' + field + '_' + provider; }
+function setExaoneSettingsStatus(message) {
+    const status = document.getElementById('exaone-settings-status');
+    if (status) status.textContent = /Failed to fetch|NetworkError/i.test(String(message)) ? 'EXAONE 네트워크 연결 실패 · localhost 개발/미리보기 서버 중계와 연결 상태를 확인하세요.' : message;
+}
+async function testExaoneConnection() {
+    const button = document.getElementById('exaone-test-button');
+    if (button) button.disabled = true;
+    try {
+        if (!await saveExaoneSettings()) return false;
+        const c = getStoredOpenAICompatibleConnection('exaone');
+        const response = await fetchExaoneChatWithBackoff(openAICompatibleRequestUrl(c, 'chat/completions'), {
+            method:'POST', headers:openAICompatibleHeaders(c), signal:AbortSignal.timeout(c.timeoutSeconds * 1000),
+            body:JSON.stringify({model:c.modelId,messages:[{role:'user',content:'Reply with OK only.'}],max_tokens:2048,reasoning_effort:'low',chat_template_kwargs:{preserve_thinking:false},stream:false})
+        });
+        if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
+        const data=await response.json(), text=data.choices?.[0]?.message?.content;
+        if (data.error || !String(text || '').trim()) throw new Error(data.error?.message || '최종 답변이 없습니다.');
+        setExaoneSettingsStatus('연결 테스트 성공 · ' + String(text).slice(0,80));
+        return true;
+    } catch(error) { setExaoneSettingsStatus('연결 테스트 실패: ' + error.message); return false; }
+    finally { if(button) button.disabled=false; }
+}
+function ensureExaoneOutputLimit() {
+    if (localStorage.getItem('ss_exaone_output_limit_revision') === '524288-v1') return;
+    const key = getOpenAICompatibleProviderStorageKey('max_output_tokens', 'exaone');
+    const saved = localStorage.getItem(key);
+    if (saved == null || saved === '' || saved === '8192') localStorage.setItem(key, '524288');
+    localStorage.setItem('ss_exaone_output_limit_revision', '524288-v1');
+}
+
+function budgetExaoneOutput(history, available, requested) {
+    const limit = Math.min(524288, requested > 0 ? requested : 524288);
+    const retained = retainAIChatHistory(history, Math.max(0, available - Math.min(8192, limit)));
+    const historyTokens = retained.reduce((sum, message) => sum + estimateAIChatTokens(message.content), 0);
+    return { history: retained, outputTokens: Math.max(1, Math.min(limit, available - historyTokens)) };
+}
+
+function applyExaoneGenerationPolicy(body, request) {
+    const choice = typeof window !== 'undefined' && window.AIReasoningSettings ? window.AIReasoningSettings.choice('openai-compatible', body.model, request) : null;
+    const quick = (request.mode !== 'reasoning' || request.disableThinking === true) && !(choice && ['high', 'max'].includes(choice.value));
+    body.reasoning_effort = quick ? 'low' : 'high';
+    body.chat_template_kwargs = { preserve_thinking: false };
+    // Keep the requested answer complete; reduce internal rehearsals instead of truncating output.
+    if (quick) {
+        const hint = 'Use minimal internal reasoning. Do not rehearse or draft the answer inside your reasoning. Begin the final answer promptly and satisfy the requested detail, code, and format.';
+        body.messages = body.messages.map(message => Object.assign({}, message));
+        const system = body.messages.find(message => message.role === 'system');
+        if (system) system.content = String(system.content || '') + '\n' + hint;
+        else body.messages.unshift({ role: 'system', content: hint });
+    }
+    return body;
+}
+
+async function fetchExaoneChatWithBackoff(url, options, onRetry) {
+    const signal = options && options.signal;
+    for (let attempt = 0; ; attempt++) {
+        if (signal) signal.throwIfAborted();
+        const response = await fetch(url, options);
+        if (response.ok || attempt >= 2 || response.status === 401 || response.status === 403) return response;
+        let detail = '';
+        try { detail = await response.clone().text(); } catch (_) {}
+        const dailyRemaining = response.headers.get('x-day-rate-limit-remaining');
+        const busy = /service is busy|too many concurrent|\(600\)/i.test(detail);
+        if ((!busy && response.status !== 429) || dailyRemaining === '0' || /insufficient|quota|billing/i.test(detail)) return response;
+        const retryMs = response.headers.get('retry-after-ms');
+        const retryAfter = response.headers.get('retry-after');
+        let delayMs = [3000, 8000][attempt];
+        if (retryMs != null && Number.isFinite(Number(retryMs))) delayMs = Math.max(0, Number(retryMs));
+        else if (retryAfter != null) {
+            const seconds = Number(retryAfter);
+            const until = Date.parse(retryAfter);
+            if (Number.isFinite(seconds)) delayMs = Math.max(0, seconds * 1000);
+            else if (Number.isFinite(until)) delayMs = Math.max(0, until - Date.now());
+        }
+        if (delayMs > 60000) return response;
+        if (response.body) await response.body.cancel().catch(() => {});
+        if (onRetry) onRetry({ type: 'transport.retry', provider: 'openai-compatible', attempt: attempt + 1, maxRetries: 2, delayMs });
+        await new Promise((resolve, reject) => {
+            let timer;
+            const abort = () => { clearTimeout(timer); signal.removeEventListener('abort', abort); reject(signal.reason || new DOMException('중지되었습니다.', 'AbortError')); };
+            const done = () => { if (signal) signal.removeEventListener('abort', abort); resolve(); };
+            if (signal && signal.aborted) { abort(); return; }
+            timer = setTimeout(done, delayMs);
+            if (signal) signal.addEventListener('abort', abort, { once: true });
+        });
+    }
+}
+
+function loadExaoneSettingsUI() {
+    ensureExaoneOutputLimit();
+    const defaults = { 'api-key': '', 'base-url': 'https://api.exaone.ai/v1', 'model-id': 'k-exaone_v2.5', 'context-tokens': '524288', 'output-tokens': '524288', 'timeout-seconds': '580' };
+    const fields = { 'api-key': 'api_key', 'base-url': 'base_url', 'model-id': 'model_id', 'context-tokens': 'context_tokens', 'output-tokens': 'max_output_tokens', 'timeout-seconds': 'timeout_seconds' };
+    Object.keys(fields).forEach(id => {
+        const input = document.getElementById('exaone-' + id);
+        if (input) input.value = localStorage.getItem(getOpenAICompatibleProviderStorageKey(fields[id], 'exaone')) ?? defaults[id];
+    });
+}
+
+async function saveExaoneSettings() {
+    try {
+        const value = id => String(document.getElementById('exaone-' + id)?.value || '').trim();
+        const base = normalizeOpenAICompatibleBaseUrl(value('base-url'), 'exaone');
+        const context = Number(value('context-tokens'));
+        if (!Number.isInteger(context) || context < 512 || context > 524288) throw new Error('컨텍스트는 512~524288 토큰 정수로 입력하세요.');
+        const output = Number(value('output-tokens')), timeout = Number(value('timeout-seconds'));
+        if (!Number.isInteger(output) || output < 1 || output > 524288) throw new Error('출력 토큰은 1~524288 정수로 입력하세요.');
+        if (!Number.isInteger(timeout) || timeout < 30 || timeout > 3600) throw new Error('제한 시간은 30~3600초 정수로 입력하세요.');
+        const fields = { context_tokens: String(context), api_key: value('api-key'), base_url: base, model_id: value('model-id') || 'k-exaone_v2.5', max_output_tokens: String(output), timeout_seconds: String(timeout) };
+        Object.keys(fields).forEach(field => localStorage.setItem(getOpenAICompatibleProviderStorageKey(field, 'exaone'), fields[field]));
+        // Mirror the existing ENV form only when EXAONE is already selected.
+        if (document.getElementById('openai-compatible-provider')?.value === 'exaone') {
+            ['api-key', 'base-url', 'model-id'].forEach((id, index) => {
+                const input = document.getElementById('openai-compatible-' + id);
+                if (input) input.value = fields[['api_key', 'base_url', 'model_id'][index]];
+            });
+        }
+        loadExaoneSettingsUI();
+        if (window.AIChat?.syncSettings) window.AIChat.syncSettings();
+        setExaoneSettingsStatus('저장됨 · 연결 테스트로 실제 인증과 응답을 확인하세요.');
+        return true;
+    } catch (error) { setExaoneSettingsStatus('저장 실패: ' + error.message); return false; }
+}
+
 function getStoredOpenAICompatibleConnection(providerOverride) {
+    if (providerOverride === 'exaone' || (!providerOverride && localStorage.getItem('ss_openai_compatible_provider') === 'exaone')) ensureExaoneOutputLimit();
     let provider = providerOverride || localStorage.getItem('ss_openai_compatible_provider') || OPENAI_COMPATIBLE_DEFAULTS.provider;
     if (provider === 'lemonade') provider = OPENAI_COMPATIBLE_DEFAULTS.provider;
-    const legacy = provider !== 'llamacpp' && provider === (localStorage.getItem('ss_openai_compatible_provider') || 'orcarouter');
+    const legacy = provider !== 'exaone' && provider !== 'llamacpp' && provider === (localStorage.getItem('ss_openai_compatible_provider') || 'orcarouter');
     const read = function (field) {
         return localStorage.getItem('ss_openai_compatible_' + field + '_' + provider)
             ?? (legacy ? localStorage.getItem('ss_openai_compatible_' + field) : null) ?? '';
@@ -1966,7 +2097,8 @@ function getStoredOpenAICompatibleConnection(providerOverride) {
         provider: provider,
         baseUrl: normalizeOpenAICompatibleBaseUrl(read('base_url') || OPENAI_COMPATIBLE_PROVIDER_URLS[provider], provider),
         apiKey: key,
-        modelId: String(read('model_id') || (provider === 'orcarouter' ? OPENAI_COMPATIBLE_DEFAULTS.modelId : '')).trim()
+        modelId: String(read('model_id') || (provider === 'exaone' ? 'k-exaone_v2.5' : provider === 'orcarouter' ? OPENAI_COMPATIBLE_DEFAULTS.modelId : '')).trim(),
+        ...(provider === 'exaone' ? {contextTokens:Number(read('context_tokens')) || 524288,maxOutputTokens:Number(read('max_output_tokens')) || 524288,timeoutSeconds:Number(read('timeout_seconds')) || 580,temperature:1,topP:0.95} : {})
     };
 }
 
@@ -2190,6 +2322,7 @@ async function resolveLlamaCppModel(connection, signal) {
 
 async function fetchOpenAICompatibleModels(connection, signal) {
     const active = connection || getStoredOpenAICompatibleConnection();
+    if (active.provider === 'exaone') { openAICompatibleModels = [{id:'k-exaone_v2.5'}]; return ['k-exaone_v2.5']; }
     const response = await fetch(openAICompatibleRequestUrl(active, 'models'), {
         method: 'GET',
         headers: openAICompatibleHeaders(active),
@@ -2207,7 +2340,7 @@ async function readOpenAICompatibleError(response) {
     let message = 'HTTP ' + response.status;
     try {
         const data = await response.json();
-        message = String(data && data.error && (data.error.message || data.error) || data && data.message || message);
+        message = String(data && data.error && (data.error.message || data.error.description || data.error) || data && data.message || message);
     } catch (_) {
         try { message = String(await response.text() || message); } catch (_) {}
     }
@@ -2296,7 +2429,8 @@ function prepareLemonadeSingleTurnMessages(messages, model) {
 async function streamOpenAICompatibleChat(connection, body, signal, onStreamEvent) {
     const requestStartedAt = Date.now();
     let firstTextAt = 0;
-    const emit = typeof onStreamEvent === 'function' ? onStreamEvent : function () {};
+    const sink = typeof onStreamEvent === 'function' ? onStreamEvent : function () {};
+    const emit = event => { if (!signal || !signal.aborted) sink(event); };
     const provider = connection.provider === 'lemonade' ? 'lemonade' : 'openai-compatible';
     emit({
         type: 'request.start',
@@ -2307,7 +2441,7 @@ async function streamOpenAICompatibleChat(connection, body, signal, onStreamEven
         render_interval_ms: provider === 'lemonade' ? 160 : 80
     });
     emit({ type: 'transport.start', provider: provider });
-    const response = await fetch(openAICompatibleRequestUrl(connection, 'chat/completions'), {
+    const response = await (connection.provider === 'exaone' ? fetchExaoneChatWithBackoff : fetch)(openAICompatibleRequestUrl(connection, 'chat/completions'), {
         method: 'POST',
         headers: openAICompatibleHeaders(connection, 'text/event-stream, application/json'),
         body: JSON.stringify(Object.assign({}, body, { stream: true, stream_options: { include_usage: true } })),
@@ -2334,6 +2468,7 @@ async function streamOpenAICompatibleChat(connection, body, signal, onStreamEven
         if (!value || value === '[DONE]') return;
         let data;
         try { data = JSON.parse(value); } catch (_) { return; }
+        if (data.error) throw new Error(data.error.message || data.error.description || '공급자 응답 오류');
         if (data.error) throw new Error(String(data.error.message || data.error));
         responseId = data.id || responseId;
         responseModel = data.model || responseModel;
@@ -2371,8 +2506,12 @@ async function streamOpenAICompatibleChat(connection, body, signal, onStreamEven
     }
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
-    while (true) {
+    const cancelReader = () => { reader.cancel(signal.reason).catch(() => {}); };
+    if (signal) signal.addEventListener('abort', cancelReader, {once:true});
+    try { while (true) {
+        if (signal) signal.throwIfAborted();
         const chunk = await reader.read();
+        if (signal) signal.throwIfAborted();
         if (chunk.done) break;
         buffer += decoder.decode(chunk.value, { stream: true }).replace(/\r\n/g, '\n');
         if (jsonResponse) continue;
@@ -2384,6 +2523,7 @@ async function streamOpenAICompatibleChat(connection, body, signal, onStreamEven
             else if (line.trim().startsWith('{')) processPayload(line);
         }
     }
+    } finally { if (signal) signal.removeEventListener('abort',cancelReader); reader.releaseLock(); }
     buffer += decoder.decode();
     if (buffer.trim()) processPayload(buffer.replace(/^data:\s*/i, ''));
     if (!text.trim() && !reasoning.trim() && provider === 'lemonade') {
@@ -2444,7 +2584,7 @@ async function checkOpenAICompatibleModels() {
             const current = document.getElementById('openai-compatible-model-id');
             if (current && !visible.some(function (item) { return item.id === current.value; })) current.value = visible[0].id;
         }
-        setOpenAICompatibleStatus('연결됨 · 전체 ' + openAICompatibleModels.length + '개 · ' + (checkbox && checkbox.checked ? '무료 ' + visible.length + '개' : '현재 ' + visible.length + '개') + ' 확인', 'ok');
+        setOpenAICompatibleStatus(connection.provider === 'exaone' ? '공식 등록 모델 · 인증 미확인 · 전용 연결 테스트를 실행하세요.' : '연결됨 · 전체 ' + openAICompatibleModels.length + '개 · ' + (checkbox && checkbox.checked ? '무료 ' + visible.length + '개' : '현재 ' + visible.length + '개') + ' 확인', connection.provider === 'exaone' ? '' : 'ok');
         const menu = document.getElementById('openai-compatible-model-menu');
         if (menu) menu.classList.remove('hidden');
         return visible;
@@ -2457,6 +2597,7 @@ async function checkOpenAICompatibleModels() {
 }
 
 async function testOpenAICompatibleConnection() {
+    if (document.getElementById('openai-compatible-provider')?.value === 'exaone') { await saveOpenAICompatibleSettings(); loadExaoneSettingsUI(); return testExaoneConnection(); }
     const button = document.getElementById('openai-compatible-test-button');
     try {
         if (button) button.disabled = true;
@@ -2464,7 +2605,7 @@ async function testOpenAICompatibleConnection() {
         const connection = getOpenAICompatibleFormConnection();
         await resolveLlamaCppModel(connection);
         if (!connection.modelId) throw new Error('연결 테스트에 사용할 모델을 선택하세요.');
-        const response = await fetch(openAICompatibleRequestUrl(connection, 'chat/completions'), {
+        const response = await (connection.provider === 'exaone' ? fetchExaoneChatWithBackoff : fetch)(openAICompatibleRequestUrl(connection, 'chat/completions'), {
             method: 'POST',
             headers: openAICompatibleHeaders(connection),
             body: JSON.stringify({ model: connection.modelId, messages: [{ role: 'user', content: 'Reply with OK only.' }], max_tokens: 8, stream: false })
@@ -2491,13 +2632,14 @@ document.addEventListener('click', function (event) {
 });
 
 function loadOpenAICompatibleSettingsUI(settings) {
+    loadExaoneSettingsUI();
     const source = settings || {};
     const provider = document.getElementById('openai-compatible-provider');
     const baseUrl = document.getElementById('openai-compatible-base-url');
     const apiKey = document.getElementById('openai-compatible-api-key');
     const modelId = document.getElementById('openai-compatible-model-id');
     if (provider) {
-        provider.value = source.openaiCompatibleProvider || localStorage.getItem('ss_openai_compatible_provider') || OPENAI_COMPATIBLE_DEFAULTS.provider;
+        provider.value = localStorage.getItem('ss_openai_compatible_provider') || source.openaiCompatibleProvider || OPENAI_COMPATIBLE_DEFAULTS.provider;
         if (provider.value === 'lemonade' || !provider.value) provider.value = OPENAI_COMPATIBLE_DEFAULTS.provider;
     }
     const llamaCpp = provider && provider.value === 'llamacpp';
@@ -2505,6 +2647,9 @@ function loadOpenAICompatibleSettingsUI(settings) {
         if (baseUrl) baseUrl.value = localStorage.getItem('ss_openai_compatible_base_url_llamacpp') || source.openaiCompatibleBaseUrl || OPENAI_COMPATIBLE_PROVIDER_URLS.llamacpp;
         if (apiKey) apiKey.value = localStorage.getItem('ss_openai_compatible_api_key_llamacpp') ?? '';
         if (modelId) modelId.value = localStorage.getItem('ss_openai_compatible_model_id_llamacpp') ?? '';
+    } else if (provider && provider.value === 'exaone') {
+        const c = {baseUrl:localStorage.getItem('ss_openai_compatible_base_url_exaone') || 'https://api.exaone.ai/v1',apiKey:localStorage.getItem('ss_openai_compatible_api_key_exaone') || '',modelId:localStorage.getItem('ss_openai_compatible_model_id_exaone') || 'k-exaone_v2.5'};
+        if(baseUrl) baseUrl.value=c.baseUrl; if(apiKey) apiKey.value=c.apiKey; if(modelId) modelId.value=c.modelId;
     } else {
         if (baseUrl) baseUrl.value = source.openaiCompatibleBaseUrl || localStorage.getItem('ss_openai_compatible_base_url') || OPENAI_COMPATIBLE_DEFAULTS.baseUrl;
         if (apiKey) apiKey.value = source.openaiCompatibleApiKey || localStorage.getItem('ss_openai_compatible_api_key') || '';
@@ -2519,7 +2664,7 @@ function loadOpenAICompatibleSettingsUI(settings) {
             localStorage.setItem('ss_ai_chat_openai_compatible_model', modelId.value.trim());
         }
     }
-    if (!llamaCpp && localStorage.getItem('ss_orcarouter_lemonade_separation_revision') !== 'orcarouter-default-v4') {
+    if (!llamaCpp && provider?.value !== 'exaone' && localStorage.getItem('ss_orcarouter_lemonade_separation_revision') !== 'orcarouter-default-v4') {
         if (provider) provider.value = OPENAI_COMPATIBLE_DEFAULTS.provider;
         if (baseUrl) baseUrl.value = OPENAI_COMPATIBLE_DEFAULTS.baseUrl;
         localStorage.setItem('ss_openai_compatible_provider', OPENAI_COMPATIBLE_DEFAULTS.provider);
@@ -2557,7 +2702,7 @@ async function saveOpenAICompatibleSettings() {
         openaiCompatibleProvider: String(provider && provider.value || OPENAI_COMPATIBLE_DEFAULTS.provider),
         openaiCompatibleBaseUrl: normalizedBaseUrl,
         openaiCompatibleApiKey: String(apiKey && apiKey.value || '').trim(),
-        openaiCompatibleModelId: String(modelId && modelId.value || '').trim() || (provider && provider.value === 'llamacpp' ? '' : OPENAI_COMPATIBLE_DEFAULTS.modelId)
+        openaiCompatibleModelId: String(modelId && modelId.value || '').trim() || (provider && provider.value === 'llamacpp' ? '' : provider?.value === 'exaone' ? 'k-exaone_v2.5' : OPENAI_COMPATIBLE_DEFAULTS.modelId)
     };
     let discoveryError = '';
     if (data.openaiCompatibleProvider === 'llamacpp' && !data.openaiCompatibleModelId) {
@@ -4040,7 +4185,7 @@ async function renderMarkdownSnapshotToHtml(snapshot, options) {
             ) || ''));
         }
         if (typeof marked !== 'undefined' && marked.parse) {
-            return prepareHostedImageReferrers(String(marked.parse(preprocessed) || ''));
+            return prepareHostedImageReferrers(String(marked.parse(preprocessed, { breaks: true }) || ''));
         }
         return escapeMarkdownRenderFallback(preprocessed);
     };
@@ -11414,25 +11559,34 @@ function initEditorShiftFloat(control) {
     const applyOrientation = () => {
         // Vertical is the first-run default; an explicitly saved horizontal
         // preference is still respected on later launches.
-        const horizontal = editorShiftFloatPreferences.vertical === false;
+        const footer = editorShiftFloatPreferences.layout === 'footer';
+        const horizontal = footer || editorShiftFloatPreferences.vertical === false;
+        control.dataset.layout = footer ? 'footer' : 'floating';
         control.dataset.orientation = horizontal ? 'horizontal' : 'vertical';
         control.classList.toggle('is-horizontal', horizontal);
         control.classList.toggle('is-vertical', !horizontal);
         if (!toggle) return;
-        toggle.textContent = horizontal ? '↕' : '↔';
-        toggle.title = horizontal ? '세로 메뉴로 전환' : '가로 메뉴로 전환';
+        toggle.textContent = footer ? '↕' : horizontal ? '▤' : '↔';
+        toggle.title = footer ? '세로 플로팅으로 전환' : horizontal ? '하단 바에 넣기' : '가로 메뉴로 전환';
         toggle.setAttribute('aria-label', toggle.title);
         toggle.setAttribute('aria-pressed', String(!horizontal));
     };
     applyOrientation();
     toggle?.addEventListener('click', () => {
-        editorShiftFloatPreferences.vertical = control.dataset.orientation !== 'vertical';
+        if (control.dataset.layout === 'footer') {
+            editorShiftFloatPreferences.layout = 'floating';
+            editorShiftFloatPreferences.vertical = true;
+        } else if (control.dataset.orientation === 'horizontal') {
+            editorShiftFloatPreferences.layout = 'footer';
+        } else {
+            editorShiftFloatPreferences.vertical = false;
+        }
         applyOrientation();
         syncEditorShiftFloatPosition();
         saveEditorShiftFloatPreferences();
     });
     handle.addEventListener('pointerdown', event => {
-        if (event.button !== 0 || (!dragHandle && event.target.closest('button'))) return;
+        if (control.dataset.layout === 'footer' || event.button !== 0 || (!dragHandle && event.target.closest('button'))) return;
         event.preventDefault();
         const rect = control.getBoundingClientRect();
         const startX = event.clientX;
@@ -11458,7 +11612,9 @@ function syncEditorShiftFloatPosition() {
     const control = document.getElementById('editor-shift-float');
     const viewport = document.getElementById(isEditMode ? 'content-viewport' : 'viewer-container');
     if (!control || !viewport) return;
-    const host = document.getElementById('drop-zone');
+    if (!editorShiftFloatPositionTrackingInstalled) initEditorShiftFloat(control);
+    const footer = control.dataset.layout === 'footer';
+    const host = document.getElementById(footer ? 'editor-shift-footer-slot' : 'drop-zone');
     if (host && control.parentNode !== host) host.appendChild(control);
 
     const viewportRect = viewport.getBoundingClientRect();
@@ -11467,12 +11623,16 @@ function syncEditorShiftFloatPosition() {
     const sidebarRect = sidebarVisible ? sidebarEl.getBoundingClientRect() : null;
     const outsideSidebarLeft = sidebarRect && sidebarRect.width > 0 ? sidebarRect.right + 8 : viewportRect.left + 8;
 
-    if (!editorShiftFloatPositionTrackingInstalled) initEditorShiftFloat(control);
     const preferredX = Number.isFinite(editorShiftFloatPreferences.x) ? editorShiftFloatPreferences.x : Math.max(viewportRect.left + 8, outsideSidebarLeft);
     const preferredY = Number.isFinite(editorShiftFloatPreferences.y) ? editorShiftFloatPreferences.y : viewportRect.bottom - control.offsetHeight - 8;
     control.style.left = `${Math.max(8, Math.min(window.innerWidth - control.offsetWidth - 8, preferredX))}px`;
     control.style.top = `${Math.max(8, Math.min(window.innerHeight - control.offsetHeight - 8, preferredY))}px`;
     control.style.bottom = 'auto';
+    if (footer) {
+        control.style.left = '';
+        control.style.top = '';
+        control.style.bottom = '';
+    }
 
     if (editorShiftFloatPositionTrackingInstalled) return;
     editorShiftFloatPositionTrackingInstalled = true;
@@ -20884,6 +21044,7 @@ function getMermaidCompatibleConnection(profile) {
 
 async function completeTaskVision(request, signal) {
     const provider = request.provider === 'lemonade' ? 'openai-compatible' : request.provider;
+    if (provider === 'openai-compatible' && request.openAICompatibleProvider === 'exaone') throw new Error('LG EXAONE은 텍스트 전용입니다. 이미지/OCR은 비전 공급자를 선택하세요.');
     const capability = typeof jenaTaskCapabilities !== 'undefined' ? jenaTaskCapabilities.get(provider + ':' + request.model) : null;
     if (capability && Date.now() - capability.at < 300000 && capability.vision === false) {
         throw new Error('선택한 모델은 서버가 이미지 미지원으로 보고했습니다. 비전 모델을 선택하세요.');
@@ -21134,6 +21295,7 @@ window.AIChatBridge = Object.freeze({
         return models;
     },
     getCachedOpenAICompatibleModels: function () {
+        if (localStorage.getItem('ss_openai_compatible_provider') === 'exaone') return ['k-exaone_v2.5'];
         const models = getAIChatOpenAICompatibleModelIds('openai-compatible');
         const selected = getStoredOpenAICompatibleConnection().modelId;
         if (localStorage.getItem('ss_openai_compatible_provider') === 'llamacpp') return Array.from(new Set(models.concat(selected ? [selected] : [])));
@@ -21142,6 +21304,7 @@ window.AIChatBridge = Object.freeze({
         return Array.from(new Set(models.concat(includeSelected && selected ? [selected] : []).filter(Boolean)));
     },
     refreshOpenAICompatibleModels: async function () {
+        if (localStorage.getItem('ss_openai_compatible_provider') === 'exaone') return ['k-exaone_v2.5'];
         await fetchOpenAICompatibleModels(getStoredOpenAICompatibleConnection());
         return getAIChatOpenAICompatibleModelIds('openai-compatible');
     },
@@ -21269,6 +21432,7 @@ window.AIChatBridge = Object.freeze({
         if (request.provider === 'lemonade-flm' || (request.provider === 'openai-compatible' && request.openAICompatibleProvider === 'lemonade-flm')) {
             request = Object.assign({}, request, {provider:'ollama-npu',openAICompatibleProvider:undefined});
         }
+        if (request.provider === 'exaone') request = Object.assign({}, request, {provider:'openai-compatible',openAICompatibleProvider:'exaone'});
         if (request.provider === 'openai-compatible-env') request = Object.assign({}, request, {provider:'openai-compatible'});
         if (!request.independent && aiChatAbortController) aiChatAbortController.abort();
         const controller = new AbortController();
@@ -21278,12 +21442,14 @@ window.AIChatBridge = Object.freeze({
             if (request.signal.aborted) relayAbort();
             else request.signal.addEventListener('abort', relayAbort, { once: true });
         }
-        const timeoutMs = Number(request.timeoutMs) > 0 ? Number(request.timeoutMs) : 0;
+        const exaoneRequest = request.provider === 'exaone' || request.provider === 'openai-compatible' && (request.openAICompatibleProvider || localStorage.getItem('ss_openai_compatible_provider')) === 'exaone';
+        const timeoutMs = exaoneRequest ? ((Number(localStorage.getItem('ss_openai_compatible_timeout_seconds_exaone')) || 580) * 1000) : Number(request.timeoutMs) > 0 ? Number(request.timeoutMs) : 0;
         const timeoutId = timeoutMs ? setTimeout(function () { controller.abort(new DOMException('AI 응답 시간 초과', 'TimeoutError')); }, timeoutMs) : null;
         try {
             const hasImages = (request.messages || []).some(function (message) {
                 return (message.attachments || []).some(function (item) { return item && item.kind === 'image'; });
             });
+            if (hasImages && request.provider === 'openai-compatible' && (request.openAICompatibleProvider || localStorage.getItem('ss_openai_compatible_provider')) === 'exaone') throw new Error('LG EXAONE은 텍스트 전용입니다. 이미지/OCR은 비전 공급자를 선택하세요.');
             if (hasImages) {
                 // Validate before any provider can silently fall back to text-only input.
                 aiChatMessagesWithImageContent(normalizeAIChatMessages(request.messages));
@@ -21345,10 +21511,25 @@ window.AIChatBridge = Object.freeze({
                     requestBody.enable_thinking = enableThinking;
                     requestBody.thinking = enableThinking;
                 }
+                if (connection.provider === 'exaone') {
+                    const limit = Math.min(524288, Number(connection.contextTokens) || 524288);
+                    const systemMessages = messages.filter(message => message.role === 'system');
+                    const conversation = messages.filter(message => message.role !== 'system');
+                    const last = conversation[conversation.length - 1];
+                    if (!last) throw new Error('보낼 메시지가 없습니다.');
+                    const available = limit - estimateAIChatTokens(last.content) - systemMessages.reduce((sum,message) => sum + estimateAIChatTokens(message.content),0) - 256;
+                    if (available < 1) throw new Error('EXAONE 입력이 컨텍스트 한도를 초과했습니다.');
+                    const budget = budgetExaoneOutput(conversation.slice(0,-1),available,Math.min(requestedMaxTokens || connection.maxOutputTokens, connection.maxOutputTokens));
+                    requestBody.messages = systemMessages.concat(budget.history,[last]).map(m => ({role:m.role,content:String(m.content || '')}));
+                    requestBody.max_tokens = budget.outputTokens;
+                    applyExaoneGenerationPolicy(requestBody, request);
+                    window.AIReasoningSettings?.apply('openai-compatible', model, requestBody, request);
+                    controller.signal.throwIfAborted();
+                }
                 if (typeof request.onStreamEvent === 'function') {
                     return await streamOpenAICompatibleChat(connection, requestBody, controller.signal, request.onStreamEvent);
                 }
-                const response = await fetch(openAICompatibleRequestUrl(connection, 'chat/completions'), {
+                const response = await (connection.provider === 'exaone' ? fetchExaoneChatWithBackoff : fetch)(openAICompatibleRequestUrl(connection, 'chat/completions'), {
                     method: 'POST',
                     headers: openAICompatibleHeaders(connection),
                     body: JSON.stringify(Object.assign({}, requestBody, { stream: false })),
@@ -21356,6 +21537,7 @@ window.AIChatBridge = Object.freeze({
                 });
                 if (!response.ok) throw new Error(await readOpenAICompatibleError(response));
                 const data = await response.json();
+                if (data.error) throw new Error(data.error.message || data.error.description || '공급자 응답 오류');
                 const choice = data && data.choices && data.choices[0] || {};
                 const message = choice.message || {};
                 return {
@@ -21900,7 +22082,7 @@ function ensureSidebarAILoaded() {
                         );
                     }
                     if (typeof marked !== 'undefined' && marked.parse) {
-                        return marked.parse(prepared);
+                        return marked.parse(prepared, { breaks: true });
                     }
                 } catch (e) {
                     return t.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');

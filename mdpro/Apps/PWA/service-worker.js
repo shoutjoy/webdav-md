@@ -1,7 +1,7 @@
 'use strict';
 
 const CACHE_PREFIX = 'md-viewer-pwa-';
-const CACHE_VERSION = '20261113-table-prompt-fold-2';
+const CACHE_VERSION = '20261115-enter-breaks-1';
 const STATIC_CACHE = CACHE_PREFIX + 'static-' + CACHE_VERSION;
 const RUNTIME_CACHE = CACHE_PREFIX + 'runtime-' + CACHE_VERSION;
 const MAX_RUNTIME_ENTRIES = 80;
@@ -11,6 +11,7 @@ const CORE_ASSETS = [
   './css/style.css',
   './css/tailwind-static.css',
   './js/app.js',
+  './AI_App/aiChat/reasoning-settings.js',
   './Apps/PWA/manifest.webmanifest',
   './Apps/PWA/icons/icon.svg',
   './Apps/PWA/icons/icon-maskable.svg',

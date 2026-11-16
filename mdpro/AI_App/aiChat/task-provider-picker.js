@@ -29,7 +29,7 @@
     });
     const providers = [
         ['lmstudio', 'LM Studio'], ['litertlm', 'LiteRT-LM'], ['aistudio', 'AI Studio (Gemini)'],
-        ['ollama', 'Ollama'], ['deepseek', 'DeepSeek (유료)'], ['openai-compatible-env', 'OpenAI Compatible'],
+        ['exaone', 'LG EXAONE (텍스트)'], ['ollama', 'Ollama'], ['deepseek', 'DeepSeek (유료)'], ['openai-compatible-env', 'OpenAI Compatible'],
         ['lemonade-flm', 'Lemonade FLM NPU'], ['lemonade', 'Lemonade'], ['openai', 'OpenAI · ChatGPT 모델 (유료 API)']
     ];
     const DEFAULT_AI_STUDIO_MODEL = 'gemini-3.5-flash-lite';
@@ -52,7 +52,7 @@
             try { if (localStorage.getItem('ss_ai_chat_provider')) saved = {provider:'',model:''}; } catch (_) {}
         }
         if (saved.provider === 'ollama-npu') saved.provider = 'lemonade-flm';
-        if (saved.provider === 'openai-compatible') saved.provider = /^(lemonade|lemonade-flm)$/.test(saved.openAICompatibleProvider || '') ? saved.openAICompatibleProvider : 'openai-compatible-env';
+        if (saved.provider === 'openai-compatible') saved.provider = /^(exaone|lemonade|lemonade-flm)$/.test(saved.openAICompatibleProvider || '') ? saved.openAICompatibleProvider : 'openai-compatible-env';
         // The WebDAV app owns AIChat even when embedded in the React host.
         // Only child tools (ME/Tidy) without a local runtime use parent messages.
         const host = root.AIChat || typeof root.openAiJenaChat === 'function'
@@ -249,7 +249,7 @@
         };
         password.onkeydown = function (event) { if (event.key === 'Enter') { event.preventDefault(); unlock.click(); } };
         function selection() {
-            const localCompatible = /^(lemonade|lemonade-flm)$/.test(provider.value);
+            const localCompatible = /^(exaone|lemonade|lemonade-flm)$/.test(provider.value);
             return { provider: localCompatible || provider.value === 'openai-compatible-env' ? 'openai-compatible' : provider.value, model: provider.value ? model.value.trim() : '', openAICompatibleProvider: localCompatible ? provider.value : compatibleProvider };
         }
         function save() {
@@ -365,7 +365,7 @@
                 ++ticket;
                 let id = value.provider || '';
                 if (id === 'ollama-npu') id = 'lemonade-flm';
-                if (id === 'openai-compatible') id = /^(lemonade|lemonade-flm)$/.test(value.openAICompatibleProvider || '') ? value.openAICompatibleProvider : 'openai-compatible-env';
+                if (id === 'openai-compatible') id = /^(exaone|lemonade|lemonade-flm)$/.test(value.openAICompatibleProvider || '') ? value.openAICompatibleProvider : 'openai-compatible-env';
                 provider.value = id; resolvedProvider = ''; compatibleProvider = value.openAICompatibleProvider || '';
                 model.value = value.model || ''; updateModelChoices(model.value ? [model.value] : []);
                 save(); return load(true);
