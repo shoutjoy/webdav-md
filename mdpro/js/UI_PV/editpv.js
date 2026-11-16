@@ -550,11 +550,7 @@ function getPreviewPopupStylesheetLinks() {
 function getPreviewPopupDocumentHtml() {
     const mathHead = (typeof MathRender !== 'undefined' && MathRender && typeof MathRender.getHeadTags === 'function')
         ? MathRender.getHeadTags({
-<<<<<<< HEAD
-            scriptUrl: new URL('./js/math_render/math_render.js?v=20261115-enter-breaks-1', window.location.href).href
-=======
-            scriptUrl: new URL('./js/math_render/math_render.js?v=20261115-parenthetical-emphasis-1', window.location.href).href
->>>>>>> d747c248b09d46d697468b7c517419072b83fdd5
+            scriptUrl: new URL('./js/math_render/math_render.js?v=20261116-merge-resolution-1', window.location.href).href
         })
         : '';
     const imageResizeHead = '<script src="' + escapePreviewAttribute(new URL('./js/viewmode/image-resize.js?v=20260815-pv-restore-1', window.location.href).href) + '"></script>';
