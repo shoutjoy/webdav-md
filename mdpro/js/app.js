@@ -19101,7 +19101,9 @@ async function callNPUChat(request, signal) {
     while (recent.length > 1 && recent[0].role !== 'user') recent.shift();
     messages.push(...recent);
     const settings = { provider: 'ollama-npu', baseUrl: getNPUBaseUrl(), contextLength: contextLength, maxGen: maxTokens, renderIntervalMs: 80 };
-    const body = { model: model, messages: messages, max_tokens: maxTokens, temperature: 0.4, stream: false };
+    const npuThinking = request.mode === 'reasoning' && request.disableThinking !== true && !request.fastMode;
+    const body = { model: model, messages: messages, max_tokens: maxTokens, temperature: 0.4, stream: false,
+        thinking: npuThinking, enable_thinking: npuThinking, chat_template_kwargs: { enable_thinking: npuThinking } };
     if (typeof request.onStreamEvent === 'function') {
         return await streamNPUChat(body, settings, signal, request.onStreamEvent);
     }
@@ -20554,6 +20556,39 @@ async function callAIStudioChat(messages, systemInstruction, modelOverride, sign
     };
 }
 
+// One durable original per document; never silently overwrite later edits on restore.
+function aiOriginalBackupKey() {
+    return 'ss_ai_jena_original_v1:' + encodeURIComponent(getTocDocumentKey());
+}
+
+function saveAIOriginalBackup(before, after) {
+    const record = { before: String(before), after: String(after), savedAt: Date.now() };
+    try { localStorage.setItem(aiOriginalBackupKey(), JSON.stringify(record)); }
+    catch (_) { throw new Error('원문 백업을 저장하지 못했습니다. 저장 공간을 확인하세요.'); }
+    return record;
+}
+
+function restoreAIOriginalDocument() {
+    if (activeRealtimeDocStream) throw new Error('AI 작성을 중지한 뒤 원문을 복원하세요.');
+    const key = aiOriginalBackupKey();
+    const record = JSON.parse(localStorage.getItem(key) || 'null');
+    if (!record || typeof record.before !== 'string' || typeof record.after !== 'string') throw new Error('이 문서에 저장된 원문이 없습니다.');
+    const cm = editorTextarea && editorTextarea.__mdCm6View;
+    const raw = cm && cm.state && cm.state.doc ? String(cm.state.doc.toString()) : String(editorTextarea && editorTextarea.value || '');
+    if (raw !== record.after) throw new Error('대체 후 문서가 변경되어 복원을 중단했습니다. 이후 편집 내용을 보존하려면 먼저 별도로 저장하세요.');
+    if (!isEditMode) toggleMode('edit');
+    pushReplaceUndoSnapshot();
+    if (cm && typeof cm.dispatch === 'function') cm.dispatch({ changes: { from: 0, to: cm.state.doc.length, insert: record.before }, selection: { anchor: 0 }, userEvent: 'input.aiJenaRestore' });
+    editorTextarea.value = record.before;
+    currentMarkdown = record.before;
+    editorTextarea.dispatchEvent(new Event('input', { bubbles: true }));
+    editorTextarea.dispatchEvent(new Event('change', { bubbles: true }));
+    performAutoSave();
+    if (activeSidebarTab === 'toc') renderTOC();
+    localStorage.removeItem(key);
+    return true;
+}
+
 function insertAIChatTextIntoDocument(text, mode) {
     const value = String(text || '').trim();
     if (!value) throw new Error('문서에 삽입할 질문과 답변이 없습니다.');
@@ -20573,6 +20608,10 @@ function insertAIChatTextIntoDocument(text, mode) {
     } else if (insertMode === 'document-end') {
         start = end = raw.length;
     }
+    if (insertMode === 'replace') {
+        const imported = getImportedDocumentSelection(raw);
+        if (imported) { start = imported.start; end = imported.end; }
+    }
     const before = raw.slice(0, start);
     const after = raw.slice(end);
     let prefix = '';
@@ -20587,6 +20626,7 @@ function insertAIChatTextIntoDocument(text, mode) {
         prefix = before && !/\n\s*\n$/.test(before) ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
     }
     const insertion = prefix + value + suffix;
+    if (insertMode === 'replace' && end > start) saveAIOriginalBackup(raw, before + insertion + after);
     pushReplaceUndoSnapshot();
     editorTextarea.focus();
     editorTextarea.setSelectionRange(start, end);
@@ -20601,11 +20641,36 @@ function insertAIChatTextIntoDocument(text, mode) {
     lastEditCaretPos = caret;
     performAutoSave();
     if (activeSidebarTab === 'toc') renderTOC();
+    if (insertMode === 'replace') importedEditorSelection = null;
     return true;
 }
 
 let activeRealtimeDocStream = null;
 let lastCapturedEditorSelection = null;
+let importedEditorSelection = null;
+
+function rememberImportedDocumentSelection(text) {
+    const captured = rememberEditorSelection();
+    const cm = editorTextarea && editorTextarea.__mdCm6View;
+    const raw = cm && cm.state && cm.state.doc ? String(cm.state.doc.toString()) : String(editorTextarea && editorTextarea.value || '');
+    const selected = String(text || '');
+    if (!selected.trim()) return;
+    let start = captured && captured.hasSelection && captured.text === selected ? captured.start : raw.indexOf(selected);
+    // A rendered selection may lack editor offsets. Only a unique exact match is safe.
+    if (!(captured && captured.hasSelection && captured.text === selected) && raw.indexOf(selected, start + 1) >= 0) start = -1;
+    importedEditorSelection = start >= 0 ? { start, end: start + selected.length, text: selected } : null;
+}
+
+function getImportedDocumentSelection(raw) {
+    if (!importedEditorSelection) return null;
+    const saved = importedEditorSelection;
+    if (raw.slice(saved.start, saved.end) !== saved.text) {
+        importedEditorSelection = null;
+        throw new Error('가져온 원문이 변경되었습니다. 대체할 내용을 다시 선택하여 가져오세요.');
+    }
+    return saved;
+}
+
 
 function rememberEditorSelection() {
     if (!editorTextarea) return null;
@@ -20663,6 +20728,11 @@ function startRealtimeDocStream(options) {
         const previousStart = raw.lastIndexOf(previous);
         if (previousStart < 0) throw new Error('이전 답변을 현재 문서에서 찾지 못했습니다. 원문을 복원한 뒤 이어쓰기를 실행하세요.');
         start = end = previousStart + previous.length;
+    } else if (target === 'cursor' && importedEditorSelection) {
+        const imported = getImportedDocumentSelection(raw);
+        start = imported.start;
+        end = imported.end;
+        isReplacing = true;
     } else if (target === 'document-end') {
         start = end = raw.length;
     } else {
@@ -20700,9 +20770,11 @@ function startRealtimeDocStream(options) {
         prefix = before && !/\n\s*\n$/.test(before) ? (before.endsWith('\n') ? '\n' : '\n\n') : '';
     }
 
+    const originalBackup = isReplacing ? saveAIOriginalBackup(raw, raw) : null;
     pushReplaceUndoSnapshot();
 
     activeRealtimeDocStream = {
+        originalBackup: originalBackup,
         target: target,
         anchorStart: start,
         isReplacing: isReplacing,
@@ -20711,7 +20783,7 @@ function startRealtimeDocStream(options) {
         before: before,
         after: after,
         currentText: '',
-        insertedLength: 0,
+        insertedLength: end - start,
         rafPending: false,
         dirty: false,
         pendingText: ''
@@ -20721,6 +20793,7 @@ function startRealtimeDocStream(options) {
         applyRealtimeDocText('');
     }
 
+    importedEditorSelection = null;
     return { ok: true, target: target, isReplacing: isReplacing };
 }
 
@@ -20854,6 +20927,7 @@ function finishRealtimeDocStream(finalText) {
     const textToApply = finalText != null ? String(finalText) : (session.pendingText || session.currentText || '');
     applyRealtimeDocText(textToApply);
 
+    if (session.originalBackup) saveAIOriginalBackup(session.originalBackup.before, String(editorTextarea.value || ''));
     editorTextarea.dispatchEvent(new Event('input', { bubbles: true }));
     editorTextarea.dispatchEvent(new Event('change', { bubbles: true }));
     performAutoSave();
@@ -21262,6 +21336,7 @@ window.AIChatBridge = Object.freeze({
         }
         return '';
     },
+    rememberImportedDocumentSelection: rememberImportedDocumentSelection,
     rememberEditorSelection: function () {
         return rememberEditorSelection();
     },
@@ -21389,6 +21464,7 @@ window.AIChatBridge = Object.freeze({
             }
         };
     },
+    restoreOriginalDocument: restoreAIOriginalDocument,
     insertIntoDocument: function (text, mode, options) {
         const insertOptions = options && typeof options === 'object' ? options : {};
         const value = insertOptions.format === 'html' && String(insertOptions.html || '').trim()
