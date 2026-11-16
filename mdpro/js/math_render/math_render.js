@@ -13,7 +13,7 @@
         }
     };
 
-    var DEFAULT_SCRIPT_URL = 'js/math_render/math_render.js?v=20261104-hwp-structural-rows-1';
+    var DEFAULT_SCRIPT_URL = 'js/math_render/math_render.js?v=20261115-enter-breaks-1';
     var DEFAULT_MATHJAX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js';
     var TYPESET_QUEUES = typeof WeakMap === 'function' ? new WeakMap() : null;
     var fallbackTypesetQueue = Promise.resolve();
@@ -157,10 +157,14 @@
     }
 
     function getMarkdownParser(markdownParser) {
-        if (typeof markdownParser === 'function') return markdownParser;
+        // Preserve authored Enter breaks in prose; the Markdown parser still owns
+        // code fences, lists, tables and block structure. Math is protected first.
+        if (typeof markdownParser === 'function') return function (input) {
+            return markdownParser(input, { breaks: true });
+        };
         if (markdownParser && typeof markdownParser.parse === 'function') {
             return function (input) {
-                return markdownParser.parse(input);
+                return markdownParser.parse(input, { breaks: true });
             };
         }
         return null;

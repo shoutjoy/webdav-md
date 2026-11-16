@@ -7,7 +7,7 @@ const app = readFileSync(new URL('../mdpro/js/app.js', import.meta.url), 'utf8')
 const chat = readFileSync(new URL('../mdpro/AI_App/aiChat/ai-chat.js', import.meta.url), 'utf8');
 
 test('Lemonade reasoning is enabled independently of the display preference; quick and FAST stay off', () => {
-  const flags = app.slice(app.indexOf('const enableThinking ='), app.indexOf("if (typeof request.onStreamEvent === 'function')", app.indexOf('const enableThinking ='))).replace(/}\s*$/, '');
+  const flags = app.slice(app.indexOf('const enableThinking ='), app.indexOf("if (connection.provider === 'exaone')", app.indexOf('const enableThinking ='))).replace(/}\s*$/, '');
   for (const [mode, disableThinking, fastMode, expected] of [
     ['reasoning', false, false, true], ['quick', false, false, false],
     ['reasoning', true, false, false], ['reasoning', false, true, false]
@@ -107,6 +107,8 @@ test('one request writes body chunks before completion while reasoning stays out
   });
   vm.runInContext(chat.slice(chat.indexOf('  function handleStreamEvent('), chat.indexOf('  function updateThinkingProgress(')), context);
   vm.runInContext(chat.slice(chat.indexOf('  function streamDeltaToRealtimeDoc('), chat.indexOf('  function setOpen(')), context);
+  context.reasoningControls = null;
+  vm.runInContext(chat.slice(chat.indexOf('  function completeJenaRequest('), chat.indexOf('  function updateHeaderModel(')), context);
   context.baseRequest = { mode: 'reasoning', disableThinking: false, onStreamEvent: context.handleStreamEvent };
   const start = chat.indexOf('      // Stream the same model response');
   const flow = chat.slice(start, chat.indexOf('      if (nativeInternetSearch)', start));

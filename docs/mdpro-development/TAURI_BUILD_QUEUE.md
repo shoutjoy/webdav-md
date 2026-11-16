@@ -4,6 +4,12 @@
 
 ## 대기 기능
 
+- MDPRO-20261115-DOCUMENT-CONTROL-FOOTER: [문서 조절기 하단 바 배치](changes/2026-11-15-document-control-footer.md) — WebDAV 구현·상태 회귀 통과, 실제 UI/Viewer 이식/Tauri/설치 검증 대기. 빌드 요청 없음.
+
+- MDPRO-20261115-ENTER-BREAKS: [Markdown Enter 줄바꿈 보존](changes/2026-11-15-markdown-enter-breaks.md) — 공통 parser breaks:true·원문 보존·메인/PV 줄바꿈/수식8개 실제 검증. Viewer 웹 이식/frontend/native/설치 대기, 실제 인쇄/PDF 미검증.
+
+- MDPRO-20261115-EXAONE-PORT: [LG EXAONE ENV·JENA·텍스트 도구 이식](changes/2026-11-15-exaone-provider-port.md) — WebDAV scoped 설정/공통 브리지/고정 SSE relay/EXAONE TL 구현·Chrome 합성·회귀/빌드 검증. Viewer 원본 미수정, 실제 공급자·운영 중계·Tauri frontend/native/설치 검증 대기.
+
 - MDPRO-20261113-MERMAID-COMPACT-PREVIEW: [Mermaid Ref 저장기록 탭·프롬프트 실행 한 행·Dock·Crop](changes/2026-11-13-mermaid-ref-compact-preview.md) — WebDAV 구현·45관련검사/빌드 통과, 브라우저 소켓 권한 오류로 UI 미검증. Viewer 이식/Tauri/설치 대기, 빌드 요청 없음.
 
 - MDPRO-20261113-TIDY-DOCK-RESPONSIVE: [TIDY Dock 반응형 1열](changes/2026-11-13-tidy-dock-responsive.md) — WebDAV 구현/빌드 통과. 브라우저 검사는 playwright-core 부재로 실행 실패, 실제 UI 미검증. Viewer 웹 이식/frontend/native/설치 대기, 빌드 요청 없음.
@@ -123,3 +129,5 @@ publish 스크립트 결과와 최종 제공 경로:
 - MDPRO-20261114-MOVE-MODAL-LAYER: [파일 이동창 전면 표시](changes/2026-11-14-move-modal-layer.md) — WebDAV portal·레이어 수정/빌드 통과, 실제 UI 미검증. Viewer 대응 확인·이식/frontend/native/설치 대기, 빌드 요청 없음.
 
 - MDPRO-20261114-MOVE-SOURCE-EXPAND: [이동 원본 폴더 초기 펼침](changes/2026-11-14-move-source-expand.md) — WebDAV 구현·초기값/빌드 통과, 실제 UI 미검증. Viewer 이식/frontend/native/설치 대기, 빌드 요청 없음.
+
+- MDPRO-20261114-MOVE-SOURCE-EXPAND 후속: 파일이 있는 모든 폴더/조상 초기 펼침·파일 전용 폴더 펼침·읽기 전용 파일 행 추가. [변경 문서](changes/2026-11-14-move-source-expand.md). WebDAV 검사/빌드 통과, 실제 UI 미검증. Viewer 이식/frontend/native/설치 대기.

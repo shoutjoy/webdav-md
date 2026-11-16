@@ -4722,3 +4722,10 @@ body.mermaid-workspace-split #mermaid-editor-modal-panel { border-radius:0; box-
 #jena-table-prompt-settings > summary h3 { margin:0; }
 #jena-table-prompt-settings > summary:focus-visible { outline:2px solid #2dd4bf; outline-offset:4px; border-radius:6px; }
 #jena-table-prompt-settings { margin-bottom:10px; }
+
+/* Keep footer controls reachable at narrow widths and large control sizes. */
+#app-status-footer > div { flex-wrap: wrap; }
+#editor-shift-footer-slot { min-width: 0; max-width: 100%; overflow-x: auto; }
+#editor-shift-footer-slot:empty { display: none; }
+#editor-shift-float[data-layout="footer"] { max-width: none; width: max-content; }
+#editor-shift-float[data-layout="footer"] .editor-shift-drag { cursor: default; }

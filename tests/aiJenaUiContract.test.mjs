@@ -265,7 +265,7 @@ test('AI Jena applies model-sized token profiles with a 180 second limit', () =>
 
 test('realtime writing streams one response directly into the document and retains the chat record', () => {
   assert.doesNotMatch(chatScript, /separateRealtimeReasoning|planningResult|planningMemo/);
-  assert.match(chatScript, /if \(state\.realtimeDocWrite\) beginRealtimeDocForCurrentGeneration\(\);\s*var result = await getBridge\(\)\.complete\(baseRequest\)/);
+  assert.match(chatScript, /if \(state\.realtimeDocWrite\) beginRealtimeDocForCurrentGeneration\(\);\s*var result = await completeJenaRequest\(baseRequest\)/);
   assert.match(chatScript, /state\.realtimeDocWrite && !state\.fastMode && state\.responseMode === 'reasoning'[\s\S]*질문의 난이도에 필요한 만큼만 검토/);
   assert.match(chatScript, /content: sections\.answer,[\s\S]*realtimeDocRecord: realtimeDocExclusive/);
   assert.match(chatScript, /if \(state\.realtimeDocWrite\) beginRealtimeDocForCurrentGeneration\(\)/);
@@ -277,7 +277,7 @@ test('realtime writing streams one response directly into the document and retai
 
 test('Lemonade enables thinking in reasoning mode and displays streamed reasoning', () => {
   assert.match(chatScript, /disableThinking: state\.provider === 'lemonade' && \(state\.responseMode !== 'reasoning' \|\| state\.fastMode \|\| academicSearchActive \|\| state\.realtimeDocWrite\)/);
-  assert.match(chatScript, /showLiveReasoning = state\.responseMode === 'reasoning' && state\.showReasoning;/);
+  assert.match(chatScript, /showLiveReasoning = state\.showReasoning && \(state\.responseMode === 'reasoning' \|\| !!liveStream\.reasoning\);/);
   assert.match(chatScript, /state\.responseMode === 'quick' \|\| state\.fastMode[\s\S]*첫 응답 토큰 대기/);
   assert.match(appScript, /const enableThinking = request\.mode === 'reasoning' && request\.disableThinking !== true && !request\.fastMode/);
   assert.match(appScript, /chat_template_kwargs = \{ enable_thinking: enableThinking \}/);

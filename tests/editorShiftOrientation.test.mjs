@@ -53,11 +53,15 @@ test('orientation button toggles every floating-bar control between a row and a 
     listeners.click();
     assert.equal(control.dataset.orientation, 'horizontal');
     assert.equal(control.classList.contains('is-horizontal'), true);
-    assert.equal(toggle.textContent, '↕');
-    assert.equal(attrs['aria-label'], '세로 메뉴로 전환');
+    assert.equal(toggle.textContent, '▤');
+    assert.equal(attrs['aria-label'], '하단 바에 넣기');
     assert.equal(attrs['aria-pressed'], 'false');
 
     listeners.click();
+    assert.equal(control.dataset.layout, 'footer');
+    assert.equal(control.dataset.orientation, 'horizontal');
+    listeners.click();
+    assert.equal(control.dataset.layout, 'floating');
     assert.equal(control.dataset.orientation, 'vertical');
     assert.equal(control.classList.contains('is-vertical'), true);
 });

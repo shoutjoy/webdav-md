@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, ChevronRight, Folder, FolderOpen, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, File, Folder, FolderOpen, X } from 'lucide-react';
 
 function findDirectory(node, targetPath) {
   if (!node) return null;
@@ -16,14 +16,16 @@ function findDirectory(node, targetPath) {
 function FolderChoice({ node, depth, expandedPaths, selectedPath, blockedPaths, blockedDestinationPaths, onToggle, onSelect }) {
   const path = node.path || node.remotePath || '/';
   const folders = (node.entries || []).filter((entry) => entry.isDirectory);
+  const files = (node.entries || []).filter((entry) => !entry.isDirectory);
+  const hasChildren = folders.length > 0 || files.length > 0;
   const expanded = expandedPaths.has(path);
   const blocked = blockedDestinationPaths.has(path)
     || [...blockedPaths].some((sourcePath) => path === sourcePath || path.startsWith(`${sourcePath}/`));
 
   return <>
     <div className={`flex items-center rounded-md ${selectedPath === path ? 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-100' : ''}`} style={{ paddingLeft: `${8 + depth * 18}px` }}>
-      <button type="button" onClick={() => onToggle(path)} className="grid h-8 w-7 shrink-0 place-items-center text-slate-400" aria-label={expanded ? `${node.name} 접기` : `${node.name} 펼치기`} disabled={!folders.length}>
-        {folders.length ? (expanded ? <ChevronDown size={14}/> : <ChevronRight size={14}/>) : <span/>}
+      <button type="button" onClick={() => onToggle(path)} className="grid h-8 w-7 shrink-0 place-items-center text-slate-400" aria-label={expanded ? `${node.name} 접기` : `${node.name} 펼치기`} disabled={!hasChildren}>
+        {hasChildren ? (expanded ? <ChevronDown size={14}/> : <ChevronRight size={14}/>) : <span/>}
       </button>
       <button type="button" onClick={() => onSelect(path)} disabled={blocked} className="flex min-w-0 flex-1 items-center gap-2 py-2 pr-3 text-left text-sm disabled:cursor-not-allowed disabled:opacity-35" title={blocked ? '이 폴더 또는 하위 폴더로는 이동할 수 없습니다.' : path}>
         {expanded ? <FolderOpen size={16} className="shrink-0 text-amber-400"/> : <Folder size={16} className="shrink-0 text-amber-400"/>}
@@ -32,6 +34,10 @@ function FolderChoice({ node, depth, expandedPaths, selectedPath, blockedPaths, 
       </button>
     </div>
     {expanded && folders.map((folder) => <FolderChoice key={folder.remotePath} node={folder} depth={depth + 1} expandedPaths={expandedPaths} selectedPath={selectedPath} blockedPaths={blockedPaths} blockedDestinationPaths={blockedDestinationPaths} onToggle={onToggle} onSelect={onSelect}/>)}
+    {expanded && files.map((file) => <div key={file.remotePath || file.name} className="flex min-w-0 items-center gap-2 py-2 pr-3 text-sm text-slate-500 dark:text-slate-400" style={{ paddingLeft: `${8 + (depth + 1) * 18 + 28}px` }} title={file.remotePath || file.name}>
+      <File size={16} className="shrink-0"/>
+      <span className="truncate">{file.name}</span>
+    </div>)}
   </>;
 }
 
@@ -39,6 +45,20 @@ export default function MoveDestinationModal({ items, directoryTree, loading, pr
   const [selectedPath, setSelectedPath] = useState('');
   const [expandedPaths, setExpandedPaths] = useState(() => {
     const paths = new Set(['/']);
+    const expandFileFolders = (node) => {
+      if (!node) return false;
+      let containsFiles = false;
+      for (const entry of node.entries || []) {
+        if (entry.isDirectory) {
+          if (expandFileFolders(entry)) containsFiles = true;
+        } else {
+          containsFiles = true;
+        }
+      }
+      if (containsFiles) paths.add(node.path || node.remotePath || '/');
+      return containsFiles;
+    };
+    expandFileFolders(directoryTree);
     for (const item of items || []) {
       const parts = String(item.remotePath || '/').split('/').filter(Boolean);
       parts.pop();

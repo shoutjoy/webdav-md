@@ -153,7 +153,7 @@
             if (engine === 'auto' || engine === 'mathjax') {
                 if (typeof global.MathRender !== 'undefined' && global.MathRender && typeof global.MathRender.getHeadTags === 'function') {
                     html += global.MathRender.getHeadTags({
-                        scriptUrl: opts.mathRenderScriptUrl || 'js/math_render/math_render.js',
+                        scriptUrl: opts.mathRenderScriptUrl || 'js/math_render/math_render.js?v=20261115-enter-breaks-1',
                         mathJaxUrl: opts.mathJaxUrl
                     });
                 }
