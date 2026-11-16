@@ -1690,7 +1690,15 @@ function isLemonadeConnection(connection) {
 }
 
 function openAICompatibleRequestUrl(connection, path) {
-    if (connection.provider === 'exaone' && connection.baseUrl === 'https://api.exaone.ai/v1' && path === 'chat/completions') return '/api/exaone/chat/completions';
+    // The Vite relay exists only on loopback dev/preview servers, not static hosts.
+    const localExaoneRelay = typeof location !== 'undefined'
+        && /^https?:$/.test(location.protocol)
+        && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+    if (localExaoneRelay && connection.provider === 'exaone' && connection.baseUrl === 'https://api.exaone.ai/v1' && path === 'chat/completions') return '/api/exaone/chat/completions';
+    if (connection.provider === 'exaone' && connection.baseUrl === 'https://api.exaone.ai/v1' && path === 'chat/completions'
+        && typeof location !== 'undefined' && location.protocol === 'https:' && location.hostname === 'shoutjoy.github.io') {
+        return 'https://mdproviewer.vercel.app/api/exaone';
+    }
     const directLemonade = isLemonadeConnection(connection) && shouldUseDirectLemonadeConnection();
     const baseUrl = directLemonade
         ? LEMONADE_DEFAULT_BASE_URL
@@ -2016,7 +2024,18 @@ async function fetchExaoneChatWithBackoff(url, options, onRetry) {
     const signal = options && options.signal;
     for (let attempt = 0; ; attempt++) {
         if (signal) signal.throwIfAborted();
-        const response = await fetch(url, options);
+        let response;
+        try { response = await fetch(url, options); }
+        catch (error) {
+            if (signal && signal.aborted || error && error.name === 'AbortError') throw error;
+            if (url === 'https://api.exaone.ai/v1/chat/completions') {
+                throw new Error('EXAONE 직접 연결 실패: 정적 웹에서는 API의 CORS 정책으로 차단될 수 있습니다. run-local.cmd로 실행한 http://127.0.0.1:4173/mdpro/에서 다시 질문하세요.');
+            }
+            throw error;
+        }
+        if (url === '/api/exaone/chat/completions' && [404, 405].includes(response.status)) {
+            throw new Error('EXAONE 중계가 없는 서버입니다 (HTTP ' + response.status + '). 기존 서버를 종료하고 run-local.cmd 또는 npm run dev로 다시 실행하세요.');
+        }
         if (response.ok || attempt >= 2 || response.status === 401 || response.status === 403) return response;
         let detail = '';
         try { detail = await response.clone().text(); } catch (_) {}
