@@ -13,11 +13,7 @@
         }
     };
 
-<<<<<<< HEAD
-    var DEFAULT_SCRIPT_URL = 'js/math_render/math_render.js?v=20261115-enter-breaks-1';
-=======
-    var DEFAULT_SCRIPT_URL = 'js/math_render/math_render.js?v=20261115-parenthetical-emphasis-1';
->>>>>>> d747c248b09d46d697468b7c517419072b83fdd5
+    var DEFAULT_SCRIPT_URL = 'js/math_render/math_render.js?v=20261116-merge-resolution-1';
     var DEFAULT_MATHJAX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js';
     var TYPESET_QUEUES = typeof WeakMap === 'function' ? new WeakMap() : null;
     var fallbackTypesetQueue = Promise.resolve();
