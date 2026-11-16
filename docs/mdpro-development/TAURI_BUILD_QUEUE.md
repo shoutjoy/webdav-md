@@ -4,11 +4,15 @@
 
 ## 대기 기능
 
+<<<<<<< HEAD
 - MDPRO-20261115-DOCUMENT-CONTROL-FOOTER: [문서 조절기 하단 바 배치](changes/2026-11-15-document-control-footer.md) — WebDAV 구현·상태 회귀 통과, 실제 UI/Viewer 이식/Tauri/설치 검증 대기. 빌드 요청 없음.
 
 - MDPRO-20261115-ENTER-BREAKS: [Markdown Enter 줄바꿈 보존](changes/2026-11-15-markdown-enter-breaks.md) — 공통 parser breaks:true·원문 보존·메인/PV 줄바꿈/수식8개 실제 검증. Viewer 웹 이식/frontend/native/설치 대기, 실제 인쇄/PDF 미검증.
 
 - MDPRO-20261115-EXAONE-PORT: [LG EXAONE ENV·JENA·텍스트 도구 이식](changes/2026-11-15-exaone-provider-port.md) — WebDAV scoped 설정/공통 브리지/고정 SSE relay/EXAONE TL 구현·Chrome 합성·회귀/빌드 검증. Viewer 원본 미수정, 실제 공급자·운영 중계·Tauri frontend/native/설치 검증 대기.
+=======
+- MDPRO-20261115-PARENTHETICAL-EMPHASIS: [괄호 안 통계 기울임](changes/2026-11-15-parenthetical-emphasis.md) — WebDAV 구현·32검사/Chrome 메인/웹 빌드 통과, 실제 PV 미검증. Viewer 대응 가드 존재 읽기 확인; 웹 회귀·캐시·frontend/native/설치 반영 확인 대기. Viewer 수정·Tauri 빌드 요청 없음.
+>>>>>>> d747c248b09d46d697468b7c517419072b83fdd5
 
 - MDPRO-20261113-MERMAID-COMPACT-PREVIEW: [Mermaid Ref 저장기록 탭·프롬프트 실행 한 행·Dock·Crop](changes/2026-11-13-mermaid-ref-compact-preview.md) — WebDAV 구현·45관련검사/빌드 통과, 브라우저 소켓 권한 오류로 UI 미검증. Viewer 이식/Tauri/설치 대기, 빌드 요청 없음.
 
