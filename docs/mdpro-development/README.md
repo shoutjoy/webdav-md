@@ -2,7 +2,7 @@
 
 - MDPRO-20261116-MERGE-RESOLUTION: [Git 병합 충돌 표시 제거](changes/2026-11-16-merge-resolution.md) — 5파일 충돌 제거·양쪽 항목 보존·26검사/웹 빌드 통과. Viewer 이식/Tauri/실제 UI 미실행.
 
-- MDPRO-20261116-EXAONE-405: [EXAONE HTTP 405 요청 경로 보완](changes/2026-11-16-exaone-http-405.md) — GitHub Pages 전용 승인된 Vercel 중계 연결·38회귀/빌드 통과. 실제 연결/배포 검증 후속, Tauri 미빌드.
+- MDPRO-20261116-EXAONE-405: [EXAONE HTTP 405 요청 경로 보완](changes/2026-11-16-exaone-http-405.md) — GitHub Pages 전용 승인된 Vercel 중계 연결·38회귀/빌드 통과. GitHub Pages 실제 사용자 키 ENV 연결 성공·OK 확인, Tauri 미빌드.
 
 규칙 ID: `MDPRO-DEVELOPMENT-HANDOFF-01` / 작성일: 2026-10-24
 
