@@ -1,5 +1,9 @@
 # MDpro 개발 기록과 양방향 이식 절차
 
+- MDPRO-20261117-NEW-WEBDAV-SAVE: [신규 문서 WebDAV 새 파일 저장](changes/2026-11-17-new-document-webdav-save.md) — 확장자 생략 시 .md 자동 추가 포함, 3검사/빌드 통과, 실제 NAS/UI·Viewer 대상 필요성/Tauri 미검증.
+
+- MDPRO-20261117-MODEL-PROGRESS: [Jena 모델 로드·예상 %](changes/2026-11-17-jena-model-load-progress.md) — 9공급자·64px 우측 버튼, WebDAV 45검사/빌드 통과, Chrome 실행 실패·실제 공급자/Viewer/Tauri 미검증.
+
 - MDPRO-20261117-ORIGINAL-RESTORE: [AI 원문 저장·복원](changes/2026-11-17-original-restore.md) — 문서별 최신 백업·복원 버튼·38검사/빌드 통과, 실제 UI·Viewer·Tauri 대기.
 
 - MDPRO-20261117-IMPORT-REPLACE: [가져온 원문 대체 복구](changes/2026-11-17-import-selection-replace.md) — 35검사/빌드 통과, 실제 UI·Viewer·Tauri 대기. 기존 실시간 계약 검사 3건 문구/캐시 불일치 기록.

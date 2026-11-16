@@ -133,7 +133,9 @@ test('Lemonade model can be loaded directly from AI Jena detail settings', () =>
   assert.match(appScript, /loadLemonadeModel: async function \(modelId, options\)/);
   assert.match(appScript, /loadLemonadeRuntimeModel\(connection, selectedModel, options\)/);
   assert.match(chatScript, /id="ai-chat-lemonade-load-progress"[^>]*role="progressbar"/);
-  assert.match(chatScript, /progress\.removeAttribute\('aria-valuenow'\)/);
+  assert.match(chatScript, /progress\.setAttribute\('aria-valuenow', String\(value\)\)/);
+  assert.match(chatScript, /value = 100/);
+  assert.match(chatScript, /예상 진행률/);
   assert.match(appScript, /save_options: false/);
   assert.match(chatStyles, /\.ai-chat-model-load-progress-track > span[\s\S]*transition: width \.35s ease/);
 });
