@@ -924,6 +924,7 @@
       + '      </div>'
       + '      <details class="ai-chat-fast-settings-details">'
       + '        <summary>세부 설정 · 모드별 출력 토큰</summary>'
+      + '        <p>로컬 AI는 생성 즉시 스트리밍합니다. 빠른 시작은 즉시 모드, 깊은 추론은 추론 모드를 선택하세요. 모델 최초 로드는 추가 시간이 걸릴 수 있습니다.</p>'
       + '        <div id="ai-chat-mode-limit-settings" class="ai-chat-fast-limits ai-chat-provider-fast-limits" aria-label="AI Jena 모드별 응답 설정">'
       + '          <label>FAST TOK <input id="ai-chat-fast-token-limit" type="number" min="1" step="1" value="3000" inputmode="numeric" aria-label="FAST 최대 토큰"></label>'
       + '          <label>즉시 TOK <input id="ai-chat-quick-token-limit" type="number" min="1" step="1" value="4096" inputmode="numeric" aria-label="즉시 모드 최대 토큰"></label>'
@@ -980,6 +981,7 @@
       + '        <button type="button" id="ai-chat-floating-compact-close" class="ai-chat-floating-compact-close" title="AI Jena 닫기" aria-label="AI Jena 닫기">닫기</button>'
       + '        <button type="button" id="ai-chat-stop" class="ai-chat-stop" disabled>중지</button>'
       + '        <button type="button" id="ai-chat-send" class="ai-chat-send">전송</button>'
+      + '        <button type="button" id="ai-chat-restore-original" title="현재 문서의 마지막 AI 대체 직전 원문을 복원합니다. 이후 편집한 내용이 있으면 복원을 중단합니다.">원문 복원</button>'
       + '      </div>'
       + '    </div>'
       + '  </div>'
@@ -1082,6 +1084,15 @@
       event.preventDefault();
     });
     importSelectionButton.addEventListener('click', importDocumentSelectionToChat);
+    document.getElementById('ai-chat-restore-original').addEventListener('click', function () {
+      try {
+        if (state.running) throw new Error('AI 작성을 중지한 뒤 원문을 복원하세요.');
+        var bridge = getBridge();
+        if (typeof bridge.restoreOriginalDocument !== 'function') throw new Error('원문 복원 모듈이 준비되지 않았습니다.');
+        bridge.restoreOriginalDocument();
+        setStatus('대체 전 원문을 복원했습니다.', 'ok');
+      } catch (error) { setStatus(error.message || String(error), 'error'); }
+    });
     document.getElementById('ai-chat-attach').addEventListener('click', function () {
       document.getElementById('ai-chat-file-input').click();
     });
@@ -3043,6 +3054,8 @@
       setStatus('문서에서 AI Jena로 보낼 영역을 먼저 선택하세요.', 'error');
       return;
     }
+    var bridge = getBridge();
+    if (typeof bridge.rememberImportedDocumentSelection === 'function') bridge.rememberImportedDocumentSelection(selected);
     setTimeout(function () {
       var input = document.getElementById('ai-chat-input');
       if (!input) return;
@@ -5121,7 +5134,7 @@
         splitAcademicResponse: splitAcademic,
         previousResponseId: null,
         messages: continuationMessages,
-        onStreamEvent: state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'litertlm' || state.provider === 'aistudio' || state.provider === 'lemonade' || state.provider === 'openai-compatible' ? handleStreamEvent : undefined,
+        onStreamEvent: state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'litertlm' || state.provider === 'ollama-npu' || state.provider === 'aistudio' || state.provider === 'lemonade' || state.provider === 'openai-compatible' ? handleStreamEvent : undefined,
         systemInstruction: state.generalAnswer && !academicSearch
           ? originalAnswerInstruction()
           : nextContentInstruction
@@ -7520,7 +7533,7 @@
             'Follow the requested format, tone, and length precisely. Give a complete, accurate, polished final answer with all requested code or details.',
             'Give the final answer directly without exposing private internal reasoning, step-by-step deliberation, planning, checklists, or meta-commentary.'
           ].join(' ');
-      var streamHandler = state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'litertlm' || state.provider === 'aistudio' || state.provider === 'lemonade' || state.provider === 'openai-compatible' ? handleStreamEvent : undefined;
+      var streamHandler = state.provider === 'lmstudio' || state.provider === 'ollama' || state.provider === 'litertlm' || state.provider === 'ollama-npu' || state.provider === 'aistudio' || state.provider === 'lemonade' || state.provider === 'openai-compatible' ? handleStreamEvent : undefined;
       var preserveImageIdentity = isActiveImageModel() && state.preserveImageIdentity;
       var baseRequest = {
         provider: state.provider,
