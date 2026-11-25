@@ -2,40 +2,40 @@
   {
     "type": "quadrantchart",
     "a": {
+      "font": 22,
       "pointSize": 8,
       "chartWidth": 1.2,
       "layoutSpacing": 1.5,
-      "font": 22,
       "fill": "#aabbcc"
     }
   },
   {
     "type": "mindmap",
     "a": {
+      "font": 22,
       "pointSize": 8,
       "chartWidth": 1.2,
       "layoutSpacing": 1.5,
-      "font": 22,
       "fill": "#aabbcc"
     }
   },
   {
     "type": "kanban",
     "a": {
+      "font": 22,
       "pointSize": 8,
       "chartWidth": 1.2,
       "layoutSpacing": 1.5,
-      "font": 22,
       "fill": "#aabbcc"
     }
   },
   {
     "type": "journey",
     "a": {
+      "font": 22,
       "pointSize": 8,
       "chartWidth": 1.2,
       "layoutSpacing": 1.5,
-      "font": 22,
       "fill": "#aabbcc"
     }
   }

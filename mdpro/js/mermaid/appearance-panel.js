@@ -7,6 +7,10 @@
         if (!open && state && state.slot) { undock(state); panel.setAttribute('popover', 'manual'); document.body.append(panel); position(state, state.box); }
         if (!open && panel.matches(':popover-open')) panel.hidePopover();
         panel.hidden = !open; toggle.setAttribute('aria-expanded', String(open));
+        if (open && state && !state.floating) {
+            if (!state.anchor.isConnected) panel.before(state.anchor);
+            float(state);
+        }
         if (open && state && state.floating && !state.slot) panel.showPopover();
         if (!open && state) stop(state);
     }
@@ -162,6 +166,15 @@
         const s = { wrapper, panel, toggle, floating: false, anchor };
         states.set(panel, s);
         const body = document.createElement('div'); body.className = 'trt-appearance-body';
+        panel.querySelectorAll('.trt-mermaid-custom,.trt-mermaid-custom2').forEach(group => {
+            const fold=document.createElement('details'),summary=document.createElement('summary');
+            fold.className='trt-custom-section-fold';fold.style.width='100%';
+            summary.textContent='도구 펼치기';fold.append(summary);
+            summary.title='클릭하여 이 커스텀 영역의 도구를 펼치거나 접습니다. 만든 도구와 설정값은 유지됩니다.';
+            Array.from(group.childNodes).filter(node=>node.nodeName!=='LEGEND').forEach(node=>fold.append(node));
+            fold.addEventListener('toggle',()=>{summary.textContent=fold.open?'도구 접기':'도구 펼치기';});
+            group.append(fold);
+        });
         body.append(...Array.from(panel.childNodes)); panel.append(body);
         const header = document.createElement('header'); header.className = 'trt-appearance-header'; header.tabIndex = 0;
         header.title = '드래그로 이동 · 방향키로 이동 · Shift+방향키로 크기 조절';

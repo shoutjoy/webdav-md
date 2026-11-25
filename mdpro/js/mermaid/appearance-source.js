@@ -4,6 +4,7 @@
     const START = '%% MDPRO appearance start';
     const END = '%% MDPRO appearance end';
     const TYPE = 'mermaid_style_snapshot';
+    const ranges = {font:[4,200],stroke:[0,100],nodeStroke:[0,100],arrowSize:[.1,10],edgeLength:[.1,30],width:[.1,10],alpha:[0,1],pointSize:[.5,100],chartWidth:[.2,10],chartHeight:[.2,10],layoutSpacing:[.1,20]};
     const fontFamilies = ['Malgun Gothic', 'Noto Sans KR', 'Nanum Gothic', 'Arial', 'Georgia', 'Consolas', 'sans-serif', 'serif', 'monospace'];
     function blocks(text) {
         const lines = text.match(/[^\n]*\n|[^\n]+$/g) || [];
@@ -39,7 +40,7 @@
         try {
             const value = JSON.parse(match[1]), clean = {};
             if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-            for (const [key, min, max] of [['pointSize', 1, 30], ['chartWidth', .5, 3], ['chartHeight', .5, 3], ['layoutSpacing', .5, 5], ['font', 8, 48], ['stroke', .5, 10], ['arrowSize', .25, 3], ['edgeLength', .5, 5], ['nodeStroke', .5, 10], ['width', .3, 3], ['alpha', 0, 1]]) {
+            for (const [key, [min, max]] of Object.entries(ranges)) {
                 if (value[key] == null) continue;
                 if (typeof value[key] !== 'number' || !Number.isFinite(value[key]) || value[key] < min || value[key] > max) return null;
                 clean[key] = value[key];
@@ -51,6 +52,8 @@
             if (value.direction != null) { if (!['TD', 'LR'].includes(value.direction)) return null; clean.direction = value.direction; }
             if (value.fontFamily != null) { if (!fontFamilies.includes(value.fontFamily)) return null; clean.fontFamily = value.fontFamily; }
             if (value.fontWeight != null) { if (![400, 700].includes(value.fontWeight)) return null; clean.fontWeight = value.fontWeight; }
+            if (value.custom != null) { if (!root.MermaidAppearanceCustom) return null; clean.custom = root.MermaidAppearanceCustom.clean(value.custom); }
+            if (value.custom2 != null) { if (!root.MermaidAppearanceCustom2) return null; clean.custom2 = root.MermaidAppearanceCustom2.clean(value.custom2); }
             return clean;
         } catch (_) { return null; }
     }
@@ -61,7 +64,9 @@
     }
     function serialize(source, appearance, nodes, edgeCount) {
         let original = stripManaged(source).replace(/\r?\n$/, '');
-        const a = appearance || {}, config = {};
+        const a = Object.assign({}, appearance || {}), config = {};
+        if (a.custom != null) { if (!root.MermaidAppearanceCustom) throw Error('커스텀 모듈이 준비되지 않았습니다.'); a.custom=root.MermaidAppearanceCustom.clean(a.custom); }
+        if (a.custom2 != null) { if (!root.MermaidAppearanceCustom2) throw Error('숫자 항목 모듈이 준비되지 않았습니다.'); a.custom2=root.MermaidAppearanceCustom2.clean(a.custom2); }
         // Keep handwritten config and its CSS; refuse ambiguous configuration rather than erase it.
         const isFlow = !root.MermaidAppearanceTypes || root.MermaidAppearanceTypes.flow(original);
         if (isFlow && /^\s*---(?:\r?\n)/.test(original)) throw new Error('YAML 설정 도표는 코드 적용을 지원하지 않습니다. 미리보기 조절은 사용할 수 있습니다.');
@@ -72,6 +77,7 @@
         });
         const number = (key, min, max) => {
             if (a[key] == null) return null;
+            [min, max] = ranges[key] || [min, max];
             const value = Number(a[key]);
             if (!Number.isFinite(value) || value < min || value > max) throw new Error('잘못된 스타일 값: ' + key);
             return value;
@@ -89,7 +95,7 @@
         if (!isFlow) {
             for (const [key, min, max] of [['pointSize',1,30],['chartWidth',.5,3],['chartHeight',.5,3],['layoutSpacing',.5,5]]) number(key,min,max);
             if (!Object.values(a).some(v => v != null)) return original;
-            const makeManaged = directive => START + '\n%% MDPRO appearance values ' + JSON.stringify(a) + '\n' + directive + END + '\n';
+            const makeManaged = directive => START + '\n%% MDPRO appearance values ' + JSON.stringify(a).replace(/%/g,'\\u0025') + '\n' + directive + END + '\n';
             // Comments after frontmatter preserve the user's YAML and diagram indentation.
             const front = original.match(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/);
             if (front) return front[0] + makeManaged('') + original.slice(front[0].length);
@@ -122,10 +128,10 @@
         if (edgeStyles.length && edgeCount > 0) rules.push('linkStyle ' + Array.from({ length: edgeCount }, (_, i) => i).join(',') + ' ' + edgeStyles.join(','));
         if (width != null) config.flowchart = { padding: 20 * width, wrappingWidth: 200 * width };
         if (edgeLength != null) config.flowchart = Object.assign({}, config.flowchart, { rankSpacing: 50 * edgeLength });
-        if (![arrowSize, edgeLength, font, stroke, nodeStroke, width, edgeColor, nodeColor, fill, textColor, alpha, a.direction, a.fontFamily, a.fontWeight].some(v => v != null)) return original;
+        if (![a.custom, a.custom2, arrowSize, edgeLength, font, stroke, nodeStroke, width, edgeColor, nodeColor, fill, textColor, alpha, a.direction, a.fontFamily, a.fontWeight].some(v => v != null)) return original;
         // Standard Mermaid style/linkStyle commands survive reopening and other renderers.
         const directive = Object.keys(config).length ? '%%{init: ' + JSON.stringify(config) + '}%%\n' : '';
-        return original + '\n' + START + '\n%% MDPRO appearance values ' + JSON.stringify(a) + '\n%% MDPRO appearance original-direction ' + originalDirection + '\n' + directive + rules.join('\n') + '\n' + END;
+        return original + '\n' + START + '\n%% MDPRO appearance values ' + JSON.stringify(a).replace(/%/g,'\\u0025') + '\n%% MDPRO appearance original-direction ' + originalDirection + '\n' + directive + rules.join('\n') + '\n' + END;
     }
 
     function target(wrapper) {
@@ -218,5 +224,5 @@
             }
         } catch (error) { status.textContent = error.message; }
     }
-    root.MermaidAppearanceSource = { apply, showHistory, serialize, blocks, readAppearance, withDirection, fontFamilies };
+    root.MermaidAppearanceSource = { apply, showHistory, serialize, blocks, readAppearance, withDirection, fontFamilies, ranges, baseSource: stripManaged, replaceCode: function(wrapper,code){if(typeof code!=='string'||!code.trim()||code.length>500000)throw Error('수정 코드를 확인하세요.');return replace(wrapper,code.replace(/\r?\n$/,''),'Jena ME 내용 수정 코드 교체');} };
 })(window);

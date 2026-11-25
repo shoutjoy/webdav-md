@@ -4,6 +4,18 @@
 
 ## 대기 기능
 
+- MDPRO-20261125-MERMAID-CONTENT: [범용 내용 추가/ME 연결](changes/2026-11-25-mermaid-general-content.md) — WebDAV content/custom2/source/ME 자식/index/PWA 구현·Chrome/41검사/웹 빌드. Viewer 선행 helper/schema/브리지 선택 이식 및 frontend/native/설치 대기. 이번 Tauri 빌드 요청 없음.
+
+- MDPRO-20261125-MERMAID-PANEL-DEFAULTS: [스타일 기본 플로팅·custom 접기](changes/2026-11-25-mermaid-panel-defaults.md) — WebDAV panel/index/PWA 반영·Chrome/39검사/웹 빌드 완료. Viewer 선택 이식/frontend/native/설치 대기, 빌드 요청 없음.
+
+- MDPRO-20261125-MERMAID-CUSTOM2: [hover 설명·커스터마이즈 2 원본 수치](changes/2026-11-25-mermaid-custom2-value-labels.md) — WebDAV custom/custom2/source/renderer/index/PWA 구현, 37검사/Chrome/SVG·PNG/reload/기존 다중 선택/웹 빌드. Viewer helper 없음 확인·선행 커스텀/유형별 구조 이식 필요. 웹 이식/frontend/native/설치 대기, 이번 빌드 요청 없음.
+
+- MDPRO-20261125-EDITOR-SHIFT-MODES: [문서 도구 모음 3단계 전환](changes/2026-11-25-editor-shift-three-modes.md) — WebDAV 하단바 기본·가로/세로/하단바·기존 상태줄 한 행 삽입/문서 공간 보존·35검사/Chrome18검사/웹 빌드 완료. Viewer 기존 세 모드 함수 확인, 추가 모바일/드래그 선택 적용은 별도 비교 필요. 이번 Viewer 웹 이식/frontend/native/설치 미수정·미실행, 빌드 요청 없음.
+
+- MDPRO-20261125-MERMAID-MULTISELECT: [커스텀 다중 선택](changes/2026-11-25-mermaid-custom-multiselect.md) — WebDAV 그룹 도구·동일 종류/XY 막대 전체 선택·Chrome/35검사/웹 빌드 완료. 선행 custom 이식 후 Viewer targets/schema/UI 적용 필요. frontend/native/설치 미실행, 빌드 요청 없음.
+
+- MDPRO-20261125-MERMAID-CUSTOM-TOOLS: [수치 확대·사용자 생성 커스텀 도구](changes/2026-11-25-mermaid-custom-tool-builder.md) — WebDAV helper/renderer/source/index/PWA 구현·Chrome/34검사/웹 빌드. Viewer 범위·schema 차이 확인, 웹 이식/frontend/native/설치 대기. 이번 Tauri 빌드 요청 없음.
+
 - MDPRO-20261125-MERMAID-TYPE-CONTROLS: [유형별 Mermaid 조절](changes/2026-11-25-mermaid-diagram-type-controls.md) — WebDAV 구현·31검사/Chrome 10종/전체 앱4종·웹 빌드 완료. Viewer는 flowchart 한정 source 확인, types helper/renderer/source/index/PWA 웹 이식 대기. frontend/native/설치 빌드 미실행·요청 없음.
 
 - MDPRO-20261125-MERMAID-EDGE-LENGTH: [연결선 길이 조절](changes/2026-11-25-mermaid-edge-length.md) — WebDAV 구현/Chrome/28검사/웹 빌드 완료. Viewer renderer 고정 rankSpacing 50 확인, pair/reset/source metadata·init 이식 대기. Viewer frontend/native/설치 미실행, 이번 빌드 요청 없음.

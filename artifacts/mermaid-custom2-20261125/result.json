@@ -1,0 +1,59 @@
+{
+  "tooltips": 36,
+  "monthlyLabels": 6,
+  "placement": [
+    {
+      "center": 661.51611328125,
+      "barCenter": 661.5161437988281,
+      "bottom": 463.0863037109375,
+      "barTop": 466.9259948730469
+    },
+    {
+      "center": 764.0720520019531,
+      "barCenter": 764.0720520019531,
+      "bottom": 418.9273681640625,
+      "barTop": 422.7670593261719
+    },
+    {
+      "center": 866.6279907226562,
+      "barCenter": 866.6280212402344,
+      "bottom": 360.04876708984375,
+      "barTop": 363.8884582519531
+    },
+    {
+      "center": 969.1839599609375,
+      "barCenter": 969.1839599609375,
+      "bottom": 444.686767578125,
+      "barTop": 448.52642822265625
+    },
+    {
+      "center": 1071.73974609375,
+      "barCenter": 1071.7398681640625,
+      "bottom": 319.56976318359375,
+      "barTop": 323.4094543457031
+    },
+    {
+      "center": 1174.2957763671875,
+      "barCenter": 1174.2957763671875,
+      "bottom": 308.530029296875,
+      "barTop": 312.36968994140625
+    }
+  ],
+  "existingCustomPreserved": true,
+  "sourceReload": true,
+  "svgPng": true,
+  "repeated": {
+    "stable": true,
+    "count": 6
+  },
+  "guarded": {
+    "stale": 0,
+    "blank": 0,
+    "fits": true,
+    "restored": 5
+  },
+  "negativeZero": true,
+  "horizontalMultiSeriesSubset": true,
+  "darkAutoColor": true,
+  "mobile": true
+}

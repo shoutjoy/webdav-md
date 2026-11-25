@@ -1,0 +1,1416 @@
+[
+  {
+    "viewport": {
+      "width": 1400,
+      "height": 1000
+    },
+    "mode": "vertical",
+    "parent": "drop-zone",
+    "direction": "column",
+    "position": "fixed",
+    "bounds": {
+      "x": 327.59375,
+      "y": 646,
+      "right": 389.59375,
+      "bottom": 951,
+      "width": 62,
+      "height": 305
+    },
+    "buttons": [
+      {
+        "label": "드래그하여 플로팅 바 이동",
+        "x": 337.59375,
+        "y": 652,
+        "width": 42,
+        "height": 28,
+        "right": 379.59375,
+        "bottom": 680
+      },
+      {
+        "label": "편집창을 왼쪽으로 이동",
+        "x": 337.59375,
+        "y": 684,
+        "width": 42,
+        "height": 28,
+        "right": 379.59375,
+        "bottom": 712
+      },
+      {
+        "label": "가운데로 이동",
+        "x": 337.59375,
+        "y": 716,
+        "width": 42,
+        "height": 28,
+        "right": 379.59375,
+        "bottom": 744
+      },
+      {
+        "label": "편집창을 오른쪽으로 이동",
+        "x": 337.59375,
+        "y": 748,
+        "width": 42,
+        "height": 28,
+        "right": 379.59375,
+        "bottom": 776
+      },
+      {
+        "label": "긴 문서로 전환",
+        "x": 337.59375,
+        "y": 789,
+        "width": 42,
+        "height": 28,
+        "right": 379.59375,
+        "bottom": 817
+      },
+      {
+        "label": "A4 가로로 전환",
+        "x": 337.59375,
+        "y": 821,
+        "width": 42,
+        "height": 28,
+        "right": 379.59375,
+        "bottom": 849
+      },
+      {
+        "label": "A4 세로로 전환",
+        "x": 337.59375,
+        "y": 853,
+        "width": 42,
+        "height": 28,
+        "right": 379.59375,
+        "bottom": 881
+      },
+      {
+        "label": "A4 문서에서 사용할 수 있습니다",
+        "x": 337.59375,
+        "y": 885,
+        "width": 42,
+        "height": 28,
+        "right": 379.59375,
+        "bottom": 913
+      },
+      {
+        "label": "하단바로 전환",
+        "x": 337.59375,
+        "y": 917,
+        "width": 42,
+        "height": 28,
+        "right": 379.59375,
+        "bottom": 945
+      }
+    ]
+  },
+  {
+    "viewport": {
+      "width": 1400,
+      "height": 1000
+    },
+    "mode": "footer",
+    "parent": "editor-shift-footer-slot",
+    "direction": "row",
+    "position": "static",
+    "bounds": {
+      "x": 672.515625,
+      "y": 920,
+      "right": 1003.53125,
+      "bottom": 960,
+      "width": 331.015625,
+      "height": 40
+    },
+    "buttons": [
+      {
+        "label": "드래그하여 하단바 분리·이동",
+        "x": 682.515625,
+        "y": 926,
+        "width": 30,
+        "height": 28,
+        "right": 712.515625,
+        "bottom": 954
+      },
+      {
+        "label": "편집창을 왼쪽으로 이동",
+        "x": 716.515625,
+        "y": 926,
+        "width": 30,
+        "height": 28,
+        "right": 746.515625,
+        "bottom": 954
+      },
+      {
+        "label": "가운데로 이동",
+        "x": 750.515625,
+        "y": 926,
+        "width": 30,
+        "height": 28,
+        "right": 780.515625,
+        "bottom": 954
+      },
+      {
+        "label": "편집창을 오른쪽으로 이동",
+        "x": 784.515625,
+        "y": 926,
+        "width": 30,
+        "height": 28,
+        "right": 814.515625,
+        "bottom": 954
+      },
+      {
+        "label": "긴 문서로 전환",
+        "x": 827.515625,
+        "y": 926,
+        "width": 30,
+        "height": 28,
+        "right": 857.515625,
+        "bottom": 954
+      },
+      {
+        "label": "A4 가로로 전환",
+        "x": 861.515625,
+        "y": 926,
+        "width": 30,
+        "height": 28,
+        "right": 891.515625,
+        "bottom": 954
+      },
+      {
+        "label": "A4 세로로 전환",
+        "x": 895.515625,
+        "y": 926,
+        "width": 30,
+        "height": 28,
+        "right": 925.515625,
+        "bottom": 954
+      },
+      {
+        "label": "A4 문서에서 사용할 수 있습니다",
+        "x": 929.515625,
+        "y": 926,
+        "width": 30.015625,
+        "height": 28,
+        "right": 959.53125,
+        "bottom": 954
+      },
+      {
+        "label": "가로 메뉴로 전환",
+        "x": 963.53125,
+        "y": 926,
+        "width": 30,
+        "height": 28,
+        "right": 993.53125,
+        "bottom": 954
+      }
+    ]
+  },
+  {
+    "viewport": {
+      "width": 1400,
+      "height": 1000
+    },
+    "mode": "footer",
+    "parent": "editor-shift-footer-slot",
+    "direction": "row",
+    "position": "static",
+    "bounds": {
+      "x": 654.5,
+      "y": 920,
+      "right": 985.515625,
+      "bottom": 960,
+      "width": 331.015625,
+      "height": 40
+    },
+    "buttons": [
+      {
+        "label": "드래그하여 하단바 분리·이동",
+        "x": 664.5,
+        "y": 926,
+        "width": 30,
+        "height": 28,
+        "right": 694.5,
+        "bottom": 954
+      },
+      {
+        "label": "편집창을 왼쪽으로 이동",
+        "x": 698.5,
+        "y": 926,
+        "width": 30,
+        "height": 28,
+        "right": 728.5,
+        "bottom": 954
+      },
+      {
+        "label": "가운데로 이동",
+        "x": 732.5,
+        "y": 926,
+        "width": 30,
+        "height": 28,
+        "right": 762.5,
+        "bottom": 954
+      },
+      {
+        "label": "편집창을 오른쪽으로 이동",
+        "x": 766.5,
+        "y": 926,
+        "width": 30,
+        "height": 28,
+        "right": 796.5,
+        "bottom": 954
+      },
+      {
+        "label": "긴 문서로 전환",
+        "x": 809.5,
+        "y": 926,
+        "width": 30,
+        "height": 28,
+        "right": 839.5,
+        "bottom": 954
+      },
+      {
+        "label": "A4 가로로 전환",
+        "x": 843.5,
+        "y": 926,
+        "width": 30,
+        "height": 28,
+        "right": 873.5,
+        "bottom": 954
+      },
+      {
+        "label": "A4 세로로 전환",
+        "x": 877.5,
+        "y": 926,
+        "width": 30,
+        "height": 28,
+        "right": 907.5,
+        "bottom": 954
+      },
+      {
+        "label": "A4 문서에서 사용할 수 있습니다",
+        "x": 911.5,
+        "y": 926,
+        "width": 30.015625,
+        "height": 28,
+        "right": 941.515625,
+        "bottom": 954
+      },
+      {
+        "label": "가로 메뉴로 전환",
+        "x": 945.515625,
+        "y": 926,
+        "width": 30,
+        "height": 28,
+        "right": 975.515625,
+        "bottom": 954
+      }
+    ]
+  },
+  {
+    "viewport": {
+      "width": 1400,
+      "height": 1000
+    },
+    "mode": "horizontal",
+    "parent": "drop-zone",
+    "direction": "row",
+    "position": "fixed",
+    "bounds": {
+      "x": 248,
+      "y": 911,
+      "right": 579.015625,
+      "bottom": 951,
+      "width": 331.015625,
+      "height": 40
+    },
+    "buttons": [
+      {
+        "label": "드래그하여 플로팅 바 이동",
+        "x": 258,
+        "y": 917,
+        "width": 30,
+        "height": 28,
+        "right": 288,
+        "bottom": 945
+      },
+      {
+        "label": "편집창을 왼쪽으로 이동",
+        "x": 292,
+        "y": 917,
+        "width": 30,
+        "height": 28,
+        "right": 322,
+        "bottom": 945
+      },
+      {
+        "label": "가운데로 이동",
+        "x": 326,
+        "y": 917,
+        "width": 30,
+        "height": 28,
+        "right": 356,
+        "bottom": 945
+      },
+      {
+        "label": "편집창을 오른쪽으로 이동",
+        "x": 360,
+        "y": 917,
+        "width": 30,
+        "height": 28,
+        "right": 390,
+        "bottom": 945
+      },
+      {
+        "label": "긴 문서로 전환",
+        "x": 403,
+        "y": 917,
+        "width": 30,
+        "height": 28,
+        "right": 433,
+        "bottom": 945
+      },
+      {
+        "label": "A4 가로로 전환",
+        "x": 437,
+        "y": 917,
+        "width": 30,
+        "height": 28,
+        "right": 467,
+        "bottom": 945
+      },
+      {
+        "label": "A4 세로로 전환",
+        "x": 471,
+        "y": 917,
+        "width": 30,
+        "height": 28,
+        "right": 501,
+        "bottom": 945
+      },
+      {
+        "label": "A4 문서에서 사용할 수 있습니다",
+        "x": 505,
+        "y": 917,
+        "width": 30.015625,
+        "height": 28,
+        "right": 535.015625,
+        "bottom": 945
+      },
+      {
+        "label": "세로 메뉴로 전환",
+        "x": 539.015625,
+        "y": 917,
+        "width": 30,
+        "height": 28,
+        "right": 569.015625,
+        "bottom": 945
+      }
+    ]
+  },
+  {
+    "viewport": {
+      "width": 1400,
+      "height": 1000
+    },
+    "mode": "vertical",
+    "parent": "drop-zone",
+    "direction": "column",
+    "position": "fixed",
+    "bounds": {
+      "x": 248,
+      "y": 646,
+      "right": 310,
+      "bottom": 951,
+      "width": 62,
+      "height": 305
+    },
+    "buttons": [
+      {
+        "label": "드래그하여 플로팅 바 이동",
+        "x": 258,
+        "y": 652,
+        "width": 42,
+        "height": 28,
+        "right": 300,
+        "bottom": 680
+      },
+      {
+        "label": "편집창을 왼쪽으로 이동",
+        "x": 258,
+        "y": 684,
+        "width": 42,
+        "height": 28,
+        "right": 300,
+        "bottom": 712
+      },
+      {
+        "label": "가운데로 이동",
+        "x": 258,
+        "y": 716,
+        "width": 42,
+        "height": 28,
+        "right": 300,
+        "bottom": 744
+      },
+      {
+        "label": "편집창을 오른쪽으로 이동",
+        "x": 258,
+        "y": 748,
+        "width": 42,
+        "height": 28,
+        "right": 300,
+        "bottom": 776
+      },
+      {
+        "label": "긴 문서로 전환",
+        "x": 258,
+        "y": 789,
+        "width": 42,
+        "height": 28,
+        "right": 300,
+        "bottom": 817
+      },
+      {
+        "label": "A4 가로로 전환",
+        "x": 258,
+        "y": 821,
+        "width": 42,
+        "height": 28,
+        "right": 300,
+        "bottom": 849
+      },
+      {
+        "label": "A4 세로로 전환",
+        "x": 258,
+        "y": 853,
+        "width": 42,
+        "height": 28,
+        "right": 300,
+        "bottom": 881
+      },
+      {
+        "label": "A4 문서에서 사용할 수 있습니다",
+        "x": 258,
+        "y": 885,
+        "width": 42,
+        "height": 28,
+        "right": 300,
+        "bottom": 913
+      },
+      {
+        "label": "하단바로 전환",
+        "x": 258,
+        "y": 917,
+        "width": 42,
+        "height": 28,
+        "right": 300,
+        "bottom": 945
+      }
+    ]
+  },
+  {
+    "viewport": {
+      "width": 1400,
+      "height": 1000
+    },
+    "mode": "footer",
+    "parent": "editor-shift-footer-slot",
+    "direction": "row",
+    "position": "static",
+    "bounds": {
+      "x": 654.484375,
+      "y": 920,
+      "right": 985.5,
+      "bottom": 960,
+      "width": 331.015625,
+      "height": 40
+    },
+    "buttons": [
+      {
+        "label": "드래그하여 하단바 분리·이동",
+        "x": 664.484375,
+        "y": 926,
+        "width": 30,
+        "height": 28,
+        "right": 694.484375,
+        "bottom": 954
+      },
+      {
+        "label": "편집창을 왼쪽으로 이동",
+        "x": 698.484375,
+        "y": 926,
+        "width": 30,
+        "height": 28,
+        "right": 728.484375,
+        "bottom": 954
+      },
+      {
+        "label": "가운데로 이동",
+        "x": 732.484375,
+        "y": 926,
+        "width": 30,
+        "height": 28,
+        "right": 762.484375,
+        "bottom": 954
+      },
+      {
+        "label": "편집창을 오른쪽으로 이동",
+        "x": 766.484375,
+        "y": 926,
+        "width": 30,
+        "height": 28,
+        "right": 796.484375,
+        "bottom": 954
+      },
+      {
+        "label": "긴 문서로 전환",
+        "x": 809.484375,
+        "y": 926,
+        "width": 30,
+        "height": 28,
+        "right": 839.484375,
+        "bottom": 954
+      },
+      {
+        "label": "A4 가로로 전환",
+        "x": 843.484375,
+        "y": 926,
+        "width": 30,
+        "height": 28,
+        "right": 873.484375,
+        "bottom": 954
+      },
+      {
+        "label": "A4 세로로 전환",
+        "x": 877.484375,
+        "y": 926,
+        "width": 30,
+        "height": 28,
+        "right": 907.484375,
+        "bottom": 954
+      },
+      {
+        "label": "A4 문서에서 사용할 수 있습니다",
+        "x": 911.484375,
+        "y": 926,
+        "width": 30.015625,
+        "height": 28,
+        "right": 941.5,
+        "bottom": 954
+      },
+      {
+        "label": "가로 메뉴로 전환",
+        "x": 945.5,
+        "y": 926,
+        "width": 30,
+        "height": 28,
+        "right": 975.5,
+        "bottom": 954
+      }
+    ]
+  },
+  {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "mode": "footer",
+    "parent": "editor-shift-footer-slot",
+    "direction": "row",
+    "position": "static",
+    "bounds": {
+      "x": 29.484375,
+      "y": 690,
+      "right": 360.5,
+      "bottom": 730,
+      "width": 331.015625,
+      "height": 40
+    },
+    "buttons": [
+      {
+        "label": "드래그하여 하단바 분리·이동",
+        "x": 39.484375,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 69.484375,
+        "bottom": 724
+      },
+      {
+        "label": "편집창을 왼쪽으로 이동",
+        "x": 73.484375,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 103.484375,
+        "bottom": 724
+      },
+      {
+        "label": "가운데로 이동",
+        "x": 107.484375,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 137.484375,
+        "bottom": 724
+      },
+      {
+        "label": "편집창을 오른쪽으로 이동",
+        "x": 141.484375,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 171.484375,
+        "bottom": 724
+      },
+      {
+        "label": "긴 문서로 전환",
+        "x": 184.484375,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 214.484375,
+        "bottom": 724
+      },
+      {
+        "label": "A4 가로로 전환",
+        "x": 218.484375,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 248.484375,
+        "bottom": 724
+      },
+      {
+        "label": "A4 세로로 전환",
+        "x": 252.484375,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 282.484375,
+        "bottom": 724
+      },
+      {
+        "label": "A4 문서에서 사용할 수 있습니다",
+        "x": 286.484375,
+        "y": 696,
+        "width": 30.015625,
+        "height": 28,
+        "right": 316.5,
+        "bottom": 724
+      },
+      {
+        "label": "가로 메뉴로 전환",
+        "x": 320.5,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 350.5,
+        "bottom": 724
+      }
+    ]
+  },
+  {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "mode": "footer",
+    "parent": "editor-shift-footer-slot",
+    "direction": "row",
+    "position": "static",
+    "bounds": {
+      "x": 29.484375,
+      "y": 690,
+      "right": 360.5,
+      "bottom": 730,
+      "width": 331.015625,
+      "height": 40
+    },
+    "buttons": [
+      {
+        "label": "드래그하여 하단바 분리·이동",
+        "x": 39.484375,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 69.484375,
+        "bottom": 724
+      },
+      {
+        "label": "편집창을 왼쪽으로 이동",
+        "x": 73.484375,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 103.484375,
+        "bottom": 724
+      },
+      {
+        "label": "가운데로 이동",
+        "x": 107.484375,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 137.484375,
+        "bottom": 724
+      },
+      {
+        "label": "편집창을 오른쪽으로 이동",
+        "x": 141.484375,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 171.484375,
+        "bottom": 724
+      },
+      {
+        "label": "긴 문서로 전환",
+        "x": 184.484375,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 214.484375,
+        "bottom": 724
+      },
+      {
+        "label": "A4 가로로 전환",
+        "x": 218.484375,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 248.484375,
+        "bottom": 724
+      },
+      {
+        "label": "A4 세로로 전환",
+        "x": 252.484375,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 282.484375,
+        "bottom": 724
+      },
+      {
+        "label": "A4 문서에서 사용할 수 있습니다",
+        "x": 286.484375,
+        "y": 696,
+        "width": 30.015625,
+        "height": 28,
+        "right": 316.5,
+        "bottom": 724
+      },
+      {
+        "label": "가로 메뉴로 전환",
+        "x": 320.5,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 350.5,
+        "bottom": 724
+      }
+    ]
+  },
+  {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "mode": "footer",
+    "parent": "editor-shift-footer-slot",
+    "direction": "row",
+    "position": "static",
+    "bounds": {
+      "x": 29.484375,
+      "y": 690,
+      "right": 360.5,
+      "bottom": 730,
+      "width": 331.015625,
+      "height": 40
+    },
+    "buttons": [
+      {
+        "label": "드래그하여 하단바 분리·이동",
+        "x": 39.484375,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 69.484375,
+        "bottom": 724
+      },
+      {
+        "label": "편집창을 왼쪽으로 이동",
+        "x": 73.484375,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 103.484375,
+        "bottom": 724
+      },
+      {
+        "label": "가운데로 이동",
+        "x": 107.484375,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 137.484375,
+        "bottom": 724
+      },
+      {
+        "label": "편집창을 오른쪽으로 이동",
+        "x": 141.484375,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 171.484375,
+        "bottom": 724
+      },
+      {
+        "label": "긴 문서로 전환",
+        "x": 184.484375,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 214.484375,
+        "bottom": 724
+      },
+      {
+        "label": "A4 가로로 전환",
+        "x": 218.484375,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 248.484375,
+        "bottom": 724
+      },
+      {
+        "label": "A4 세로로 전환",
+        "x": 252.484375,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 282.484375,
+        "bottom": 724
+      },
+      {
+        "label": "A4 문서에서 사용할 수 있습니다",
+        "x": 286.484375,
+        "y": 696,
+        "width": 30.015625,
+        "height": 28,
+        "right": 316.5,
+        "bottom": 724
+      },
+      {
+        "label": "가로 메뉴로 전환",
+        "x": 320.5,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 350.5,
+        "bottom": 724
+      }
+    ]
+  },
+  {
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "mode": "footer",
+    "parent": "editor-shift-footer-slot",
+    "direction": "row",
+    "position": "static",
+    "bounds": {
+      "x": 8,
+      "y": 658,
+      "right": 312,
+      "bottom": 730,
+      "width": 304,
+      "height": 72
+    },
+    "buttons": [
+      {
+        "label": "드래그하여 하단바 분리·이동",
+        "x": 21.484375,
+        "y": 664,
+        "width": 30,
+        "height": 28,
+        "right": 51.484375,
+        "bottom": 692
+      },
+      {
+        "label": "편집창을 왼쪽으로 이동",
+        "x": 55.484375,
+        "y": 664,
+        "width": 30,
+        "height": 28,
+        "right": 85.484375,
+        "bottom": 692
+      },
+      {
+        "label": "가운데로 이동",
+        "x": 89.484375,
+        "y": 664,
+        "width": 30,
+        "height": 28,
+        "right": 119.484375,
+        "bottom": 692
+      },
+      {
+        "label": "편집창을 오른쪽으로 이동",
+        "x": 123.484375,
+        "y": 664,
+        "width": 30,
+        "height": 28,
+        "right": 153.484375,
+        "bottom": 692
+      },
+      {
+        "label": "긴 문서로 전환",
+        "x": 166.484375,
+        "y": 664,
+        "width": 30,
+        "height": 28,
+        "right": 196.484375,
+        "bottom": 692
+      },
+      {
+        "label": "A4 가로로 전환",
+        "x": 200.484375,
+        "y": 664,
+        "width": 30,
+        "height": 28,
+        "right": 230.484375,
+        "bottom": 692
+      },
+      {
+        "label": "A4 세로로 전환",
+        "x": 234.484375,
+        "y": 664,
+        "width": 30,
+        "height": 28,
+        "right": 264.484375,
+        "bottom": 692
+      },
+      {
+        "label": "A4 문서에서 사용할 수 있습니다",
+        "x": 268.484375,
+        "y": 664,
+        "width": 30.015625,
+        "height": 28,
+        "right": 298.5,
+        "bottom": 692
+      },
+      {
+        "label": "가로 메뉴로 전환",
+        "x": 145,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 175,
+        "bottom": 724
+      }
+    ]
+  },
+  {
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "mode": "footer",
+    "parent": "editor-shift-footer-slot",
+    "direction": "row",
+    "position": "static",
+    "bounds": {
+      "x": 8,
+      "y": 658,
+      "right": 312,
+      "bottom": 730,
+      "width": 304,
+      "height": 72
+    },
+    "buttons": [
+      {
+        "label": "드래그하여 하단바 분리·이동",
+        "x": 21.484375,
+        "y": 664,
+        "width": 30,
+        "height": 28,
+        "right": 51.484375,
+        "bottom": 692
+      },
+      {
+        "label": "편집창을 왼쪽으로 이동",
+        "x": 55.484375,
+        "y": 664,
+        "width": 30,
+        "height": 28,
+        "right": 85.484375,
+        "bottom": 692
+      },
+      {
+        "label": "가운데로 이동",
+        "x": 89.484375,
+        "y": 664,
+        "width": 30,
+        "height": 28,
+        "right": 119.484375,
+        "bottom": 692
+      },
+      {
+        "label": "편집창을 오른쪽으로 이동",
+        "x": 123.484375,
+        "y": 664,
+        "width": 30,
+        "height": 28,
+        "right": 153.484375,
+        "bottom": 692
+      },
+      {
+        "label": "긴 문서로 전환",
+        "x": 166.484375,
+        "y": 664,
+        "width": 30,
+        "height": 28,
+        "right": 196.484375,
+        "bottom": 692
+      },
+      {
+        "label": "A4 가로로 전환",
+        "x": 200.484375,
+        "y": 664,
+        "width": 30,
+        "height": 28,
+        "right": 230.484375,
+        "bottom": 692
+      },
+      {
+        "label": "A4 세로로 전환",
+        "x": 234.484375,
+        "y": 664,
+        "width": 30,
+        "height": 28,
+        "right": 264.484375,
+        "bottom": 692
+      },
+      {
+        "label": "A4 문서에서 사용할 수 있습니다",
+        "x": 268.484375,
+        "y": 664,
+        "width": 30.015625,
+        "height": 28,
+        "right": 298.5,
+        "bottom": 692
+      },
+      {
+        "label": "가로 메뉴로 전환",
+        "x": 145,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 175,
+        "bottom": 724
+      }
+    ]
+  },
+  {
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "mode": "footer",
+    "parent": "editor-shift-footer-slot",
+    "direction": "row",
+    "position": "static",
+    "bounds": {
+      "x": 8,
+      "y": 658,
+      "right": 312,
+      "bottom": 730,
+      "width": 304,
+      "height": 72
+    },
+    "buttons": [
+      {
+        "label": "드래그하여 하단바 분리·이동",
+        "x": 21.484375,
+        "y": 664,
+        "width": 30,
+        "height": 28,
+        "right": 51.484375,
+        "bottom": 692
+      },
+      {
+        "label": "편집창을 왼쪽으로 이동",
+        "x": 55.484375,
+        "y": 664,
+        "width": 30,
+        "height": 28,
+        "right": 85.484375,
+        "bottom": 692
+      },
+      {
+        "label": "가운데로 이동",
+        "x": 89.484375,
+        "y": 664,
+        "width": 30,
+        "height": 28,
+        "right": 119.484375,
+        "bottom": 692
+      },
+      {
+        "label": "편집창을 오른쪽으로 이동",
+        "x": 123.484375,
+        "y": 664,
+        "width": 30,
+        "height": 28,
+        "right": 153.484375,
+        "bottom": 692
+      },
+      {
+        "label": "긴 문서로 전환",
+        "x": 166.484375,
+        "y": 664,
+        "width": 30,
+        "height": 28,
+        "right": 196.484375,
+        "bottom": 692
+      },
+      {
+        "label": "A4 가로로 전환",
+        "x": 200.484375,
+        "y": 664,
+        "width": 30,
+        "height": 28,
+        "right": 230.484375,
+        "bottom": 692
+      },
+      {
+        "label": "A4 세로로 전환",
+        "x": 234.484375,
+        "y": 664,
+        "width": 30,
+        "height": 28,
+        "right": 264.484375,
+        "bottom": 692
+      },
+      {
+        "label": "A4 문서에서 사용할 수 있습니다",
+        "x": 268.484375,
+        "y": 664,
+        "width": 30.015625,
+        "height": 28,
+        "right": 298.5,
+        "bottom": 692
+      },
+      {
+        "label": "가로 메뉴로 전환",
+        "x": 145,
+        "y": 696,
+        "width": 30,
+        "height": 28,
+        "right": 175,
+        "bottom": 724
+      }
+    ]
+  },
+  {
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "mode": "footer",
+    "parent": "editor-shift-footer-slot",
+    "direction": "row",
+    "position": "static",
+    "bounds": {
+      "x": 8,
+      "y": 625,
+      "right": 312,
+      "bottom": 730,
+      "width": 304,
+      "height": 105
+    },
+    "buttons": [
+      {
+        "label": "드래그하여 하단바 분리·이동",
+        "x": 35,
+        "y": 634,
+        "width": 42,
+        "height": 40,
+        "right": 77,
+        "bottom": 674
+      },
+      {
+        "label": "편집창을 왼쪽으로 이동",
+        "x": 84,
+        "y": 634,
+        "width": 42,
+        "height": 40,
+        "right": 126,
+        "bottom": 674
+      },
+      {
+        "label": "가운데로 이동",
+        "x": 133,
+        "y": 634,
+        "width": 42,
+        "height": 40,
+        "right": 175,
+        "bottom": 674
+      },
+      {
+        "label": "편집창을 오른쪽으로 이동",
+        "x": 182,
+        "y": 634,
+        "width": 42,
+        "height": 40,
+        "right": 224,
+        "bottom": 674
+      },
+      {
+        "label": "긴 문서로 전환",
+        "x": 243,
+        "y": 634,
+        "width": 42,
+        "height": 40,
+        "right": 285,
+        "bottom": 674
+      },
+      {
+        "label": "A4 가로로 전환",
+        "x": 65.5,
+        "y": 681,
+        "width": 42,
+        "height": 40,
+        "right": 107.5,
+        "bottom": 721
+      },
+      {
+        "label": "A4 세로로 전환",
+        "x": 114.5,
+        "y": 681,
+        "width": 42,
+        "height": 40,
+        "right": 156.5,
+        "bottom": 721
+      },
+      {
+        "label": "A4 문서에서 사용할 수 있습니다",
+        "x": 163.5,
+        "y": 681,
+        "width": 42,
+        "height": 40,
+        "right": 205.5,
+        "bottom": 721
+      },
+      {
+        "label": "가로 메뉴로 전환",
+        "x": 212.5,
+        "y": 681,
+        "width": 42,
+        "height": 40,
+        "right": 254.5,
+        "bottom": 721
+      }
+    ]
+  },
+  {
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "mode": "horizontal",
+    "parent": "drop-zone",
+    "direction": "row",
+    "position": "fixed",
+    "bounds": {
+      "x": 8,
+      "y": 330,
+      "right": 312,
+      "bottom": 402,
+      "width": 304,
+      "height": 72
+    },
+    "buttons": [
+      {
+        "label": "드래그하여 플로팅 바 이동",
+        "x": 18,
+        "y": 336,
+        "width": 30,
+        "height": 28,
+        "right": 48,
+        "bottom": 364
+      },
+      {
+        "label": "편집창을 왼쪽으로 이동",
+        "x": 52,
+        "y": 336,
+        "width": 30,
+        "height": 28,
+        "right": 82,
+        "bottom": 364
+      },
+      {
+        "label": "가운데로 이동",
+        "x": 86,
+        "y": 336,
+        "width": 30,
+        "height": 28,
+        "right": 116,
+        "bottom": 364
+      },
+      {
+        "label": "편집창을 오른쪽으로 이동",
+        "x": 120,
+        "y": 336,
+        "width": 30,
+        "height": 28,
+        "right": 150,
+        "bottom": 364
+      },
+      {
+        "label": "긴 문서로 전환",
+        "x": 163,
+        "y": 336,
+        "width": 30,
+        "height": 28,
+        "right": 193,
+        "bottom": 364
+      },
+      {
+        "label": "A4 가로로 전환",
+        "x": 197,
+        "y": 336,
+        "width": 30,
+        "height": 28,
+        "right": 227,
+        "bottom": 364
+      },
+      {
+        "label": "A4 세로로 전환",
+        "x": 231,
+        "y": 336,
+        "width": 30,
+        "height": 28,
+        "right": 261,
+        "bottom": 364
+      },
+      {
+        "label": "A4 문서에서 사용할 수 있습니다",
+        "x": 265,
+        "y": 336,
+        "width": 30.015625,
+        "height": 28,
+        "right": 295.015625,
+        "bottom": 364
+      },
+      {
+        "label": "세로 메뉴로 전환",
+        "x": 18,
+        "y": 368,
+        "width": 30,
+        "height": 28,
+        "right": 48,
+        "bottom": 396
+      }
+    ]
+  }
+]

@@ -1990,6 +1990,29 @@
         .dark #editor-shift-float .editor-layout-divider { background: #475569; }
         #editor-shift-float .editor-shift-drag { cursor: grab; touch-action: none; user-select: none; }
         #editor-shift-float .editor-shift-drag:active { cursor: grabbing; }
+        #editor-shift-footer-slot:not(:empty) { display: flex; flex: 0 0 auto; align-items: center; }
+        #app-status-footer > div { overflow-x: auto; scrollbar-width: none; }
+        #app-status-footer > div::-webkit-scrollbar { display: none; }
+        #footer-zoom-font:has(#editor-shift-footer-slot:not(:empty)) > * { flex-shrink: 0; }
+        #editor-shift-float.is-footer {
+            --editor-shift-button-width: 26px;
+            --editor-shift-button-height: 24px;
+            --editor-shift-font-size: 12px;
+            --editor-shift-gap: 3px;
+            position: static;
+            flex-direction: row;
+            flex-wrap: nowrap;
+            flex: 0 0 auto;
+            max-width: none;
+            padding: 0;
+            border: 0;
+            border-radius: 0;
+            box-sizing: border-box;
+            background: transparent;
+            box-shadow: none;
+            backdrop-filter: none;
+        }
+        html:not(.dark) #app-status-footer #editor-shift-float .editor-layout-button[aria-pressed="true"] { color: #1d4ed8 !important; }
         #editor-shift-float .editor-shift-direction-buttons { display: flex; align-items: center; gap: 3px; }
         #editor-shift-float[data-layout="footer"] { position: static; flex: 0 0 auto; padding: 0; border: 0; background: transparent; box-shadow: none; backdrop-filter: none; }
         #editor-shift-float[data-layout="footer"] .editor-shift-direction-buttons button { padding: 1px 6px; }

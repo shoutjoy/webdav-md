@@ -17,7 +17,7 @@ function makeClassList() {
     };
 }
 
-test('orientation button toggles every floating-bar control between a row and a column', () => {
+function setup(preferences = {}) {
     const listeners = {};
     const attrs = {};
     const toggle = {
@@ -39,19 +39,33 @@ test('orientation button toggles every floating-bar control between a row and a 
     const context = vm.createContext({
         control,
         window: { addEventListener() {}, removeEventListener() {} },
-        editorShiftFloatPreferences: {},
+        editorShiftFloatPreferences: preferences,
         saveEditorShiftFloatPreferences() {},
         syncEditorShiftFloatPosition() {},
     });
     vm.runInContext(`${initSource}\ninitEditorShiftFloat(control);`, context);
+    return { control, toggle, attrs, listeners, preferences };
+}
+
+test('mode button cycles vertical → footer → horizontal → vertical without losing floating coordinates', () => {
+    const { control, toggle, attrs, listeners, preferences } = setup({ mode: 'vertical', x: 120, y: 180 });
 
     assert.equal(control.dataset.orientation, 'vertical');
     assert.equal(control.classList.contains('is-vertical'), true);
-    assert.equal(toggle.textContent, '↔');
+    assert.equal(attrs['aria-label'], '하단바로 전환');
     assert.equal(attrs['aria-pressed'], 'true');
 
     listeners.click();
+    assert.equal(control.dataset.mode, 'footer');
+    assert.equal(control.classList.contains('is-footer'), true);
+    assert.equal(attrs['aria-label'], '가로 메뉴로 전환');
+    assert.equal(preferences.mode, 'footer');
+    assert.equal(preferences.x, 120);
+    assert.equal(preferences.y, 180);
+
+    listeners.click();
     assert.equal(control.dataset.orientation, 'horizontal');
+    assert.equal(control.classList.contains('is-footer'), false);
     assert.equal(control.classList.contains('is-horizontal'), true);
     assert.equal(toggle.textContent, '↕');
     assert.equal(attrs['aria-label'], '세로 메뉴로 전환');
@@ -60,4 +74,12 @@ test('orientation button toggles every floating-bar control between a row and a 
     listeners.click();
     assert.equal(control.dataset.orientation, 'vertical');
     assert.equal(control.classList.contains('is-vertical'), true);
+});
+
+test('legacy orientation, saved footer, and malformed mode restore safely', () => {
+    assert.equal(setup({ vertical: false }).control.dataset.mode, 'horizontal');
+    assert.equal(setup({ vertical: true }).control.dataset.mode, 'vertical');
+    assert.equal(setup({ mode: 'footer', vertical: false }).control.dataset.mode, 'footer');
+    assert.equal(setup({}).control.dataset.mode, 'footer');
+    assert.equal(setup({ mode: 'unknown' }).control.dataset.mode, 'footer');
 });

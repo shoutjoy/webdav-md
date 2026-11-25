@@ -1,0 +1,92 @@
+[
+  {
+    "code": "xychart-beta\n x-axis [Jan, Feb, Mar]\n y-axis \"Amount\" 0 --> 100\n bar [20,60,40]",
+    "state": {
+      "fill": "rgb(221, 34, 85)",
+      "stroke": "rgb(17, 34, 187)",
+      "width": "18px",
+      "otherFills": [
+        "rgb(255, 255, 255)",
+        "rgb(255, 244, 221)",
+        "rgb(255, 244, 221)",
+        "none",
+        "rgb(23, 32, 51)",
+        "rgb(23, 32, 51)",
+        "rgb(23, 32, 51)",
+        "none",
+        "none",
+        "none",
+        "none",
+        "rgb(23, 32, 51)",
+        "rgb(23, 32, 51)",
+        "rgb(23, 32, 51)",
+        "rgb(23, 32, 51)",
+        "rgb(23, 32, 51)",
+        "rgb(23, 32, 51)",
+        "rgb(23, 32, 51)",
+        "rgb(23, 32, 51)",
+        "rgb(23, 32, 51)",
+        "rgb(23, 32, 51)",
+        "rgb(23, 32, 51)",
+        "none",
+        "none",
+        "none",
+        "none",
+        "none",
+        "none",
+        "none",
+        "none",
+        "none",
+        "none",
+        "none",
+        "rgb(23, 32, 51)"
+      ],
+      "rules": 1
+    },
+    "sourceReload": true,
+    "export": true,
+    "json": true
+  },
+  {
+    "code": "sankey-beta\n\n부모,식비,30\n부모,주거,70",
+    "state": {
+      "fill": "rgb(221, 34, 85)",
+      "stroke": "rgb(17, 34, 187)",
+      "width": "18px",
+      "otherFills": [
+        "rgb(242, 142, 44)",
+        "rgb(225, 87, 89)",
+        "rgb(23, 32, 51)",
+        "rgb(23, 32, 51)",
+        "rgb(23, 32, 51)",
+        "none",
+        "none"
+      ],
+      "rules": 1
+    },
+    "sourceReload": true,
+    "export": true,
+    "json": true
+  },
+  {
+    "code": "flowchart LR\n A[Start]-->B[End]",
+    "state": {
+      "fill": "rgb(221, 34, 85)",
+      "stroke": "rgb(17, 34, 187)",
+      "width": "18px",
+      "otherFills": [
+        "none",
+        "rgb(23, 32, 51)",
+        "rgb(255, 255, 255)",
+        "rgb(23, 32, 51)",
+        "rgb(255, 255, 255)",
+        "rgb(255, 255, 255)",
+        "rgb(23, 32, 51)"
+      ],
+      "rules": 1
+    },
+    "sourceReload": true,
+    "export": true,
+    "json": true
+  }
+]

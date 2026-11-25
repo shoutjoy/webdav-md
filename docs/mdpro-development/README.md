@@ -37,6 +37,18 @@ WebDAV MDpro와 MDproViewer의 기능 개발, 버그 수정, 리팩터링, 이�
 
 ## 변경 목록
 
+- MDPRO-20261125-MERMAID-CONTENT: [범용 텍스트·내용 추가/Jena ME 연결](changes/2026-11-25-mermaid-general-content.md) — 제목/주석/메모·위치/스타일·XY 숫자 보존·ME 준비/명시 교체·41검사/Chrome 네 유형 저장/reload/출력/웹 빌드. 실제 AI 생성/Viewer/Tauri 미실행.
+
+- MDPRO-20261125-MERMAID-PANEL-DEFAULTS: [커스텀 기본 접기·편집 기본 플로팅](changes/2026-11-25-mermaid-panel-defaults.md) — 기존 DOM/입력 유지·Chrome 기본값/재열기/390px·39검사/웹 빌드 통과. Viewer 미적용/Tauri 미실행.
+
+- MDPRO-20261125-MERMAID-CUSTOM2: [커스텀 hover 설명·코드 수치 항목 추가](changes/2026-11-25-mermaid-custom2-value-labels.md) — XY bar 원본 값/부분 선택·모양/위치/서식·SVG/PNG·코드 저장/reload·37검사/Chrome/기존 다중 선택 회귀/웹 빌드. Viewer 미이식/Tauri 미실행.
+
+- MDPRO-20261125-EDITOR-SHIFT-MODES: [문서 도구 모음 가로·세로·하단바](changes/2026-11-25-editor-shift-three-modes.md) — 하단바 기본·3단계 순환·기존 상태줄 한 행 삽입·문서 공간/높이 보존·35검사/Chrome18검사/웹 빌드 통과. Viewer 기존 유사 기능 읽기 비교·미수정, Tauri/설치 미실행.
+
+- MDPRO-20261125-MERMAID-MULTISELECT: [커스텀 다중 선택·같은 종류·XY 막대 전체](changes/2026-11-25-mermaid-custom-multiselect.md) — 그룹 생성 도구/기존 단일 설정 호환·35검사/Chrome 그룹 적용·저장/reload/웹 빌드 통과. Viewer 미이식/Tauri 미실행.
+
+- MDPRO-20261125-MERMAID-CUSTOM-TOOLS: [수치 범위 확대·하단 커스텀 도구 만들기](changes/2026-11-25-mermaid-custom-tool-builder.md) — 사용자 지정 대상/속성/이름/범위로 새 도구 생성·JSON/코드 저장/reload·34검사/Chrome XY·한글Sankey·flowchart/웹 빌드. Viewer 미이식/Tauri 미실행.
+
 - MDPRO-20261125-MERMAID-TYPE-CONTROLS: [유형별 Mermaid 스타일·배치](changes/2026-11-25-mermaid-diagram-type-controls.md) — 공통 스타일/점·차트 크기·유형별 배치/YAML 보존·31검사/Chrome 10종·전체 앱4종 적용/reload·PNG·웹 빌드 통과. 전체 유형/PV/실문서 미검증, Viewer 미이식/Tauri 미실행.
 
 - MDPRO-20261125-MERMAID-EDGE-LENGTH: [연결선 길이 조절](changes/2026-11-25-mermaid-edge-length.md) — 0.5~5배·표준 코드 저장/reload 복구·28검사/Chrome 2종/웹 빌드 통과. Viewer 읽기 비교·미이식/Tauri 미실행.

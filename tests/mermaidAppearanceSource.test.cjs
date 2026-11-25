@@ -9,7 +9,7 @@ test('fill alpha zero, text color and direction survive repeated code apply and 
 
 test('safe font family and weight roundtrip and reset preserve handwritten source',()=>{const source='flowchart LR\nA-->B';const saved=api.serialize(source,{fontFamily:'Consolas',fontWeight:700},['A','B'],1);assert.match(saved,/font-family:Consolas,font-weight:700/);assert.equal(api.readAppearance(saved).fontWeight,700);assert.equal(api.readAppearance(saved).fontFamily,'Consolas');assert.equal(api.serialize(saved,{},['A','B'],1),source);assert.equal(api.readAppearance('%% MDPRO appearance values {"fontFamily":"Arial;}body{display:none}"}'),null);assert.throws(()=>api.serialize(source,{fontWeight:999},['A','B'],1),/굵기/);});
 
-test('arrow size roundtrip validates bounds and reset',()=>{const original='flowchart LR\nA-->B';const saved=api.serialize(original,{arrowSize:1.5},['A','B'],1);assert.equal(api.readAppearance(saved).arrowSize,1.5);assert.equal(api.serialize(saved,{},['A','B'],1),original);assert.equal(api.readAppearance('%% MDPRO appearance values {"arrowSize":0}'),null);assert.throws(()=>api.serialize(original,{arrowSize:4},['A','B'],1),/arrowSize/);});
+test('arrow size roundtrip validates bounds and reset',()=>{const original='flowchart LR\nA-->B';const saved=api.serialize(original,{arrowSize:1.5},['A','B'],1);assert.equal(api.readAppearance(saved).arrowSize,1.5);assert.equal(api.serialize(saved,{},['A','B'],1),original);assert.equal(api.readAppearance('%% MDPRO appearance values {"arrowSize":0}'),null);assert.throws(()=>api.serialize(original,{arrowSize:11},['A','B'],1),/arrowSize/);});
 
 test('edge length persists standard rank spacing, merges width, and resets',()=>{
  const original='flowchart LR\nA-->B';
@@ -17,6 +17,6 @@ test('edge length persists standard rank spacing, merges width, and resets',()=>
  assert.match(saved,/"rankSpacing":100/);assert.match(saved,/"wrappingWidth":300/);
  assert.equal(api.readAppearance(saved).edgeLength,2);
  assert.equal(api.serialize(saved,{},['A','B'],1),original);
- assert.equal(api.readAppearance('%% MDPRO appearance values {"edgeLength":6}'),null);
+ assert.equal(api.readAppearance('%% MDPRO appearance values {"edgeLength":31}'),null);
  assert.throws(()=>api.serialize(original,{edgeLength:0},['A','B'],1),/edgeLength/);
 });

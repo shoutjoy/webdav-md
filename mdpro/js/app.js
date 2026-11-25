@@ -11438,21 +11438,28 @@ function initEditorShiftFloat(control) {
     const dragHandle = control.querySelector('.editor-shift-drag');
     const handle = dragHandle || control;
     const applyOrientation = () => {
-        // Vertical is the first-run default; an explicitly saved horizontal
-        // preference is still respected on later launches.
-        const horizontal = editorShiftFloatPreferences.vertical === false;
+        // Start in the status footer; preserve explicitly saved layouts and coordinates.
+        const mode = ['horizontal', 'vertical', 'footer'].includes(editorShiftFloatPreferences.mode)
+            ? editorShiftFloatPreferences.mode
+            : (editorShiftFloatPreferences.vertical === false ? 'horizontal' : editorShiftFloatPreferences.vertical === true ? 'vertical' : 'footer');
+        const horizontal = mode !== 'vertical';
+        control.dataset.mode = mode;
         control.dataset.orientation = horizontal ? 'horizontal' : 'vertical';
         control.classList.toggle('is-horizontal', horizontal);
         control.classList.toggle('is-vertical', !horizontal);
+        control.classList.toggle('is-footer', mode === 'footer');
         if (!toggle) return;
-        toggle.textContent = horizontal ? '↕' : '↔';
-        toggle.title = horizontal ? '세로 메뉴로 전환' : '가로 메뉴로 전환';
+        toggle.textContent = mode === 'footer' ? '↔' : (horizontal ? '↕' : '▤');
+        toggle.title = mode === 'footer' ? '가로 메뉴로 전환' : (horizontal ? '세로 메뉴로 전환' : '하단바로 전환');
         toggle.setAttribute('aria-label', toggle.title);
-        toggle.setAttribute('aria-pressed', String(!horizontal));
+        toggle.setAttribute('aria-pressed', String(mode !== 'horizontal'));
+        if (dragHandle) dragHandle.title = mode === 'footer' ? '드래그하여 하단바 분리·이동' : '드래그하여 플로팅 바 이동';
     };
     applyOrientation();
     toggle?.addEventListener('click', () => {
-        editorShiftFloatPreferences.vertical = control.dataset.orientation !== 'vertical';
+        const modes = ['horizontal', 'vertical', 'footer'];
+        editorShiftFloatPreferences.mode = modes[(modes.indexOf(control.dataset.mode) + 1) % modes.length];
+        editorShiftFloatPreferences.vertical = editorShiftFloatPreferences.mode === 'vertical';
         applyOrientation();
         syncEditorShiftFloatPosition();
         saveEditorShiftFloatPreferences();
@@ -11460,6 +11467,16 @@ function initEditorShiftFloat(control) {
     handle.addEventListener('pointerdown', event => {
         if (event.button !== 0 || (!dragHandle && event.target.closest('button'))) return;
         event.preventDefault();
+        if (control.dataset.mode === 'footer') {
+            // Undock at the handle's location so dragging never jumps to a stale position.
+            const dockRect = control.getBoundingClientRect();
+            editorShiftFloatPreferences.mode = 'horizontal';
+            editorShiftFloatPreferences.vertical = false;
+            editorShiftFloatPreferences.x = dockRect.left;
+            editorShiftFloatPreferences.y = dockRect.top;
+            applyOrientation();
+            syncEditorShiftFloatPosition();
+        }
         const rect = control.getBoundingClientRect();
         const startX = event.clientX;
         const startY = event.clientY;
@@ -11484,7 +11501,9 @@ function syncEditorShiftFloatPosition() {
     const control = document.getElementById('editor-shift-float');
     const viewport = document.getElementById(isEditMode ? 'content-viewport' : 'viewer-container');
     if (!control || !viewport) return;
-    const host = document.getElementById('drop-zone');
+    if (!editorShiftFloatPositionTrackingInstalled) initEditorShiftFloat(control);
+    const docked = control.dataset.mode === 'footer';
+    const host = document.getElementById(docked ? 'editor-shift-footer-slot' : 'drop-zone');
     if (host && control.parentNode !== host) host.appendChild(control);
 
     const viewportRect = viewport.getBoundingClientRect();
@@ -11493,11 +11512,12 @@ function syncEditorShiftFloatPosition() {
     const sidebarRect = sidebarVisible ? sidebarEl.getBoundingClientRect() : null;
     const outsideSidebarLeft = sidebarRect && sidebarRect.width > 0 ? sidebarRect.right + 8 : viewportRect.left + 8;
 
-    if (!editorShiftFloatPositionTrackingInstalled) initEditorShiftFloat(control);
     const preferredX = Number.isFinite(editorShiftFloatPreferences.x) ? editorShiftFloatPreferences.x : Math.max(viewportRect.left + 8, outsideSidebarLeft);
     const preferredY = Number.isFinite(editorShiftFloatPreferences.y) ? editorShiftFloatPreferences.y : viewportRect.bottom - control.offsetHeight - 8;
-    control.style.left = `${Math.max(8, Math.min(window.innerWidth - control.offsetWidth - 8, preferredX))}px`;
-    control.style.top = `${Math.max(8, Math.min(window.innerHeight - control.offsetHeight - 8, preferredY))}px`;
+    const mobileFooter = document.body.classList.contains('mobile-ui-active') ? document.getElementById('footer-zoom-font') : null;
+    const bottomBoundary = mobileFooter ? Math.min(window.innerHeight, mobileFooter.getBoundingClientRect().top) : window.innerHeight;
+    control.style.left = docked ? 'auto' : `${Math.max(8, Math.min(window.innerWidth - control.offsetWidth - 8, preferredX))}px`;
+    control.style.top = docked ? 'auto' : `${Math.max(8, Math.min(bottomBoundary - control.offsetHeight - 8, preferredY))}px`;
     control.style.bottom = 'auto';
 
     if (editorShiftFloatPositionTrackingInstalled) return;
@@ -11507,6 +11527,7 @@ function syncEditorShiftFloatPosition() {
     if (typeof ResizeObserver === 'function') {
         const observer = new ResizeObserver(syncEditorShiftFloatPosition);
         observer.observe(viewport);
+        observer.observe(control);
         if (sidebarEl) observer.observe(sidebarEl);
     }
 }

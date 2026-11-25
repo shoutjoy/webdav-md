@@ -1947,6 +1947,10 @@ window.addEventListener('message', async function (event) {
   const data = event && event.data || {};
   if (event.source !== window.parent) return;
   if (data.type === 'mdv-load-document-selection' && event.source === window.parent) {
+    if (typeof data.appearanceInstruction === 'string' && mermaidImageRequestId) {
+      setMermaidImageStatus('현재 ME 작업을 마치거나 중지한 후 내용을 가져오세요.', true);
+      return;
+    }
     if (data.target === 'reference-text') {
       mermaidReferenceText.value = String(data.code || '');
       refreshMermaidGenerateButton();
@@ -1961,6 +1965,7 @@ window.addEventListener('message', async function (event) {
     editor.focus();
     editor.setSelectionRange(0, editor.value.length);
     render();
+    if (typeof data.appearanceInstruction === 'string') { revisionSource.value=selectedCode;revisionPrompt.value=data.appearanceInstruction.slice(0,4000);revisionReadyCode='';applyMermaidAiPanelState(false);selectMermaidInputPanel('mermaid-code-revision');document.getElementById('mermaid-code-revision').open=true;syncMermaidRevisionControls();renderRevisionPreview(); }
     setDocumentSelectionImportButton('가져오기 완료', false);
     setMermaidImageStatus('문서에서 선택한 영역을 코드 편집기로 가져왔습니다.');
     return;

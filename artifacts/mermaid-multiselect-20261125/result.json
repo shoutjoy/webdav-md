@@ -1,0 +1,16 @@
+{
+  "sameKind": true,
+  "allBars": true,
+  "ctrlSelection": true,
+  "groupCounts": [
+    3,
+    2
+  ],
+  "colors": [
+    "rgb(34, 85, 187)",
+    "rgb(34, 85, 187)",
+    "rgb(238, 51, 102)"
+  ],
+  "backgroundUnchanged": true,
+  "reload": true
+}

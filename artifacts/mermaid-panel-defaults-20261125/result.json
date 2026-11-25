@@ -1,0 +1,13 @@
+{
+  "defaultFloating": true,
+  "bothInitiallyCollapsed": true,
+  "expandable": true,
+  "inputsPreserved": true,
+  "reopenFloating": true,
+  "mobile": {
+    "x": 8,
+    "y": 80,
+    "width": 374,
+    "height": 620
+  }
+}

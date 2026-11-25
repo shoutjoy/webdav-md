@@ -16,7 +16,7 @@ test('non-flow source preserves syntax and YAML, repeated apply and reset are st
  }
 });
 test('new layout values reject non-finite and unsafe input',()=>{
- for(const [key,value] of [['pointSize',0],['chartWidth',4],['chartHeight',Infinity],['layoutSpacing',-1]]){
+ for(const [key,value] of [['pointSize',0],['chartWidth',11],['chartHeight',Infinity],['layoutSpacing',-1]]){
   assert.throws(()=>api.serialize('mindmap\n root',{[key]:value},[],0));
   assert.equal(api.readAppearance('%% MDPRO appearance values '+(Number.isFinite(value)?JSON.stringify({[key]:value}):'{"'+key+'":1e999}')),null);
  }

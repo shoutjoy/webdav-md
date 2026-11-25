@@ -1,0 +1,27 @@
+{
+  "cases": [
+    {
+      "type": "flowchart LR",
+      "export": true,
+      "reload": true
+    },
+    {
+      "type": "mindmap",
+      "export": true,
+      "reload": true
+    },
+    {
+      "type": "sequenceDiagram",
+      "export": true,
+      "reload": true
+    },
+    {
+      "type": "quadrantChart",
+      "export": true,
+      "reload": true
+    }
+  ],
+  "mePrepared": true,
+  "explicitReplace": true,
+  "undo": true
+}
