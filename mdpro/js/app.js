@@ -9455,6 +9455,32 @@ function bindMermaidQuickMenuDismiss() {
 // button, so every command that depended on execCommand could silently do
 // nothing. Replace the textarea range directly instead; callers keep control
 // of their own caret, scrolling, autosave, and preview updates.
+// Explicit Mermaid commands share WebDAV's editor/CM6 and snapshot undo paths.
+window.MermaidAppearanceEditor = {
+    read: function () {
+        if (!editorTextarea) throw new Error('편집 문서가 없습니다.');
+        syncCurrentMarkdownFromEditor();
+        const host = window.__webdavHostDocument;
+        return { content: String(currentMarkdown || ''), session: String(currentDocumentDisplayRequest),
+            documentKey: host ? 'webdav:' + JSON.stringify(host.path || host.id || host) : getPdfExportDocumentKey(),
+            readOnly: editorTextarea.readOnly || editorTextarea.disabled || !!editorTextarea.__mdCm6View?.state.readOnly };
+    },
+    replace: function (base, start, end, replacement) {
+        const now = this.read();
+        if (now.readOnly || now.session !== base.session || now.documentKey !== base.documentKey || now.content !== base.content)
+            throw new Error('문서가 변경되었거나 읽기 전용입니다. 다시 확인하세요.');
+        if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || end > now.content.length)
+            throw new Error('잘못된 도표 코드 범위입니다.');
+        pushReplaceUndoSnapshot();
+        editorTextarea.setSelectionRange(start, end);
+        if (!replaceEditorSelectionText(replacement)) throw new Error('편집 명령을 실행하지 못했습니다.');
+        currentMarkdown = editorTextarea.value;
+        renderMarkdown();
+        if (activeSidebarTab === 'toc') renderTOC();
+        performAutoSave();
+    }
+};
+
 function replaceEditorSelectionText(replacement) {
     if (!editorTextarea) return false;
     const value = String(editorTextarea.value || '');
@@ -11576,37 +11602,45 @@ function initEditorShiftFloat(control) {
     const dragHandle = control.querySelector('.editor-shift-drag');
     const handle = dragHandle || control;
     const applyOrientation = () => {
-        // Vertical is the first-run default; an explicitly saved horizontal
-        // preference is still respected on later launches.
-        const footer = editorShiftFloatPreferences.layout === 'footer';
-        const horizontal = footer || editorShiftFloatPreferences.vertical === false;
-        control.dataset.layout = footer ? 'footer' : 'floating';
+        // Start in the status footer; preserve explicitly saved layouts and coordinates.
+        const mode = ['horizontal', 'vertical', 'footer'].includes(editorShiftFloatPreferences.mode)
+            ? editorShiftFloatPreferences.mode
+            : (editorShiftFloatPreferences.layout === 'footer' ? 'footer' : editorShiftFloatPreferences.vertical === false ? 'horizontal' : editorShiftFloatPreferences.vertical === true ? 'vertical' : 'footer');
+        const horizontal = mode !== 'vertical';
+        control.dataset.mode = mode;
         control.dataset.orientation = horizontal ? 'horizontal' : 'vertical';
         control.classList.toggle('is-horizontal', horizontal);
         control.classList.toggle('is-vertical', !horizontal);
+        control.classList.toggle('is-footer', mode === 'footer');
         if (!toggle) return;
-        toggle.textContent = footer ? '↕' : horizontal ? '▤' : '↔';
-        toggle.title = footer ? '세로 플로팅으로 전환' : horizontal ? '하단 바에 넣기' : '가로 메뉴로 전환';
+        toggle.textContent = mode === 'footer' ? '↔' : (horizontal ? '↕' : '▤');
+        toggle.title = mode === 'footer' ? '가로 메뉴로 전환' : (horizontal ? '세로 메뉴로 전환' : '하단바로 전환');
         toggle.setAttribute('aria-label', toggle.title);
-        toggle.setAttribute('aria-pressed', String(!horizontal));
+        toggle.setAttribute('aria-pressed', String(mode !== 'horizontal'));
+        if (dragHandle) dragHandle.title = mode === 'footer' ? '드래그하여 하단바 분리·이동' : '드래그하여 플로팅 바 이동';
     };
     applyOrientation();
     toggle?.addEventListener('click', () => {
-        if (control.dataset.layout === 'footer') {
-            editorShiftFloatPreferences.layout = 'floating';
-            editorShiftFloatPreferences.vertical = true;
-        } else if (control.dataset.orientation === 'horizontal') {
-            editorShiftFloatPreferences.layout = 'footer';
-        } else {
-            editorShiftFloatPreferences.vertical = false;
-        }
+        const modes = ['horizontal', 'vertical', 'footer'];
+        editorShiftFloatPreferences.mode = modes[(modes.indexOf(control.dataset.mode) + 1) % modes.length];
+        editorShiftFloatPreferences.vertical = editorShiftFloatPreferences.mode === 'vertical';
         applyOrientation();
         syncEditorShiftFloatPosition();
         saveEditorShiftFloatPreferences();
     });
     handle.addEventListener('pointerdown', event => {
-        if (control.dataset.layout === 'footer' || event.button !== 0 || (!dragHandle && event.target.closest('button'))) return;
+        if (event.button !== 0 || (!dragHandle && event.target.closest('button'))) return;
         event.preventDefault();
+        if (control.dataset.mode === 'footer') {
+            // Undock at the handle's location so dragging never jumps to a stale position.
+            const dockRect = control.getBoundingClientRect();
+            editorShiftFloatPreferences.mode = 'horizontal';
+            editorShiftFloatPreferences.vertical = false;
+            editorShiftFloatPreferences.x = dockRect.left;
+            editorShiftFloatPreferences.y = dockRect.top;
+            applyOrientation();
+            syncEditorShiftFloatPosition();
+        }
         const rect = control.getBoundingClientRect();
         const startX = event.clientX;
         const startY = event.clientY;
@@ -11632,8 +11666,8 @@ function syncEditorShiftFloatPosition() {
     const viewport = document.getElementById(isEditMode ? 'content-viewport' : 'viewer-container');
     if (!control || !viewport) return;
     if (!editorShiftFloatPositionTrackingInstalled) initEditorShiftFloat(control);
-    const footer = control.dataset.layout === 'footer';
-    const host = document.getElementById(footer ? 'editor-shift-footer-slot' : 'drop-zone');
+    const docked = control.dataset.mode === 'footer';
+    const host = document.getElementById(docked ? 'editor-shift-footer-slot' : 'drop-zone');
     if (host && control.parentNode !== host) host.appendChild(control);
 
     const viewportRect = viewport.getBoundingClientRect();
@@ -11644,14 +11678,11 @@ function syncEditorShiftFloatPosition() {
 
     const preferredX = Number.isFinite(editorShiftFloatPreferences.x) ? editorShiftFloatPreferences.x : Math.max(viewportRect.left + 8, outsideSidebarLeft);
     const preferredY = Number.isFinite(editorShiftFloatPreferences.y) ? editorShiftFloatPreferences.y : viewportRect.bottom - control.offsetHeight - 8;
-    control.style.left = `${Math.max(8, Math.min(window.innerWidth - control.offsetWidth - 8, preferredX))}px`;
-    control.style.top = `${Math.max(8, Math.min(window.innerHeight - control.offsetHeight - 8, preferredY))}px`;
+    const mobileFooter = document.body.classList.contains('mobile-ui-active') ? document.getElementById('footer-zoom-font') : null;
+    const bottomBoundary = mobileFooter ? Math.min(window.innerHeight, mobileFooter.getBoundingClientRect().top) : window.innerHeight;
+    control.style.left = docked ? 'auto' : `${Math.max(8, Math.min(window.innerWidth - control.offsetWidth - 8, preferredX))}px`;
+    control.style.top = docked ? 'auto' : `${Math.max(8, Math.min(bottomBoundary - control.offsetHeight - 8, preferredY))}px`;
     control.style.bottom = 'auto';
-    if (footer) {
-        control.style.left = '';
-        control.style.top = '';
-        control.style.bottom = '';
-    }
 
     if (editorShiftFloatPositionTrackingInstalled) return;
     editorShiftFloatPositionTrackingInstalled = true;
@@ -11660,6 +11691,7 @@ function syncEditorShiftFloatPosition() {
     if (typeof ResizeObserver === 'function') {
         const observer = new ResizeObserver(syncEditorShiftFloatPosition);
         observer.observe(viewport);
+        observer.observe(control);
         if (sidebarEl) observer.observe(sidebarEl);
     }
 }

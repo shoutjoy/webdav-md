@@ -1,7 +1,7 @@
 'use strict';
 
 const CACHE_PREFIX = 'md-viewer-pwa-';
-const CACHE_VERSION = '20261117-model-progress-2';
+const CACHE_VERSION = '20261125-merge-recovery-10';
 const STATIC_CACHE = CACHE_PREFIX + 'static-' + CACHE_VERSION;
 const RUNTIME_CACHE = CACHE_PREFIX + 'runtime-' + CACHE_VERSION;
 const MAX_RUNTIME_ENTRIES = 80;
@@ -11,6 +11,12 @@ const CORE_ASSETS = [
   './css/style.css',
   './css/tailwind-static.css',
   './js/app.js',
+  './js/mermaid/appearance-panel.js?v=20261125-8',
+  './js/mermaid/appearance-source.js?v=20261125-9',
+  './js/mermaid/appearance-custom.js?v=20261125-9',
+  './js/mermaid/appearance-custom2.js?v=20261125-9',
+  './js/mermaid/appearance-content.js?v=20261125-9',
+  './js/mermaid/appearance-types.js?v=20261125-3',
   './AI_App/aiChat/reasoning-settings.js',
   './Apps/PWA/manifest.webmanifest',
   './Apps/PWA/icons/icon.svg',
