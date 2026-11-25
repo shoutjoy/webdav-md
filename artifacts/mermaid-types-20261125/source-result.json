@@ -1,0 +1,42 @@
+[
+  {
+    "type": "quadrantchart",
+    "a": {
+      "pointSize": 8,
+      "chartWidth": 1.2,
+      "layoutSpacing": 1.5,
+      "font": 22,
+      "fill": "#aabbcc"
+    }
+  },
+  {
+    "type": "mindmap",
+    "a": {
+      "pointSize": 8,
+      "chartWidth": 1.2,
+      "layoutSpacing": 1.5,
+      "font": 22,
+      "fill": "#aabbcc"
+    }
+  },
+  {
+    "type": "kanban",
+    "a": {
+      "pointSize": 8,
+      "chartWidth": 1.2,
+      "layoutSpacing": 1.5,
+      "font": 22,
+      "fill": "#aabbcc"
+    }
+  },
+  {
+    "type": "journey",
+    "a": {
+      "pointSize": 8,
+      "chartWidth": 1.2,
+      "layoutSpacing": 1.5,
+      "font": 22,
+      "fill": "#aabbcc"
+    }
+  }
+]

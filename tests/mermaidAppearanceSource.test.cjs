@@ -1,0 +1,22 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const context={window:{}};vm.runInNewContext(fs.readFileSync('mdpro/js/mermaid/appearance-source.js','utf8'),context);const api=context.window.MermaidAppearanceSource;
+test('fence mapping excludes fake Mermaid inside longer non-Mermaid fences and preserves CRLF offsets',()=>{const text='````text\r\n```mermaid\r\nflowchart LR\r\nA-->B\r\n```\r\n````\r\n~~~mermaid\r\nflowchart LR\r\nC-->D\r\n~~~\r\n';const b=api.blocks(text);assert.equal(b.length,1);assert.equal(b[0].code,'flowchart LR\r\nC-->D\r\n');assert.equal(text.slice(b[0].start,b[0].end),b[0].code);});
+test('managed style updates once, reset preserves handwritten style and literal marker text',()=>{const source='flowchart LR\nA["%% MDPRO appearance start"]-->B\nstyle A fill:#abc\n';const first=api.serialize(source,{nodeStroke:2,nodeColor:'#123456'},['A','B'],1);const next=api.serialize(first,{nodeStroke:3},['A','B'],1);assert.equal((next.match(/^%% MDPRO appearance start$/gm)||[]).length,1);assert.match(next,/style A fill:#abc/);assert.match(next,/style A stroke-width:3px/);assert.equal(api.serialize(next,{nodeStroke:null},['A','B'],1),source.replace(/\n$/,''));});
+test('source metadata is limited to safe display values',()=>{assert.equal(api.readAppearance('%% MDPRO appearance values {"nodeColor":"red;}body{display:none}"}'),null);assert.equal(api.readAppearance('%% MDPRO appearance values {"font":999}'),null);assert.equal(api.readAppearance('%% MDPRO appearance values {"font":21,"unknown":"ignored"}').font,21);});
+test('unsupported or ambiguous source never silently loses configuration',()=>{assert.throws(()=>api.serialize('---\nconfig: {}\n---\nflowchart LR\nA-->B',{font:18},['A','B'],1),/YAML/);assert.throws(()=>api.serialize('%%{init: {bad}}%%\nflowchart LR\nA-->B',{font:18},['A','B'],1),/JSON/);assert.throws(()=>api.serialize('flowchart LR\nA-->B',{font:18},[],1),/ID/);});
+
+test('fill alpha zero, text color and direction survive repeated code apply and reset',()=>{const source='flowchart LR\nA-->B\n';const saved=api.serialize(source,{fill:'#123456',alpha:0,textColor:'#abcdef',direction:'TD'},['A','B'],1);assert.match(saved,/^flowchart TD/m);assert.match(saved,/fill-opacity:0/);assert.equal(api.readAppearance(saved).alpha,0);const second=api.serialize(saved,{fill:'#456789',alpha:.5,direction:'LR'},['A','B'],1);assert.match(second,/^flowchart LR/m);assert.equal((second.match(/^%% MDPRO appearance start$/gm)||[]).length,1);assert.equal(api.serialize(second,{},['A','B'],1),'flowchart LR\nA-->B');assert.equal(api.readAppearance('%% MDPRO appearance values {"alpha":-0.1}'),null);assert.equal(api.readAppearance('%% MDPRO appearance values {"direction":"javascript"}'),null);});
+
+test('safe font family and weight roundtrip and reset preserve handwritten source',()=>{const source='flowchart LR\nA-->B';const saved=api.serialize(source,{fontFamily:'Consolas',fontWeight:700},['A','B'],1);assert.match(saved,/font-family:Consolas,font-weight:700/);assert.equal(api.readAppearance(saved).fontWeight,700);assert.equal(api.readAppearance(saved).fontFamily,'Consolas');assert.equal(api.serialize(saved,{},['A','B'],1),source);assert.equal(api.readAppearance('%% MDPRO appearance values {"fontFamily":"Arial;}body{display:none}"}'),null);assert.throws(()=>api.serialize(source,{fontWeight:999},['A','B'],1),/굵기/);});
+
+test('arrow size roundtrip validates bounds and reset',()=>{const original='flowchart LR\nA-->B';const saved=api.serialize(original,{arrowSize:1.5},['A','B'],1);assert.equal(api.readAppearance(saved).arrowSize,1.5);assert.equal(api.serialize(saved,{},['A','B'],1),original);assert.equal(api.readAppearance('%% MDPRO appearance values {"arrowSize":0}'),null);assert.throws(()=>api.serialize(original,{arrowSize:4},['A','B'],1),/arrowSize/);});
+
+test('edge length persists standard rank spacing, merges width, and resets',()=>{
+ const original='flowchart LR\nA-->B';
+ const saved=api.serialize(original,{edgeLength:2,width:1.5},['A','B'],1);
+ assert.match(saved,/"rankSpacing":100/);assert.match(saved,/"wrappingWidth":300/);
+ assert.equal(api.readAppearance(saved).edgeLength,2);
+ assert.equal(api.serialize(saved,{},['A','B'],1),original);
+ assert.equal(api.readAppearance('%% MDPRO appearance values {"edgeLength":6}'),null);
+ assert.throws(()=>api.serialize(original,{edgeLength:0},['A','B'],1),/edgeLength/);
+});

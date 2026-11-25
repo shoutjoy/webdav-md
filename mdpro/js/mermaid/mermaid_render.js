@@ -110,7 +110,7 @@
         });
     }
 
-    function setWrapperMermaidTheme(wrapper, theme) {
+    function setWrapperMermaidTheme(wrapper, theme, appearance) {
         if (!wrapper || !wrapper.querySelector('.trt-mermaid-canvas') || !wrapper.getAttribute('data-mermaid-source')) {
             return Promise.reject(new Error('테마를 바꿀 Mermaid 원본 코드를 찾을 수 없습니다.'));
         }
@@ -121,31 +121,37 @@
         if (button) { button.disabled = true; button.setAttribute('aria-busy', 'true'); }
         return enqueueMermaidWork(async function () {
             const node = wrapper.querySelector('.trt-mermaid-canvas');
-            const source = wrapper.getAttribute('data-mermaid-source');
+            const storedSource = wrapper.getAttribute('data-mermaid-source');
+            const source = global.MermaidAppearanceSource ? global.MermaidAppearanceSource.withDirection(storedSource, (appearance || wrapper.__mdvMermaidAppearance || {}).direction) : storedSource;
             const previousTheme = wrapper.getAttribute('data-mermaid-theme-override');
             const previousHtml = node.innerHTML;
+            const previousAppearance = wrapper.__mdvMermaidAppearance;
+            if (appearance !== undefined) wrapper.__mdvMermaidAppearance = appearance;
+            const custom = wrapper.__mdvMermaidAppearance;
             try {
                 await loadMermaid();
+                if (custom && custom.fontFamily && document.fonts && document.fonts.load) await document.fonts.load((custom.fontWeight || 400) + ' ' + (custom.font || 15) + 'px ' + JSON.stringify(custom.fontFamily));
                 await waitForMermaidFonts();
                 wrapper.setAttribute('data-mermaid-theme-override', next);
                 updateMermaidThemeButtons(wrapper);
-                const cached = readMermaidSvgCache(source, next);
+                const cached = custom && Object.keys(custom).length ? null : readMermaidSvgCache(source, next);
                 if (cached) {
                     node.innerHTML = cached;
                     isolateCachedMermaidIds(node);
                 } else {
                     node.removeAttribute('data-processed');
-                    node.textContent = source;
-                    configureMermaid(next);
+                    node.textContent = global.MermaidAppearanceTypes ? global.MermaidAppearanceTypes.prepare(source, custom) : source;
+                    configureMermaid(next, custom, storedSource);
                     await global.mermaid.run({ nodes: [node] });
                     restoreSankeyKoreanLabels(node);
                     polishMermaidSvg(node);
-                    writeMermaidSvgCache(source, node.innerHTML, next);
+                    if (!custom || !Object.keys(custom).length) writeMermaidSvgCache(source, node.innerHTML, next);
                 }
                 if (wrapper.getAttribute('data-mermaid-mode') === 'fixed') applyFixedMermaidSize(wrapper);
                 else applyMermaidTransform(wrapper);
             } catch (error) {
                 node.innerHTML = previousHtml;
+                wrapper.__mdvMermaidAppearance = previousAppearance;
                 if (previousTheme) wrapper.setAttribute('data-mermaid-theme-override', previousTheme);
                 else wrapper.removeAttribute('data-mermaid-theme-override');
                 updateMermaidThemeButtons(wrapper);
@@ -216,7 +222,13 @@
             '.trt-mermaid-wrapper[data-mermaid-mode="fixed"] .trt-mermaid-viewport{height:auto;min-height:0;overflow:auto;cursor:default;touch-action:auto;}',
             '.trt-mermaid-wrapper[data-mermaid-mode="fixed"] .trt-mermaid-canvas{width:100%;min-width:0;min-height:0;padding:0;}',
             '.trt-mermaid-wrapper[data-mermaid-mode="fixed"] .trt-mermaid-canvas svg{height:auto !important;max-width:none !important;transform:none !important;}',
-            '.trt-mermaid-fixed-controls{position:absolute;top:10px;right:12px;z-index:22;display:flex;align-items:center;gap:5px;}',
+            '.trt-mermaid-fixed-controls{position:relative;margin:0 0 12px;display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:5px;}',
+            '.trt-mermaid-appearance{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:#475569;}',
+            '.trt-mermaid-wrapper[data-mermaid-theme="dark"] .trt-mermaid-appearance{color:#e2e8f0;}',
+            '.trt-mermaid-appearance-panel{flex:1 0 100%;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;}',
+            '.trt-mermaid-appearance-panel[hidden]{display:none !important;}',
+            '.trt-mermaid-appearance-toggle[aria-expanded="true"]{border-color:#818cf8;background:#312e81;color:#f8fafc;}',
+            '.trt-mermaid-appearance input{width:32px;height:30px;padding:2px;}',
             '.trt-mermaid-fixed-controls .trt-mermaid-btn{width:30px;height:30px;border-radius:6px;}',
             '.trt-mermaid-fixed-controls .trt-mermaid-fixed-fit{width:auto;min-width:42px;padding:0 8px;font-size:12px;}',
             '.trt-mermaid-fixed-controls .trt-mermaid-fixed-export{width:auto;min-width:40px;padding:0 7px;font-size:11px;}',
@@ -309,17 +321,32 @@
         return setMermaidTheme((pending ? pending.theme : getMermaidTheme(wrapper)) === 'dark' ? 'light' : 'dark', wrapper);
     }
 
-    function configureMermaid(theme) {
+    function configureMermaid(theme, appearance, source) {
         if (!global.mermaid || typeof global.mermaid.initialize !== 'function') return;
-        const dark = theme === 'dark' || (theme !== 'light' && isDarkTheme());
-        global.mermaid.initialize({
+        const dark = (theme || getMermaidTheme()) === 'dark';
+        const a = appearance || {};
+        let css = '';
+        if (a.font) css += 'text,tspan,.label,.nodeLabel,.edgeLabel,.label p,.label span{font-size:' + a.font + 'px !important;}';
+        if (a.color) css += '.flowchart-link,.edgePath path,.messageLine0,.messageLine1,.relationshipLine{stroke:' + a.color + ' !important;} marker path{stroke:' + a.color + ' !important;fill:' + a.color + ' !important;}';
+        const nodeBorders = '.node > rect,.node > polygon,.node > circle,.node > ellipse,.node > path,.node > .label-container path,.node > .label-container rect,.node > .label-container polygon,.node > .label-container circle,.node > .label-container ellipse';
+        if (a.nodeStroke) css += nodeBorders + '{stroke-width:' + a.nodeStroke + 'px !important;}';
+        if (a.fill) css += nodeBorders + '{fill:' + a.fill + ' !important;}';
+        if (a.alpha != null) css += nodeBorders + '{fill-opacity:' + a.alpha + ' !important;}';
+        if (a.fontFamily) css += '.nodeLabel,.nodeLabel *,.edgeLabel,.edgeLabel *,text,tspan{font-family:' + (/^(sans-serif|serif|monospace)$/.test(a.fontFamily) ? a.fontFamily : JSON.stringify(a.fontFamily)) + ' !important;}';
+        if (a.fontWeight != null) css += '.nodeLabel,.nodeLabel *,.edgeLabel,.edgeLabel *,text,tspan{font-weight:' + a.fontWeight + ' !important;}';
+        if (a.textColor) css += '.nodeLabel,.nodeLabel *, .edgeLabel,.edgeLabel *,text,tspan{color:' + a.textColor + ' !important;fill:' + a.textColor + ' !important;}';
+        if (a.nodeColor) css += nodeBorders + '{stroke:' + a.nodeColor + ' !important;}';
+        if (a.stroke) css += '.flowchart-link,.edgePath path,.messageLine0,.messageLine1,.relationshipLine{stroke-width:' + a.stroke + 'px !important;}';
+        if (global.MermaidAppearanceTypes) css += global.MermaidAppearanceTypes.css(a);
+        global.mermaid.initialize(Object.assign({
             startOnLoad: false,
             suppressErrorRendering: true,
             securityLevel: 'loose',
-            theme: dark ? 'dark' : 'default',
-            flowchart: { useMaxWidth: true, htmlLabels: true },
-            themeVariables: dark ? MERMAID_DARK_THEME_VARIABLES : MERMAID_LIGHT_THEME_VARIABLES
-        });
+            theme: Object.values(a).some(value => value != null) ? 'base' : (dark ? 'dark' : 'default'),
+            themeCSS: css,
+            flowchart: Object.assign({ useMaxWidth: true, htmlLabels: true }, a.width ? { padding: 20 * a.width, wrappingWidth: 200 * a.width } : {}, a.edgeLength != null ? { rankSpacing: 50 * a.edgeLength } : {}),
+            themeVariables: Object.assign({}, dark ? MERMAID_DARK_THEME_VARIABLES : MERMAID_LIGHT_THEME_VARIABLES, a.font ? { fontSize: a.font + 'px' } : {}, a.fontFamily ? { fontFamily: a.fontFamily } : {})
+        }, global.MermaidAppearanceTypes ? global.MermaidAppearanceTypes.config(source, a) : {}));
     }
 
     function waitForMermaidFonts() {
@@ -397,9 +424,12 @@
         wrapper.className = 'trt-mermaid-wrapper my-3';
         wrapper.setAttribute('data-mermaid-source', source);
         wrapper.setAttribute('data-mermaid-original-source', rawText);
+        const savedAppearance = global.MermaidAppearanceSource && global.MermaidAppearanceSource.readAppearance(rawText);
+        if (savedAppearance) wrapper.__mdvMermaidAppearance = savedAppearance;
         wrapper.setAttribute('data-mermaid-mode', getMermaidDisplayMode());
         const retained = pre.__mdvMermaidPresentation;
         if (retained) {
+            if (retained.appearance) wrapper.__mdvMermaidAppearance = retained.appearance;
             if (retained.theme) wrapper.setAttribute('data-mermaid-theme-override', retained.theme);
             wrapper.style.cssText = retained.style;
             if (retained.fixed) wrapper.__mdvFixedMermaidSizeState = retained.fixed;
@@ -576,11 +606,68 @@
             scope + ' .nodeLabel p,' + scope + ' .edgeLabel p{margin:0;}'
         ].join('\n');
         svg.insertBefore(style, svg.firstChild);
+        const wrapper = node.closest('.trt-mermaid-wrapper');
+        if (global.MermaidAppearanceTypes) global.MermaidAppearanceTypes.apply(svg, wrapper?.getAttribute('data-mermaid-original-source'), wrapper?.__mdvMermaidAppearance);
+        repairMermaidArrowheads(svg);
         ensureMermaidLabelContrast(node);
+    }
+
+    function repairMermaidArrowheads(svg) {
+        const shapes = Array.from(svg.querySelectorAll('.node > .label-container,.node > .label-container path'));
+        const border = Math.max(1, ...shapes.map(n => parseFloat(global.getComputedStyle(n).strokeWidth) || 1));
+        let largestArrow = 8, largestStroke = 1;
+        svg.querySelectorAll('.flowchart-link').forEach(function (edge, index) {
+            largestStroke = Math.max(largestStroke, parseFloat(global.getComputedStyle(edge).strokeWidth) || 1);
+            const computed = global.getComputedStyle(edge);
+            const width = parseFloat(computed.strokeWidth) || 1;
+            for (const side of ['start', 'end']) {
+                const value = edge.getAttribute('marker-' + side) || computed.getPropertyValue('marker-' + side);
+                const match = String(value).match(/#([^)'"\s]+)[)'"\s]*$/);
+                if (!match) continue;
+                const original = Array.from(svg.querySelectorAll('marker')).find(m => m.id === match[1]);
+                if (!original || !/point(?:End|Start)(?:$|-)/.test(original.id)) continue;
+                const appearance = svg.closest('.trt-mermaid-wrapper')?.__mdvMermaidAppearance || {};
+                const arrowScale = Number.isFinite(appearance.arrowSize) ? Math.min(3, Math.max(.25, appearance.arrowSize)) : 1;
+                const marker = original.cloneNode(true), size = Math.max(8, width * 2.4 + border) * arrowScale;
+                largestArrow = Math.max(largestArrow, size);
+                marker.id = svg.id + '-mdv-point' + side + '-' + index;
+                marker.setAttribute('markerUnits', 'userSpaceOnUse');
+                marker.setAttribute('markerWidth', size); marker.setAttribute('markerHeight', size);
+                marker.setAttribute('refX', side === 'end' ? 10 + (border / 2 + 1) * 10 / size : -(border / 2 + 1) * 10 / size);
+                marker.setAttribute('overflow', 'visible');
+                marker.querySelectorAll('path').forEach(path => { path.style.setProperty('fill', computed.stroke, 'important'); path.style.setProperty('stroke', computed.stroke, 'important'); path.style.setProperty('stroke-width', '1px', 'important'); });
+                original.parentNode.appendChild(marker);
+                edge.setAttribute('marker-' + side, 'url(#' + marker.id + ')');
+                edge.style.setProperty('marker-' + side, 'url(#' + marker.id + ')');
+            }
+        });
+        if (largestStroke > 4 || border > 4 || largestArrow > 16) {
+            const wrapper = svg.closest('.trt-mermaid-wrapper');
+            const direction = wrapper && wrapper.__mdvMermaidAppearance && wrapper.__mdvMermaidAppearance.direction
+                || ((wrapper && wrapper.getAttribute('data-mermaid-source') || '').match(/^(?:flowchart|graph)\s+(TD|TB|BT|LR|RL)\b/m) || [])[1] || 'TD';
+            svg.querySelectorAll('.edgeLabels > .edgeLabel').forEach(label => {
+                const base = label.getAttribute('data-mdv-label-base') || label.getAttribute('transform') || '';
+                label.setAttribute('data-mdv-label-base', base);
+                const b = label.getBBox(), offset = largestArrow / 2 + (/LR|RL/.test(direction) ? b.height : b.width) / 2 + 6;
+                label.setAttribute('transform', base + (/LR|RL/.test(direction) ? ' translate(0,' + (-offset) + ')' : ' translate(' + offset + ',0)'));
+            });
+            // Moving edge labels for thick arrows must also enlarge the viewport.
+            // Keep HTML label measurements unchanged; only extend the SVG bounds.
+            const bounds = svg.getBBox();
+            const box = String(svg.getAttribute('viewBox') || '').split(/[\s,]+/).map(Number);
+            if (box.length === 4 && box.every(Number.isFinite) && bounds.width > 0 && bounds.height > 0) {
+                const pad = largestArrow / 2 + 8;
+                const left = Math.min(box[0], bounds.x - pad), top = Math.min(box[1], bounds.y - pad);
+                const right = Math.max(box[0] + box[2], bounds.x + bounds.width + pad);
+                const bottom = Math.max(box[1] + box[3], bounds.y + bounds.height + pad);
+                svg.setAttribute('viewBox', [left, top, right - left, bottom - top].join(' '));
+            }
+        }
     }
 
     function ensureMermaidLabelContrast(node) {
         const wrapper = node.closest('.trt-mermaid-wrapper');
+        if (wrapper && wrapper.__mdvMermaidAppearance && wrapper.__mdvMermaidAppearance.textColor) return;
         const source = wrapper && wrapper.getAttribute('data-mermaid-source') || '';
         const explicitClasses = new Set();
         const explicitNodes = new Set();
@@ -995,6 +1082,7 @@
         }
     }
 
+    let appearancePanelSequence = 0;
     function addFixedMermaidControls(node) {
         const wrapper = node && node.closest ? node.closest('.trt-mermaid-wrapper') : null;
         if (!wrapper || wrapper.getAttribute('data-mermaid-mode') !== 'fixed') return;
@@ -1029,6 +1117,13 @@
                 const state = getFixedMermaidSizeState(wrapper);
                 applyFixedMermaidSize(wrapper, state.factor + 0.1);
             }));
+            const appearanceToggle = button('✎', '도표 스타일 조절', function () {
+                if (global.MermaidAppearancePanel) global.MermaidAppearancePanel.setOpen(appearanceControls, appearanceToggle, appearanceControls.hidden);
+                else { appearanceControls.hidden = !appearanceControls.hidden; appearanceToggle.setAttribute('aria-expanded', String(!appearanceControls.hidden)); }
+            }, 'trt-mermaid-appearance-toggle');
+            appearanceToggle.setAttribute('aria-label', '도표 스타일 조절');
+            appearanceToggle.setAttribute('aria-expanded', 'false');
+            controls.appendChild(appearanceToggle);
             controls.appendChild(button('맞춤', '문서 너비에 맞는 기본 크기', function () {
                 applyFixedMermaidSize(wrapper, 1);
             }, 'trt-mermaid-fixed-fit'));
@@ -1042,11 +1137,119 @@
                 downloadMermaidWrapperPng(wrapper, downloadButton);
             }, 'trt-mermaid-fixed-download'));
             controls.appendChild(button('', '', function () {
-                toggleMermaidTheme(wrapper).catch(function (error) { console.warn(error); });
+                toggleMermaidTheme(wrapper).catch(function (error) { console.error('Mermaid theme change failed:', error); });
             }, 'trt-mermaid-theme-toggle'));
-            wrapper.appendChild(controls);
+            const appearanceControls = document.createElement('section');
+            appearanceControls.className = 'trt-mermaid-appearance trt-mermaid-appearance-panel';
+            appearanceControls.hidden = true;
+            appearanceControls.id = 'trt-mermaid-appearance-' + (++appearancePanelSequence);
+            appearanceToggle.setAttribute('aria-controls', appearanceControls.id);
+            appearanceControls.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape') { event.stopPropagation(); if (global.MermaidAppearancePanel) global.MermaidAppearancePanel.setOpen(appearanceControls, appearanceToggle, false); else { appearanceControls.hidden = true; appearanceToggle.setAttribute('aria-expanded', 'false'); } appearanceToggle.focus(); }
+            });
+            const status = document.createElement('span');
+            status.setAttribute('role', 'status');
+            function change(patch) {
+                const next = Object.assign({}, wrapper.__mdvMermaidAppearance || {}, patch);
+                appearanceControls.querySelectorAll('button,input,select').forEach(el => { el.disabled = true; });
+                status.textContent = '적용 중…';
+                setWrapperMermaidTheme(wrapper, getMermaidTheme(wrapper), next).then(function () {
+                    update(); status.textContent = '';
+                }).catch(function (error) { status.textContent = '적용 실패: ' + error.message; }).finally(function () {
+                    appearanceControls.querySelectorAll('button,input,select').forEach(el => { el.disabled = false; });
+                });
+            }
+            const values = {}, fields = {}, directionButtons = [];
+            function category(title) {
+                const group = document.createElement('fieldset'); group.className = 'trt-mermaid-category';
+                const legend = document.createElement('legend'); legend.textContent = title; group.append(legend); appearanceControls.append(group); return group;
+            }
+            const textGroup = category('글자'), edgeGroup = category('연결선·화살표'), nodeGroup = category('도형'), layoutGroup = category('배치');
+            function pair(host, key, label, initial, step, min, max, unit) {
+                const group = document.createElement('span'); group.className = 'trt-mermaid-appearance';
+                group.appendChild(document.createTextNode(label));
+                group.appendChild(button('−', label + ' 줄이기', () => change({ [key]: Math.max(min, +(((wrapper.__mdvMermaidAppearance || {})[key] ?? initial) - step).toFixed(2)) })));
+                const value = document.createElement('span'); values[key] = { value, initial, unit }; group.appendChild(value);
+                group.appendChild(button('+', label + ' 늘리기', () => change({ [key]: Math.min(max, +(((wrapper.__mdvMermaidAppearance || {})[key] ?? initial) + step).toFixed(2)) })));
+                host.append(group);
+            }
+            function colorField(host, key, title, fallback) {
+                const label = document.createElement('label'); label.textContent = title;
+                const input = document.createElement('input'); input.type = 'color'; input.title = title; input.setAttribute('aria-label', title);
+                fields[key] = { input, fallback }; input.value = (wrapper.__mdvMermaidAppearance || {})[key] || fallback;
+                input.addEventListener('change', () => change({ [key]: input.value })); label.append(input); host.append(label); return input;
+            }
+            function update() {
+                const a = wrapper.__mdvMermaidAppearance || {};
+                Object.keys(values).forEach(key => { const v = values[key]; v.value.textContent = (a[key] ?? v.initial) + v.unit; });
+                bold.setAttribute('aria-pressed', String(a.fontWeight === 700));
+                directionButtons.forEach(({ element, value }) => element.setAttribute('aria-pressed', String((a.direction || '') === value)));
+                Object.keys(fields).forEach(key => { fields[key].input.value = a[key] ?? fields[key].fallback; });
+            }
+            const diagramType = global.MermaidAppearanceTypes?.type(wrapper.getAttribute('data-mermaid-original-source')) || 'flowchart';
+            if (!['flowchart', 'graph'].includes(diagramType)) {
+                const special = category('도표별 조절 · ' + diagramType);
+                appearanceControls.insertBefore(special, textGroup);
+                const note = document.createElement('p'); note.textContent = '도형·선 스타일은 도표 전체에 적용됩니다. TD/LR·연결선 길이·화살촉은 flowchart용입니다.'; special.append(note);
+                if (['quadrantchart','journey','gitgraph'].includes(diagramType)) pair(special, 'pointSize', '점 크기', 5, 1, 1, 30, 'px');
+                if (diagramType === 'quadrantchart' || diagramType.startsWith('xychart')) {
+                    pair(special, 'chartWidth', '차트 너비', 1, .1, .5, 3, '배');
+                    pair(special, 'chartHeight', '차트 높이', 1, .1, .5, 3, '배');
+                }
+                if (['mindmap','kanban','journey','timeline','sequencediagram'].includes(diagramType)) pair(special, 'layoutSpacing', diagramType === 'kanban' ? '열 배치 배율' : diagramType === 'timeline' ? '도표 여백' : '배치 간격', 1, .25, .5, 5, '배');
+            }
+            pair(textGroup, 'font', '글자', 15, 1, 8, 48, 'px');
+            const bold = button('B', '글자 볼드', () => change({ fontWeight: (wrapper.__mdvMermaidAppearance || {}).fontWeight === 700 ? 400 : 700 }), 'trt-mermaid-font-bold');
+            bold.setAttribute('aria-label', '글자 볼드'); bold.style.fontWeight = '700'; textGroup.append(bold);
+            const fontLabel = document.createElement('label'); fontLabel.textContent = '폰트 ';
+            const family = document.createElement('select'); family.setAttribute('aria-label', '글자 폰트'); family.add(new Option('원본 폰트', ''));
+            (global.MermaidAppearanceSource?.fontFamilies || ['sans-serif', 'serif', 'monospace']).forEach(name => family.add(new Option(name, name)));
+            fields.fontFamily = { input: family, fallback: '' }; family.onchange = () => change({ fontFamily: family.value || null }); fontLabel.append(family); textGroup.append(fontLabel);
+            colorField(textGroup, 'textColor', '글자 색상', '#172033');
+            pair(edgeGroup, 'stroke', '선 두께', 2, .5, .5, 10, 'px');
+            pair(edgeGroup, 'edgeLength', '연결선 길이', 1, .25, .5, 5, '배');
+            pair(edgeGroup, 'arrowSize', '화살표 머리 크기', 1, .25, .25, 3, '배');
+            const color = colorField(edgeGroup, 'color', '연결선 색상', '#64748b');
+            pair(nodeGroup, 'nodeStroke', '도형 테두리 두께', 1, .5, .5, 10, 'px');
+            const nodeColor = colorField(nodeGroup, 'nodeColor', '도형 테두리 색상', '#64748b');
+            colorField(nodeGroup, 'fill', '도형 배경색', '#ffffff');
+            pair(nodeGroup, 'alpha', '배경 알파', 1, .1, 0, 1, '');
+            const alphaLabel = document.createElement('label'); alphaLabel.textContent = '배경 알파'; alphaLabel.title = '0=투명, 1=불투명';
+            const alpha = document.createElement('input'); alpha.type = 'number'; alpha.min = 0; alpha.max = 1; alpha.step = .05; alpha.setAttribute('aria-label', '배경 알파');
+            fields.alpha = { input: alpha, fallback: 1 }; alpha.addEventListener('change', () => { if (alpha.checkValidity() && alpha.value !== '') change({ alpha: Number(alpha.value) }); else update(); }); alphaLabel.append(alpha); nodeGroup.append(alphaLabel);
+            pair(layoutGroup, 'width', '박스 너비', 1, .1, .3, 3, '배');
+            const directionGroup = document.createElement('div');
+            directionGroup.className = 'trt-mermaid-direction';
+            directionGroup.setAttribute('role', 'group'); directionGroup.setAttribute('aria-label', '그래프 방향');
+            directionGroup.append(document.createTextNode('방향'));
+            [['', '원본 방향'], ['TD', 'TD · 위에서 아래'], ['LR', 'LR · 왼쪽에서 오른쪽']].forEach(([value, title]) => {
+                const element = button(title, title, () => change({ direction: value || null }));
+                directionButtons.push({ element, value }); directionGroup.append(element);
+            });
+            layoutGroup.append(directionGroup);
+            const actions = category('적용과 기록');
+            actions.appendChild(button('초기화', '도표 스타일을 원래대로 복원', () => {
+                color.value = '#64748b'; nodeColor.value = '#64748b';
+                change({ pointSize: null, chartWidth: null, chartHeight: null, layoutSpacing: null, font: null, stroke: null, arrowSize: null, edgeLength: null, width: null, color: null, nodeStroke: null, nodeColor: null, fill: null, alpha: null, textColor: null, direction: null, fontFamily: null, fontWeight: null });
+            }, 'trt-mermaid-fixed-fit'));
+            actions.appendChild(button('코드에 적용', '조절한 스타일을 Mermaid 원본 코드에 적용하고 이전 코드를 inDB에 저장', async function (applyButton) {
+                applyButton.disabled = true;
+                try {
+                    if (!global.MermaidAppearanceSource) throw new Error('코드 적용 모듈이 준비되지 않았습니다. 새로고침하세요.');
+                    await global.MermaidAppearanceSource.apply(wrapper);
+                } catch (error) { status.textContent = '코드 적용 실패: ' + error.message; }
+                finally { applyButton.disabled = false; }
+            }, 'trt-mermaid-fixed-fit'));
+            actions.appendChild(button('변경 기록', 'inDB의 이전 Mermaid 코드 보기 및 복원', function () {
+                if (global.MermaidAppearanceSource) global.MermaidAppearanceSource.showHistory(wrapper, appearanceControls);
+                else status.textContent = '기록 모듈이 준비되지 않았습니다.';
+            }, 'trt-mermaid-fixed-fit'));
+            appearanceControls.appendChild(status); controls.appendChild(appearanceControls); update();
+            if (global.MermaidAppearancePanel) global.MermaidAppearancePanel.attach(wrapper, appearanceControls, appearanceToggle);
+            wrapper.insertBefore(controls, wrapper.firstChild);
+            if (wrapper.__mdvMermaidAppearance) setWrapperMermaidTheme(wrapper, getMermaidTheme(wrapper)).catch(error => { status.textContent = error.message; });
+            updateMermaidThemeButtons(wrapper);
         }
-        updateMermaidThemeButtons(wrapper);
         bindFixedMermaidResize(wrapper);
         setTimeout(function () { applyFixedMermaidSize(wrapper); }, 0);
     }
@@ -1344,7 +1547,7 @@
             const n = mermaidNodes[i];
             try {
                 const renderWrapper = n.closest('.trt-mermaid-wrapper');
-                configureMermaid(getMermaidTheme(renderWrapper));
+                configureMermaid(getMermaidTheme(renderWrapper), renderWrapper?.__mdvMermaidAppearance, renderWrapper?.getAttribute('data-mermaid-original-source'));
                 await global.mermaid.run({ nodes: [n] });
                 restoreSankeyKoreanLabels(n);
                 polishMermaidSvg(n);
@@ -1398,6 +1601,7 @@
             code.textContent = source;
             pre.appendChild(code);
             pre.__mdvMermaidPresentation = {
+                appearance: wrapper.__mdvMermaidAppearance,
                 theme: wrapper.getAttribute('data-mermaid-theme-override'), style: wrapper.style.cssText,
                 fixed: wrapper.__mdvFixedMermaidSizeState && Object.assign({}, wrapper.__mdvFixedMermaidSizeState),
                 pan: wrapper.__mdvMermaidPanState && Object.assign({}, wrapper.__mdvMermaidPanState)
@@ -1464,6 +1668,7 @@
     global.MermaidTRT = {
         renderIn: renderIn,
         loadMermaid: loadMermaid,
+        validateSource: function (source) { return enqueueMermaidWork(async function () { await loadMermaid(); return global.mermaid.parse(source); }); },
         refresh: refresh,
         setDisplayMode: setDisplayMode,
         getDisplayMode: getMermaidDisplayMode,

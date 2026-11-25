@@ -1,0 +1,40 @@
+{
+  "sourceApplied": true,
+  "duplicateSecondOnly": true,
+  "styles": [
+    {
+      "width": "1.5px",
+      "color": "rgb(17, 170, 68)"
+    },
+    {
+      "width": "1.5px",
+      "color": "rgb(17, 170, 68)"
+    },
+    {
+      "width": "1.5px",
+      "color": "rgb(17, 170, 68)"
+    }
+  ],
+  "standalone": {
+    "border": "1.5px",
+    "color": "rgb(17, 170, 68)",
+    "edge": "3px",
+    "font": "21px",
+    "maxWidth": "280px",
+    "weight": "700",
+    "family": "Consolas",
+    "fill": "rgb(238, 119, 34)",
+    "alpha": "0.4",
+    "text": "rgb(34, 51, 204)"
+  },
+  "undoRedo": true,
+  "persistentHistoryAfterReload": true,
+  "restoreBackedUp": true,
+  "deleteOneRecord": true,
+  "deleteFailurePreserved": true,
+  "failures": {
+    "dbError": true,
+    "stale": true,
+    "manualPreserved": true
+  }
+}

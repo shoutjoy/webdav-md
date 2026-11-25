@@ -35,10 +35,11 @@ test('theme control describes its per-diagram action accessibly',()=>{
 });
 
 test('document Mermaid rendering matches the ME preview layout contract', () => {
-  assert.match(source, /theme:\s*dark \? 'dark' : 'default'/);
-  assert.match(source, /flowchart:\s*\{ useMaxWidth: true, htmlLabels: true \}/);
+  assert.match(source, /dark \? 'dark' : 'default'/);
+  assert.match(source, /flowchart: Object.assign\(\{ useMaxWidth: true, htmlLabels: true \}/);
   assert.match(source, /primaryColor:\s*'#111827'[\s\S]*background:\s*'#0b1220'/);
-  assert.doesNotMatch(source, /wrappingWidth|markdownAutoWrap/);
+  assert.match(source, /a.width \? \{ padding: 20 \* a.width, wrappingWidth: 200 \* a.width \} : \{\}/);
+  assert.doesNotMatch(source, /markdownAutoWrap/);
   assert.doesNotMatch(source, /function expandMermaidSvgBounds/);
   assert.doesNotMatch(source, /foreignObject\.setAttribute\('width'/);
   assert.doesNotMatch(source, /foreignObject,foreignObject>div\{overflow:visible/);

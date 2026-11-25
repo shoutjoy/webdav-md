@@ -1,0 +1,406 @@
+[
+  {
+    "key": "quadrant",
+    "type": "quadrantchart",
+    "saved": "%% MDPRO appearance start\n%% MDPRO appearance values {\"font\":20,\"fontWeight\":700,\"textColor\":\"#112233\",\"fill\":\"#eedd99\",\"nodeColor\":\"#aa2233\",\"nodeStroke\":3,\"stroke\":4,\"color\":\"#2255aa\",\"alpha\":0.6,\"pointSize\":9,\"chartWidth\":1.3,\"chartHeight\":1.2,\"width\":1.3,\"layoutSpacing\":2}\n%%{init: {\"quadrantChart\":{\"chartWidth\":650,\"chartHeight\":600,\"pointRadius\":9},\"themeCSS\":\"text,tspan,foreignObject div,foreignObject span,foreignObject p{font-size:20px!important;}text,tspan,foreignObject *{font-weight:700!important;}\",\"themeVariables\":{\"fontSize\":\"20px\"}}}%%\n%% MDPRO appearance end\nquadrantChart\r\n    title Feature Prioritization\r\n    x-axis Low Effort --> High Effort\r\n    y-axis Low Impact --> High Impact\r\n    quadrant-1 Plan\r\n    quadrant-2 Do First\r\n    quadrant-3 Delegate\r\n    quadrant-4 Eliminate\r\n    Auth System: [0.3, 0.9]\r\n    Dark Mode: [0.1, 0.3]\r\n    API v2: [0.8, 0.8]\r\n    Logo Update: [0.2, 0.1]\r\n    Search: [0.6, 0.7]",
+    "appearance": {
+      "pointSize": 9,
+      "chartWidth": 1.3,
+      "chartHeight": 1.2,
+      "layoutSpacing": 2,
+      "font": 20,
+      "stroke": 4,
+      "nodeStroke": 3,
+      "width": 1.3,
+      "alpha": 0.6,
+      "color": "#2255aa",
+      "nodeColor": "#aa2233",
+      "fill": "#eedd99",
+      "textColor": "#112233",
+      "fontWeight": 700
+    },
+    "shape": {
+      "fill": "rgb(238, 221, 153)",
+      "stroke": "rgb(170, 34, 51)",
+      "opacity": "0.6"
+    },
+    "text": "20px",
+    "beforeBox": "0 0 550 500",
+    "afterBox": "0 0 650 600",
+    "eyeRadii": [
+      "9",
+      "9",
+      "9",
+      "9",
+      "9"
+    ],
+    "beforeEye": [
+      "5",
+      "5",
+      "5",
+      "5",
+      "5"
+    ],
+    "pointRadii": [
+      "9",
+      "9",
+      "9",
+      "9",
+      "9"
+    ],
+    "styledShapes": 9,
+    "svg": "<svg id=\"mermaid-1795572503202\" width=\"100%\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" style=\"max-width: none !important; display: block; margin-left: auto; margin-"
+  },
+  {
+    "key": "mindmap",
+    "type": "mindmap",
+    "saved": "%% MDPRO appearance start\n%% MDPRO appearance values {\"font\":20,\"fontWeight\":700,\"textColor\":\"#112233\",\"fill\":\"#eedd99\",\"nodeColor\":\"#aa2233\",\"nodeStroke\":3,\"stroke\":4,\"color\":\"#2255aa\",\"alpha\":0.6,\"pointSize\":9,\"chartWidth\":1.3,\"chartHeight\":1.2,\"width\":1.3,\"layoutSpacing\":2}\n%%{init: {\"mindmap\":{\"maxNodeWidth\":260,\"padding\":20},\"themeCSS\":\"text,tspan,foreignObject div,foreignObject span,foreignObject p{font-size:20px!important;}text,tspan,foreignObject *{font-weight:700!important;}\",\"themeVariables\":{\"fontSize\":\"20px\"}}}%%\n%% MDPRO appearance end\nmindmap\r\n  root((Project Plan))\r\n    Design\r\n      Wireframes\r\n      Prototypes\r\n      User Research\r\n    Development\r\n      Frontend\r\n      Backend\r\n      Database\r\n    Testing\r\n      Unit Tests\r\n      Integration\r\n      UAT",
+    "appearance": {
+      "pointSize": 9,
+      "chartWidth": 1.3,
+      "chartHeight": 1.2,
+      "layoutSpacing": 2,
+      "font": 20,
+      "stroke": 4,
+      "nodeStroke": 3,
+      "width": 1.3,
+      "alpha": 0.6,
+      "color": "#2255aa",
+      "nodeColor": "#aa2233",
+      "fill": "#eedd99",
+      "textColor": "#112233",
+      "fontWeight": 700
+    },
+    "shape": {
+      "fill": "none",
+      "stroke": "rgb(34, 85, 170)",
+      "opacity": "1"
+    },
+    "text": "20px",
+    "beforeBox": "2.5 2.5 796.6192016601562 454.46112060546875",
+    "afterBox": "-5 -5 1003.7421875 574.467041015625",
+    "eyeRadii": [],
+    "beforeEye": [],
+    "pointRadii": [],
+    "styledShapes": 26,
+    "svg": "<svg id=\"mermaid-1795572503774\" width=\"100%\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" class=\"mindmapDiagram\" style=\"max-width: none !important; display: block; mar"
+  },
+  {
+    "key": "kanban",
+    "type": "kanban",
+    "saved": "---\r\nconfig:\r\n  kanban:\r\n    ticketBaseUrl: https://github.com/mermaid-js/mermaid/issues/#TICKET#\r\n  theme: dark\r\n---\r\n%% MDPRO appearance start\n%% MDPRO appearance values {\"font\":20,\"fontWeight\":700,\"textColor\":\"#112233\",\"fill\":\"#eedd99\",\"nodeColor\":\"#aa2233\",\"nodeStroke\":3,\"stroke\":4,\"color\":\"#2255aa\",\"alpha\":0.6,\"pointSize\":9,\"chartWidth\":1.3,\"chartHeight\":1.2,\"width\":1.3,\"layoutSpacing\":2}\n%% MDPRO appearance end\nkanban\r\n  Todo\r\n    [Create Documentation]\r\n    docs[Create Blog about the new diagram]\r\n  [In progress]\r\n    id6[Create renderer so that it works in all cases. We also add some extra text here for testing purposes. And some more just for the extra flare.]\r\n  id9[Ready for deploy]\r\n    id8[Design grammar]@{ assigned: 'knsv' }\r\n  id10[Ready for test]\r\n    id4[Create parsing tests]@{ ticket: 2038, assigned: 'K.Sveidqvist', priority: 'High' }\r\n    id66[last item]@{ priority: 'Very Low', assigned: 'knsv' }\r\n  id11[Done]\r\n    id5[define getData]\r\n    id2[Title of diagram is more than 100 chars when user duplicates diagram with 100 char]@{ ticket: 2036, priority: 'Very High'}\r\n    id3[Update DB function]@{ ticket: 2037, assigned: knsv, priority: 'High' }\r\n\r\n  id12[Can't reproduce]\r\n    id13[Weird flickering in Firefox]",
+    "appearance": {
+      "pointSize": 9,
+      "chartWidth": 1.3,
+      "chartHeight": 1.2,
+      "layoutSpacing": 2,
+      "font": 20,
+      "stroke": 4,
+      "nodeStroke": 3,
+      "width": 1.3,
+      "alpha": 0.6,
+      "color": "#2255aa",
+      "nodeColor": "#aa2233",
+      "fill": "#eedd99",
+      "textColor": "#112233",
+      "fontWeight": 700
+    },
+    "shape": {
+      "fill": "rgb(238, 221, 153)",
+      "stroke": "rgb(170, 34, 51)",
+      "opacity": "0.6"
+    },
+    "text": "20px",
+    "beforeBox": "115 -385 1545 293",
+    "afterBox": "250 -790 3165 280",
+    "eyeRadii": [],
+    "beforeEye": [],
+    "pointRadii": [],
+    "styledShapes": 46,
+    "svg": "<svg id=\"mermaid-1795572504335\" width=\"100%\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" style=\"max-width: none !important; display: block; margin-left: auto; margin-"
+  },
+  {
+    "key": "journey",
+    "type": "journey",
+    "saved": "%% MDPRO appearance start\n%% MDPRO appearance values {\"font\":20,\"fontWeight\":700,\"textColor\":\"#112233\",\"fill\":\"#eedd99\",\"nodeColor\":\"#aa2233\",\"nodeStroke\":3,\"stroke\":4,\"color\":\"#2255aa\",\"alpha\":0.6,\"pointSize\":9,\"chartWidth\":1.3,\"chartHeight\":1.2,\"width\":1.3,\"layoutSpacing\":2}\n%%{init: {\"journey\":{\"width\":195,\"taskMargin\":100},\"themeCSS\":\"text,tspan,foreignObject div,foreignObject span,foreignObject p{font-size:20px!important;}text,tspan,foreignObject *{font-weight:700!important;}\",\"themeVariables\":{\"fontSize\":\"20px\"}}}%%\n%% MDPRO appearance end\njourney\r\n    title Checkout Journey\r\n    section Browse\r\n      User: 4: Visit store\r\n      User: 3: View product\r\n    section Purchase\r\n      User: 3: Add to cart\r\n      User: 2: Checkout\r\n    section Post-purchase\r\n      User: 4: Receive email",
+    "appearance": {
+      "pointSize": 9,
+      "chartWidth": 1.3,
+      "chartHeight": 1.2,
+      "layoutSpacing": 2,
+      "font": 20,
+      "stroke": 4,
+      "nodeStroke": 3,
+      "width": 1.3,
+      "alpha": 0.6,
+      "color": "#2255aa",
+      "nodeColor": "#aa2233",
+      "fill": "#eedd99",
+      "textColor": "#112233",
+      "fontWeight": 700
+    },
+    "shape": {
+      "fill": "rgb(238, 221, 153)",
+      "stroke": "rgb(170, 34, 51)",
+      "opacity": "0.6"
+    },
+    "text": "20px",
+    "beforeBox": "0 -25 1569.4048461914062 540",
+    "afterBox": "0 -25 2003.4221801757812 540",
+    "eyeRadii": [
+      "1.5",
+      "1.5",
+      "1.5",
+      "1.5",
+      "1.5",
+      "1.5",
+      "1.5",
+      "1.5",
+      "1.5",
+      "1.5"
+    ],
+    "beforeEye": [
+      "1.5",
+      "1.5",
+      "1.5",
+      "1.5",
+      "1.5",
+      "1.5",
+      "1.5",
+      "1.5",
+      "1.5",
+      "1.5"
+    ],
+    "pointRadii": [],
+    "styledShapes": 36,
+    "svg": "<svg id=\"mermaid-1795572504565\" width=\"100%\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" style=\"max-width: none !important; display: block; margin-left: auto; margin-"
+  },
+  {
+    "key": "sequence",
+    "type": "sequencediagram",
+    "saved": "%% MDPRO appearance start\n%% MDPRO appearance values {\"font\":20,\"fontWeight\":700,\"textColor\":\"#112233\",\"fill\":\"#eedd99\",\"nodeColor\":\"#aa2233\",\"nodeStroke\":3,\"stroke\":4,\"color\":\"#2255aa\",\"alpha\":0.6,\"pointSize\":9,\"chartWidth\":1.3,\"chartHeight\":1.2,\"width\":1.3,\"layoutSpacing\":2}\n%%{init: {\"sequence\":{\"width\":195,\"actorMargin\":100,\"messageMargin\":70},\"themeCSS\":\"text,tspan,foreignObject div,foreignObject span,foreignObject p{font-size:20px!important;}text,tspan,foreignObject *{font-weight:700!important;}\",\"themeVariables\":{\"fontSize\":\"20px\"}}}%%\n%% MDPRO appearance end\nsequenceDiagram\r\n    participant Client\r\n    participant API\r\n    participant DB\r\n    Client->>API: GET /users\r\n    API->>DB: query users\r\n    DB-->>API: rows\r\n    API-->>Client: JSON",
+    "appearance": {
+      "pointSize": 9,
+      "chartWidth": 1.3,
+      "chartHeight": 1.2,
+      "layoutSpacing": 2,
+      "font": 20,
+      "stroke": 4,
+      "nodeStroke": 3,
+      "width": 1.3,
+      "alpha": 0.6,
+      "color": "#2255aa",
+      "nodeColor": "#aa2233",
+      "fill": "#eedd99",
+      "textColor": "#112233",
+      "fontWeight": 700
+    },
+    "shape": {
+      "fill": "rgb(238, 221, 153)",
+      "stroke": "rgb(170, 34, 51)",
+      "opacity": "0.6"
+    },
+    "text": "20px",
+    "beforeBox": "-50 -10 675 379",
+    "afterBox": "-50 -10 885 379",
+    "eyeRadii": [
+      "6"
+    ],
+    "beforeEye": [
+      "6"
+    ],
+    "pointRadii": [],
+    "styledShapes": 6,
+    "svg": "<svg id=\"mermaid-1795572504863\" width=\"100%\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" style=\"max-width: none !important; display: block; margin-left: auto; margin-"
+  },
+  {
+    "key": "pie",
+    "type": "pie",
+    "saved": "%% MDPRO appearance start\n%% MDPRO appearance values {\"font\":20,\"fontWeight\":700,\"textColor\":\"#112233\",\"fill\":\"#eedd99\",\"nodeColor\":\"#aa2233\",\"nodeStroke\":3,\"stroke\":4,\"color\":\"#2255aa\",\"alpha\":0.6,\"pointSize\":9,\"chartWidth\":1.3,\"chartHeight\":1.2,\"width\":1.3,\"layoutSpacing\":2}\n%%{init: {\"themeCSS\":\"text,tspan,foreignObject div,foreignObject span,foreignObject p{font-size:20px!important;}text,tspan,foreignObject *{font-weight:700!important;}\",\"themeVariables\":{\"fontSize\":\"20px\"}}}%%\n%% MDPRO appearance end\npie title Tech Stack Usage\r\n    \"JavaScript\" : 40\r\n    \"TypeScript\" : 30\r\n    \"Python\" : 15\r\n    \"Go\" : 10\r\n    \"Other\" : 5",
+    "appearance": {
+      "pointSize": 9,
+      "chartWidth": 1.3,
+      "chartHeight": 1.2,
+      "layoutSpacing": 2,
+      "font": 20,
+      "stroke": 4,
+      "nodeStroke": 3,
+      "width": 1.3,
+      "alpha": 0.6,
+      "color": "#2255aa",
+      "nodeColor": "#aa2233",
+      "fill": "#eedd99",
+      "textColor": "#112233",
+      "fontWeight": 700
+    },
+    "shape": {
+      "fill": "rgb(238, 221, 153)",
+      "stroke": "rgb(170, 34, 51)",
+      "opacity": "0.6"
+    },
+    "text": "20px",
+    "beforeBox": "0 0 592.5399780273438 450",
+    "afterBox": "0 0 618.2698974609375 450",
+    "eyeRadii": [],
+    "beforeEye": [],
+    "pointRadii": [],
+    "styledShapes": 11,
+    "svg": "<svg id=\"mermaid-1795572505148\" width=\"100%\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" viewBox=\"0 0 618.2698974609375 450\" style=\"max-width: none !important; displa"
+  },
+  {
+    "key": "timeline",
+    "type": "timeline",
+    "saved": "%% MDPRO appearance start\n%% MDPRO appearance values {\"font\":20,\"fontWeight\":700,\"textColor\":\"#112233\",\"fill\":\"#eedd99\",\"nodeColor\":\"#aa2233\",\"nodeStroke\":3,\"stroke\":4,\"color\":\"#2255aa\",\"alpha\":0.6,\"pointSize\":9,\"chartWidth\":1.3,\"chartHeight\":1.2,\"width\":1.3,\"layoutSpacing\":2}\n%%{init: {\"timeline\":{\"padding\":100},\"themeCSS\":\"text,tspan,foreignObject div,foreignObject span,foreignObject p{font-size:20px!important;}text,tspan,foreignObject *{font-weight:700!important;}\",\"themeVariables\":{\"fontSize\":\"20px\"}}}%%\n%% MDPRO appearance end\ntimeline\r\n    title Product Launch Timeline\r\n    2024-Q1 : Research\r\n             : User interviews\r\n    2024-Q2 : Design\r\n             : Prototyping\r\n    2024-Q3 : Development\r\n             : Testing\r\n    2024-Q4 : Launch\r\n             : Marketing",
+    "appearance": {
+      "pointSize": 9,
+      "chartWidth": 1.3,
+      "chartHeight": 1.2,
+      "layoutSpacing": 2,
+      "font": 20,
+      "stroke": 4,
+      "nodeStroke": 3,
+      "width": 1.3,
+      "alpha": 0.6,
+      "color": "#2255aa",
+      "nodeColor": "#aa2233",
+      "fill": "#eedd99",
+      "textColor": "#112233",
+      "fontWeight": 700
+    },
+    "shape": {
+      "fill": "rgb(238, 221, 153)",
+      "stroke": "rgb(170, 34, 51)",
+      "opacity": "0.6"
+    },
+    "text": "20px",
+    "beforeBox": "87.5 -61.5 1215 562.4000244140625",
+    "afterBox": "50 -103 1290 678.4000244140625",
+    "eyeRadii": [],
+    "beforeEye": [],
+    "pointRadii": [],
+    "styledShapes": 12,
+    "svg": "<svg id=\"mermaid-1795572505429\" width=\"100%\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" style=\"max-width: none !important; display: block; margin-left: auto; margin-"
+  },
+  {
+    "key": "xychart",
+    "type": "xychart-beta",
+    "saved": "%% MDPRO appearance start\n%% MDPRO appearance values {\"font\":20,\"fontWeight\":700,\"textColor\":\"#112233\",\"fill\":\"#eedd99\",\"nodeColor\":\"#aa2233\",\"nodeStroke\":3,\"stroke\":4,\"color\":\"#2255aa\",\"alpha\":0.6,\"pointSize\":9,\"chartWidth\":1.3,\"chartHeight\":1.2,\"width\":1.3,\"layoutSpacing\":2}\n%%{init: {\"xyChart\":{\"width\":910,\"height\":600},\"themeCSS\":\"text,tspan,foreignObject div,foreignObject span,foreignObject p{font-size:20px!important;}text,tspan,foreignObject *{font-weight:700!important;}\",\"themeVariables\":{\"fontSize\":\"20px\"}}}%%\n%% MDPRO appearance end\nxychart-beta\r\n    title \"Monthly Revenue\"\r\n    x-axis [Jan, Feb, Mar, Apr, May, Jun]\r\n    y-axis \"Revenue (USD)\" 0 --> 10000\r\n    bar [5000, 6200, 7800, 5500, 8900, 9200]\r\n    line [5000, 6200, 7800, 5500, 8900, 9200]",
+    "appearance": {
+      "pointSize": 9,
+      "chartWidth": 1.3,
+      "chartHeight": 1.2,
+      "layoutSpacing": 2,
+      "font": 20,
+      "stroke": 4,
+      "nodeStroke": 3,
+      "width": 1.3,
+      "alpha": 0.6,
+      "color": "#2255aa",
+      "nodeColor": "#aa2233",
+      "fill": "#eedd99",
+      "textColor": "#112233",
+      "fontWeight": 700
+    },
+    "shape": {
+      "fill": "rgb(238, 221, 153)",
+      "stroke": "rgb(170, 34, 51)",
+      "opacity": "0.6"
+    },
+    "text": "20px",
+    "beforeBox": "0 0 770.0000000000001 500",
+    "afterBox": "0 0 910 600",
+    "eyeRadii": [],
+    "beforeEye": [],
+    "pointRadii": [],
+    "styledShapes": 7,
+    "svg": "<svg id=\"mermaid-1795572505822\" width=\"100%\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" style=\"max-width: none !important; display: block; margin-left: auto; margin-"
+  },
+  {
+    "key": "er",
+    "type": "erdiagram",
+    "saved": "%% MDPRO appearance start\n%% MDPRO appearance values {\"font\":20,\"fontWeight\":700,\"textColor\":\"#112233\",\"fill\":\"#eedd99\",\"nodeColor\":\"#aa2233\",\"nodeStroke\":3,\"stroke\":4,\"color\":\"#2255aa\",\"alpha\":0.6,\"pointSize\":9,\"chartWidth\":1.3,\"chartHeight\":1.2,\"width\":1.3,\"layoutSpacing\":2}\n%%{init: {\"themeCSS\":\"text,tspan,foreignObject div,foreignObject span,foreignObject p{font-size:20px!important;}text,tspan,foreignObject *{font-weight:700!important;}\",\"themeVariables\":{\"fontSize\":\"20px\"}}}%%\n%% MDPRO appearance end\nerDiagram\r\n    CUSTOMER ||--o{ ORDER : places\r\n    ORDER ||--|{ LINE_ITEM : contains\r\n    CUSTOMER }|..|{ DELIVERY_ADDRESS : uses\r\n    PRODUCT ||--o{ LINE_ITEM : includes",
+    "appearance": {
+      "pointSize": 9,
+      "chartWidth": 1.3,
+      "chartHeight": 1.2,
+      "layoutSpacing": 2,
+      "font": 20,
+      "stroke": 4,
+      "nodeStroke": 3,
+      "width": 1.3,
+      "alpha": 0.6,
+      "color": "#2255aa",
+      "nodeColor": "#aa2233",
+      "fill": "#eedd99",
+      "textColor": "#112233",
+      "fontWeight": 700
+    },
+    "shape": {
+      "fill": "none",
+      "stroke": "rgb(34, 85, 170)",
+      "opacity": "1"
+    },
+    "text": "20px",
+    "beforeBox": "0 0 700.234375 476",
+    "afterBox": "0 0 779.515625 506",
+    "eyeRadii": [
+      "6",
+      "6",
+      "6",
+      "6"
+    ],
+    "beforeEye": [
+      "6",
+      "6",
+      "6",
+      "6"
+    ],
+    "pointRadii": [],
+    "styledShapes": 10,
+    "svg": "<svg id=\"mermaid-1795572506192\" width=\"100%\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" class=\"erDiagram\" style=\"max-width: none !important; display: block; margin-l"
+  },
+  {
+    "key": "class",
+    "type": "classdiagram",
+    "saved": "%% MDPRO appearance start\n%% MDPRO appearance values {\"font\":20,\"fontWeight\":700,\"textColor\":\"#112233\",\"fill\":\"#eedd99\",\"nodeColor\":\"#aa2233\",\"nodeStroke\":3,\"stroke\":4,\"color\":\"#2255aa\",\"alpha\":0.6,\"pointSize\":9,\"chartWidth\":1.3,\"chartHeight\":1.2,\"width\":1.3,\"layoutSpacing\":2}\n%%{init: {\"themeCSS\":\"text,tspan,foreignObject div,foreignObject span,foreignObject p{font-size:20px!important;}text,tspan,foreignObject *{font-weight:700!important;}\",\"themeVariables\":{\"fontSize\":\"20px\"}}}%%\n%% MDPRO appearance end\nclassDiagram\r\n    class User {\r\n      +String id\r\n      +String name\r\n      +login()\r\n      +logout()\r\n    }\r\n    class Session {\r\n      +String token\r\n      +Date expiresAt\r\n    }\r\n    User \"1\" -- \"many\" Session : creates",
+    "appearance": {
+      "pointSize": 9,
+      "chartWidth": 1.3,
+      "chartHeight": 1.2,
+      "layoutSpacing": 2,
+      "font": 20,
+      "stroke": 4,
+      "nodeStroke": 3,
+      "width": 1.3,
+      "alpha": 0.6,
+      "color": "#2255aa",
+      "nodeColor": "#aa2233",
+      "fill": "#eedd99",
+      "textColor": "#112233",
+      "fontWeight": 700
+    },
+    "shape": {
+      "fill": "none",
+      "stroke": "rgb(34, 85, 170)",
+      "opacity": "1"
+    },
+    "text": "20px",
+    "beforeBox": "0 0 186.6328125 426",
+    "afterBox": "0 0 232.2578125 480",
+    "eyeRadii": [
+      "6",
+      "6",
+      "6",
+      "6"
+    ],
+    "beforeEye": [
+      "6",
+      "6",
+      "6",
+      "6"
+    ],
+    "pointRadii": [],
+    "styledShapes": 8,
+    "svg": "<svg id=\"mermaid-1795572506549\" width=\"100%\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" class=\"classDiagram\" style=\"max-width: none !important; display: block; margi"
+  }
+]

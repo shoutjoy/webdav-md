@@ -1,7 +1,7 @@
 'use strict';
 
 const CACHE_PREFIX = 'md-viewer-pwa-';
-const CACHE_VERSION = '20261113-table-prompt-fold-2';
+const CACHE_VERSION = '20261125-mermaid-appearance-3';
 const STATIC_CACHE = CACHE_PREFIX + 'static-' + CACHE_VERSION;
 const RUNTIME_CACHE = CACHE_PREFIX + 'runtime-' + CACHE_VERSION;
 const MAX_RUNTIME_ENTRIES = 80;
@@ -11,6 +11,9 @@ const CORE_ASSETS = [
   './css/style.css',
   './css/tailwind-static.css',
   './js/app.js',
+  './js/mermaid/appearance-panel.js?v=20261125-2',
+  './js/mermaid/appearance-source.js?v=20261125-3',
+  './js/mermaid/appearance-types.js?v=20261125-3',
   './Apps/PWA/manifest.webmanifest',
   './Apps/PWA/icons/icon.svg',
   './Apps/PWA/icons/icon-maskable.svg',

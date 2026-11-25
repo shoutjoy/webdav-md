@@ -1,0 +1,62 @@
+{
+  "categories": 5,
+  "edgeLength": {
+    "shortEdges": [
+      46,
+      93.39234161376953,
+      122.05606842041016,
+      78.08201599121094
+    ],
+    "longEdges": [
+      96,
+      139.682861328125,
+      168.5276336669922,
+      128.08132934570312
+    ]
+  },
+  "boldAndFont": true,
+  "fontExport": {
+    "nativeTextPort": false
+  },
+  "fillAndAlpha": true,
+  "textColor": true,
+  "directions": true,
+  "markers": [
+    {
+      "size": 34,
+      "refX": 11.764705882352942,
+      "color": "rgb(170, 85, 204)",
+      "stroke": "rgb(170, 85, 204)"
+    },
+    {
+      "size": 34,
+      "refX": 11.764705882352942,
+      "color": "rgb(170, 85, 204)",
+      "stroke": "rgb(170, 85, 204)"
+    },
+    {
+      "size": 34,
+      "refX": 11.764705882352942,
+      "color": "rgb(170, 85, 204)",
+      "stroke": "rgb(170, 85, 204)"
+    }
+  ],
+  "png": {
+    "width": 5152,
+    "height": 1848
+  },
+  "floating": true,
+  "dragResize8": true,
+  "dockRestore": true,
+  "keyboardResize": true,
+  "nonmodal": true,
+  "mobile": {
+    "x": 8,
+    "y": 86,
+    "width": 374,
+    "height": 668
+  },
+  "darkTheme": true,
+  "disconnectCleanup": true,
+  "errors": []
+}

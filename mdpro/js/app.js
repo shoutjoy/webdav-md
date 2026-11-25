@@ -9291,6 +9291,32 @@ function bindMermaidQuickMenuDismiss() {
 // button, so every command that depended on execCommand could silently do
 // nothing. Replace the textarea range directly instead; callers keep control
 // of their own caret, scrolling, autosave, and preview updates.
+// Explicit Mermaid commands share WebDAV's editor/CM6 and snapshot undo paths.
+window.MermaidAppearanceEditor = {
+    read: function () {
+        if (!editorTextarea) throw new Error('편집 문서가 없습니다.');
+        syncCurrentMarkdownFromEditor();
+        const host = window.__webdavHostDocument;
+        return { content: String(currentMarkdown || ''), session: String(currentDocumentDisplayRequest),
+            documentKey: host ? 'webdav:' + JSON.stringify(host.path || host.id || host) : getPdfExportDocumentKey(),
+            readOnly: editorTextarea.readOnly || editorTextarea.disabled || !!editorTextarea.__mdCm6View?.state.readOnly };
+    },
+    replace: function (base, start, end, replacement) {
+        const now = this.read();
+        if (now.readOnly || now.session !== base.session || now.documentKey !== base.documentKey || now.content !== base.content)
+            throw new Error('문서가 변경되었거나 읽기 전용입니다. 다시 확인하세요.');
+        if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || end > now.content.length)
+            throw new Error('잘못된 도표 코드 범위입니다.');
+        pushReplaceUndoSnapshot();
+        editorTextarea.setSelectionRange(start, end);
+        if (!replaceEditorSelectionText(replacement)) throw new Error('편집 명령을 실행하지 못했습니다.');
+        currentMarkdown = editorTextarea.value;
+        renderMarkdown();
+        if (activeSidebarTab === 'toc') renderTOC();
+        performAutoSave();
+    }
+};
+
 function replaceEditorSelectionText(replacement) {
     if (!editorTextarea) return false;
     const value = String(editorTextarea.value || '');

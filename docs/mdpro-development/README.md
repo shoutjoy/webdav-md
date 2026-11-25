@@ -37,6 +37,12 @@ WebDAV MDpro와 MDproViewer의 기능 개발, 버그 수정, 리팩터링, 이�
 
 ## 변경 목록
 
+- MDPRO-20261125-MERMAID-TYPE-CONTROLS: [유형별 Mermaid 스타일·배치](changes/2026-11-25-mermaid-diagram-type-controls.md) — 공통 스타일/점·차트 크기·유형별 배치/YAML 보존·31검사/Chrome 10종·전체 앱4종 적용/reload·PNG·웹 빌드 통과. 전체 유형/PV/실문서 미검증, Viewer 미이식/Tauri 미실행.
+
+- MDPRO-20261125-MERMAID-EDGE-LENGTH: [연결선 길이 조절](changes/2026-11-25-mermaid-edge-length.md) — 0.5~5배·표준 코드 저장/reload 복구·28검사/Chrome 2종/웹 빌드 통과. Viewer 읽기 비교·미이식/Tauri 미실행.
+
+- MDPRO-20261125-MERMAID-VIEW-APPEARANCE: [Mermaid 보기 스타일 수정 이식](changes/2026-11-25-mermaid-view-appearance-port.md) — WebDAV ✎·폰트/색/배치·플로팅/Dock·코드 적용/IDB 복원·27검사/Chrome 2종/웹 빌드 통과. 로컬 실제 Mermaid로 검증, CDN·사용자 원문·CM6/NAS/PV·설치 앱 미검증. Viewer 미수정/Tauri 미실행.
+
 - MDPRO-20261115-PARENTHETICAL-EMPHASIS: [괄호 안 통계 기울임](changes/2026-11-15-parenthetical-emphasis.md) — WebDAV 32검사·Chrome 메인 4개 r·수식 회귀·웹 빌드 통과. 실제 PV 초기화 시간 초과로 미검증. Viewer 대응 가드 존재 확인·미수정, Tauri 미실행.
 
 - MDPRO-20261113-MERMAID-COMPACT-PREVIEW: [Mermaid Ref 저장기록 탭·프롬프트 실행 한 행·Dock·Crop](changes/2026-11-13-mermaid-ref-compact-preview.md) — WebDAV 구현·45관련검사/빌드 통과, 브라우저 소켓 권한 오류로 UI 미검증. Viewer 이식/Tauri/설치 대기, 빌드 요청 없음.

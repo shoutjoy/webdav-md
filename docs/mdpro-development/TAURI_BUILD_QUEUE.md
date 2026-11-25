@@ -4,6 +4,12 @@
 
 ## 대기 기능
 
+- MDPRO-20261125-MERMAID-TYPE-CONTROLS: [유형별 Mermaid 조절](changes/2026-11-25-mermaid-diagram-type-controls.md) — WebDAV 구현·31검사/Chrome 10종/전체 앱4종·웹 빌드 완료. Viewer는 flowchart 한정 source 확인, types helper/renderer/source/index/PWA 웹 이식 대기. frontend/native/설치 빌드 미실행·요청 없음.
+
+- MDPRO-20261125-MERMAID-EDGE-LENGTH: [연결선 길이 조절](changes/2026-11-25-mermaid-edge-length.md) — WebDAV 구현/Chrome/28검사/웹 빌드 완료. Viewer renderer 고정 rankSpacing 50 확인, pair/reset/source metadata·init 이식 대기. Viewer frontend/native/설치 미실행, 이번 빌드 요청 없음.
+
+- MDPRO-20261125-MERMAID-VIEW-APPEARANCE: [Mermaid 보기 스타일 이식](changes/2026-11-25-mermaid-view-appearance-port.md) — Viewer 원본 → WebDAV 선택 이식·27검사/Chrome/웹 빌드 완료. Viewer runtime/frontend/native/설치 미수정·미실행. 기존 원본 기능의 WebDAV 적응이므로 자동 역이식/추가 Tauri 빌드 없음. 추후 renderer bounds 보완 역이식은 독립 비교 필요.
+
 - MDPRO-20261115-PARENTHETICAL-EMPHASIS: [괄호 안 통계 기울임](changes/2026-11-15-parenthetical-emphasis.md) — WebDAV 구현·32검사/Chrome 메인/웹 빌드 통과, 실제 PV 미검증. Viewer 대응 가드 존재 읽기 확인; 웹 회귀·캐시·frontend/native/설치 반영 확인 대기. Viewer 수정·Tauri 빌드 요청 없음.
 
 - MDPRO-20261113-MERMAID-COMPACT-PREVIEW: [Mermaid Ref 저장기록 탭·프롬프트 실행 한 행·Dock·Crop](changes/2026-11-13-mermaid-ref-compact-preview.md) — WebDAV 구현·45관련검사/빌드 통과, 브라우저 소켓 권한 오류로 UI 미검증. Viewer 이식/Tauri/설치 대기, 빌드 요청 없음.
