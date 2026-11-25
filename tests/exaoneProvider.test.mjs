@@ -1,0 +1,47 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import {readFileSync} from 'node:fs';
+const src=readFileSync(new URL('../mdpro/js/app.js',import.meta.url),'utf8');
+function fn(name){const m=new RegExp('^(?:async )?function '+name+'\\(','m').exec(src);const rest=src.slice(m.index);return rest.slice(0,rest.indexOf('\n}')+2);}
+function runtime(fetcher=fetch){const data=new Map(),events=[];const ctx=vm.createContext({window:{},localStorage:{getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,String(v)),removeItem:k=>data.delete(k)},fetch:fetcher,TextDecoder,DOMException,setTimeout,clearTimeout,estimateAIChatTokens:s=>String(s).length,retainAIChatHistory:(h,b)=>{const copy=h.slice();while(copy.length&&copy.reduce((n,m)=>n+m.content.length,0)>b)copy.shift();return copy;},normalizeOpenAICompatibleBaseUrl:x=>x,OPENAI_COMPATIBLE_DEFAULTS:{provider:'orcarouter',modelId:'orcarouter/free'},OPENAI_COMPATIBLE_PROVIDER_URLS:{exaone:'https://api.exaone.ai/v1',orcarouter:'https://api.orcarouter.ai/v1'},openAICompatibleRequestUrl:()=>'/api/exaone/chat/completions',openAICompatibleHeaders:()=>({}),readOpenAICompatibleError:async r=>'HTTP '+r.status});
+vm.runInContext(readFileSync(new URL('../mdpro/AI_App/aiChat/reasoning-settings.js',import.meta.url),'utf8'),Object.assign(ctx,{window:{localStorage:ctx.localStorage}}));
+for(const name of ['getOpenAICompatibleProviderStorageKey','ensureExaoneOutputLimit','budgetExaoneOutput','getStoredOpenAICompatibleConnection','applyExaoneGenerationPolicy','fetchExaoneChatWithBackoff','streamOpenAICompatibleChat'])vm.runInContext(fn(name),ctx);
+return {ctx,data,events};}
+const c={provider:'openai-compatible',profile:'exaone',model:'k-exaone_v2.5'};
+test('missing relay and browser CORS failures explain recovery without retrying',async()=>{
+ for(const status of [404,405]){
+  let calls=0;
+  const {ctx}=runtime(async()=>{calls++;return new Response('',{status});});
+  await assert.rejects(ctx.fetchExaoneChatWithBackoff('/api/exaone/chat/completions',{}),/run-local.cmd/);
+  assert.equal(calls,1);
+ }
+ const {ctx}=runtime(async()=>{throw new TypeError('Failed to fetch');});
+ await assert.rejects(ctx.fetchExaoneChatWithBackoff('https://api.exaone.ai/v1/chat/completions',{}),/CORS/);
+ const controller=new AbortController();controller.abort();
+ await assert.rejects(ctx.fetchExaoneChatWithBackoff('https://api.exaone.ai/v1/chat/completions',{signal:controller.signal}),{name:'AbortError'});
+});
+test('EXAONE uses the relay only on HTTP loopback and the API on static hosts',()=>{
+ const ctx=vm.createContext({isLemonadeConnection:()=>false});
+ vm.runInContext(fn('openAICompatibleRequestUrl'),ctx);
+ const connection={provider:'exaone',baseUrl:'https://api.exaone.ai/v1'};
+ for(const hostname of ['localhost','127.0.0.1','[::1]']){
+  ctx.location={protocol:'http:',hostname};
+  assert.equal(ctx.openAICompatibleRequestUrl(connection,'chat/completions'),'/api/exaone/chat/completions');
+ }
+ for(const [protocol,hostname] of [['https:','example.github.io'],['https:','mdpro.example'],['file:',''],['tauri:','localhost']]){
+  ctx.location={protocol,hostname};
+  assert.equal(ctx.openAICompatibleRequestUrl(connection,'chat/completions'),'https://api.exaone.ai/v1/chat/completions');
+ }
+ ctx.location={protocol:'http:',hostname:'localhost'};
+ assert.equal(ctx.openAICompatibleRequestUrl({...connection,baseUrl:'https://custom.example/v1'},'chat/completions'),'https://custom.example/v1/chat/completions');
+ assert.equal(ctx.openAICompatibleRequestUrl({...connection,provider:'orcarouter'},'chat/completions'),'https://api.exaone.ai/v1/chat/completions');
+});
+test('EXAONE credentials never fall back to OrcaRouter and output migration preserves explicit limits',()=>{const {ctx,data}=runtime();data.set('ss_openai_compatible_provider','exaone');data.set('ss_openai_compatible_api_key','other-secret');assert.throws(()=>ctx.getStoredOpenAICompatibleConnection(),/API Key/);data.delete('ss_exaone_output_limit_revision');data.set('ss_openai_compatible_api_key_exaone','fixture');data.set('ss_openai_compatible_max_output_tokens_exaone','8192');let conn=ctx.getStoredOpenAICompatibleConnection();assert.equal(conn.maxOutputTokens,524288);assert.equal(conn.apiKey,'fixture');data.set('ss_openai_compatible_max_output_tokens_exaone','8192');assert.equal(ctx.getStoredOpenAICompatibleConnection().maxOutputTokens,8192);assert.equal(data.get('ss_openai_compatible_api_key'),'other-secret');});
+test('quick low/deep high, explicit max and independent constraints are distinct',()=>{const {ctx}=runtime(),r=ctx.window.AIReasoningSettings;r.describe(c);r.save(c,'max');let body={model:c.model,messages:[{role:'user',content:'hello'}]};ctx.applyExaoneGenerationPolicy(body,{mode:'quick'});assert.equal(body.reasoning_effort,'low');assert.equal(body.chat_template_kwargs.preserve_thinking,false);assert(!('thinking' in body));body={model:c.model,messages:[]};ctx.applyExaoneGenerationPolicy(body,{mode:'reasoning'});assert.equal(body.reasoning_effort,'high');body={model:c.model,messages:[]};const request={mode:'quick',reasoningSetting:r.read(c)};ctx.applyExaoneGenerationPolicy(body,request);r.apply(c.provider,c.model,body,request);assert.equal(body.reasoning_effort,'max');assert.equal(body.messages.length,0);r.apply(c.provider,c.model,body,{...request,disableThinking:true});assert.equal(body.reasoning_effort,'max');assert.throws(()=>r.save(c,'off'));assert.equal(r.describe({...c,profile:'orcarouter'}),null);});
+test('budget retains recent history with generation room and never reserves the full context for output',()=>{const {ctx}=runtime();const b=ctx.budgetExaoneOutput([{role:'user',content:'a'.repeat(9000)},{role:'assistant',content:'b'.repeat(100)}],10000,524288);assert.equal(b.history.length,1);assert.equal(b.outputTokens,9900);assert(b.outputTokens<=10000);});
+test('EXAONE stream handles UTF8/JSON chunk boundaries and separates actual reasoning from answer',async()=>{const payload='data: '+JSON.stringify({choices:[{delta:{reasoning_content:'실제 추론'}}]})+'\n\ndata: '+JSON.stringify({choices:[{delta:{content:'한국어 답변'}}]})+'\n\ndata: '+JSON.stringify({choices:[],usage:{reasoning_tokens:7}})+'\n\ndata: [DONE]\n\n';const bytes=new TextEncoder().encode(payload);const {ctx,events}=runtime(async()=>new Response(new ReadableStream({start(controller){for(let i=0;i<bytes.length;i+=5)controller.enqueue(bytes.slice(i,i+5));controller.close();}}),{headers:{'Content-Type':'text/event-stream'}}));const result=await ctx.streamOpenAICompatibleChat({provider:'exaone'},{model:c.model,messages:[],max_tokens:2048},undefined,e=>events.push(e));assert.equal(result.text,'한국어 답변');assert.equal(result.reasoning,'실제 추론');assert(events.some(e=>e.type==='reasoning.delta'));assert(events.some(e=>e.type==='message.delta'));assert.equal(result.usage.reasoning_tokens,7);});
+test('HTTP 200 error payload is not a successful chat and authentication errors are never retried',async()=>{let count=0;const {ctx}=runtime(async()=>{count++;return new Response('{"error":{"message":"bad key"}}',{headers:{'Content-Type':'application/json'}})});await assert.rejects(ctx.streamOpenAICompatibleChat({provider:'exaone'},{messages:[]},undefined,()=>{}),/bad key/);const bad=runtime(async()=>{count++;return new Response('bad key',{status:401})});const before=count;assert.equal((await bad.ctx.fetchExaoneChatWithBackoff('/api/exaone/chat/completions',{})).status,401);assert.equal(count-before,1);});
+
+test('stop cancels the active reader and suppresses all late answer deltas',async()=>{let sent,cancelled=false;const controller=new AbortController();const {ctx,events}=runtime(async()=>new Response(new ReadableStream({start(c){sent=c;},cancel(){cancelled=true;}}),{headers:{'Content-Type':'text/event-stream'}}));const pending=ctx.streamOpenAICompatibleChat({provider:'exaone'},{model:c.model,messages:[]},controller.signal,e=>events.push(e));await new Promise(r=>setTimeout(r,0));controller.abort();await assert.rejects(pending,{name:'AbortError'});assert(cancelled);assert(!events.some(e=>e.type==='message.delta'));});
+test('owner GitHub Pages EXAONE uses the owner Vercel relay instead of static POST',()=>{const ctx=vm.createContext({location:{protocol:'https:',hostname:'shoutjoy.github.io'},isLemonadeConnection:()=>false});vm.runInContext(fn('openAICompatibleRequestUrl'),ctx);assert.equal(ctx.openAICompatibleRequestUrl({provider:'exaone',baseUrl:'https://api.exaone.ai/v1'},'chat/completions'),'https://mdproviewer.vercel.app/api/exaone');});

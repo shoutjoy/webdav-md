@@ -11,11 +11,12 @@
     }
 
     function saveToWebDav(saveAs, closeAfterSave) {
-        if (!window.__webdavHostDocument) return false;
+        const hostDocument = window.__webdavHostDocument;
+        if (!hostDocument && !saveAs) return saveToWebDav(true, closeAfterSave);
         window.parent.postMessage({
             type: saveAs ? 'webdav-save-document-as' : (closeAfterSave ? 'webdav-save-document-and-close' : 'webdav-save-document'),
-            path: window.__webdavHostDocument.path,
-            fileName: window.__webdavHostDocument.fileName,
+            path: hostDocument?.path || '',
+            fileName: hostDocument?.fileName || 'document.md',
             content: currentDocumentText()
         }, location.origin);
         return true;
@@ -100,7 +101,7 @@
             const menu = document.createElement('div');
             menu.id = 'webdav-save-dropdown-menu';
             menu.className = 'hidden absolute z-[90] right-0 top-[calc(100%+6px)] min-w-40 p-1.5 rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 shadow-xl';
-            menu.innerHTML = '<button type="button" data-action="save-as" class="w-full px-3 py-2 rounded flex items-center gap-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"><i data-lucide="cloud-upload" class="w-4 h-4"></i><span>WDSaveAs</span></button><div class="my-1 border-t border-slate-200 dark:border-slate-700"></div><button type="button" data-action="save-close" class="w-full px-3 py-2 rounded flex items-center gap-2 text-left text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"><i data-lucide="save" class="w-4 h-4"></i><span>저장 후 닫기</span></button>';
+            menu.innerHTML = '<button type="button" data-action="save-as" class="w-full px-3 py-2 rounded flex items-center gap-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"><i data-lucide="cloud-upload" class="w-4 h-4"></i><span>WDSaveAs · 새 WebDAV 파일로 저장</span></button><div class="my-1 border-t border-slate-200 dark:border-slate-700"></div><button type="button" data-action="save-close" class="w-full px-3 py-2 rounded flex items-center gap-2 text-left text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"><i data-lucide="save" class="w-4 h-4"></i><span>저장 후 닫기</span></button>';
             const autosaveRow = document.createElement('div');
             autosaveRow.className = 'mt-1 border-t border-slate-200 dark:border-slate-700 px-3 pt-2 pb-1 flex items-center gap-2 whitespace-nowrap text-xs text-slate-700 dark:text-slate-200';
             autosaveRow.innerHTML = '<label for="webdav-autosave-enabled" class="flex items-center gap-2 cursor-pointer">자동저장 <input id="webdav-autosave-enabled" type="checkbox" checked aria-label="WebDAV 자동저장"></label><input id="webdav-autosave-minutes" type="number" value="10" min="1" max="1440" step="1" aria-label="자동저장 간격 (분)" title="자동저장 간격: 1~1440분 (기본 10분)" class="w-12 px-1 py-1 rounded border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-950 text-center"><span>분</span>';

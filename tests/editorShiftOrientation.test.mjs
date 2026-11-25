@@ -80,6 +80,14 @@ test('legacy orientation, saved footer, and malformed mode restore safely', () =
     assert.equal(setup({ vertical: false }).control.dataset.mode, 'horizontal');
     assert.equal(setup({ vertical: true }).control.dataset.mode, 'vertical');
     assert.equal(setup({ mode: 'footer', vertical: false }).control.dataset.mode, 'footer');
+    assert.equal(setup({ layout: 'footer', vertical: false }).control.dataset.mode, 'footer');
+    assert.equal(setup({ mode: 'vertical', layout: 'footer' }).control.dataset.mode, 'vertical');
+    const migrated = setup({ layout: 'footer', vertical: false, x: 120, y: 180 });
+    migrated.listeners.click();
+    assert.equal(migrated.control.dataset.mode, 'horizontal');
+    assert.equal(setup(migrated.preferences).control.dataset.mode, 'horizontal');
+    assert.equal(migrated.preferences.x, 120);
+    assert.equal(migrated.preferences.y, 180);
     assert.equal(setup({}).control.dataset.mode, 'footer');
     assert.equal(setup({ mode: 'unknown' }).control.dataset.mode, 'footer');
 });

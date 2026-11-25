@@ -33,3 +33,6 @@ artifacts/hwp-20261104-webdav/
 
 # Local Mermaid Ref scoped UI verification
 artifacts/mermaid-scoped-*
+
+# Local task staging files
+/.tmp/

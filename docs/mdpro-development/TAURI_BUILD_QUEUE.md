@@ -1,8 +1,24 @@
 # MDproViewer Tauri 반영 대기 및 빌드 기록
 
+- MDPRO-20261117-NEW-WEBDAV-SAVE: [신규 문서 WebDAV 새 파일 저장](changes/2026-11-17-new-document-webdav-save.md) — 확장자 생략 시 .md 자동 추가 포함, 3검사/빌드 통과, 실제 NAS/UI·Viewer 대상 필요성/Tauri 미검증.
+
+- MDPRO-20261117-MODEL-PROGRESS: [Jena 모델 로드·예상 %](changes/2026-11-17-jena-model-load-progress.md) — 9공급자·64px 우측 버튼, WebDAV 45검사/빌드 통과, Chrome 실행 실패·실제 공급자/Viewer/Tauri 미검증.
+
+- MDPRO-20261117-ORIGINAL-RESTORE: [AI 원문 저장·복원](changes/2026-11-17-original-restore.md) — 문서별 최신 백업·복원 버튼·38검사/빌드 통과, 실제 UI·Viewer·Tauri 대기.
+
+- MDPRO-20261117-IMPORT-REPLACE: [가져온 원문 대체 복구](changes/2026-11-17-import-selection-replace.md) — 35검사/빌드 통과, 실제 UI·Viewer·Tauri 대기. 기존 실시간 계약 검사 3건 문구/캐시 불일치 기록.
+
+- MDPRO-20261116-NPU-STREAMING: [Lemonade NPU 스트리밍 복구](changes/2026-11-16-lemonade-npu-streaming.md) — 전송/이어쓰기 콜백·thinking 정책·46검사/빌드 통과. 실제 속도/UI·Viewer 이식·Tauri 검증 대기.
+
+- MDPRO-20261116-MERGE-RESOLUTION: [Git 병합 충돌 표시 제거](changes/2026-11-16-merge-resolution.md) — 5파일 충돌 제거·양쪽 항목 보존·26검사/웹 빌드 통과. Viewer 이식/Tauri/실제 UI 미실행.
+
+- MDPRO-20261116-EXAONE-405: [EXAONE HTTP 405 요청 경로 보완](changes/2026-11-16-exaone-http-405.md) — GitHub Pages 전용 승인된 Vercel 중계 연결·38회귀/빌드 통과. GitHub Pages 실제 사용자 키 ENV 연결 성공·OK 확인, Tauri 미빌드.
+
 최종 확인: 2026-10-24. 실제 빌드 대상은 `C:\CusorApps\md-viewerVscode\md_viewer`이다. WebDAV의 문서 사본은 참고용이며 대상 앱의 적용·빌드 사실을 대신하지 않는다.
 
 ## 대기 기능
+
+- MDPRO-20261125-MERGE-PUSH-RECOVERY: [오늘 작업 보존·Git 병합/푸시 복구](changes/2026-11-25-merge-push-recovery.md) — 충돌 5파일·중복 ID/변수/CSS 복구·저장 호환·170검사/Chrome18검사/Mermaid4종/웹 빌드 통과. 전체 기존 실패36건 별도 기록. Viewer 미수정·Tauri 해당 없음/미실행.
 
 - MDPRO-20261125-MERMAID-CONTENT: [범용 내용 추가/ME 연결](changes/2026-11-25-mermaid-general-content.md) — WebDAV content/custom2/source/ME 자식/index/PWA 구현·Chrome/41검사/웹 빌드. Viewer 선행 helper/schema/브리지 선택 이식 및 frontend/native/설치 대기. 이번 Tauri 빌드 요청 없음.
 
@@ -22,6 +38,11 @@
 
 - MDPRO-20261125-MERMAID-VIEW-APPEARANCE: [Mermaid 보기 스타일 이식](changes/2026-11-25-mermaid-view-appearance-port.md) — Viewer 원본 → WebDAV 선택 이식·27검사/Chrome/웹 빌드 완료. Viewer runtime/frontend/native/설치 미수정·미실행. 기존 원본 기능의 WebDAV 적응이므로 자동 역이식/추가 Tauri 빌드 없음. 추후 renderer bounds 보완 역이식은 독립 비교 필요.
 
+- MDPRO-20261115-DOCUMENT-CONTROL-FOOTER: [문서 조절기 하단 바 배치](changes/2026-11-15-document-control-footer.md) — WebDAV 구현·상태 회귀 통과, 실제 UI/Viewer 이식/Tauri/설치 검증 대기. 빌드 요청 없음.
+
+- MDPRO-20261115-ENTER-BREAKS: [Markdown Enter 줄바꿈 보존](changes/2026-11-15-markdown-enter-breaks.md) — 공통 parser breaks:true·원문 보존·메인/PV 줄바꿈/수식8개 실제 검증. Viewer 웹 이식/frontend/native/설치 대기, 실제 인쇄/PDF 미검증.
+
+- MDPRO-20261115-EXAONE-PORT: [LG EXAONE ENV·JENA·텍스트 도구 이식](changes/2026-11-15-exaone-provider-port.md) — WebDAV scoped 설정/공통 브리지/고정 SSE relay/EXAONE TL 구현·Chrome 합성·회귀/빌드 검증. Viewer 원본 미수정, 실제 공급자·운영 중계·Tauri frontend/native/설치 검증 대기.
 - MDPRO-20261115-PARENTHETICAL-EMPHASIS: [괄호 안 통계 기울임](changes/2026-11-15-parenthetical-emphasis.md) — WebDAV 구현·32검사/Chrome 메인/웹 빌드 통과, 실제 PV 미검증. Viewer 대응 가드 존재 읽기 확인; 웹 회귀·캐시·frontend/native/설치 반영 확인 대기. Viewer 수정·Tauri 빌드 요청 없음.
 
 - MDPRO-20261113-MERMAID-COMPACT-PREVIEW: [Mermaid Ref 저장기록 탭·프롬프트 실행 한 행·Dock·Crop](changes/2026-11-13-mermaid-ref-compact-preview.md) — WebDAV 구현·45관련검사/빌드 통과, 브라우저 소켓 권한 오류로 UI 미검증. Viewer 이식/Tauri/설치 대기, 빌드 요청 없음.
@@ -143,3 +164,5 @@ publish 스크립트 결과와 최종 제공 경로:
 - MDPRO-20261114-MOVE-MODAL-LAYER: [파일 이동창 전면 표시](changes/2026-11-14-move-modal-layer.md) — WebDAV portal·레이어 수정/빌드 통과, 실제 UI 미검증. Viewer 대응 확인·이식/frontend/native/설치 대기, 빌드 요청 없음.
 
 - MDPRO-20261114-MOVE-SOURCE-EXPAND: [이동 원본 폴더 초기 펼침](changes/2026-11-14-move-source-expand.md) — WebDAV 구현·초기값/빌드 통과, 실제 UI 미검증. Viewer 이식/frontend/native/설치 대기, 빌드 요청 없음.
+
+- MDPRO-20261114-MOVE-SOURCE-EXPAND 후속: 파일이 있는 모든 폴더/조상 초기 펼침·파일 전용 폴더 펼침·읽기 전용 파일 행 추가. [변경 문서](changes/2026-11-14-move-source-expand.md). WebDAV 검사/빌드 통과, 실제 UI 미검증. Viewer 이식/frontend/native/설치 대기.

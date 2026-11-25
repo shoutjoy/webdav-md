@@ -1,4 +1,5 @@
 import { defineConfig, loadEnv } from 'vite';
+import { createExaoneProxyMiddleware } from './src/exaoneProxy.js';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { cpSync } from 'node:fs';
@@ -47,6 +48,7 @@ export default defineConfig(({ mode }) => {
       {
         name: 'ai-jena-web-search-proxy',
         configureServer(server) {
+          server.middlewares.use(createExaoneProxyMiddleware());
           server.middlewares.use(createSystemUsageMiddleware());
           server.middlewares.use(createLemonadeProxyMiddleware({
             baseUrl: env.LEMONADE_BASE_URL,
@@ -63,6 +65,7 @@ export default defineConfig(({ mode }) => {
           }));
         },
         configurePreviewServer(server) {
+          server.middlewares.use(createExaoneProxyMiddleware());
           server.middlewares.use(createSystemUsageMiddleware());
           server.middlewares.use(createLemonadeProxyMiddleware({
             baseUrl: env.LEMONADE_BASE_URL,

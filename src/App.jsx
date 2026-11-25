@@ -1118,14 +1118,15 @@ export default function App() {
   };
 
   const handleSaveFileAs = (nextContent, sourcePath) => {
-    const normalizedSource = normalizeRemotePath(sourcePath || selectedFileRef.current?.remotePath || '/document.md');
+    const isNewDocument = !sourcePath;
+    const normalizedSource = isNewDocument ? '' : normalizeRemotePath(sourcePath);
     const parts = normalizedSource.split('/').filter(Boolean);
     const sourceName = parts.pop() || 'document.md';
     const dotIndex = sourceName.lastIndexOf('.');
-    const copyName = dotIndex > 0
+    const copyName = isNewDocument ? 'document.md' : dotIndex > 0
       ? `${sourceName.slice(0, dotIndex)}-copy${sourceName.slice(dotIndex)}`
       : `${sourceName}-copy.md`;
-    const parentPath = parts.length ? `/${parts.join('/')}` : '/';
+    const parentPath = isNewDocument ? normalizeRemotePath(currentPath || '/') : parts.length ? `/${parts.join('/')}` : '/';
     setSaveAsRequest({ content: String(nextContent ?? ''), sourcePath: normalizedSource, parentPath, suggestedName: copyName });
   };
 

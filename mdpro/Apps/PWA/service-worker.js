@@ -1,7 +1,7 @@
 'use strict';
 
 const CACHE_PREFIX = 'md-viewer-pwa-';
-const CACHE_VERSION = '20261125-mermaid-content-9';
+const CACHE_VERSION = '20261125-merge-recovery-10';
 const STATIC_CACHE = CACHE_PREFIX + 'static-' + CACHE_VERSION;
 const RUNTIME_CACHE = CACHE_PREFIX + 'runtime-' + CACHE_VERSION;
 const MAX_RUNTIME_ENTRIES = 80;
@@ -17,6 +17,7 @@ const CORE_ASSETS = [
   './js/mermaid/appearance-custom2.js?v=20261125-9',
   './js/mermaid/appearance-content.js?v=20261125-9',
   './js/mermaid/appearance-types.js?v=20261125-3',
+  './AI_App/aiChat/reasoning-settings.js',
   './Apps/PWA/manifest.webmanifest',
   './Apps/PWA/icons/icon.svg',
   './Apps/PWA/icons/icon-maskable.svg',
