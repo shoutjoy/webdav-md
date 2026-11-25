@@ -17,8 +17,8 @@ await page.goto(url);await page.waitForFunction(()=>window.testAppReady&&window.
 const code='xychart-beta\n x-axis [Jan, Feb, Mar]\n y-axis "Amount" 0 --> 100\n bar [20,60,40]';
 await page.evaluate(code=>{updateContent('```mermaid\n'+code+'\n```');if(isEditMode)toggleMode('view');},code);
 await page.waitForFunction(()=>document.querySelector('#viewer .bar-plot-0 rect'));
-const w=page.locator('#viewer .trt-mermaid-wrapper');await w.getByRole('button',{name:'도표 스타일 조절',exact:true}).click();await w.getByRole('button',{name:'플로팅',exact:true}).click();const custom=page.locator('.trt-mermaid-custom');
-const list=custom.getByLabel('커스텀 대상 개체',{exact:true});
+const w=page.locator('#viewer .trt-mermaid-wrapper');await w.getByRole('button',{name:'도표 스타일 조절',exact:true}).click();if(await w.getByRole('button',{name:'플로팅',exact:true}).count())await w.getByRole('button',{name:'플로팅',exact:true}).click();const custom=page.locator('.trt-mermaid-custom');const fold=custom.locator(':scope > details.trt-custom-section-fold');if(await fold.count())await fold.evaluate(e=>e.open=true);
+const list=custom.getByLabel('커스텀 대상 개체',{exact:true});assert.equal(await list.evaluate(e=>e.selectedOptions.length),0);assert.equal(await w.locator('[data-mdpro-custom-selected]').count(),0);await custom.getByRole('button',{name:'개체 목록 새로고침',exact:true}).click();assert.equal(await list.evaluate(e=>e.selectedOptions.length),0);
 const indices=await w.evaluate(w=>{const all=MermaidAppearanceCustom.elements(w.querySelector('svg'));return Array.from(w.querySelectorAll('.bar-plot-0 rect')).map(e=>all.indexOf(e));});assert.equal(indices.length,3);
 const unchanged=await w.evaluate(w=>({background:getComputedStyle(w.querySelector('rect.background')).fill,text:w.querySelector('text').textContent}));
 await list.selectOption(String(indices[0]));await custom.getByRole('button',{name:'같은 종류 선택',exact:true}).click();assert.equal(await list.evaluate(e=>e.selectedOptions.length),3);
@@ -37,8 +37,9 @@ await custom.getByRole('button',{name:'설정 JSON 만들기',exact:true}).click
 const saved=await page.evaluate(async()=>{await MermaidAppearanceSource.apply(document.querySelector('#viewer .trt-mermaid-wrapper'));return editorTextarea.value;});
 await page.reload();await page.waitForFunction(()=>window.testAppReady&&window.MermaidAppearanceCustom&&window.InDbStorage?.getDatabase());await page.evaluate(text=>{updateContent(text);if(isEditMode)toggleMode('view');},saved);
 await page.waitForFunction(()=>document.querySelectorAll('#viewer .bar-plot-0 rect').length===3&&getComputedStyle(document.querySelector('#viewer .bar-plot-0 rect')).fill==='rgb(34, 85, 187)');assert.deepEqual(await page.locator('#viewer .bar-plot-0 rect').evaluateAll(es=>es.map(e=>getComputedStyle(e).fill)),colors);
+assert.equal(await page.locator('#viewer [data-mdpro-custom-selected]').count(),0);
 const restored=await page.evaluate(()=>document.querySelector('#viewer .trt-mermaid-wrapper').__mdvMermaidAppearance.custom.tools.map(t=>t.targets.length));assert.deepEqual(restored,[3,2]);
-await page.locator('#viewer .trt-mermaid-wrapper').getByRole('button',{name:'도표 스타일 조절',exact:true}).click();await page.locator('#viewer .trt-mermaid-wrapper').getByRole('button',{name:'플로팅',exact:true}).click();await page.locator('.trt-mermaid-custom').scrollIntoViewIfNeeded();
+await page.locator('#viewer .trt-mermaid-wrapper').getByRole('button',{name:'도표 스타일 조절',exact:true}).click();if(await page.locator('#viewer .trt-mermaid-wrapper').getByRole('button',{name:'플로팅',exact:true}).count())await page.locator('#viewer .trt-mermaid-wrapper').getByRole('button',{name:'플로팅',exact:true}).click();await page.locator('.trt-mermaid-custom').scrollIntoViewIfNeeded();
 const out=path.resolve(root,'../artifacts/mermaid-multiselect-20261125');fs.mkdirSync(out,{recursive:true});await page.screenshot({path:path.join(out,'app.png')});fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({sameKind:true,allBars:true,ctrlSelection:true,groupCounts:restored,colors,backgroundUnchanged:true,reload:true},null,2));console.log('Multi-select, same-kind, all XY bars, grouped tools, other objects preserved, and reload passed.');
 }finally{await browser.close();await new Promise(r=>server.close(r));}
 })().catch(e=>{console.error(e);process.exitCode=1});

@@ -18,6 +18,8 @@
 
 ## 대기 기능
 
+- MDPRO-20261125-MERMAID-NO-AUTOSELECT: [개체 자동 선택 제거](changes/2026-11-25-mermaid-no-default-selection.md) — WebDAV custom/index/PWA 수정·Chrome 검증. 선행 helper 이식 후 Viewer 선택 적용 대기, Tauri 빌드 요청 없음.
+
 - MDPRO-20261125-MERGE-PUSH-RECOVERY: [오늘 작업 보존·Git 병합/푸시 복구](changes/2026-11-25-merge-push-recovery.md) — 충돌 5파일·중복 ID/변수/CSS 복구·저장 호환·170검사/Chrome18검사/Mermaid4종/웹 빌드 통과. 전체 기존 실패36건 별도 기록. Viewer 미수정·Tauri 해당 없음/미실행.
 
 - MDPRO-20261125-MERMAID-CONTENT: [범용 내용 추가/ME 연결](changes/2026-11-25-mermaid-general-content.md) — WebDAV content/custom2/source/ME 자식/index/PWA 구현·Chrome/41검사/웹 빌드. Viewer 선행 helper/schema/브리지 선택 이식 및 frontend/native/설치 대기. 이번 Tauri 빌드 요청 없음.

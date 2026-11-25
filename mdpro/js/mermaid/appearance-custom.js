@@ -95,19 +95,20 @@
         const dash=document.createElement('select');dash.setAttribute('aria-label','개체 선 모양');for(const [v,t] of [['','원래 선 모양'],['solid','실선'],['dashed','파선'],['dotted','점선']])dash.add(new Option(t,v));advanced.append(dash);
         const actions=document.createElement('div');actions.style.cssText='display:flex;flex-wrap:wrap;gap:6px';box.append(actions);
         function button(text,fn){const b=document.createElement('button');b.type='button';b.textContent=text;b.title=actionHelp[text]||text;b.className='trt-mermaid-btn trt-mermaid-fixed-fit';b.onclick=fn;actions.append(b);return b;}
-        let picking=false, initialized=false;
+        let picking=false;
         const svg=()=>wrapper.querySelector('.trt-mermaid-canvas svg');
         const config=()=>{const value=wrapper.__mdvMermaidAppearance?.custom;return value?clean(value):{version:1,sourceKey:sourceKey(wrapper.dataset.mermaidOriginalSource),rules:[]};};
         function selectedAll(){const all=elements(svg()),list=Array.from(select.selectedOptions).map(o=>{const index=Number(o.value),el=all[index];if(!el)throw Error('개체를 다시 선택하세요.');return {el,index,signature:signature(el)};});if(!list.length)throw Error('개체를 하나 이상 선택하세요.');return list;}
         function selected(){return selectedAll()[0];}
         function show(){
             wrapper.querySelectorAll('[data-mdpro-custom-selected]').forEach(e=>e.removeAttribute('data-mdpro-custom-selected'));
+            if(!select.selectedOptions.length){for(const {enabled}of Object.values(fields))enabled.checked=false;dash.value='';status.textContent='선택된 개체가 없습니다. 목록 또는 도표에서 직접 선택하세요.';return;}
             try {const selection=selectedAll(),r=selection[0];selection.forEach(v=>v.el.setAttribute('data-mdpro-custom-selected','1'));const saved=config().rules.find(v=>v.index===r.index&&v.signature===r.signature)?.style||{};
                 for(const [key,{enabled,input}] of Object.entries(fields)){enabled.checked=saved[key]!=null;if(saved[key]!=null)input.value=saved[key];}dash.value=saved.dash||'';
                 status.textContent='선택 '+selection.length+'개 · 개별 설정 '+config().rules.length+'개'+(selection.length>1?' · 입력값은 첫 선택 기준, 적용 시 선택 전체 변경':'');
             }catch(e){status.textContent=e.message;}
         }
-        function refresh(){const previous=new Set(Array.from(select.selectedOptions,o=>o.value));select.replaceChildren();elements(svg()).forEach((el,index)=>{const text=(el.textContent||el.parentElement?.textContent||'').trim().replace(/\s+/g,' ').slice(0,35);select.add(new Option((index+1)+' · '+el.tagName+' · '+(el.getAttribute('class')||'').slice(0,30)+' '+text,String(index)));});Array.from(select.options).forEach(o=>o.selected=previous.has(o.value));if(!initialized&&select.options.length)select.options[0].selected=true;initialized=true;show();renderTools();}
+        function refresh(){const previous=new Set(Array.from(select.selectedOptions,o=>o.value));select.replaceChildren();elements(svg()).forEach((el,index)=>{const text=(el.textContent||el.parentElement?.textContent||'').trim().replace(/\s+/g,' ').slice(0,35);select.add(new Option((index+1)+' · '+el.tagName+' · '+(el.getAttribute('class')||'').slice(0,30)+' '+text,String(index)));});Array.from(select.options).forEach(o=>o.selected=previous.has(o.value));show();renderTools();}
         select.onchange=show;
         button('개체 목록 새로고침',refresh);
         function choose(predicate){const all=elements(svg());Array.from(select.options).forEach(o=>o.selected=predicate(all[Number(o.value)]));show();}

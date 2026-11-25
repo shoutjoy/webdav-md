@@ -51,6 +51,8 @@ WebDAV MDpro와 MDproViewer의 기능 개발, 버그 수정, 리팩터링, 이�
 
 ## 변경 목록
 
+- MDPRO-20261125-MERMAID-NO-AUTOSELECT: [개체 자동 선택 제거](changes/2026-11-25-mermaid-no-default-selection.md) — 초기·목록 갱신·reload 강조0/수동 다중 선택 Chrome·웹 빌드 검증. Viewer 미적용/Tauri 미실행.
+
 - MDPRO-20261125-MERGE-PUSH-RECOVERY: [오늘 작업 보존·Git 병합/푸시 복구](changes/2026-11-25-merge-push-recovery.md) — 충돌 5파일·중복 ID/변수/CSS 복구·저장 호환·170검사/Chrome18검사/Mermaid4종/웹 빌드 통과. 전체 기존 실패36건 별도 기록. Viewer 미수정·Tauri 해당 없음/미실행.
 
 - MDPRO-20261125-MERMAID-CONTENT: [범용 텍스트·내용 추가/Jena ME 연결](changes/2026-11-25-mermaid-general-content.md) — 제목/주석/메모·위치/스타일·XY 숫자 보존·ME 준비/명시 교체·41검사/Chrome 네 유형 저장/reload/출력/웹 빌드. 실제 AI 생성/Viewer/Tauri 미실행.
