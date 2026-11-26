@@ -51,6 +51,8 @@ WebDAV MDpro와 MDproViewer의 기능 개발, 버그 수정, 리팩터링, 이�
 
 ## 변경 목록
 
+- MDPRO-20261126-R-MEMBER-MATH: [R 코드의 달러 기호 수식 오인 방지](changes/2026-11-26-r-member-math.md) — bare R 체인·MathJax 3 제외 클래스·공통 캐시·37회귀/웹 빌드 통과. 실제 UI 결과는 문서 참고. Viewer 기존 구현 읽기 비교·미수정, Tauri 미실행.
+
 - MDPRO-20261125-MERMAID-NO-AUTOSELECT: [개체 자동 선택 제거](changes/2026-11-25-mermaid-no-default-selection.md) — 초기·목록 갱신·reload 강조0/수동 다중 선택 Chrome·웹 빌드 검증. Viewer 미적용/Tauri 미실행.
 
 - MDPRO-20261125-MERGE-PUSH-RECOVERY: [오늘 작업 보존·Git 병합/푸시 복구](changes/2026-11-25-merge-push-recovery.md) — 충돌 5파일·중복 ID/변수/CSS 복구·저장 호환·170검사/Chrome18검사/Mermaid4종/웹 빌드 통과. 전체 기존 실패36건 별도 기록. Viewer 미수정·Tauri 해당 없음/미실행.

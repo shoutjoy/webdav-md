@@ -13,7 +13,7 @@
         }
     };
 
-    var DEFAULT_SCRIPT_URL = 'js/math_render/math_render.js?v=20261116-merge-resolution-1';
+    var DEFAULT_SCRIPT_URL = 'js/math_render/math_render.js?v=20261126-r-member-1';
     var DEFAULT_MATHJAX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-mml-chtml.min.js';
     var TYPESET_QUEUES = typeof WeakMap === 'function' ? new WeakMap() : null;
     var fallbackTypesetQueue = Promise.resolve();
@@ -356,6 +356,7 @@
             // their dollar signs; never pair them with a later math delimiter.
             var codePattern = /`{3,}[^\n]*\n[\s\S]*?\n`{3,}|~{3,}[^\n]*\n[\s\S]*?\n~{3,}|(`+)(?!`)[\s\S]*?\1(?!`)/g;
             var slots = [];
+            var literalSlots = [];
 
             function escapeHtml(value) {
                 return String(value || '')
@@ -433,6 +434,29 @@
                 var end = -1;
 
                 while (i < s.length) {
+                    // Keep attributes and explicitly literal HTML opaque while
+                    // still examining visible text inside ordinary table cells.
+                    if (s[i] === '<') {
+                        var htmlRegion = s.slice(i).match(/^<(pre|code|script|style|textarea)\b[^>]*>[\s\S]*?<\/\1\s*>|^<!--[\s\S]*?-->|^<\/?[a-z][\w:-]*(?=[\s/>])(?:[^<>"']|"[^"]*"|'[^']*')*>/i);
+                        if (htmlRegion) {
+                            out.push(htmlRegion[0]);
+                            i += htmlRegion[0].length;
+                            continue;
+                        }
+                    }
+                    // Bare R member access owns its dollars, even without
+                    // backticks. Explicit math is consumed as a whole below,
+                    // before its body is ever examined for R identifiers.
+                    if (/[A-Za-z.]/.test(s[i]) && (i === 0 || !/[\w.$\\]/.test(s[i - 1]))) {
+                        var member = s.slice(i).match(/^(?:[A-Za-z]|\.(?!\d))[\w.]*(?:\$(?:[A-Za-z]|\.(?!\d))[\w.]*)+/);
+                        if (member) {
+                            literalSlots.push(slots.length);
+                            pushSlot(out, member[0]);
+                            i += member[0].length;
+                            continue;
+                        }
+                    }
+
                     if (s.slice(i, i + 3) === '\\\\(' || s.slice(i, i + 3) === '\\\\[') {
                         var doubledClose = s.slice(i, i + 3) === '\\\\(' ? '\\\\)' : '\\\\]';
                         end = s.indexOf(doubledClose, i + 3);
@@ -527,7 +551,11 @@
                 restoreHtml: function (html) {
                     var out = String(html || '');
                     for (var i = 0; i < slots.length; i += 1) {
-                        out = out.split('@@MATHSEG_' + i + '@@').join(escapeHtml(slots[i]));
+                        var restored = escapeHtml(slots[i]);
+                        // Entities alone become dollar text nodes again in the
+                        // DOM. MathJax must also skip these literal R spans.
+                        if (literalSlots.indexOf(i) >= 0) restored = '<span class="mathjax_ignore">' + restored + '</span>';
+                        out = out.split('@@MATHSEG_' + i + '@@').join(restored);
                     }
                     return out;
                 }

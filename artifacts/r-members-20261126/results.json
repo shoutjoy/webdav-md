@@ -1,0 +1,105 @@
+{
+  "main": {
+    "rows": [
+      [
+        "CA()",
+        "이원분할표에 대한 대응분석 수행"
+      ],
+      [
+        "chisq.test()",
+        "카이제곱 독립성 검정"
+      ],
+      [
+        "prop.table()",
+        "행 또는 열의 조건부 응답비율 계산"
+      ],
+      [
+        "fit$eig",
+        "차원별 고유값 및 설명력"
+      ],
+      [
+        "fit$row$coord",
+        "행 범주의 주좌표"
+      ],
+      [
+        "fit$col$coord",
+        "열 범주의 주좌표"
+      ],
+      [
+        "contrib",
+        "각 차원에 대한 범주별 기여도"
+      ],
+      [
+        "cos2",
+        "각 범주가 해당 차원에 의해 표현되는 정도"
+      ],
+      [
+        "fviz_ca_biplot()",
+        "행과 열의 대응분석 지도 생성"
+      ],
+      [
+        "fviz_contrib()",
+        "차원별 범주 기여도 시각화"
+      ]
+    ],
+    "tableMath": 0,
+    "math": 8,
+    "errors": 0,
+    "tokens": false,
+    "code": "result$points",
+    "bold": true
+  },
+  "preview": {
+    "rows": [
+      [
+        "CA()",
+        "이원분할표에 대한 대응분석 수행"
+      ],
+      [
+        "chisq.test()",
+        "카이제곱 독립성 검정"
+      ],
+      [
+        "prop.table()",
+        "행 또는 열의 조건부 응답비율 계산"
+      ],
+      [
+        "fit$eig",
+        "차원별 고유값 및 설명력"
+      ],
+      [
+        "fit$row$coord",
+        "행 범주의 주좌표"
+      ],
+      [
+        "fit$col$coord",
+        "열 범주의 주좌표"
+      ],
+      [
+        "contrib",
+        "각 차원에 대한 범주별 기여도"
+      ],
+      [
+        "cos2",
+        "각 범주가 해당 차원에 의해 표현되는 정도"
+      ],
+      [
+        "fviz_ca_biplot()",
+        "행과 열의 대응분석 지도 생성"
+      ],
+      [
+        "fviz_contrib()",
+        "차원별 범주 기여도 시각화"
+      ]
+    ],
+    "tableMath": 0,
+    "math": 8,
+    "errors": 0,
+    "tokens": false,
+    "code": "result$points",
+    "bold": true
+  },
+  "originalPreserved": true,
+  "errors": [],
+  "mathJax": "bundled real MathJax SVG; CDN URL served locally by browser route"
+}

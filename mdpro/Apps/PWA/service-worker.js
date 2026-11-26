@@ -1,7 +1,7 @@
 'use strict';
 
 const CACHE_PREFIX = 'md-viewer-pwa-';
-const CACHE_VERSION = '20261125-mermaid-no-selection-11';
+const CACHE_VERSION = '20261126-r-member-1';
 const STATIC_CACHE = CACHE_PREFIX + 'static-' + CACHE_VERSION;
 const RUNTIME_CACHE = CACHE_PREFIX + 'runtime-' + CACHE_VERSION;
 const MAX_RUNTIME_ENTRIES = 80;

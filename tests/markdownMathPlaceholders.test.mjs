@@ -27,6 +27,42 @@ test('R member access inside code never consumes subsequent math', async () => {
   }
 });
 
+test('bare R members in CA tables stay literal through every Markdown entry point', async () => {
+  const root = await load();
+  const source = '| 함수 | 기능 |\n| --- | --- |\n'
+    + '| CA() | 대응분석 |\n| chisq.test() | 독립성 검정 |\n| prop.table() | 응답비율 |\n'
+    + '| fit$eig | 고유값 |\n| fit$row$coord | 행 주좌표 |\n| fit$col$coord | 열 주좌표 |\n'
+    + '| contrib | 기여도 |\n| cos2 | 표현 정도 |\n| fviz_ca_biplot() | 지도 |\n| fviz_contrib() | 시각화 |\n\n'
+    + 'nmds_result$points, .fit$.row$coord 다음 값은 $x_i$ 및 $y_i$; **굵게**';
+  for (const input of [source, root.MarkdownBold.preprocessBold(source)]) {
+    for (const html of [root.MathRender.renderMarkdownSync(root.marked, input), await root.MathRender.renderMarkdownSafe(root.marked, input), root.AIChatMarkdown.toHtml(input)]) {
+      assert.equal((html.match(/<tr>/g) || []).length, 11);
+      for (const member of ['fit$eig', 'fit$row$coord', 'fit$col$coord', 'nmds_result$points', '.fit$.row$coord']) {
+        assert.ok(html.includes('<span class="mathjax_ignore">' + member + '</span>'), html);
+      }
+      assert.ok(html.includes('$x_i$') && html.includes('$y_i$'), html);
+      assert.match(html, /<(?:b|strong)>굵게<\/(?:b|strong)>/);
+      assert.doesNotMatch(html, /MATHSEG|RMEMBER/);
+    }
+  }
+});
+
+test('R protection preserves explicit math, HTML attributes and literal HTML code', async () => {
+  const root = await load();
+  const source = String.raw`$fit$row$ \\(fit$row\\) \(fit$col\) $$fit$eig$$
+
+<span title="fit$row$coord">fit$eig</span> <code>fit$row$coord</code>
+<pre>fit$col$coord</pre> <textarea>fit$row</textarea>`;
+  const html = root.MathRender.renderMarkdownSync(root.marked, source);
+  assert.ok(html.includes('$fit$row$'));
+  assert.ok(html.includes('$$fit$eig$$'));
+  assert.ok(html.includes('title="fit$row$coord"'));
+  assert.ok(html.includes('<code>fit$row$coord</code>'));
+  assert.ok(html.includes('<pre>fit$col$coord</pre>'));
+  assert.ok(html.includes('<textarea>fit$row</textarea>'));
+  assert.equal((html.match(/mathjax_ignore/g) || []).length, 1);
+});
+
 test('report significance cells and numeric labels survive Smart Bold and every Markdown entry point', async () => {
   const root = await load();
   const source = '| item | sig_star | ipa_label | estimate |\n| --- | --- | --- | --- |\n'

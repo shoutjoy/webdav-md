@@ -18,6 +18,8 @@
 
 ## 대기 기능
 
+- MDPRO-20261126-R-MEMBER-MATH: [R 코드 수식 오인 방지](changes/2026-11-26-r-member-math.md) — WebDAV 구현·37회귀/웹 빌드 통과. Viewer에는 별도 R 보호 구현 존재, `tex2jax_ignore`와 MathJax 3 설정 비교·캐시·실제 웹 회귀 확인 필요. 상대 웹 수정/frontend/native/설치 검증 미실행, 빌드 요청 없음.
+
 - MDPRO-20261125-MERMAID-NO-AUTOSELECT: [개체 자동 선택 제거](changes/2026-11-25-mermaid-no-default-selection.md) — WebDAV custom/index/PWA 수정·Chrome 검증. 선행 helper 이식 후 Viewer 선택 적용 대기, Tauri 빌드 요청 없음.
 
 - MDPRO-20261125-MERGE-PUSH-RECOVERY: [오늘 작업 보존·Git 병합/푸시 복구](changes/2026-11-25-merge-push-recovery.md) — 충돌 5파일·중복 ID/변수/CSS 복구·저장 호환·170검사/Chrome18검사/Mermaid4종/웹 빌드 통과. 전체 기존 실패36건 별도 기록. Viewer 미수정·Tauri 해당 없음/미실행.
